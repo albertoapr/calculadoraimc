@@ -71,7 +71,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       }),
       signal: AbortSignal.timeout(15000),
     })
-    if (upstream.status !== 200) return response(502, { error: 'Não foi possível encaminhar o resultado.' })
+    if (!upstream.ok) return response(502, { error: 'Não foi possível encaminhar o resultado.' })
     return response(202, { accepted: true })
   } catch {
     return response(502, { error: 'Não foi possível encaminhar o resultado.' })
