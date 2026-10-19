@@ -129,19 +129,19 @@ function reset() {
       </header>
 
       <form class="form" @submit.prevent="calculate">
-        <label class="field field-wide" for="name">Nome
+        <label class="field field-wide" for="name"><span class="field-label">Nome</span>
           <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Como podemos chamar você?" required>
         </label>
 
-        <label class="field field-wide" for="whatsapp">WhatsApp
+        <label class="field field-wide" for="whatsapp"><span class="field-label">WhatsApp</span>
           <input id="whatsapp" v-model="form.whatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" placeholder="(21) 99999-9999" required>
         </label>
 
-        <label class="field" for="age">Idade <span>anos</span>
+        <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
           <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35" required>
         </label>
 
-        <label class="field" for="sex">Sexo
+        <label class="field" for="sex"><span class="field-label">Sexo</span>
           <select id="sex" v-model="form.sex" name="sex" required>
             <option disabled value="">Selecione</option>
             <option value="feminino">Feminino</option>
@@ -150,11 +150,11 @@ function reset() {
           </select>
         </label>
 
-        <label class="field" for="weight">Peso <span>kg</span>
+        <label class="field" for="weight"><span class="field-label">Peso <span>kg</span></span>
           <input id="weight" v-model="form.weight" name="weight" type="number" inputmode="decimal" min="20" max="400" step="0.1" placeholder="Ex.: 78,5" required>
         </label>
 
-        <label class="field" for="height">Altura <span>cm</span>
+        <label class="field" for="height"><span class="field-label">Altura <span>cm</span></span>
           <input id="height" v-model="form.height" name="height" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 175" required>
         </label>
 
