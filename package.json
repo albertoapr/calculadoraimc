@@ -1,5 +1,5 @@
 {
-  "name": "amplify-vue-template",
+  "name": "calculadora-imc-beta",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,6 @@
     "type-check": "vue-tsc --build --force"
   },
   "dependencies": {
-    "aws-amplify": "^6.6.6",
     "vue": "^3.4.21"
   },
   "devDependencies": {

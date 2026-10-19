@@ -1,26 +1,36 @@
-## AWS Amplify Vue.js Starter Template
+# Calculadora de IMC da Beta
 
-This repository provides a starter template for creating applications using Vue.js and AWS Amplify, emphasizing easy setup for authentication, API, and database capabilities.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O frontend calcula o IMC no navegador. O envio ao personal trainer só acontece depois de a pessoa marcar o consentimento e clicar em **Enviar resultado para a Beta**.
 
-## Overview
+## O que é implantado
 
-This template equips you with a foundational Vue application integrated with AWS Amplify, streamlined for scalability and performance. It is ideal for developers looking to jumpstart their project with pre-configured AWS services like Cognito, AppSync, and DynamoDB.
+- Frontend Vue hospedado pelo Amplify Hosting.
+- API REST pública em API Gateway (`POST /api/imc`) e função Lambda Node.js.
+- A Lambda valida os campos e encaminha apenas os dados autorizados para o hook do OpenClaw.
+- O segredo `OPENCLAW_HOOK_TOKEN` é lido somente pela função; não é enviado ao navegador nem incluído no Git.
+- O API Gateway limita a taxa de requisições para reduzir abuso básico.
 
-## Features
+## Implantar pelo Amplify
 
-- **Authentication**: Setup with Amazon Cognito for secure user authentication.
-- **API**: Ready-to-use GraphQL endpoint with AWS AppSync.
-- **Database**: Real-time database powered by Amazon DynamoDB.
+1. No AWS Amplify, escolha **New app → Host web app → GitHub** e conecte o repositório `albertoapr/calculadoraimc` (branch `main`).
+2. O Amplify detecta `amplify.yml`. O backend é provisionado primeiro; em seguida o build publica `dist/`.
+3. Antes de iniciar o primeiro deploy, abra as configurações de secrets do backend/branch no Amplify e crie `OPENCLAW_HOOK_TOKEN` com o token do hook do OpenClaw. Não o coloque em `VITE_*`, no frontend, no Git ou em `amplify.yml`.
+4. Dispare ou repita o deploy do branch. O Amplify gera `amplify_outputs.json` durante o deploy do backend; o frontend usa o endpoint gerado automaticamente.
+5. Aguarde o backend e o frontend ficarem com status **Deployed**. Acesse o domínio HTTPS disponibilizado em **Hosting**.
 
-## Deploying to AWS
+O frontend estático pode ser compilado sem token, mas o envio só funcionará quando o segredo estiver configurado e o hook `/hooks/imc` estiver acessível. Se o segredo for adicionado depois do primeiro deploy, faça um novo deploy do backend.
 
-For detailed instructions on deploying your application, refer to the [deployment section](https://docs.amplify.aws/vue/start/quickstart/#deploy-a-fullstack-app-to-aws) of our documentation.
+## Desenvolvimento local
 
+```sh
+npm ci
+npm run dev
+```
 
-## Security
+O cálculo funciona localmente; o envio exige a API provisionada. Para desenvolver também o backend, use o Amplify Sandbox com credenciais AWS autorizadas e configure o secret `OPENCLAW_HOOK_TOKEN` no sandbox. Não use o token real em arquivos locais versionados.
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+## Dados e privacidade
 
-## License
+Nome, WhatsApp, idade, sexo, peso, altura e IMC só são enviados após consentimento explícito. A aplicação não mantém banco de dados; a Lambda valida o pedido e repassa os campos consentidos ao hook configurado. O CORS permite que o site público chame a API; isso não substitui validação ou limitação de requisições no backend.
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
+O IMC é uma referência para adultos e não substitui avaliação de profissional de saúde. Para menores de 18 anos, a tela informa que a interpretação precisa de curvas de crescimento.
