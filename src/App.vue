@@ -54,8 +54,10 @@ function calculate() {
     : digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
       ? `+${digits}` : ''
   const age = Number(form.age)
-  const weight = Number(form.weight.replace(',', '.'))
-  const heightCm = Number(form.height.replace(',', '.'))
+  // Vue automatically converts <input type="number"> v-model values to numbers.
+  // String() keeps this safe whether the browser/Vue supplied a number or text.
+  const weight = Number(String(form.weight).replace(',', '.'))
+  const heightCm = Number(String(form.height).replace(',', '.'))
   const nameIsValid = name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name)
   const valuesAreValid = Number.isInteger(age) && age >= 1 && age <= 120 &&
     ['feminino', 'masculino', 'outro'].includes(form.sex) &&
