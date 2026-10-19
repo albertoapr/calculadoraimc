@@ -95,7 +95,8 @@ async function sendResult() {
   sending.value = true
   status.value = 'Enviando…'
   try {
-    const response = await fetch(`${apiUrl.replace(/\/$/, '')}api/imc`, {
+    const apiBase = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`
+    const response = await fetch(new URL('api/imc', apiBase), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(result.value),
