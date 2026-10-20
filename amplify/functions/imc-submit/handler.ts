@@ -23,11 +23,14 @@ function parseBody(event: Parameters<APIGatewayProxyHandler>[0]) {
 
 function validate(data: Record<string, unknown> | null) {
   if (!data) return false
-  const { clientName, whatsapp, age, sex, weight, heightCm, imc, consent, requestId } = data
+  const { clientName, whatsapp, city, age, sex, weight, heightCm, imc, consent, requestId } = data
   const name = typeof clientName === 'string' ? clientName.trim().replace(/\s+/g, ' ') : ''
+  const normalizedCity = typeof city === 'string' ? city.trim().replace(/\s+/g, ' ') : ''
   const phone = typeof whatsapp === 'string' ? whatsapp.replace(/\D/g, '') : ''
   return consent === true && name.length >= 2 && name.length <= 80 &&
     /^[\p{L}\p{M} .'-]+$/u.test(name) && /^55\d{10,11}$/.test(phone) &&
+    normalizedCity.length >= 2 && normalizedCity.length <= 80 &&
+    /^[\p{L}\p{M}\p{N} .'-]+$/u.test(normalizedCity) &&
     Number.isInteger(age) && Number(age) >= 1 && Number(age) <= 120 &&
     ['feminino', 'masculino', 'outro'].includes(String(sex)) &&
     typeof weight === 'number' && Number.isFinite(weight) && weight >= 20 && weight <= 400 &&
@@ -51,6 +54,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 
   const name = String(data.clientName).trim().replace(/\s+/g, ' ')
+  const city = String(data.city).trim().replace(/\s+/g, ' ')
   const phone = String(data.whatsapp).replace(/\D/g, '')
   try {
     const upstream = await fetch(hookUrl, {
@@ -63,6 +67,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       body: JSON.stringify({
         clientName: name,
         whatsapp: `+${phone}`,
+        city,
         age: data.age,
         sex: data.sex,
         weight: data.weight,

@@ -1,6 +1,6 @@
 # Calculadora de IMC da Beta
 
-Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O frontend calcula o IMC no navegador. O envio ao personal trainer só acontece depois de a pessoa marcar o consentimento e clicar em **Enviar resultado para a Beta**.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. Inicialmente, o formulário mostra apenas peso e altura, e calcula o IMC no navegador. Ao marcar **Quero receber contato do personal**, aparecem os campos de contato; o único botão passa a calcular o IMC e enviar os dados após o consentimento.
 
 ## O que é implantado
 
@@ -31,6 +31,6 @@ O cálculo funciona localmente; o envio exige a API provisionada. Para desenvolv
 
 ## Dados e privacidade
 
-Nome, WhatsApp, idade, sexo, peso, altura e IMC só são enviados após consentimento explícito. A aplicação não mantém banco de dados; a Lambda valida o pedido e repassa os campos consentidos ao hook configurado. O CORS permite que o site público chame a API; isso não substitui validação ou limitação de requisições no backend.
+Nome, WhatsApp, cidade, idade, sexo, peso, altura e IMC só são enviados após consentimento explícito. Sem marcar a opção, peso e altura são usados somente no cálculo local. A aplicação não mantém banco de dados; a Lambda valida o pedido e repassa os campos consentidos ao hook configurado. O CORS permite que o site público chame a API; isso não substitui validação ou limitação de requisições no backend.
 
 O IMC é uma referência para adultos e não substitui avaliação de profissional de saúde. Para menores de 18 anos, a tela informa que a interpretação precisa de curvas de crescimento.
