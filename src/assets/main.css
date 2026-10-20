@@ -67,6 +67,10 @@ h2 { font-size: 21px; }
 .score strong { font-family: Manrope, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -.06em; }
 .score span { align-self: flex-end; padding-bottom: 5px; color: #8799b0; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 .result-message { margin: 13px 0 16px; color: #61758f; font-size: 13px; line-height: 1.55; }
+.weight-goal { margin: 15px 0 18px; padding: 15px; border: 1px solid #dbeafe; border-radius: 11px; background: #edf4ff; text-align: center; }
+.weight-goal .eyebrow { margin: 0 0 5px; color: #58739a; }
+.weight-goal strong { display: block; color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; }
+.weight-goal p:last-child { margin: 6px 0 0; color: #506987; font-size: 13px; line-height: 1.5; }
 .scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 18px; }
 .scale span { display: flex; min-height: 47px; flex-direction: column; justify-content: center; padding: 5px; border-radius: 7px; color: #71839a; background: #eaf2ff; text-align: center; font-size: 9px; line-height: 1.35; }
 .scale b { color: #48648b; font-size: 9px; }
@@ -87,6 +91,9 @@ footer { margin: 17px auto 0; color: #71839a; text-align: center; font-size: 12p
   .primary-button { min-height: 56px; font-size: 16px; }
   .result-card { padding: 18px 15px; }
   .result-message { font-size: 14px; }
+  .weight-goal { padding: 16px 12px; }
+  .weight-goal strong { font-size: 29px; }
+  .weight-goal p:last-child { font-size: 14px; }
   .scale { grid-template-columns: repeat(2, 1fr); gap: 7px; }
   .scale span, .scale b { font-size: 11px; }
   .status { font-size: 14px; }

@@ -51,6 +51,22 @@ function category(imc: number) {
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
+const weightToLose = computed(() => {
+  if (!result.value || (result.value.age !== undefined && result.value.age < 18)) return null
+  const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
+  return Number(Math.max(0, result.value.weight - adultReferenceWeight).toFixed(1))
+})
+const weightGoalMessage = computed(() => {
+  if (!result.value) return ''
+  if (result.value.age !== undefined && result.value.age < 18) {
+    return 'Não calculamos meta de perda de peso para menores de 18 anos. A avaliação deve considerar idade e sexo em curvas de crescimento.'
+  }
+  if (result.value.imc < 18.5) {
+    return 'Seu IMC está abaixo da faixa de referência adulta; não é indicado perder peso com base neste cálculo.'
+  }
+  if (result.value.imc < 25) return 'Pela faixa de referência para adultos, você não precisa perder peso.'
+  return 'Estimativa para chegar ao limite superior da faixa de referência do IMC adulto (24,9).'
+})
 const resultMessage = computed(() => {
   if (!result.value) return ''
   if (result.value.age === undefined || result.value.age < 18) {
@@ -158,8 +174,8 @@ async function sendResult(payload: ImcSubmission) {
       <header class="hero">
         <span class="brand"><span class="brand-mark">β</span> BETA</span>
         <p class="eyebrow">CUIDADO QUE COMEÇA COM INFORMAÇÃO</p>
-        <h1 id="page-title">Calculadora de IMC</h1>
-        <p class="intro">Informe seu peso e sua altura para calcular o IMC.</p>
+        <h1 id="page-title">Quantos quilos devo perder?</h1>
+        <p class="intro">Informe seu peso e sua altura para calcular uma estimativa.</p>
       </header>
 
       <form class="form" @submit.prevent="submitForm">
@@ -212,6 +228,12 @@ async function sendResult(payload: ImcSubmission) {
           <div class="score"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
         </div>
         <p class="result-message">{{ resultMessage }}</p>
+        <div class="weight-goal">
+          <p class="eyebrow">ESTIMATIVA PARA ADULTOS</p>
+          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
+          <strong v-else>—</strong>
+          <p>{{ weightGoalMessage }}</p>
+        </div>
         <div class="scale" aria-label="Faixas de IMC para adultos">
           <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
           <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
