@@ -71,9 +71,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       }),
       signal: AbortSignal.timeout(15000),
     })
-    if (!upstream.ok) return response(502, { error: 'Não foi possível encaminhar o resultado.' })
+    if (!upstream.ok) {
+      // Keep diagnostics useful without logging the token, response body, or form data.
+      console.warn('[imc-submit] Hook returned non-2xx', { status: upstream.status })
+      return response(502, { error: 'Não foi possível encaminhar o resultado.' })
+    }
     return response(202, { accepted: true })
-  } catch {
+  } catch (error) {
+    // The error name distinguishes timeout/network failures without exposing request details.
+    console.error('[imc-submit] Hook request failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
     return response(502, { error: 'Não foi possível encaminhar o resultado.' })
   }
 }
