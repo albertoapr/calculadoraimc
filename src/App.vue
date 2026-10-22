@@ -24,8 +24,8 @@ type ImcSubmission = ImcResult & {
 const apiUrl = __IMC_API_URL__
 
 const form = reactive({
-  weight: '',
-  height: '',
+  weight: '70',
+  height: '170',
   contactConsent: false,
   name: '',
   sex: '' as Sex | '',
@@ -183,12 +183,14 @@ async function sendResult() {
       </header>
 
       <form class="form" @submit.prevent="calculateImc">
-        <label class="field" for="weight"><span class="field-label">Peso <span>kg</span></span>
-          <input id="weight" v-model="form.weight" name="weight" type="number" inputmode="decimal" min="20" max="400" step="0.1" placeholder="Ex.: 78,5" required>
+        <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }} kg</output></span>
+          <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="250" step="0.1" aria-label="Peso em quilogramas">
+          <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>250 kg</span></span>
         </label>
 
-        <label class="field" for="height"><span class="field-label">Altura <span>cm</span></span>
-          <input id="height" v-model="form.height" name="height" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 175" required>
+        <label class="field slider-field" for="height"><span class="slider-heading"><span class="field-label">Altura <span>cm</span></span><output for="height">{{ Number(form.height).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} cm</output></span>
+          <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="250" step="0.1" aria-label="Altura em centímetros">
+          <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>250 cm</span></span>
         </label>
 
         <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Calculando…' : 'Calcular IMC' }} <span aria-hidden="true">→</span></button>
