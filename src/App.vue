@@ -84,14 +84,6 @@ const weightGoalMessage = computed(() => {
   if (result.value.imc < 25) return 'Pela faixa de referência para adultos, você não precisa perder peso.'
   return 'Estimativa para chegar ao limite superior da faixa de referência do IMC adulto (24,9).'
 })
-const resultMessage = computed(() => {
-  if (!result.value) return ''
-  if (contactAge.value === undefined || contactAge.value < 18) {
-    return 'Esta classificação é apenas uma referência para adultos. Para menores de 18 anos, a interpretação depende da idade e do sexo; procure um profissional de saúde.'
-  }
-  return category(result.value.imc)[1]
-})
-
 function normalizeWhatsapp(value: string) {
   const digits = value.replace(/\D/g, '')
   if (digits.length === 10 || digits.length === 11) return `+55${digits}`
@@ -131,7 +123,12 @@ function calculateImc() {
 
   const imc = Number((weight / ((heightCm / 100) ** 2)).toFixed(1))
   result.value = { weight, heightCm, imc }
-  document.querySelector('#result')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+}
+
+function editMeasurement() {
+  result.value = null
+  clearContactDetails()
+  status.value = ''
 }
 
 async function sendResult() {
@@ -196,10 +193,10 @@ async function sendResult() {
       <header class="hero">
         <span class="brand"><span class="brand-mark">β</span> BETA</span>
         <h1 id="page-title">Avalie seu peso</h1>
-        <p class="intro">Informe seu peso e sua altura para calcular uma estimativa.</p>
+        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Informe seu peso e sua altura para calcular uma estimativa.' }}</p>
       </header>
 
-      <form class="form" @submit.prevent="calculateImc">
+      <form v-if="!result" class="form" @submit.prevent="calculateImc">
         <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }} kg</output></span>
           <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="250" step="0.1" aria-label="Peso em quilogramas">
           <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>250 kg</span></span>
@@ -210,10 +207,10 @@ async function sendResult() {
           <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>250 cm</span></span>
         </label>
 
-        <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Calculando…' : 'Calcular IMC' }} <span aria-hidden="true">→</span></button>
+        <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Avaliando…' : 'Avaliar' }} <span aria-hidden="true">→</span></button>
       </form>
 
-      <section v-if="result" id="result" class="result-card" aria-live="polite">
+      <section v-else id="result" class="result-card" aria-live="polite">
         <div class="weight-goal">
           <p class="eyebrow">QUANTO PESO PERDER</p>
           <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
@@ -237,8 +234,6 @@ async function sendResult() {
         <div class="result-heading">
           <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
         </div>
-        <p class="result-message">{{ resultMessage }}</p>
-
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
           <span>Quero receber contato do personal</span>
@@ -272,6 +267,8 @@ async function sendResult() {
 
           <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
         </form>
+
+        <button class="back-button" type="button" @click="editMeasurement">Alterar peso e altura</button>
       </section>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>

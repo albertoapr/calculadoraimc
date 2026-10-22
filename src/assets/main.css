@@ -69,6 +69,9 @@ h1 { font-size: clamp(28px, 6vw, 35px); }
 .contact-opt-in { display: flex; min-height: 54px; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; color: #345273; background: #f7faff; font-size: 15px; font-weight: 700; cursor: pointer; }
 .contact-opt-in input { flex: 0 0 auto; width: 20px; height: 20px; margin: 0; accent-color: var(--blue); }
 .contact-fields { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
+.back-button { display: block; width: 100%; min-height: 44px; margin-top: 12px; border: 0; border-radius: 10px; color: #35577f; background: transparent; font-size: 14px; font-weight: 700; }
+.back-button:hover { background: #eaf2ff; }
+.back-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 .result-card { margin-top: 23px; padding: 22px; border: 1px solid #dbeafe; border-radius: 15px; background: #f7faff; }
 .result-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .result-heading .eyebrow { margin: 0 0 6px; }
@@ -76,7 +79,6 @@ h2 { font-size: 21px; }
 .score { display: flex; align-items: center; gap: 7px; color: var(--blue); }
 .score strong { font-family: Manrope, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -.06em; }
 .score span { align-self: flex-end; padding-bottom: 5px; color: #8799b0; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
-.result-message { margin: 13px 0 16px; color: #61758f; font-size: 13px; line-height: 1.55; }
 .weight-goal { margin: 0 0 20px; padding: 15px; border: 1px solid #dbeafe; border-radius: 11px; background: #edf4ff; text-align: center; }
 .weight-goal .eyebrow { margin: 0 0 5px; color: #58739a; }
 .weight-goal strong { display: block; color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; }
@@ -110,7 +112,6 @@ footer { margin: 17px auto 0; color: #71839a; text-align: center; font-size: 12p
   .contact-opt-in { min-height: 56px; font-size: 15px; }
   .primary-button { min-height: 56px; font-size: 16px; }
   .result-card { padding: 18px 15px; }
-  .result-message { font-size: 14px; }
   .weight-goal { padding: 16px 12px; }
   .weight-goal strong { font-size: 29px; }
   .weight-goal p:last-child { font-size: 14px; }
