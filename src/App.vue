@@ -9,7 +9,6 @@ type ImcResult = {
   weight: number
   heightCm: number
   imc: number
-  age?: number
 }
 
 type ImcSubmission = ImcResult & {
@@ -38,9 +37,10 @@ const form = reactive({
 const result = ref<ImcResult | null>(null)
 const status = ref('')
 const sending = ref(false)
-const submitLabel = computed(() => {
-  if (sending.value) return 'Enviando…'
-  return form.contactConsent ? 'Calcular IMC e enviar dados' : 'Calcular IMC'
+const contactAge = computed(() => {
+  if (!form.contactConsent || form.age === '') return undefined
+  const age = Number(String(form.age))
+  return Number.isInteger(age) ? age : undefined
 })
 
 function category(imc: number) {
@@ -52,13 +52,13 @@ function category(imc: number) {
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
 const weightToLose = computed(() => {
-  if (!result.value || (result.value.age !== undefined && result.value.age < 18)) return null
+  if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
   const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
   return Number(Math.max(0, result.value.weight - adultReferenceWeight).toFixed(1))
 })
 const weightGoalMessage = computed(() => {
   if (!result.value) return ''
-  if (result.value.age !== undefined && result.value.age < 18) {
+  if (contactAge.value !== undefined && contactAge.value < 18) {
     return 'Não calculamos meta de perda de peso para menores de 18 anos. A avaliação deve considerar idade e sexo em curvas de crescimento.'
   }
   if (result.value.imc < 18.5) {
@@ -69,7 +69,7 @@ const weightGoalMessage = computed(() => {
 })
 const resultMessage = computed(() => {
   if (!result.value) return ''
-  if (result.value.age === undefined || result.value.age < 18) {
+  if (contactAge.value === undefined || contactAge.value < 18) {
     return 'Esta classificação é apenas uma referência para adultos. Para menores de 18 anos, a interpretação depende da idade e do sexo; procure um profissional de saúde.'
   }
   return category(result.value.imc)[1]
@@ -91,9 +91,18 @@ function clearContactDetails() {
   form.city = ''
 }
 
-async function submitForm() {
+function handleContactConsentChange() {
+  if (!form.contactConsent) {
+    clearContactDetails()
+    status.value = ''
+  }
+}
+
+function calculateImc() {
   if (sending.value) return
   status.value = ''
+
+  clearContactDetails()
 
   const weight = Number(String(form.weight).replace(',', '.'))
   const heightCm = Number(String(form.height).replace(',', '.'))
@@ -103,49 +112,45 @@ async function submitForm() {
     return
   }
 
-  let submission: ImcSubmission | null = null
-  let age: number | undefined
-
-  if (form.contactConsent) {
-    const clientName = form.name.trim().replace(/\s+/g, ' ')
-    const city = form.city.trim().replace(/\s+/g, ' ')
-    const whatsapp = normalizeWhatsapp(form.whatsapp)
-    age = Number(String(form.age))
-    const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
-    const validCity = city.length >= 2 && city.length <= 80 && /^[\p{L}\p{M}\p{N} .'-]+$/u.test(city)
-    const validAge = Number.isInteger(age) && age >= 1 && age <= 120
-    const validSex = ['feminino', 'masculino', 'outro'].includes(form.sex)
-
-    if (!validName || !validCity || !whatsapp || !validAge || !validSex) {
-      status.value = 'Confira nome, sexo, idade, WhatsApp com DDD e cidade.'
-      return
-    }
-
-    submission = {
-      clientName,
-      whatsapp,
-      city,
-      age,
-      sex: form.sex as Sex,
-      weight,
-      heightCm,
-      imc: Number((weight / ((heightCm / 100) ** 2)).toFixed(1)),
-      consent: true,
-      requestId: crypto.randomUUID(),
-    }
-  }
-
   const imc = Number((weight / ((heightCm / 100) ** 2)).toFixed(1))
-  result.value = { weight, heightCm, imc, ...(age === undefined ? {} : { age }) }
+  result.value = { weight, heightCm, imc }
   document.querySelector('#result')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-
-  if (submission) await sendResult(submission)
 }
 
-async function sendResult(payload: ImcSubmission) {
-  if (!apiUrl) {
-    status.value = 'IMC calculado, mas o envio ainda não está configurado nesta versão.'
+async function sendResult() {
+  if (!result.value || !form.contactConsent || sending.value) return
+  status.value = ''
+
+  const clientName = form.name.trim().replace(/\s+/g, ' ')
+  const city = form.city.trim().replace(/\s+/g, ' ')
+  const whatsapp = normalizeWhatsapp(form.whatsapp)
+  const age = Number(String(form.age))
+  const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
+  const validCity = city.length >= 2 && city.length <= 80 && /^[\p{L}\p{M}\p{N} .'-]+$/u.test(city)
+  const validAge = Number.isInteger(age) && age >= 1 && age <= 120
+  const validSex = ['feminino', 'masculino', 'outro'].includes(form.sex)
+
+  if (!validName || !validCity || !whatsapp || !validAge || !validSex) {
+    status.value = 'Confira nome, sexo, idade, WhatsApp com DDD e cidade.'
     return
+  }
+
+  if (!apiUrl) {
+    status.value = 'A avaliação foi calculada, mas o envio ainda não está configurado nesta versão.'
+    return
+  }
+
+  const payload: ImcSubmission = {
+    clientName,
+    whatsapp,
+    city,
+    age,
+    sex: form.sex as Sex,
+    weight: result.value.weight,
+    heightCm: result.value.heightCm,
+    imc: result.value.imc,
+    consent: true,
+    requestId: crypto.randomUUID(),
   }
 
   sending.value = true
@@ -158,10 +163,10 @@ async function sendResult(payload: ImcSubmission) {
       body: JSON.stringify(payload),
     })
     if (!response.ok) throw new Error('request failed')
-    status.value = 'IMC calculado. Dados enviados; o personal poderá entrar em contato pelo WhatsApp informado.'
+    status.value = 'Dados enviados. O personal poderá entrar em contato pelo WhatsApp informado.'
     clearContactDetails()
   } catch {
-    status.value = 'IMC calculado, mas não foi possível enviar os dados agora. Tente novamente.'
+    status.value = 'Não foi possível enviar os dados agora. Tente novamente.'
   } finally {
     sending.value = false
   }
@@ -173,12 +178,11 @@ async function sendResult(payload: ImcSubmission) {
     <section class="calculator" aria-labelledby="page-title">
       <header class="hero">
         <span class="brand"><span class="brand-mark">β</span> BETA</span>
-        <p class="eyebrow">CUIDADO QUE COMEÇA COM INFORMAÇÃO</p>
-        <h1 id="page-title">Quantos quilos devo perder?</h1>
+        <h1 id="page-title">Avalie seu peso</h1>
         <p class="intro">Informe seu peso e sua altura para calcular uma estimativa.</p>
       </header>
 
-      <form class="form" @submit.prevent="submitForm">
+      <form class="form" @submit.prevent="calculateImc">
         <label class="field" for="weight"><span class="field-label">Peso <span>kg</span></span>
           <input id="weight" v-model="form.weight" name="weight" type="number" inputmode="decimal" min="20" max="400" step="0.1" placeholder="Ex.: 78,5" required>
         </label>
@@ -187,12 +191,32 @@ async function sendResult(payload: ImcSubmission) {
           <input id="height" v-model="form.height" name="height" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 175" required>
         </label>
 
-        <label class="contact-opt-in field-wide" for="contact-consent">
-          <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent">
+        <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Calculando…' : 'Calcular IMC' }} <span aria-hidden="true">→</span></button>
+      </form>
+
+      <section v-if="result" id="result" class="result-card" aria-live="polite">
+        <div class="result-heading">
+          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
+          <div class="score"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
+        </div>
+        <p class="result-message">{{ resultMessage }}</p>
+        <div class="weight-goal">
+          <p class="eyebrow">ESTIMATIVA PARA ADULTOS</p>
+          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
+          <strong v-else>—</strong>
+          <p>{{ weightGoalMessage }}</p>
+        </div>
+        <div class="scale" aria-label="Faixas de IMC para adultos">
+          <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
+          <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
+        </div>
+
+        <label class="contact-opt-in" for="contact-consent">
+          <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
           <span>Quero receber contato do personal</span>
         </label>
 
-        <div v-if="form.contactConsent" id="contact-fields" class="contact-fields field-wide">
+        <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
           </label>
@@ -217,27 +241,9 @@ async function sendResult(payload: ImcSubmission) {
           <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
             <input id="city" v-model="form.city" name="city" type="text" autocomplete="address-level2" minlength="2" maxlength="80" placeholder="Ex.: Rio de Janeiro" required>
           </label>
-        </div>
 
-        <button class="primary-button field-wide" type="submit" :disabled="sending">{{ submitLabel }} <span aria-hidden="true">→</span></button>
-      </form>
-
-      <section v-if="result" id="result" class="result-card" aria-live="polite">
-        <div class="result-heading">
-          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
-          <div class="score"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
-        </div>
-        <p class="result-message">{{ resultMessage }}</p>
-        <div class="weight-goal">
-          <p class="eyebrow">ESTIMATIVA PARA ADULTOS</p>
-          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
-          <strong v-else>—</strong>
-          <p>{{ weightGoalMessage }}</p>
-        </div>
-        <div class="scale" aria-label="Faixas de IMC para adultos">
-          <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
-          <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
-        </div>
+          <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
+        </form>
       </section>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>

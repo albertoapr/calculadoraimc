@@ -1,6 +1,6 @@
 # Calculadora de IMC da Beta
 
-Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. Inicialmente, o formulário mostra apenas peso e altura, e calcula o IMC no navegador. Ao marcar **Quero receber contato do personal**, aparecem os campos de contato; o único botão passa a calcular o IMC e enviar os dados após o consentimento.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. Inicialmente, o formulário mostra apenas peso e altura, e calcula o IMC no navegador. Depois da avaliação, a opção **Quero receber contato do personal** abre os campos de contato e um botão separado para enviar os dados após o consentimento.
 
 ## O que é implantado
 
