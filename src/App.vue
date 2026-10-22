@@ -51,6 +51,23 @@ function category(imc: number) {
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
+const gaugeSegments = [
+  { from: 12, to: 18.5, color: '#60a5fa' },
+  { from: 18.5, to: 25, color: '#34d399' },
+  { from: 25, to: 30, color: '#fbbf24' },
+  { from: 30, to: 40, color: '#f87171' },
+]
+function gaugePoint(value: number, radius: number) {
+  const clamped = Math.max(12, Math.min(40, value))
+  const angle = Math.PI - ((clamped - 12) / 28) * Math.PI
+  return { x: 100 + radius * Math.cos(angle), y: 100 - radius * Math.sin(angle) }
+}
+const gaugePaths = gaugeSegments.map(segment => {
+  const start = gaugePoint(segment.from, 78)
+  const end = gaugePoint(segment.to, 78)
+  return { color: segment.color, d: `M ${start.x} ${start.y} A 78 78 0 0 1 ${end.x} ${end.y}` }
+})
+const gaugeNeedle = computed(() => result.value ? gaugePoint(result.value.imc, 58) : gaugePoint(12, 58))
 const weightToLose = computed(() => {
   if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
   const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
@@ -197,21 +214,30 @@ async function sendResult() {
       </form>
 
       <section v-if="result" id="result" class="result-card" aria-live="polite">
-        <div class="result-heading">
-          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
-          <div class="score"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
-        </div>
-        <p class="result-message">{{ resultMessage }}</p>
         <div class="weight-goal">
-          <p class="eyebrow">ESTIMATIVA PARA ADULTOS</p>
+          <p class="eyebrow">QUANTO PESO PERDER</p>
           <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
           <strong v-else>—</strong>
           <p>{{ weightGoalMessage }}</p>
         </div>
-        <div class="scale" aria-label="Faixas de IMC para adultos">
-          <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
-          <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
+
+        <div class="bmi-gauge" role="img" :aria-label="`Odômetro do IMC: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, faixa ${classification}`">
+          <svg viewBox="0 0 200 116" aria-hidden="true" class="gauge-svg">
+            <path v-for="(segment, index) in gaugePaths" :key="index" :d="segment.d" :stroke="segment.color" class="gauge-arc" />
+            <line x1="100" y1="100" :x2="gaugeNeedle.x" :y2="gaugeNeedle.y" class="gauge-needle" />
+            <circle cx="100" cy="100" r="6" class="gauge-hub" />
+          </svg>
+          <div class="gauge-reading"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
+          <div class="gauge-labels">
+            <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
+            <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
+          </div>
         </div>
+
+        <div class="result-heading">
+          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
+        </div>
+        <p class="result-message">{{ resultMessage }}</p>
 
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">

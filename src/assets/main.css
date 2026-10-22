@@ -77,13 +77,21 @@ h2 { font-size: 21px; }
 .score strong { font-family: Manrope, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -.06em; }
 .score span { align-self: flex-end; padding-bottom: 5px; color: #8799b0; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 .result-message { margin: 13px 0 16px; color: #61758f; font-size: 13px; line-height: 1.55; }
-.weight-goal { margin: 15px 0 18px; padding: 15px; border: 1px solid #dbeafe; border-radius: 11px; background: #edf4ff; text-align: center; }
+.weight-goal { margin: 0 0 20px; padding: 15px; border: 1px solid #dbeafe; border-radius: 11px; background: #edf4ff; text-align: center; }
 .weight-goal .eyebrow { margin: 0 0 5px; color: #58739a; }
 .weight-goal strong { display: block; color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; }
 .weight-goal p:last-child { margin: 6px 0 0; color: #506987; font-size: 13px; line-height: 1.5; }
-.scale { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 18px; }
-.scale span { display: flex; min-height: 47px; flex-direction: column; justify-content: center; padding: 5px; border-radius: 7px; color: #71839a; background: #eaf2ff; text-align: center; font-size: 9px; line-height: 1.35; }
-.scale b { color: #48648b; font-size: 9px; }
+.bmi-gauge { width: min(100%, 360px); margin: 0 auto 16px; text-align: center; }
+.gauge-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.gauge-arc { fill: none; stroke-width: 16; stroke-linecap: butt; }
+.gauge-needle { stroke: #163454; stroke-width: 3.5; stroke-linecap: round; }
+.gauge-hub { fill: #163454; stroke: #fff; stroke-width: 2; }
+.gauge-reading { display: flex; justify-content: center; align-items: baseline; gap: 6px; margin-top: -34px; color: var(--blue-dark); }
+.gauge-reading strong { font-family: Manrope, sans-serif; font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gauge-reading span { color: #71839a; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.gauge-labels { display: grid; grid-template-columns: 1.15fr 1.1fr 1fr 1fr; gap: 2px; margin-top: 20px; color: #61758f; font-size: 10px; font-weight: 600; line-height: 1.4; }
+.gauge-labels span { display: flex; flex-direction: column; align-items: center; }
+.gauge-labels b { color: #48648b; font-size: 10px; }
 .send-button { width: 100%; margin-top: 15px; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
@@ -106,8 +114,7 @@ footer { margin: 17px auto 0; color: #71839a; text-align: center; font-size: 12p
   .weight-goal { padding: 16px 12px; }
   .weight-goal strong { font-size: 29px; }
   .weight-goal p:last-child { font-size: 14px; }
-  .scale { grid-template-columns: repeat(2, 1fr); gap: 7px; }
-  .scale span, .scale b { font-size: 11px; }
+  .gauge-labels, .gauge-labels b { font-size: 9px; }
   .status { font-size: 14px; }
   .disclaimer { font-size: 12px; }
 }
