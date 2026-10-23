@@ -101,18 +101,17 @@ h2 { font-size: 21px; }
 .weight-goal .eyebrow { margin: 0 0 5px; color: #58739a; }
 .weight-goal strong { display: block; color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; }
 .weight-goal p:last-child { margin: 6px 0 0; color: #506987; font-size: 13px; line-height: 1.5; }
-.bmi-scale-wrap { position: relative; margin: 49px 0 23px; padding-top: 1px; }
-.bmi-scale-bar { display: flex; height: 18px; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
-.bmi-scale-bar span:first-child { border-radius: 99px 0 0 99px; }
-.bmi-scale-bar span:last-child { border-radius: 0 99px 99px 0; }
-.scale-marker { position: absolute; top: -39px; display: flex; align-items: center; flex-direction: column; transform: translateX(-50%); white-space: nowrap; color: var(--ink); }
-.scale-marker strong { padding: 3px 8px; border-radius: 8px; color: #fff; background: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
-.scale-marker span { margin-top: -1px; color: var(--ink); font-size: 16px; line-height: 1; }
+.bmi-scale-wrap { position: relative; margin: 25px 0 23px; padding-top: 1px; }
+.bmi-scale-bar { position: relative; height: 28px; }
+.bmi-scale-segments { position: absolute; inset: 0; display: flex; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
+.bmi-scale-segments span:first-child { border-radius: 99px 0 0 99px; }
+.bmi-scale-segments span:last-child { border-radius: 0 99px 99px 0; }
+.scale-marker { position: absolute; top: 50%; z-index: 1; transform: translate(-50%, -50%); white-space: nowrap; color: var(--ink); }
+.scale-marker strong { padding: 4px 8px; border: 1px solid rgba(255,255,255,.8); border-radius: 8px; color: #fff; background: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
 .scale-labels { display: grid; grid-template-columns: 6.5fr 6.5fr 5fr 5fr; gap: 2px; margin-top: 8px; color: #536984; font-size: 9px; line-height: 1.3; text-align: center; }
 .scale-labels span { display: flex; min-width: 0; flex-direction: column; overflow-wrap: anywhere; }
 .scale-labels b { color: #334d70; font-size: 9px; }
 .silhouette-section { margin: 20px 0 16px; }
-.silhouette-section > .eyebrow { margin: 0 0 9px; text-align: center; }
 .silhouette-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
 .silhouette-item { display: flex; min-width: 0; align-items: center; flex-direction: column; padding: 8px 3px; border: 1px solid transparent; border-radius: 10px; color: #75869b; text-align: center; }
 .silhouette-item.active { border-color: #9cbcf0; color: var(--blue-dark); background: #eaf2ff; }

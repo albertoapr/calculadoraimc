@@ -309,14 +309,7 @@ async function sendResult() {
 
       <section v-else id="result" class="result-card" aria-live="polite">
         <div class="result-heading">
-          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
-        </div>
-
-        <div v-if="weightGoalAmount !== null || (contactAge !== undefined && contactAge < 18)" class="weight-goal">
-          <p class="eyebrow">{{ weightGoalLabel }}</p>
-          <strong v-if="weightGoalAmount !== null">{{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
-          <strong v-else>—</strong>
-          <p v-if="weightGoalMessage">{{ weightGoalMessage }}</p>
+          <h2>{{ classification }}</h2>
         </div>
 
         <label class="contact-opt-in" for="contact-consent">
@@ -344,14 +337,22 @@ async function sendResult() {
           <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
         </form>
 
+        <div v-if="weightGoalAmount !== null || (contactAge !== undefined && contactAge < 18)" class="weight-goal">
+          <p class="eyebrow">{{ weightGoalLabel }}</p>
+          <strong v-if="weightGoalAmount !== null">{{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
+          <strong v-else>—</strong>
+          <p v-if="weightGoalMessage">{{ weightGoalMessage }}</p>
+        </div>
+
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
-          <div class="scale-marker" :style="{ left: scalePosition }"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span aria-hidden="true">▼</span></div>
-          <div class="bmi-scale-bar"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
+          <div class="bmi-scale-bar">
+            <div class="bmi-scale-segments"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
+            <div class="scale-marker" :style="{ left: scalePosition }"><strong>IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong></div>
+          </div>
           <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
         </div>
 
         <div class="silhouette-section" :class="{ 'male-silhouettes': form.sex === 'masculino' }" :aria-label="`Escala ilustrativa de silhuetas ${silhouetteGenderLabel.toLowerCase()} por classificação de IMC`">
-          <p class="eyebrow">SILHUETAS {{ silhouetteGenderLabel }} · REFERÊNCIA ADULTA</p>
           <div class="silhouette-list">
             <div v-for="(person, index) in bmiSilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
               <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteImage})`, backgroundPositionX: silhouettePositions[index] }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
