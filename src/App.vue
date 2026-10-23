@@ -46,11 +46,12 @@ function getPersonalNameFromPath() {
   if (!words.length) return 'Beta Personal Trainer'
 
   const lowercaseParticles = new Set(['da', 'das', 'de', 'do', 'dos', 'e'])
-  return words.map((word, index) => {
+  const formattedName = words.map((word, index) => {
     const lower = word.toLocaleLowerCase('pt-BR')
     if (index > 0 && lowercaseParticles.has(lower)) return lower
     return `${word.charAt(0).toLocaleUpperCase('pt-BR')}${word.slice(1).toLocaleLowerCase('pt-BR')}`
   }).join(' ')
+  return `${formattedName} Personal Trainer`
 }
 
 const personalName = getPersonalNameFromPath()
@@ -112,20 +113,29 @@ const activeSilhouette = computed(() => {
   if (result.value.imc < 30) return 2
   return 3
 })
-const weightToLose = computed(() => {
+const weightGoalAmount = computed(() => {
   if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
-  const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
-  return Number(Math.max(0, result.value.weight - adultReferenceWeight).toFixed(1))
+  const heightMetersSquared = (result.value.heightCm / 100) ** 2
+  if (result.value.imc < 18.5) {
+    return Number(Math.max(0, 18.5 * heightMetersSquared - result.value.weight).toFixed(1))
+  }
+  if (result.value.imc >= 25) {
+    const adultReferenceWeight = 24.9 * heightMetersSquared
+    return Number(Math.max(0, result.value.weight - adultReferenceWeight).toFixed(1))
+  }
+  return null
+})
+const weightGoalLabel = computed(() => {
+  if (contactAge.value !== undefined && contactAge.value < 18) return 'META DE PESO'
+  return result.value?.imc !== undefined && result.value.imc < 18.5 ? 'PESO A GANHAR' : 'PESO A PERDER'
 })
 const weightGoalMessage = computed(() => {
   if (!result.value) return ''
   if (contactAge.value !== undefined && contactAge.value < 18) {
     return 'Não calculamos meta de perda de peso para menores de 18 anos. A avaliação deve considerar idade e sexo em curvas de crescimento.'
   }
-  if (result.value.imc < 18.5) {
-    return 'Seu IMC está abaixo da faixa de referência adulta; não é indicado perder peso com base neste cálculo.'
-  }
-  if (result.value.imc < 25) return 'Pela faixa de referência para adultos, você não precisa perder peso.'
+  if (result.value.imc < 18.5) return ''
+  if (result.value.imc < 25) return ''
   return 'Estimativa para chegar ao limite superior da faixa de referência do IMC adulto (24,9).'
 })
 function normalizeWhatsapp(value: string) {
@@ -298,6 +308,17 @@ async function sendResult() {
       </form>
 
       <section v-else id="result" class="result-card" aria-live="polite">
+        <div class="result-heading">
+          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
+        </div>
+
+        <div v-if="weightGoalAmount !== null || (contactAge !== undefined && contactAge < 18)" class="weight-goal">
+          <p class="eyebrow">{{ weightGoalLabel }}</p>
+          <strong v-if="weightGoalAmount !== null">{{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
+          <strong v-else>—</strong>
+          <p v-if="weightGoalMessage">{{ weightGoalMessage }}</p>
+        </div>
+
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
           <span>Receber ajuda de um personal</span>
@@ -323,13 +344,6 @@ async function sendResult() {
           <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
         </form>
 
-        <div class="weight-goal">
-          <p class="eyebrow">QUANTO PESO PERDER</p>
-          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
-          <strong v-else>—</strong>
-          <p>{{ weightGoalMessage }}</p>
-        </div>
-
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
           <div class="scale-marker" :style="{ left: scalePosition }"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span aria-hidden="true">▼</span></div>
           <div class="bmi-scale-bar"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
@@ -348,9 +362,6 @@ async function sendResult() {
           <p v-if="result.imc >= 35" class="silhouette-note severe-obesity-note">O gráfico e a escala visual terminam em obesidade grau I; seu IMC está acima da faixa exibida.</p>
         </div>
 
-        <div class="result-heading">
-          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
-        </div>
         <button class="back-button" type="button" @click="editMeasurement">Nova avaliação</button>
       </section>
 

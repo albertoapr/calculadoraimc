@@ -79,7 +79,7 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .primary-button:focus-visible, .text-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 3px; }
 .primary-button:disabled { cursor: not-allowed; opacity: .48; }
 .form > .primary-button { margin-top: 5px; }
-.contact-opt-in { display: flex; min-height: 54px; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; color: #345273; background: #f7faff; font-size: 15px; font-weight: 700; cursor: pointer; }
+.contact-opt-in { display: flex; min-height: 54px; align-items: center; gap: 11px; margin: 22px 0 20px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; color: #345273; background: #f7faff; font-size: 15px; font-weight: 700; cursor: pointer; }
 .contact-opt-in input { flex: 0 0 auto; width: 20px; height: 20px; margin: 0; accent-color: var(--blue); }
 .contact-fields { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
 .back-button { display: block; width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #c9dcf7; border-radius: 10px; color: var(--blue-dark); background: #fff; font-size: 14px; font-weight: 700; }
