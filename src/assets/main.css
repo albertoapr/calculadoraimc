@@ -46,8 +46,8 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
 .gender-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: #f2f7fc; }
 .gender-tab { min-height: 42px; border: 0; border-radius: 9px; color: #60738c; background: transparent; font-size: 15px; font-weight: 700; }
-.gender-tab.active { color: #fff; background: #258346; box-shadow: 0 2px 7px rgba(31, 115, 61, .2); }
-.gender-tab:focus-visible { outline: 3px solid #aad7b4; outline-offset: 2px; }
+.gender-tab.active { color: #fff; background: var(--blue); box-shadow: 0 2px 7px rgba(37, 99, 235, .2); }
+.gender-tab:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 .measurement-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 14px; }
 .field { display: flex; min-width: 0; flex-direction: column; gap: 8px; color: #455b77; font-size: 14px; font-weight: 700; }
 .field-label { color: #455b77; font-size: 14px; font-weight: 700; }
@@ -82,8 +82,8 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .contact-opt-in { display: flex; min-height: 54px; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; color: #345273; background: #f7faff; font-size: 15px; font-weight: 700; cursor: pointer; }
 .contact-opt-in input { flex: 0 0 auto; width: 20px; height: 20px; margin: 0; accent-color: var(--blue); }
 .contact-fields { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
-.back-button { display: block; width: 100%; min-height: 44px; margin-top: 12px; border: 0; border-radius: 10px; color: #35577f; background: transparent; font-size: 14px; font-weight: 700; }
-.back-button:hover { background: #eaf2ff; }
+.back-button { display: block; width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #c9dcf7; border-radius: 10px; color: var(--blue-dark); background: #fff; font-size: 14px; font-weight: 700; }
+.back-button:hover { border-color: #91b6f1; background: #eaf2ff; }
 .back-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 .result-card { margin-top: 23px; padding: 22px; border: 1px solid #dbeafe; border-radius: 15px; background: #f7faff; }
 .evaluation-overlay { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; background: rgba(22, 52, 84, .42); backdrop-filter: blur(3px); animation: evaluation-fade-in .18s ease-out both; }

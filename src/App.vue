@@ -26,6 +26,35 @@ type ImcSubmission = ImcResult & {
 
 const apiUrl = __IMC_API_URL__
 
+function getPersonalNameFromPath() {
+  const encodedName = window.location.pathname.split('/').filter(Boolean)[0]
+  if (!encodedName) return 'Beta Personal Trainer'
+
+  let name = encodedName
+  try {
+    name = decodeURIComponent(encodedName)
+  } catch {
+    return 'Beta Personal Trainer'
+  }
+
+  const words = name
+    .replace(/[-_]+/g, ' ')
+    .replace(/[^\p{L}\p{M}\s'.’]/gu, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (!words.length) return 'Beta Personal Trainer'
+
+  const lowercaseParticles = new Set(['da', 'das', 'de', 'do', 'dos', 'e'])
+  return words.map((word, index) => {
+    const lower = word.toLocaleLowerCase('pt-BR')
+    if (index > 0 && lowercaseParticles.has(lower)) return lower
+    return `${word.charAt(0).toLocaleUpperCase('pt-BR')}${word.slice(1).toLocaleLowerCase('pt-BR')}`
+  }).join(' ')
+}
+
+const personalName = getPersonalNameFromPath()
+
 const form = reactive({
   weight: '70',
   height: '170',
@@ -147,7 +176,7 @@ function calculateImc() {
   evaluating.value = true
   evaluationProgress.value = 0
   const startedAt = performance.now()
-  const duration = 3000
+  const duration = 2000
 
   function animate(now: number) {
     evaluationProgress.value = Math.min(100, Math.round(((now - startedAt) / duration) * 100))
@@ -228,7 +257,7 @@ async function sendResult() {
   <main class="page-shell">
     <section class="calculator" aria-labelledby="page-title">
       <header class="hero">
-        <div class="brand" aria-label="Beta Personal Trainer"><img class="fox-mark" :src="foxMark" alt=""><span>BETA PERSONAL TRAINER</span></div>
+        <div class="brand" :aria-label="personalName"><img class="fox-mark" :src="foxMark" alt=""><span>{{ personalName }}</span></div>
         <h1 id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
@@ -237,7 +266,7 @@ async function sendResult() {
           </svg>
           <span>{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</span>
         </h1>
-        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Quanto falta pra você chegar ao peso ideal?' }}</p>
+        <p v-if="!result" class="intro">Quanto falta pra você chegar ao peso ideal?</p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
@@ -269,37 +298,9 @@ async function sendResult() {
       </form>
 
       <section v-else id="result" class="result-card" aria-live="polite">
-        <div class="weight-goal">
-          <p class="eyebrow">QUANTO PESO PERDER</p>
-          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
-          <strong v-else>—</strong>
-          <p>{{ weightGoalMessage }}</p>
-        </div>
-
-        <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
-          <div class="scale-marker" :style="{ left: scalePosition }"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span aria-hidden="true">▼</span></div>
-          <div class="bmi-scale-bar"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
-          <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
-        </div>
-
-        <div class="silhouette-section" :class="{ 'male-silhouettes': form.sex === 'masculino' }" :aria-label="`Escala ilustrativa de silhuetas ${silhouetteGenderLabel.toLowerCase()} por classificação de IMC`">
-          <p class="eyebrow">SILHUETAS {{ silhouetteGenderLabel }} · REFERÊNCIA ADULTA</p>
-          <div class="silhouette-list">
-            <div v-for="(person, index) in bmiSilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
-              <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteImage})`, backgroundPositionX: silhouettePositions[index] }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
-              <b>{{ person.label }}</b><span>{{ person.range }}</span>
-            </div>
-          </div>
-          <p class="silhouette-note">Referência visual ilustrativa para mulheres adultas; não substitui avaliação profissional.</p>
-          <p v-if="result.imc >= 35" class="silhouette-note severe-obesity-note">O gráfico e a escala visual terminam em obesidade grau I; seu IMC está acima da faixa exibida.</p>
-        </div>
-
-        <div class="result-heading">
-          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
-        </div>
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
-          <span>Quero receber contato do personal</span>
+          <span>Receber ajuda de um personal</span>
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
@@ -322,7 +323,35 @@ async function sendResult() {
           <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
         </form>
 
-        <button class="back-button" type="button" @click="editMeasurement">Alterar peso e altura</button>
+        <div class="weight-goal">
+          <p class="eyebrow">QUANTO PESO PERDER</p>
+          <strong v-if="weightToLose !== null">{{ weightToLose.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
+          <strong v-else>—</strong>
+          <p>{{ weightGoalMessage }}</p>
+        </div>
+
+        <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
+          <div class="scale-marker" :style="{ left: scalePosition }"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span aria-hidden="true">▼</span></div>
+          <div class="bmi-scale-bar"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
+          <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
+        </div>
+
+        <div class="silhouette-section" :class="{ 'male-silhouettes': form.sex === 'masculino' }" :aria-label="`Escala ilustrativa de silhuetas ${silhouetteGenderLabel.toLowerCase()} por classificação de IMC`">
+          <p class="eyebrow">SILHUETAS {{ silhouetteGenderLabel }} · REFERÊNCIA ADULTA</p>
+          <div class="silhouette-list">
+            <div v-for="(person, index) in bmiSilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
+              <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteImage})`, backgroundPositionX: silhouettePositions[index] }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
+              <b>{{ person.label }}</b><span>{{ person.range }}</span>
+            </div>
+          </div>
+          <p class="silhouette-note">Referência visual ilustrativa para adultos; não substitui avaliação profissional.</p>
+          <p v-if="result.imc >= 35" class="silhouette-note severe-obesity-note">O gráfico e a escala visual terminam em obesidade grau I; seu IMC está acima da faixa exibida.</p>
+        </div>
+
+        <div class="result-heading">
+          <div><p class="eyebrow">SEU RESULTADO</p><h2>{{ classification }}</h2></div>
+        </div>
+        <button class="back-button" type="button" @click="editMeasurement">Nova avaliação</button>
       </section>
 
       <div v-if="evaluating" class="evaluation-overlay" role="status" aria-live="polite" :aria-label="`Avaliando: ${evaluationProgress}%`">
