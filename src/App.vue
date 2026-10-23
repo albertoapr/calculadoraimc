@@ -218,7 +218,7 @@ async function sendResult() {
       <header class="hero">
         <span class="brand"><span class="brand-mark">β</span> BETA</span>
         <h1 id="page-title">Avalie seu peso</h1>
-        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Informe seu peso e sua altura para calcular uma estimativa.' }}</p>
+        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Descubra quanto falta pra chegar no peso saudável' }}</p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
