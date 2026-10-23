@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
+import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.png'
+import foxMark from './assets/fox-mark.svg'
 
 declare const __IMC_API_URL__: string
 
@@ -29,7 +31,7 @@ const form = reactive({
   height: '170',
   contactConsent: false,
   name: '',
-  sex: '' as Sex | '',
+  sex: 'feminino' as Sex,
   age: '',
   whatsapp: '',
   city: '',
@@ -56,6 +58,11 @@ function category(imc: number) {
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
+const silhouetteImage = computed(() => form.sex === 'masculino' ? maleSilhouetteScaleImage : silhouetteScaleImage)
+const silhouettePositions = computed(() => form.sex === 'masculino'
+  ? ['0%', '33.333%', '66.667%', '100%']
+  : ['0%', '25%', '50%', '75%'])
+const silhouetteGenderLabel = computed(() => form.sex === 'masculino' ? 'MASCULINAS' : 'FEMININAS')
 const bmiScale = [
   { label: 'Magreza', range: '<18,5', from: 12, to: 18.5, color: '#60a5fa' },
   { label: 'Peso adequado', range: '18,5–24,9', from: 18.5, to: 25, color: '#34d399' },
@@ -102,7 +109,6 @@ function normalizeWhatsapp(value: string) {
 function clearContactDetails() {
   form.contactConsent = false
   form.name = ''
-  form.sex = ''
   form.age = ''
   form.whatsapp = ''
   form.city = ''
@@ -173,7 +179,7 @@ async function sendResult() {
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
   const validCity = city.length >= 2 && city.length <= 80 && /^[\p{L}\p{M}\p{N} .'-]+$/u.test(city)
   const validAge = Number.isInteger(age) && age >= 1 && age <= 120
-  const validSex = ['feminino', 'masculino', 'outro'].includes(form.sex)
+  const validSex = ['feminino', 'masculino'].includes(form.sex)
 
   if (!validName || !validCity || !whatsapp || !validAge || !validSex) {
     status.value = 'Confira nome, sexo, idade, WhatsApp com DDD e cidade.'
@@ -222,12 +228,24 @@ async function sendResult() {
   <main class="page-shell">
     <section class="calculator" aria-labelledby="page-title">
       <header class="hero">
-        <span class="brand"><span class="brand-mark">β</span> BETA</span>
-        <h1 id="page-title">{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</h1>
-        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Descubra quanto falta pra chegar no peso saudável' }}</p>
+        <div class="brand" aria-label="Beta Personal Trainer"><img class="fox-mark" :src="foxMark" alt=""><span>BETA PERSONAL TRAINER</span></div>
+        <h1 id="page-title">
+          <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
+            <rect x="6" y="4" width="28" height="32" rx="6" />
+            <rect x="12" y="9" width="16" height="8" rx="2" />
+            <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
+          </svg>
+          <span>{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</span>
+        </h1>
+        <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Quanto falta pra você chegar ao peso ideal?' }}</p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
+        <div class="gender-tabs field-wide" role="tablist" aria-label="Selecione uma escala corporal">
+          <button id="tab-woman" class="gender-tab" :class="{ active: form.sex === 'feminino' }" type="button" role="tab" :aria-selected="form.sex === 'feminino'" aria-controls="measurement-panel" @click="form.sex = 'feminino'">Mulher</button>
+          <button id="tab-man" class="gender-tab" :class="{ active: form.sex === 'masculino' }" type="button" role="tab" :aria-selected="form.sex === 'masculino'" aria-controls="measurement-panel" @click="form.sex = 'masculino'">Homem</button>
+        </div>
+        <div id="measurement-panel" class="measurement-fields field-wide" role="tabpanel" :aria-labelledby="form.sex === 'feminino' ? 'tab-woman' : 'tab-man'">
         <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} kg</output></span>
           <div class="slider-control-row">
             <button class="slider-adjust" type="button" aria-label="Diminuir peso" :disabled="Number(form.weight) <= 20" @click="adjustMeasurement('weight', -1)">−</button>
@@ -247,6 +265,7 @@ async function sendResult() {
         </label>
 
         <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Avaliando…' : 'Avaliar' }} <span aria-hidden="true">→</span></button>
+        </div>
       </form>
 
       <section v-else id="result" class="result-card" aria-live="polite">
@@ -263,11 +282,11 @@ async function sendResult() {
           <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
         </div>
 
-        <div class="silhouette-section" aria-label="Escala ilustrativa de silhuetas femininas por classificação de IMC">
-          <p class="eyebrow">SILHUETAS FEMININAS · REFERÊNCIA ADULTA</p>
+        <div class="silhouette-section" :class="{ 'male-silhouettes': form.sex === 'masculino' }" :aria-label="`Escala ilustrativa de silhuetas ${silhouetteGenderLabel.toLowerCase()} por classificação de IMC`">
+          <p class="eyebrow">SILHUETAS {{ silhouetteGenderLabel }} · REFERÊNCIA ADULTA</p>
           <div class="silhouette-list">
             <div v-for="(person, index) in bmiSilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
-              <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteScaleImage})`, backgroundPositionX: `${person.position}%` }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
+              <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteImage})`, backgroundPositionX: silhouettePositions[index] }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
               <b>{{ person.label }}</b><span>{{ person.range }}</span>
             </div>
           </div>
@@ -286,15 +305,6 @@ async function sendResult() {
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
-          </label>
-
-          <label class="field" for="sex"><span class="field-label">Sexo</span>
-            <select id="sex" v-model="form.sex" name="sex" required>
-              <option disabled value="">Selecione</option>
-              <option value="feminino">Feminino</option>
-              <option value="masculino">Masculino</option>
-              <option value="outro">Outro / prefiro não informar</option>
-            </select>
           </label>
 
           <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
