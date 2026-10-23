@@ -224,7 +224,7 @@ function sendResult() {
     `Cidade: ${city}`,
     `WhatsApp para contato: ${whatsapp}`,
   ].join('\n')
-  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`
+  const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
   const whatsappWindow = window.open(whatsappUrl, '_blank')
   if (whatsappWindow) {
     whatsappWindow.opener = null
