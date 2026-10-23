@@ -100,7 +100,7 @@ h2 { font-size: 21px; }
 .scale-marker { position: absolute; top: -39px; display: flex; align-items: center; flex-direction: column; transform: translateX(-50%); white-space: nowrap; color: var(--ink); }
 .scale-marker strong { padding: 3px 8px; border-radius: 8px; color: #fff; background: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
 .scale-marker span { margin-top: -1px; color: var(--ink); font-size: 16px; line-height: 1; }
-.scale-labels { display: grid; grid-template-columns: 6.5fr 6.5fr 5fr 5fr 5fr 10fr; gap: 2px; margin-top: 8px; color: #536984; font-size: 9px; line-height: 1.3; text-align: center; }
+.scale-labels { display: grid; grid-template-columns: 6.5fr 6.5fr 5fr 5fr; gap: 2px; margin-top: 8px; color: #536984; font-size: 9px; line-height: 1.3; text-align: center; }
 .scale-labels span { display: flex; min-width: 0; flex-direction: column; overflow-wrap: anywhere; }
 .scale-labels b { color: #334d70; font-size: 9px; }
 .silhouette-section { margin: 20px 0 16px; }
