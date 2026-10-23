@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 
 declare const __IMC_API_URL__: string
 
@@ -65,12 +66,18 @@ const bmiScale = [
 ]
 const scalePosition = computed(() => result.value ? `${Math.max(0, Math.min(100, ((result.value.imc - 12) / 38) * 100))}%` : '0%')
 const obesitySilhouettes = [
-  { label: 'Sobrepeso', range: 'IMC 25–29,9', from: 25, to: 30, torso: 'M31 30 C25 32 23 42 25 54 C26 65 29 72 30 80 L50 80 C51 72 54 65 55 54 C57 42 55 32 49 30 Z', arms: 'M31 34 C25 39 24 49 23 61 L20 77 L26 79 L32 62 M49 34 C55 39 56 49 57 61 L60 77 L54 79 L48 62', legs: 'M31 77 L29 111 L26 132 L34 132 L40 98 L46 132 L54 132 L51 111 L49 77' },
-  { label: 'Obesidade I', range: 'IMC 30–34,9', from: 30, to: 35, torso: 'M29 30 C22 33 21 42 23 54 C24 66 28 73 28 80 L52 80 C52 73 56 66 57 54 C59 42 58 33 51 30 Z', arms: 'M29 34 C22 39 21 50 20 62 L17 77 L24 80 L31 63 M51 34 C58 39 59 50 60 62 L63 77 L56 80 L49 63', legs: 'M29 77 L28 111 L25 132 L34 132 L40 99 L46 132 L55 132 L52 111 L51 77' },
-  { label: 'Obesidade II', range: 'IMC 35–39,9', from: 35, to: 40, torso: 'M26 30 C18 33 17 42 19 54 C20 66 25 73 25 80 L55 80 C55 73 60 66 61 54 C63 42 62 33 54 30 Z', arms: 'M26 34 C19 39 17 50 16 62 L13 77 L21 81 L29 63 M54 34 C61 39 63 50 64 62 L67 77 L59 81 L51 63', legs: 'M27 77 L27 111 L24 132 L34 132 L40 100 L46 132 L56 132 L53 111 L53 77' },
-  { label: 'Obesidade mórbida', range: 'IMC ≥ 40', from: 40, to: Number.POSITIVE_INFINITY, torso: 'M22 30 C13 33 12 42 14 54 C15 66 21 73 21 80 L59 80 C59 73 65 66 66 54 C68 42 67 33 58 30 Z', arms: 'M22 34 C14 39 12 50 11 62 L8 77 L18 82 L26 63 M58 34 C66 39 68 50 69 62 L72 77 L62 82 L54 63', legs: 'M24 77 L25 111 L22 132 L34 132 L40 101 L46 132 L58 132 L55 111 L56 77' },
+  { label: 'Sobrepeso', range: 'IMC 25–29,9', position: 50 },
+  { label: 'Obesidade I', range: 'IMC 30–34,9', position: 75 },
+  { label: 'Obesidade II', range: 'IMC 35–39,9', position: 100 },
+  { label: 'Obesidade mórbida', range: 'IMC ≥ 40', position: 100 },
 ]
-const activeSilhouette = computed(() => result.value?.imc && result.value.imc >= 40 ? 3 : result.value?.imc && result.value.imc >= 35 ? 2 : result.value?.imc && result.value.imc >= 30 ? 1 : result.value?.imc && result.value.imc >= 25 ? 0 : -1)
+const activeSilhouette = computed(() => {
+  if (!result.value || result.value.imc < 25) return -1
+  if (result.value.imc < 30) return 0
+  if (result.value.imc < 35) return 1
+  if (result.value.imc < 40) return 2
+  return 3
+})
 const weightToLose = computed(() => {
   if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
   const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
@@ -258,14 +265,16 @@ async function sendResult() {
           <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
         </div>
 
-        <div class="silhouette-section" aria-label="Silhuetas de referência das faixas de sobrepeso e obesidade">
-          <p class="eyebrow">FAIXAS DE PESO</p>
+        <div class="silhouette-section" aria-label="Escala ilustrativa de silhuetas femininas por classificação de IMC">
+          <p class="eyebrow">SILHUETAS FEMININAS · REFERÊNCIA ADULTA</p>
           <div class="silhouette-list">
             <div v-for="(person, index) in obesitySilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
-              <svg viewBox="0 0 80 140" class="silhouette" aria-hidden="true"><circle cx="40" cy="17" r="10" /><path :d="person.arms" /><path :d="person.torso" /><path :d="person.legs" /></svg>
+              <div class="silhouette-image-window" :style="{ backgroundImage: `url(${silhouetteScaleImage})`, backgroundPositionX: `${person.position}%` }" role="img" :aria-label="`Silhueta ${person.label}`"></div>
               <b>{{ person.label }}</b><span>{{ person.range }}</span>
             </div>
           </div>
+          <p class="silhouette-note">Referência visual ilustrativa para mulheres adultas; não substitui avaliação profissional.</p>
+          <p v-if="result.imc >= 40" class="silhouette-note severe-obesity-note">Sua classificação é obesidade grau III (mórbida). A imagem de referência termina no grau II.</p>
         </div>
 
         <div class="result-heading">
