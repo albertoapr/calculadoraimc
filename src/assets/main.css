@@ -54,6 +54,11 @@ h1 { font-size: clamp(28px, 6vw, 35px); }
 .slider-field { gap: 11px; }
 .slider-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .slider-heading output { color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.slider-control-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 9px; }
+.slider-adjust { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid #c9dcf7; border-radius: 10px; color: var(--blue-dark); background: #f2f7ff; font-size: 24px; font-weight: 600; line-height: 1; }
+.slider-adjust:hover:not(:disabled) { border-color: #91b6f1; background: #e6f0ff; }
+.slider-adjust:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
+.slider-adjust:disabled { cursor: not-allowed; opacity: .42; }
 .field input.range-input {
   width: 100%; min-height: 32px; height: 32px; padding: 0; border: 0; border-radius: 0;
   outline: none; background: transparent; box-shadow: none; accent-color: var(--blue); cursor: pointer;

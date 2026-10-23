@@ -109,6 +109,13 @@ function handleContactConsentChange() {
   }
 }
 
+function adjustMeasurement(field: 'weight' | 'height', amount: number) {
+  const minimum = field === 'weight' ? 20 : 80
+  const maximum = 200
+  const nextValue = Math.max(minimum, Math.min(maximum, Number(form[field]) + amount))
+  form[field] = String(nextValue)
+}
+
 function calculateImc() {
   if (sending.value || evaluating.value) return
   status.value = ''
@@ -216,12 +223,20 @@ async function sendResult() {
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
         <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} kg</output></span>
-          <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="200" step="1" aria-label="Peso em quilogramas">
+          <div class="slider-control-row">
+            <button class="slider-adjust" type="button" aria-label="Diminuir peso" :disabled="Number(form.weight) <= 20" @click="adjustMeasurement('weight', -1)">−</button>
+            <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="200" step="1" aria-label="Peso em quilogramas">
+            <button class="slider-adjust" type="button" aria-label="Aumentar peso" :disabled="Number(form.weight) >= 200" @click="adjustMeasurement('weight', 1)">+</button>
+          </div>
           <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>200 kg</span></span>
         </label>
 
         <label class="field slider-field" for="height"><span class="slider-heading"><span class="field-label">Altura <span>cm</span></span><output for="height">{{ Number(form.height).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} cm</output></span>
-          <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="200" step="1" aria-label="Altura em centímetros">
+          <div class="slider-control-row">
+            <button class="slider-adjust" type="button" aria-label="Diminuir altura" :disabled="Number(form.height) <= 80" @click="adjustMeasurement('height', -1)">−</button>
+            <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="200" step="1" aria-label="Altura em centímetros">
+            <button class="slider-adjust" type="button" aria-label="Aumentar altura" :disabled="Number(form.height) >= 200" @click="adjustMeasurement('height', 1)">+</button>
+          </div>
           <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>200 cm</span></span>
         </label>
 
