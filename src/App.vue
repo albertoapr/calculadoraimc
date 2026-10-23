@@ -135,7 +135,7 @@ function calculateImc() {
   evaluating.value = true
   evaluationProgress.value = 0
   const startedAt = performance.now()
-  const duration = 1000
+  const duration = 3000
 
   function animate(now: number) {
     evaluationProgress.value = Math.min(100, Math.round(((now - startedAt) / duration) * 100))
