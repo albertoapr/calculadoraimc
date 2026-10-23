@@ -93,17 +93,24 @@ h2 { font-size: 21px; }
 .weight-goal .eyebrow { margin: 0 0 5px; color: #58739a; }
 .weight-goal strong { display: block; color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; }
 .weight-goal p:last-child { margin: 6px 0 0; color: #506987; font-size: 13px; line-height: 1.5; }
-.bmi-gauge { width: min(100%, 360px); margin: 0 auto 16px; text-align: center; }
-.gauge-svg { display: block; width: 100%; height: auto; overflow: visible; }
-.gauge-arc { fill: none; stroke-width: 16; stroke-linecap: butt; }
-.gauge-needle { stroke: #163454; stroke-width: 3.5; stroke-linecap: round; }
-.gauge-hub { fill: #163454; stroke: #fff; stroke-width: 2; }
-.gauge-reading { display: flex; justify-content: center; align-items: baseline; gap: 6px; margin-top: -34px; color: var(--blue-dark); }
-.gauge-reading strong { font-family: Manrope, sans-serif; font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.gauge-reading span { color: #71839a; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
-.gauge-labels { display: grid; grid-template-columns: 1.15fr 1.1fr 1fr 1fr; gap: 2px; margin-top: 20px; color: #61758f; font-size: 10px; font-weight: 600; line-height: 1.4; }
-.gauge-labels span { display: flex; flex-direction: column; align-items: center; }
-.gauge-labels b { color: #48648b; font-size: 10px; }
+.bmi-scale-wrap { position: relative; margin: 49px 0 23px; padding-top: 1px; }
+.bmi-scale-bar { display: flex; height: 18px; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
+.bmi-scale-bar span:first-child { border-radius: 99px 0 0 99px; }
+.bmi-scale-bar span:last-child { border-radius: 0 99px 99px 0; }
+.scale-marker { position: absolute; top: -39px; display: flex; align-items: center; flex-direction: column; transform: translateX(-50%); white-space: nowrap; color: var(--ink); }
+.scale-marker strong { padding: 3px 8px; border-radius: 8px; color: #fff; background: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.scale-marker span { margin-top: -1px; color: var(--ink); font-size: 16px; line-height: 1; }
+.scale-labels { display: grid; grid-template-columns: 6.5fr 6.5fr 5fr 5fr 5fr 10fr; gap: 2px; margin-top: 8px; color: #536984; font-size: 9px; line-height: 1.3; text-align: center; }
+.scale-labels span { display: flex; min-width: 0; flex-direction: column; overflow-wrap: anywhere; }
+.scale-labels b { color: #334d70; font-size: 9px; }
+.silhouette-section { margin: 20px 0 16px; }
+.silhouette-section > .eyebrow { margin: 0 0 9px; text-align: center; }
+.silhouette-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.silhouette-item { display: flex; min-width: 0; align-items: center; flex-direction: column; padding: 8px 3px; border: 1px solid transparent; border-radius: 10px; color: #75869b; text-align: center; }
+.silhouette-item.active { border-color: #9cbcf0; color: var(--blue-dark); background: #eaf2ff; }
+.silhouette { width: 54px; height: 88px; overflow: visible; fill: currentColor; }
+.silhouette-item > b { font-size: 10px; line-height: 1.3; }
+.silhouette-item > span { margin-top: 2px; font-size: 9px; line-height: 1.3; }
 .send-button { width: 100%; margin-top: 15px; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
@@ -125,7 +132,11 @@ footer { margin: 17px auto 0; color: #71839a; text-align: center; font-size: 12p
   .weight-goal { padding: 16px 12px; }
   .weight-goal strong { font-size: 29px; }
   .weight-goal p:last-child { font-size: 14px; }
-  .gauge-labels, .gauge-labels b { font-size: 9px; }
+  .scale-labels, .scale-labels b { font-size: 8px; }
+  .silhouette-list { gap: 3px; }
+  .silhouette { width: 48px; height: 78px; }
+  .silhouette-item > b { font-size: 9px; }
+  .silhouette-item > span { font-size: 8px; }
   .status { font-size: 14px; }
   .disclaimer { font-size: 12px; }
 }

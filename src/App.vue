@@ -49,27 +49,28 @@ function category(imc: number) {
   if (imc < 18.5) return ['Baixo peso', 'Converse com um profissional de saúde para uma avaliação individual.']
   if (imc < 25) return ['Peso adequado', 'Esta faixa é considerada adequada como referência para adultos.']
   if (imc < 30) return ['Sobrepeso', 'Uma orientação profissional pode ajudar a definir hábitos e metas saudáveis.']
-  return ['Obesidade', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
+  if (imc < 35) return ['Obesidade I', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
+  if (imc < 40) return ['Obesidade II', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
+  return ['Obesidade mórbida', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
-const gaugeSegments = [
-  { from: 12, to: 18.5, color: '#60a5fa' },
-  { from: 18.5, to: 25, color: '#34d399' },
-  { from: 25, to: 30, color: '#fbbf24' },
-  { from: 30, to: 40, color: '#f87171' },
+const bmiScale = [
+  { label: 'Baixo peso', range: '<18,5', from: 12, to: 18.5, color: '#60a5fa' },
+  { label: 'Saudável', range: '18,5–24,9', from: 18.5, to: 25, color: '#34d399' },
+  { label: 'Sobrepeso', range: '25–29,9', from: 25, to: 30, color: '#fbbf24' },
+  { label: 'Obesidade I', range: '30–34,9', from: 30, to: 35, color: '#fb923c' },
+  { label: 'Obesidade II', range: '35–39,9', from: 35, to: 40, color: '#f87171' },
+  { label: 'Obesidade mórbida', range: '≥40', from: 40, to: 50, color: '#be123c' },
 ]
-function gaugePoint(value: number, radius: number) {
-  const clamped = Math.max(12, Math.min(40, value))
-  const angle = Math.PI - ((clamped - 12) / 28) * Math.PI
-  return { x: 100 + radius * Math.cos(angle), y: 100 - radius * Math.sin(angle) }
-}
-const gaugePaths = gaugeSegments.map(segment => {
-  const start = gaugePoint(segment.from, 78)
-  const end = gaugePoint(segment.to, 78)
-  return { color: segment.color, d: `M ${start.x} ${start.y} A 78 78 0 0 1 ${end.x} ${end.y}` }
-})
-const gaugeNeedle = computed(() => result.value ? gaugePoint(result.value.imc, 58) : gaugePoint(12, 58))
+const scalePosition = computed(() => result.value ? `${Math.max(0, Math.min(100, ((result.value.imc - 12) / 38) * 100))}%` : '0%')
+const obesitySilhouettes = [
+  { label: 'Sobrepeso', range: 'IMC 25–29,9', from: 25, to: 30, torso: 'M31 30 C25 32 23 42 25 54 C26 65 29 72 30 80 L50 80 C51 72 54 65 55 54 C57 42 55 32 49 30 Z', arms: 'M31 34 C25 39 24 49 23 61 L20 77 L26 79 L32 62 M49 34 C55 39 56 49 57 61 L60 77 L54 79 L48 62', legs: 'M31 77 L29 111 L26 132 L34 132 L40 98 L46 132 L54 132 L51 111 L49 77' },
+  { label: 'Obesidade I', range: 'IMC 30–34,9', from: 30, to: 35, torso: 'M29 30 C22 33 21 42 23 54 C24 66 28 73 28 80 L52 80 C52 73 56 66 57 54 C59 42 58 33 51 30 Z', arms: 'M29 34 C22 39 21 50 20 62 L17 77 L24 80 L31 63 M51 34 C58 39 59 50 60 62 L63 77 L56 80 L49 63', legs: 'M29 77 L28 111 L25 132 L34 132 L40 99 L46 132 L55 132 L52 111 L51 77' },
+  { label: 'Obesidade II', range: 'IMC 35–39,9', from: 35, to: 40, torso: 'M26 30 C18 33 17 42 19 54 C20 66 25 73 25 80 L55 80 C55 73 60 66 61 54 C63 42 62 33 54 30 Z', arms: 'M26 34 C19 39 17 50 16 62 L13 77 L21 81 L29 63 M54 34 C61 39 63 50 64 62 L67 77 L59 81 L51 63', legs: 'M27 77 L27 111 L24 132 L34 132 L40 100 L46 132 L56 132 L53 111 L53 77' },
+  { label: 'Obesidade mórbida', range: 'IMC ≥ 40', from: 40, to: Number.POSITIVE_INFINITY, torso: 'M22 30 C13 33 12 42 14 54 C15 66 21 73 21 80 L59 80 C59 73 65 66 66 54 C68 42 67 33 58 30 Z', arms: 'M22 34 C14 39 12 50 11 62 L8 77 L18 82 L26 63 M58 34 C66 39 68 50 69 62 L72 77 L62 82 L54 63', legs: 'M24 77 L25 111 L22 132 L34 132 L40 101 L46 132 L58 132 L55 111 L56 77' },
+]
+const activeSilhouette = computed(() => result.value?.imc && result.value.imc >= 40 ? 3 : result.value?.imc && result.value.imc >= 35 ? 2 : result.value?.imc && result.value.imc >= 30 ? 1 : result.value?.imc && result.value.imc >= 25 ? 0 : -1)
 const weightToLose = computed(() => {
   if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
   const adultReferenceWeight = 24.9 * ((result.value.heightCm / 100) ** 2)
@@ -217,7 +218,7 @@ async function sendResult() {
     <section class="calculator" aria-labelledby="page-title">
       <header class="hero">
         <span class="brand"><span class="brand-mark">β</span> BETA</span>
-        <h1 id="page-title">Avalie seu peso</h1>
+        <h1 id="page-title">{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</h1>
         <p class="intro">{{ result ? 'Veja o resultado da sua avaliação.' : 'Descubra quanto falta pra chegar no peso saudável' }}</p>
       </header>
 
@@ -251,16 +252,19 @@ async function sendResult() {
           <p>{{ weightGoalMessage }}</p>
         </div>
 
-        <div class="bmi-gauge" role="img" :aria-label="`Odômetro do IMC: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, faixa ${classification}`">
-          <svg viewBox="0 0 200 116" aria-hidden="true" class="gauge-svg">
-            <path v-for="(segment, index) in gaugePaths" :key="index" :d="segment.d" :stroke="segment.color" class="gauge-arc" />
-            <line x1="100" y1="100" :x2="gaugeNeedle.x" :y2="gaugeNeedle.y" class="gauge-needle" />
-            <circle cx="100" cy="100" r="6" class="gauge-hub" />
-          </svg>
-          <div class="gauge-reading"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span>IMC</span></div>
-          <div class="gauge-labels">
-            <span><b>&lt; 18,5</b>Baixo peso</span><span><b>18,5–24,9</b>Adequado</span>
-            <span><b>25–29,9</b>Sobrepeso</span><span><b>≥ 30</b>Obesidade</span>
+        <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
+          <div class="scale-marker" :style="{ left: scalePosition }"><strong>{{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong><span aria-hidden="true">▼</span></div>
+          <div class="bmi-scale-bar"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
+          <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
+        </div>
+
+        <div class="silhouette-section" aria-label="Silhuetas de referência das faixas de sobrepeso e obesidade">
+          <p class="eyebrow">FAIXAS DE PESO</p>
+          <div class="silhouette-list">
+            <div v-for="(person, index) in obesitySilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">
+              <svg viewBox="0 0 80 140" class="silhouette" aria-hidden="true"><circle cx="40" cy="17" r="10" /><path :d="person.arms" /><path :d="person.torso" /><path :d="person.legs" /></svg>
+              <b>{{ person.label }}</b><span>{{ person.range }}</span>
+            </div>
           </div>
         </div>
 
