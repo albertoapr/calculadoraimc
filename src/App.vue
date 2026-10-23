@@ -35,6 +35,8 @@ const form = reactive({
 })
 
 const result = ref<ImcResult | null>(null)
+const evaluating = ref(false)
+const evaluationProgress = ref(0)
 const status = ref('')
 const sending = ref(false)
 const contactAge = computed(() => {
@@ -108,7 +110,7 @@ function handleContactConsentChange() {
 }
 
 function calculateImc() {
-  if (sending.value) return
+  if (sending.value || evaluating.value) return
   status.value = ''
 
   clearContactDetails()
@@ -122,7 +124,23 @@ function calculateImc() {
   }
 
   const imc = Number((weight / ((heightCm / 100) ** 2)).toFixed(1))
-  result.value = { weight, heightCm, imc }
+  const nextResult = { weight, heightCm, imc }
+  evaluating.value = true
+  evaluationProgress.value = 0
+  const startedAt = performance.now()
+  const duration = 1000
+
+  function animate(now: number) {
+    evaluationProgress.value = Math.min(100, Math.round(((now - startedAt) / duration) * 100))
+    if (evaluationProgress.value < 100) {
+      requestAnimationFrame(animate)
+    } else {
+      result.value = nextResult
+      evaluating.value = false
+    }
+  }
+
+  requestAnimationFrame(animate)
 }
 
 function editMeasurement() {
@@ -270,6 +288,12 @@ async function sendResult() {
 
         <button class="back-button" type="button" @click="editMeasurement">Alterar peso e altura</button>
       </section>
+
+      <div v-if="evaluating" class="evaluation-overlay" role="status" aria-live="polite" :aria-label="`Avaliando: ${evaluationProgress}%`">
+        <div class="evaluation-circle" :style="{ '--progress': `${evaluationProgress * 3.6}deg` }">
+          <strong>{{ evaluationProgress }}%</strong>
+        </div>
+      </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
       <p class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>

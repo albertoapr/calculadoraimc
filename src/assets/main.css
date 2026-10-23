@@ -73,6 +73,11 @@ h1 { font-size: clamp(28px, 6vw, 35px); }
 .back-button:hover { background: #eaf2ff; }
 .back-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 .result-card { margin-top: 23px; padding: 22px; border: 1px solid #dbeafe; border-radius: 15px; background: #f7faff; }
+.evaluation-overlay { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; background: rgba(22, 52, 84, .42); backdrop-filter: blur(3px); animation: evaluation-fade-in .18s ease-out both; }
+.evaluation-circle { --progress: 0deg; position: relative; display: grid; width: 142px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: conic-gradient(var(--blue) var(--progress), #dbeafe var(--progress)); box-shadow: 0 16px 48px rgba(12, 35, 70, .22); }
+.evaluation-circle::before { position: absolute; width: 116px; aspect-ratio: 1; border-radius: 50%; background: #fff; content: ''; }
+.evaluation-circle strong { position: relative; z-index: 1; color: var(--ink); font-family: Manrope, sans-serif; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+@keyframes evaluation-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .result-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .result-heading .eyebrow { margin: 0 0 6px; }
 h2 { font-size: 21px; }
