@@ -33,8 +33,8 @@ function validate(data: Record<string, unknown> | null) {
     /^[\p{L}\p{M}\p{N} .'-]+$/u.test(normalizedCity) &&
     Number.isInteger(age) && Number(age) >= 1 && Number(age) <= 120 &&
     ['feminino', 'masculino', 'outro'].includes(String(sex)) &&
-    typeof weight === 'number' && Number.isFinite(weight) && weight >= 20 && weight <= 400 &&
-    typeof heightCm === 'number' && Number.isFinite(heightCm) && heightCm >= 80 && heightCm <= 250 &&
+    typeof weight === 'number' && Number.isInteger(weight) && weight >= 20 && weight <= 200 &&
+    typeof heightCm === 'number' && Number.isInteger(heightCm) && heightCm >= 80 && heightCm <= 200 &&
     typeof imc === 'number' && Number.isFinite(imc) &&
     Math.abs(weight / ((heightCm / 100) ** 2) - imc) <= 0.11 &&
     typeof requestId === 'string' && /^[0-9a-f-]{36}$/i.test(requestId)

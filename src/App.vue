@@ -115,10 +115,10 @@ function calculateImc() {
 
   clearContactDetails()
 
-  const weight = Number(String(form.weight).replace(',', '.'))
-  const heightCm = Number(String(form.height).replace(',', '.'))
-  if (!Number.isFinite(weight) || weight < 20 || weight > 400 ||
-      !Number.isFinite(heightCm) || heightCm < 80 || heightCm > 250) {
+  const weight = Number(form.weight)
+  const heightCm = Number(form.height)
+  if (!Number.isInteger(weight) || weight < 20 || weight > 200 ||
+      !Number.isInteger(heightCm) || heightCm < 80 || heightCm > 200) {
     status.value = 'Confira o peso e a altura informados.'
     return
   }
@@ -215,14 +215,14 @@ async function sendResult() {
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
-        <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }} kg</output></span>
-          <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="250" step="0.1" aria-label="Peso em quilogramas">
-          <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>250 kg</span></span>
+        <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} kg</output></span>
+          <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="200" step="1" aria-label="Peso em quilogramas">
+          <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>200 kg</span></span>
         </label>
 
-        <label class="field slider-field" for="height"><span class="slider-heading"><span class="field-label">Altura <span>cm</span></span><output for="height">{{ Number(form.height).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }} cm</output></span>
-          <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="250" step="0.1" aria-label="Altura em centímetros">
-          <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>250 cm</span></span>
+        <label class="field slider-field" for="height"><span class="slider-heading"><span class="field-label">Altura <span>cm</span></span><output for="height">{{ Number(form.height).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} cm</output></span>
+          <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="200" step="1" aria-label="Altura em centímetros">
+          <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>200 cm</span></span>
         </label>
 
         <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Avaliando…' : 'Avaliar' }} <span aria-hidden="true">→</span></button>
