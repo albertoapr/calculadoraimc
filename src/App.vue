@@ -4,8 +4,6 @@ import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.png'
 import foxMark from './assets/fox-mark.svg'
 
-declare const __IMC_API_URL__: string
-
 type Sex = 'feminino' | 'masculino' | 'outro'
 
 type ImcResult = {
@@ -13,18 +11,6 @@ type ImcResult = {
   heightCm: number
   imc: number
 }
-
-type ImcSubmission = ImcResult & {
-  clientName: string
-  whatsapp: string
-  city: string
-  age: number
-  sex: Sex
-  consent: true
-  requestId: string
-}
-
-const apiUrl = __IMC_API_URL__
 
 function getPersonalNameFromPath() {
   const encodedName = window.location.pathname.split('/').filter(Boolean)[0]
@@ -71,7 +57,6 @@ const result = ref<ImcResult | null>(null)
 const evaluating = ref(false)
 const evaluationProgress = ref(0)
 const status = ref('')
-const sending = ref(false)
 const contactAge = computed(() => {
   if (!form.contactConsent || form.age === '') return undefined
   const age = Number(String(form.age))
@@ -168,7 +153,7 @@ function adjustMeasurement(field: 'weight' | 'height', amount: number) {
 }
 
 function calculateImc() {
-  if (sending.value || evaluating.value) return
+  if (evaluating.value) return
   status.value = ''
 
   clearContactDetails()
@@ -207,8 +192,8 @@ function editMeasurement() {
   status.value = ''
 }
 
-async function sendResult() {
-  if (!result.value || !form.contactConsent || sending.value) return
+function sendResult() {
+  if (!result.value || !form.contactConsent) return
   status.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
@@ -225,40 +210,27 @@ async function sendResult() {
     return
   }
 
-  if (!apiUrl) {
-    status.value = 'A avaliação foi calculada, mas o envio ainda não está configurado nesta versão.'
-    return
-  }
-
-  const payload: ImcSubmission = {
-    clientName,
-    whatsapp,
-    city,
-    age,
-    sex: form.sex as Sex,
-    weight: result.value.weight,
-    heightCm: result.value.heightCm,
-    imc: result.value.imc,
-    consent: true,
-    requestId: crypto.randomUUID(),
-  }
-
-  sending.value = true
-  status.value = 'Enviando…'
-  try {
-    const apiBase = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`
-    const response = await fetch(new URL('api/imc', apiBase), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!response.ok) throw new Error('request failed')
-    status.value = 'Dados enviados. O personal poderá entrar em contato pelo WhatsApp informado.'
-    clearContactDetails()
-  } catch {
-    status.value = 'Não foi possível enviar os dados agora. Tente novamente.'
-  } finally {
-    sending.value = false
+  const sexLabel = form.sex === 'masculino' ? 'Homem' : 'Mulher'
+  const message = [
+    `Olá! Gostaria de receber ajuda de ${personalName}.`,
+    '',
+    '*Dados da avaliação*',
+    `Nome: ${clientName}`,
+    `Sexo: ${sexLabel}`,
+    `Idade: ${age} anos`,
+    `Peso: ${result.value.weight} kg`,
+    `Altura: ${result.value.heightCm} cm`,
+    `IMC: ${result.value.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}`,
+    `Cidade: ${city}`,
+    `WhatsApp para contato: ${whatsapp}`,
+  ].join('\n')
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`
+  const whatsappWindow = window.open(whatsappUrl, '_blank')
+  if (whatsappWindow) {
+    whatsappWindow.opener = null
+    status.value = 'WhatsApp aberto com os dados preenchidos. Revise e escolha para quem enviar.'
+  } else {
+    window.location.assign(whatsappUrl)
   }
 }
 </script>
@@ -303,7 +275,7 @@ async function sendResult() {
           <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>200 cm</span></span>
         </label>
 
-        <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Avaliando…' : 'Avaliar' }} <span aria-hidden="true">→</span></button>
+        <button class="primary-button field-wide" type="submit">Avaliar <span aria-hidden="true">→</span></button>
         </div>
       </form>
 
@@ -334,7 +306,7 @@ async function sendResult() {
             <input id="city" v-model="form.city" name="city" type="text" autocomplete="address-level2" minlength="2" maxlength="80" placeholder="Ex.: Rio de Janeiro" required>
           </label>
 
-          <button class="primary-button field-wide" type="submit" :disabled="sending">{{ sending ? 'Enviando…' : 'Enviar dados para o personal' }} <span aria-hidden="true">→</span></button>
+          <button class="primary-button field-wide" type="submit">Abrir WhatsApp para enviar <span aria-hidden="true">→</span></button>
         </form>
 
         <div v-if="weightGoalAmount !== null || (contactAge !== undefined && contactAge < 18)" class="weight-goal">

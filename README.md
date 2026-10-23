@@ -1,24 +1,17 @@
 # Calculadora de IMC da Beta
 
-Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. Inicialmente, o formulário mostra apenas peso e altura, e calcula o IMC no navegador. Depois da avaliação, a opção **Quero receber contato do personal** abre os campos de contato e um botão separado para enviar os dados após o consentimento.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC é calculado no navegador. Após a avaliação, a opção **Receber ajuda de um personal** abre os campos de contato. Ao enviar, o aplicativo abre o WhatsApp com os dados preenchidos; a pessoa escolhe a conversa e confirma o envio no próprio WhatsApp.
 
 ## O que é implantado
 
 - Frontend Vue hospedado pelo Amplify Hosting.
-- API REST pública em API Gateway (`POST /api/imc`) e função Lambda Node.js.
-- A Lambda valida os campos e encaminha apenas os dados autorizados para o hook do OpenClaw.
-- O segredo `OPENCLAW_HOOK_TOKEN` é lido somente pela função; não é enviado ao navegador nem incluído no Git.
-- O API Gateway limita a taxa de requisições para reduzir abuso básico.
+- O projeto mantém recursos de backend/API provisionados pelo Amplify, mas o formulário atual não os chama: o envio é iniciado manualmente pelo WhatsApp.
 
 ## Implantar pelo Amplify
 
 1. No AWS Amplify, escolha **New app → Host web app → GitHub** e conecte o repositório `albertoapr/calculadoraimc` (branch `main`).
 2. O Amplify detecta `amplify.yml`. O backend é provisionado primeiro; em seguida o build publica `dist/`.
-3. Antes de iniciar o primeiro deploy, abra as configurações de secrets do backend/branch no Amplify e crie `OPENCLAW_HOOK_TOKEN` com o token do hook do OpenClaw. Não o coloque em `VITE_*`, no frontend, no Git ou em `amplify.yml`.
-4. Dispare ou repita o deploy do branch. O Amplify gera `amplify_outputs.json` durante o deploy do backend; o frontend usa o endpoint gerado automaticamente.
-5. Aguarde o backend e o frontend ficarem com status **Deployed**. Acesse o domínio HTTPS disponibilizado em **Hosting**.
-
-O frontend estático pode ser compilado sem token, mas o envio só funcionará quando o segredo estiver configurado e o hook `/hooks/imc` estiver acessível. Se o segredo for adicionado depois do primeiro deploy, faça um novo deploy do backend.
+3. Dispare ou repita o deploy do branch e aguarde o frontend ficar com status **Deployed**. Acesse o domínio HTTPS disponibilizado em **Hosting**. O backend continua no projeto, mas não é necessário configurar um hook para o fluxo atual de WhatsApp.
 
 ## Desenvolvimento local
 
@@ -27,10 +20,10 @@ npm ci
 npm run dev
 ```
 
-O cálculo funciona localmente; o envio exige a API provisionada. Para desenvolver também o backend, use o Amplify Sandbox com credenciais AWS autorizadas e configure o secret `OPENCLAW_HOOK_TOKEN` no sandbox. Não use o token real em arquivos locais versionados.
+O cálculo funciona localmente. Para testar o formulário, marque a opção de contato, preencha os dados e clique em **Abrir WhatsApp para enviar**; o WhatsApp abre com a mensagem preenchida para a pessoa revisar e enviar.
 
 ## Dados e privacidade
 
-Nome, WhatsApp, cidade, idade, sexo, peso, altura e IMC só são enviados após consentimento explícito. Sem marcar a opção, peso e altura são usados somente no cálculo local. A aplicação não mantém banco de dados; a Lambda valida o pedido e repassa os campos consentidos ao hook configurado. O CORS permite que o site público chame a API; isso não substitui validação ou limitação de requisições no backend.
+Nome, WhatsApp, cidade, idade, sexo, peso, altura e IMC só são incluídos na mensagem após consentimento explícito. Sem marcar a opção, peso e altura são usados somente no cálculo local. A aplicação não envia esses dados automaticamente nem mantém banco de dados: a pessoa escolhe a conversa e precisa confirmar o envio no WhatsApp.
 
 O IMC é uma referência para adultos e não substitui avaliação de profissional de saúde. Para menores de 18 anos, a tela informa que a interpretação precisa de curvas de crescimento.
