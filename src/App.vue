@@ -41,6 +41,16 @@ function getPersonalNameFromPath() {
 }
 
 const personalName = getPersonalNameFromPath()
+const trainingDayOptions = [
+  { label: 'Seg', value: 'Segunda-feira' },
+  { label: 'Ter', value: 'Terça-feira' },
+  { label: 'Qua', value: 'Quarta-feira' },
+  { label: 'Qui', value: 'Quinta-feira' },
+  { label: 'Sex', value: 'Sexta-feira' },
+  { label: 'Sáb', value: 'Sábado' },
+  { label: 'Dom', value: 'Domingo' },
+]
+const trainingShiftOptions = ['Manhã', 'Tarde', 'Noite']
 
 const form = reactive({
   weight: '70',
@@ -50,7 +60,9 @@ const form = reactive({
   sex: 'feminino' as Sex,
   age: '',
   whatsapp: '',
-  city: '',
+  city: 'Mesquita',
+  trainingDays: [] as string[],
+  trainingShifts: [] as string[],
 })
 
 const result = ref<ImcResult | null>(null)
@@ -130,7 +142,9 @@ function clearContactDetails() {
   form.name = ''
   form.age = ''
   form.whatsapp = ''
-  form.city = ''
+  form.city = 'Mesquita'
+  form.trainingDays = []
+  form.trainingShifts = []
 }
 
 function handleContactConsentChange() {
@@ -199,9 +213,10 @@ function sendResult() {
   const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
   const validAge = Number.isInteger(age) && age >= 1 && age <= 120
   const validSex = ['feminino', 'masculino'].includes(form.sex)
+  const validAvailability = form.trainingDays.length > 0 && form.trainingShifts.length > 0
 
-  if (!validName || !validCity || !whatsapp || !validAge || !validSex) {
-    status.value = 'Confira nome, sexo, idade, WhatsApp com DDD e cidade.'
+  if (!validName || !validCity || !whatsapp || !validAge || !validSex || !validAvailability) {
+    status.value = 'Confira os dados de contato e selecione ao menos um dia e um turno para treinar.'
     return
   }
 
@@ -217,6 +232,8 @@ function sendResult() {
     `Altura: ${result.value.heightCm} cm`,
     `IMC: ${result.value.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}`,
     `Cidade: ${city}`,
+    `Dias disponíveis para treinar: ${form.trainingDays.join(', ')}`,
+    `Turnos disponíveis: ${form.trainingShifts.join(', ')}`,
     `WhatsApp para contato: ${whatsapp}`,
   ].join('\n')
   const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
@@ -284,7 +301,7 @@ function sendResult() {
       <section v-else id="result" class="result-card" aria-live="polite">
         <div class="result-heading">
           <h2>
-            {{ classification }}<template v-if="weightGoalAmount !== null">, {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
+            Classificação da obesidade: {{ classification }}<template v-if="weightGoalAmount !== null">, {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
           </h2>
         </div>
 
@@ -314,6 +331,26 @@ function sendResult() {
               <option value="Nova Iguaçu">Nova Iguaçu</option>
             </select>
           </label>
+
+          <fieldset class="availability-group field-wide">
+            <legend>Disponibilidade para treinar — dias da semana</legend>
+            <div class="availability-options">
+              <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
+                <input v-model="form.trainingDays" type="checkbox" name="trainingDays" :value="day.value">
+                <span>{{ day.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="availability-group field-wide">
+            <legend>Turno</legend>
+            <div class="availability-options">
+              <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
+                <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
+                <span>{{ shift }}</span>
+              </label>
+            </div>
+          </fieldset>
 
           <button class="primary-button field-wide" type="submit">Abrir WhatsApp para enviar <span aria-hidden="true">→</span></button>
         </form>

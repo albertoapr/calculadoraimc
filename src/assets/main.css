@@ -55,6 +55,11 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .field-label { color: #455b77; font-size: 14px; font-weight: 700; }
 .field-label > span { margin-left: 4px; color: #94a6ba; font-size: 12px; font-weight: 500; }
 .field-wide { grid-column: 1 / -1; }
+.availability-group { min-width: 0; margin: 0; padding: 0; border: 0; }
+.availability-group legend { margin-bottom: 9px; color: #455b77; font-size: 14px; font-weight: 700; }
+.availability-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.availability-option { display: inline-flex; min-height: 40px; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; color: #455b77; background: #fbfdff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.availability-option input { width: 17px; height: 17px; margin: 0; accent-color: var(--blue); }
 .field input, .field select {
   width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid var(--line); border-radius: 10px;
   outline: none; color: var(--ink); background: #fbfdff; font-size: 16px; font-weight: 500; transition: border-color .15s, box-shadow .15s;
