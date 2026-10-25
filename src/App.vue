@@ -246,9 +246,9 @@ function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : 'Controle de peso' }}</span>
         </h1>
-        <p v-if="!result" class="intro">Quanto falta pra você chegar ao peso ideal?</p>
+        <p v-if="!result" class="intro">Informe peso e altura e descubra seu peso adequado.</p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
@@ -352,6 +352,6 @@ function sendResult() {
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
       <p class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>
     </section>
-    <footer>Uma referência para você cuidar melhor de si.</footer>
+    <footer><img :src="foxMark" alt=""><span>Beta Soluções IA</span></footer>
   </main>
 </template>

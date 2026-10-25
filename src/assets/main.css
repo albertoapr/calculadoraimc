@@ -34,8 +34,8 @@ button { cursor: pointer; }
   box-shadow: 0 22px 70px rgba(37, 99, 235, .10);
 }
 .hero { text-align: center; }
-.brand { display: inline-flex; align-items: center; gap: 7px; color: #228342; font-size: 13px; font-weight: 800; letter-spacing: .12em; }
-.fox-mark { display: block; width: 28px; height: 28px; flex: 0 0 auto; }
+.brand { display: inline-flex; max-width: 100%; align-items: center; justify-content: center; gap: 9px; color: #228342; font-size: clamp(19px, 5vw, 25px); font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
+.fox-mark { display: block; width: 34px; height: 34px; flex: 0 0 auto; }
 .eyebrow { margin: 22px 0 8px; color: #8799b0; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 h1, h2 { margin: 0; color: var(--ink); font-family: Manrope, sans-serif; font-weight: 800; letter-spacing: -.045em; }
 h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: clamp(28px, 6vw, 35px); }
@@ -124,7 +124,8 @@ h2 { font-size: 21px; }
 .send-button { width: 100%; margin-top: 15px; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
-footer { margin: 17px auto 0; color: #71839a; text-align: center; font-size: 12px; }
+footer { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 17px auto 0; color: #228342; text-align: center; font-size: 15px; font-weight: 700; }
+footer img { width: 24px; height: 24px; }
 
 @media (max-width: 520px) {
   .page-shell { padding: 14px 10px 20px; }
