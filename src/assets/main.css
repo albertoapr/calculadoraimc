@@ -91,7 +91,7 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .evaluation-circle::before { position: absolute; width: 116px; aspect-ratio: 1; border-radius: 50%; background: #fff; content: ''; }
 .evaluation-circle strong { position: relative; z-index: 1; color: var(--ink); font-family: Manrope, sans-serif; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
 @keyframes evaluation-fade-in { from { opacity: 0; } to { opacity: 1; } }
-.result-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.result-heading { display: flex; align-items: center; justify-content: center; gap: 16px; text-align: center; }
 .result-heading .eyebrow { margin: 0 0 6px; }
 h2 { font-size: 21px; }
 .score { display: flex; align-items: center; gap: 7px; color: var(--blue); }

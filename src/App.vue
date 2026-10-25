@@ -201,7 +201,7 @@ function sendResult() {
   const whatsapp = normalizeWhatsapp(form.whatsapp)
   const age = Number(String(form.age))
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
-  const validCity = city.length >= 2 && city.length <= 80 && /^[\p{L}\p{M}\p{N} .'-]+$/u.test(city)
+  const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
   const validAge = Number.isInteger(age) && age >= 1 && age <= 120
   const validSex = ['feminino', 'masculino'].includes(form.sex)
 
@@ -303,7 +303,12 @@ function sendResult() {
           </label>
 
           <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
-            <input id="city" v-model="form.city" name="city" type="text" autocomplete="address-level2" minlength="2" maxlength="80" placeholder="Ex.: Rio de Janeiro" required>
+            <select id="city" v-model="form.city" name="city" autocomplete="address-level2" required>
+              <option value="" disabled>Selecione sua cidade</option>
+              <option value="Mesquita">Mesquita</option>
+              <option value="Nilópolis">Nilópolis</option>
+              <option value="Nova Iguaçu">Nova Iguaçu</option>
+            </select>
           </label>
 
           <button class="primary-button field-wide" type="submit">Abrir WhatsApp para enviar <span aria-hidden="true">→</span></button>
