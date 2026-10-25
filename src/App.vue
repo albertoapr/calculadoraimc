@@ -41,6 +41,7 @@ function getPersonalNameFromPath() {
 }
 
 const personalName = getPersonalNameFromPath()
+const personalTrainerTitle = computed(() => personalName === 'Beta Personal Trainer' ? 'Personal Trainer' : personalName)
 
 const form = reactive({
   weight: '70',
@@ -239,22 +240,22 @@ function sendResult() {
   <main class="page-shell">
     <section class="calculator" aria-labelledby="page-title">
       <header class="hero">
-        <div class="brand" :aria-label="personalName"><img class="fox-mark" :src="foxMark" alt=""><span>{{ personalName }}</span></div>
+        <div class="brand" aria-label="Beta"><img class="fox-mark" :src="foxMark" alt=""><span>Beta</span></div>
+        <div v-if="!result" class="personal-title">{{ personalTrainerTitle }}</div>
         <h1 id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
-            <rect x="6" y="4" width="28" height="32" rx="6" />
-            <rect x="12" y="9" width="16" height="8" rx="2" />
-            <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
+            <rect x="5" y="5" width="30" height="30" rx="7" />
+            <rect x="11" y="10" width="18" height="10" rx="2" />
+            <path d="M20 12v4m-3-2h6M11 26h18" />
           </svg>
           <span>{{ result ? 'Resultado da avaliação' : 'Avalie seu peso' }}</span>
         </h1>
-        <p v-if="!result" class="intro">Quanto falta pra você chegar ao peso ideal?</p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
         <div class="gender-tabs field-wide" role="tablist" aria-label="Selecione uma escala corporal">
-          <button id="tab-woman" class="gender-tab" :class="{ active: form.sex === 'feminino' }" type="button" role="tab" :aria-selected="form.sex === 'feminino'" aria-controls="measurement-panel" @click="form.sex = 'feminino'">Mulher</button>
-          <button id="tab-man" class="gender-tab" :class="{ active: form.sex === 'masculino' }" type="button" role="tab" :aria-selected="form.sex === 'masculino'" aria-controls="measurement-panel" @click="form.sex = 'masculino'">Homem</button>
+          <button id="tab-woman" class="gender-tab" :class="{ active: form.sex === 'feminino' }" type="button" role="tab" :aria-selected="form.sex === 'feminino'" aria-controls="measurement-panel" @click="form.sex = 'feminino'"><span class="gender-symbol" aria-hidden="true">♀</span> Mulher</button>
+          <button id="tab-man" class="gender-tab" :class="{ active: form.sex === 'masculino' }" type="button" role="tab" :aria-selected="form.sex === 'masculino'" aria-controls="measurement-panel" @click="form.sex = 'masculino'"><span class="gender-symbol" aria-hidden="true">♂</span> Homem</button>
         </div>
         <div id="measurement-panel" class="measurement-fields field-wide" role="tabpanel" :aria-labelledby="form.sex === 'feminino' ? 'tab-woman' : 'tab-man'">
         <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} kg</output></span>
@@ -350,7 +351,7 @@ function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <p class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>
+      <p class="disclaimer"><span class="disclaimer-icon" aria-hidden="true">ⓘ</span><span>O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</span></p>
     </section>
     <footer>Uma referência para você cuidar melhor de si.</footer>
   </main>
