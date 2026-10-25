@@ -110,19 +110,6 @@ const weightGoalAmount = computed(() => {
   }
   return null
 })
-const weightGoalLabel = computed(() => {
-  if (contactAge.value !== undefined && contactAge.value < 18) return 'META DE PESO'
-  return result.value?.imc !== undefined && result.value.imc < 18.5 ? 'PESO A GANHAR' : 'PESO A PERDER'
-})
-const weightGoalMessage = computed(() => {
-  if (!result.value) return ''
-  if (contactAge.value !== undefined && contactAge.value < 18) {
-    return 'Não calculamos meta de perda de peso para menores de 18 anos. A avaliação deve considerar idade e sexo em curvas de crescimento.'
-  }
-  if (result.value.imc < 18.5) return ''
-  if (result.value.imc < 25) return ''
-  return 'Estimativa para chegar ao limite superior da faixa de referência do IMC adulto (24,9).'
-})
 function normalizeWhatsapp(value: string) {
   const digits = value.replace(/\D/g, '')
   if (digits.length === 10 || digits.length === 11) return `+55${digits}`
@@ -288,7 +275,9 @@ function sendResult() {
 
       <section v-else id="result" class="result-card" aria-live="polite">
         <div class="result-heading">
-          <h2>{{ classification }}</h2>
+          <h2>
+            {{ classification }}<template v-if="weightGoalAmount !== null">, {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
+          </h2>
         </div>
 
         <label class="contact-opt-in" for="contact-consent">
@@ -321,17 +310,15 @@ function sendResult() {
           <button class="primary-button field-wide" type="submit">Abrir WhatsApp para enviar <span aria-hidden="true">→</span></button>
         </form>
 
-        <div v-if="weightGoalAmount !== null || (contactAge !== undefined && contactAge < 18)" class="weight-goal">
-          <p class="eyebrow">{{ weightGoalLabel }}</p>
-          <strong v-if="weightGoalAmount !== null">{{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
-          <strong v-else>—</strong>
-          <p v-if="weightGoalMessage">{{ weightGoalMessage }}</p>
+        <div class="bmi-summary">
+          <strong>IMC: {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong>
+          <p>O Índice de Massa Corporal relaciona o peso à altura e serve como referência geral para adultos; não substitui uma avaliação profissional.</p>
         </div>
 
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
           <div class="bmi-scale-bar">
             <div class="bmi-scale-segments"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
-            <div class="scale-marker" :style="{ left: scalePosition }"><strong>IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong></div>
+            <div class="scale-marker" :style="{ left: scalePosition }" aria-hidden="true"></div>
           </div>
           <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
         </div>
