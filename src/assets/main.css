@@ -44,6 +44,7 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .scale-icon > rect:nth-child(2) { fill: #fff; }
 .scale-icon > path { fill: none; }
 .intro { max-width: 390px; margin: 10px auto 27px; color: var(--muted); font-size: 18px; line-height: 1.5; }
+.intro span { display: block; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 14px; }
 .gender-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: #f2f7fc; }
 .gender-tab { min-height: 42px; border: 0; border-radius: 9px; color: #60738c; background: transparent; font-size: 15px; font-weight: 700; }
@@ -101,6 +102,8 @@ h2 { font-size: 21px; line-height: 1.4; }
 .bmi-summary { margin: 18px 0 20px; padding: 15px; border: 1px solid #dbeafe; border-radius: 11px; background: #edf4ff; text-align: center; }
 .bmi-summary strong { color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 25px; font-weight: 800; letter-spacing: -.04em; }
 .bmi-summary p { margin: 6px 0 0; color: #506987; font-size: 13px; line-height: 1.5; }
+.weight-range-note { margin: -8px 0 20px; color: #506987; font-size: 13px; line-height: 1.55; text-align: center; }
+.weight-range-note strong { color: var(--ink); }
 .bmi-scale-wrap { position: relative; margin: 25px 0 23px; padding-top: 1px; }
 .bmi-scale-bar { position: relative; height: 28px; }
 .bmi-scale-segments { position: absolute; inset: 0; display: flex; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
@@ -144,6 +147,7 @@ footer img { width: 24px; height: 24px; }
   .bmi-summary { padding: 16px 12px; }
   .bmi-summary strong { font-size: 27px; }
   .bmi-summary p { font-size: 14px; }
+  .weight-range-note { font-size: 14px; }
   .scale-labels, .scale-labels b { font-size: 8px; }
   .silhouette-list { gap: 2px; }
   .silhouette-image-window { height: 108px; border-radius: 6px; }

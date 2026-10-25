@@ -110,6 +110,14 @@ const weightGoalAmount = computed(() => {
   }
   return null
 })
+const referenceWeightRange = computed(() => {
+  if (!result.value) return null
+  const heightMetersSquared = (result.value.heightCm / 100) ** 2
+  return {
+    minimum: Number((18.5 * heightMetersSquared).toFixed(1)),
+    maximum: Number((24.9 * heightMetersSquared).toFixed(1)),
+  }
+})
 function normalizeWhatsapp(value: string) {
   const digits = value.replace(/\D/g, '')
   if (digits.length === 10 || digits.length === 11) return `+55${digits}`
@@ -242,7 +250,7 @@ function sendResult() {
           </svg>
           <span>{{ result ? 'Resultado da avaliação' : 'Controle de peso' }}</span>
         </h1>
-        <p v-if="!result" class="intro">Informe peso e altura e descubra seu peso adequado.</p>
+        <p v-if="!result" class="intro"><span>Descubra seu peso adequado.</span><span>Informe seu peso e altura.</span></p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
@@ -314,6 +322,11 @@ function sendResult() {
           <strong>IMC: {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong>
           <p>O Índice de Massa Corporal relaciona o peso à altura e serve como referência geral para adultos; não substitui uma avaliação profissional.</p>
         </div>
+        <p v-if="referenceWeightRange" class="weight-range-note">
+          Para sua altura de {{ result.heightCm }} cm, a faixa correspondente ao IMC de referência adulto (18,5 a 24,9) é de
+          <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
+          <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>.
+        </p>
 
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
           <div class="bmi-scale-bar">
@@ -344,7 +357,7 @@ function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <p class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>
+      <p v-if="result" class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>
     </section>
     <footer><img :src="foxMark" alt=""><span>Beta Soluções IA</span></footer>
   </main>
