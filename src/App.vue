@@ -85,6 +85,7 @@ function category(imc: number) {
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
+const classificationEmoji = computed(() => result.value && result.value.imc >= 18.5 && result.value.imc < 25 ? '😎' : '😕')
 const silhouetteImage = computed(() => form.sex === 'masculino' ? maleSilhouetteScaleImage : silhouetteScaleImage)
 const silhouettePositions = computed(() => form.sex === 'masculino'
   ? ['0%', '33.333%', '66.667%', '100%']
@@ -301,7 +302,7 @@ function sendResult() {
       <section v-else id="result" class="result-card" aria-live="polite">
         <div class="result-heading">
           <h2>
-            Classificação da obesidade: {{ classification }}<template v-if="weightGoalAmount !== null">, {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
+            {{ classification }} {{ classificationEmoji }}<template v-if="weightGoalAmount !== null">: {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
           </h2>
         </div>
 
