@@ -223,7 +223,7 @@ function sendResult() {
 
   const sexLabel = form.sex === 'masculino' ? 'Homem' : 'Mulher'
   const message = [
-    `Olá! Gostaria de receber ajuda de ${personalName}.`,
+    'Olá! Gostaria de receber ajuda de um personal trainer.',
     '',
     '*Dados da avaliação*',
     `Nome: ${clientName}`,
