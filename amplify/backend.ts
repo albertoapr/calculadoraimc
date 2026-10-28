@@ -1,14 +1,24 @@
 import { defineBackend } from '@aws-amplify/backend'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
-import { Duration, Stack } from 'aws-cdk-lib'
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib'
 import { imcSubmit } from './functions/imc-submit/resource'
 
 const backend = defineBackend({ imcSubmit })
+const requestStack = backend.createStack('imc-request-code-store')
+const requestCodes = new dynamodb.Table(requestStack, 'ImcRequestCodes', {
+  partitionKey: { name: 'codeHash', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  timeToLiveAttribute: 'expiresAt',
+  removalPolicy: RemovalPolicy.DESTROY,
+})
+requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
+backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 const apiStack = backend.createStack('imc-api-stack')
 
 const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   restApiName: 'calculadora-imc-api',
-  description: 'Recebe resultados consentidos da Calculadora de IMC.',
+  description: 'Emite e valida códigos temporários de solicitações da Calculadora de IMC.',
   deployOptions: {
     stageName: 'prod',
     throttlingRateLimit: 10,
@@ -23,6 +33,10 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
 
 const imcResource = api.root.addResource('api').addResource('imc')
 imcResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))
