@@ -557,8 +557,6 @@ async function sendResult() {
             <div ref="googleButtonContainer" class="google-button-container"></div>
             <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
           </div>
-          <p class="form-privacy-note field-wide">Ao enviar esta mensagem pelo WhatsApp, a Beta identificará automaticamente o número de origem. Não é necessário informá-lo no formulário.</p>
-
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
           </label>
