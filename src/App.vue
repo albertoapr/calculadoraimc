@@ -550,7 +550,7 @@ async function sendResult() {
 
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
-          <span>Receber ajuda de um personal</span>
+          <span>Quero receber ajuda de um personal e autorizo compartilhar meu primeiro nome, WhatsApp, cidade, idade (se informada) e objetivo com um personal ativo que atenda minha cidade.</span>
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
