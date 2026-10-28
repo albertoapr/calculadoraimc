@@ -358,12 +358,12 @@ function sendResult() {
 
         <div class="bmi-summary">
           <strong>IMC: {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong>
+          <p v-if="referenceWeightRange" class="weight-range-note">
+            Faixa de peso ideal :
+            <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
+            <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg.</strong>
+          </p>
         </div>
-        <p v-if="referenceWeightRange" class="weight-range-note">
-          Seu peso adequado é de
-          <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
-          <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>.
-        </p>
 
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
           <div class="bmi-scale-bar">
@@ -380,7 +380,6 @@ function sendResult() {
               <b>{{ person.label }}</b><span>{{ person.range }}</span>
             </div>
           </div>
-          <p class="silhouette-note">Referência visual ilustrativa para adultos; não substitui avaliação profissional.</p>
           <p v-if="result.imc >= 35" class="silhouette-note severe-obesity-note">O gráfico e a escala visual terminam em obesidade grau I; seu IMC está acima da faixa exibida.</p>
         </div>
 
@@ -394,7 +393,6 @@ function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <p v-if="result" class="disclaimer">O IMC é uma referência para adultos e não substitui a avaliação de um profissional de saúde.</p>
     </section>
     <footer><img :src="foxMark" alt=""><span>Beta Soluções IA</span></footer>
   </main>
