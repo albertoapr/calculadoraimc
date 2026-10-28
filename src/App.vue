@@ -10,6 +10,9 @@ type ImcResult = {
   weight: number
   heightCm: number
   imc: number
+  waistCm?: number
+  bodyFatPercent?: number
+  bodyFatClassification?: string
 }
 
 function getPersonalNameFromPath() {
@@ -55,6 +58,9 @@ const trainingShiftOptions = ['Manhã', 'Tarde', 'Noite']
 const form = reactive({
   weight: '70',
   height: '170',
+  waist: '85',
+  calculateBodyFat: false,
+  bodyFatAge: '',
   contactConsent: false,
   name: '',
   sex: 'feminino' as Sex,
@@ -82,6 +88,27 @@ function category(imc: number) {
   if (imc < 35) return ['Obesidade I', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
   if (imc < 40) return ['Obesidade II', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
   return ['Obesidade mórbida', 'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.']
+}
+
+function classifyBodyFat(percent: number, sex: Sex, age: number) {
+  // Faixas gerais de referência por sexo e idade, para adultos de 20 a 79 anos.
+  const referenceBands = sex === 'masculino'
+    ? [
+        { from: 20, to: 40, minimum: 8, maximum: 20 },
+        { from: 40, to: 60, minimum: 11, maximum: 22 },
+        { from: 60, to: 80, minimum: 13, maximum: 25 },
+      ]
+    : [
+        { from: 20, to: 40, minimum: 21, maximum: 33 },
+        { from: 40, to: 60, minimum: 23, maximum: 34 },
+        { from: 60, to: 80, minimum: 24, maximum: 36 },
+      ]
+  const reference = referenceBands.find(band => age >= band.from && age < band.to)
+
+  if (!reference) return 'Faixa de referência indisponível para esta idade'
+  if (percent < reference.minimum) return 'Abaixo da faixa de referência'
+  if (percent > reference.maximum) return 'Acima da faixa de referência'
+  return 'Dentro da faixa de referência'
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
@@ -149,15 +176,17 @@ function clearContactDetails() {
 }
 
 function handleContactConsentChange() {
-  if (!form.contactConsent) {
-    clearContactDetails()
-    status.value = ''
+  if (form.contactConsent) {
+    if (form.calculateBodyFat && form.bodyFatAge) form.age = form.bodyFatAge
+    return
   }
+  clearContactDetails()
+  status.value = ''
 }
 
-function adjustMeasurement(field: 'weight' | 'height', amount: number) {
-  const minimum = field === 'weight' ? 20 : 80
-  const maximum = 200
+function adjustMeasurement(field: 'weight' | 'height' | 'waist', amount: number) {
+  const minimum = field === 'weight' ? 20 : field === 'height' ? 80 : 40
+  const maximum = field === 'waist' ? 160 : 200
   const nextValue = Math.max(minimum, Math.min(maximum, Number(form[field]) + amount))
   form[field] = String(nextValue)
 }
@@ -176,8 +205,29 @@ function calculateImc() {
     return
   }
 
-  const imc = Number((weight / ((heightCm / 100) ** 2)).toFixed(1))
-  const nextResult = { weight, heightCm, imc }
+  const nextResult: ImcResult = {
+    weight,
+    heightCm,
+    imc: Number((weight / ((heightCm / 100) ** 2)).toFixed(1)),
+  }
+  if (form.calculateBodyFat) {
+    const waistCm = Number(form.waist)
+    const age = Number(form.bodyFatAge)
+    if (!Number.isInteger(waistCm) || waistCm < 40 || waistCm > 160 ||
+        !Number.isInteger(age) || age < 20 || age > 120) {
+      status.value = 'Para calcular a gordura corporal, confira a cintura e informe a idade (mínimo de 20 anos).'
+      return
+    }
+    const bodyFatPercent = Number(((form.sex === 'masculino' ? 64 : 76) - 20 * (heightCm / waistCm)).toFixed(1))
+    if (bodyFatPercent < 0 || bodyFatPercent > 70) {
+      status.value = 'Confira as medidas de altura e cintura informadas.'
+      return
+    }
+    nextResult.waistCm = waistCm
+    nextResult.bodyFatPercent = bodyFatPercent
+    nextResult.bodyFatClassification = classifyBodyFat(bodyFatPercent, form.sex, age)
+  }
+
   evaluating.value = true
   evaluationProgress.value = 0
   const startedAt = performance.now()
@@ -232,6 +282,13 @@ function sendResult() {
     `Peso: ${result.value.weight} kg`,
     `Altura: ${result.value.heightCm} cm`,
     `IMC: ${result.value.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}`,
+    ...(result.value.waistCm !== undefined && result.value.bodyFatPercent !== undefined
+      ? [
+          `Cintura: ${result.value.waistCm} cm`,
+          `Gordura corporal estimada (RFM): ${result.value.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%`,
+          `Classificação da gordura corporal: ${result.value.bodyFatClassification}`,
+        ]
+      : []),
     `Cidade: ${city}`,
     `Dias disponíveis para treinar: ${form.trainingDays.join(', ')}`,
     `Turnos disponíveis: ${form.trainingShifts.join(', ')}`,
@@ -266,9 +323,9 @@ function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : 'Controle de peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Controle de peso' }}</span>
         </h1>
-        <p v-if="!result" class="intro"><span>Descubra seu peso adequado.</span><span>Informe seu peso e altura.</span></p>
+        <p v-if="!result" class="intro"><span>Descubra seu peso adequado.</span><span>Informe seu peso e altura; a gordura corporal é opcional.</span></p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
@@ -294,6 +351,26 @@ function sendResult() {
           </div>
           <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>200 cm</span></span>
         </label>
+
+        <label class="body-fat-toggle field-wide" for="calculate-body-fat">
+          <input id="calculate-body-fat" v-model="form.calculateBodyFat" type="checkbox" aria-controls="body-fat-fields" :aria-expanded="form.calculateBodyFat">
+          <span>Calcular percentual de gordura corporal</span>
+        </label>
+
+        <div v-if="form.calculateBodyFat" id="body-fat-fields" class="body-fat-fields field-wide">
+          <label class="field slider-field" for="waist"><span class="slider-heading"><span class="field-label">Cintura <span>cm</span></span><output for="waist">{{ Number(form.waist).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} cm</output></span>
+            <div class="slider-control-row">
+              <button class="slider-adjust" type="button" aria-label="Diminuir cintura" :disabled="Number(form.waist) <= 40" @click="adjustMeasurement('waist', -1)">−</button>
+              <input id="waist" v-model="form.waist" class="range-input" name="waist" type="range" min="40" max="160" step="1" aria-label="Medida da cintura em centímetros">
+              <button class="slider-adjust" type="button" aria-label="Aumentar cintura" :disabled="Number(form.waist) >= 160" @click="adjustMeasurement('waist', 1)">+</button>
+            </div>
+            <span class="range-limits" aria-hidden="true"><span>40 cm</span><span>160 cm</span></span>
+          </label>
+          <label class="field field-wide" for="body-fat-age"><span class="field-label">Idade <span>anos</span></span>
+            <input id="body-fat-age" v-model="form.bodyFatAge" name="bodyFatAge" type="number" inputmode="numeric" min="20" max="120" step="1" placeholder="Necessária para classificar" required>
+            <small class="body-fat-help">A idade é usada para selecionar a faixa de referência.</small>
+          </label>
+        </div>
 
         <button class="primary-button field-wide" type="submit">Avaliar <span aria-hidden="true">→</span></button>
         </div>
@@ -362,6 +439,13 @@ function sendResult() {
             <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
           </p>
           <p class="bmi-value">IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</p>
+        </div>
+
+        <div v-if="result.bodyFatPercent !== undefined" class="body-fat-summary" aria-label="Estimativa de gordura corporal pela fórmula RFM">
+          <p>Gordura corporal estimada <span>(RFM)</span></p>
+          <strong>{{ result.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}%</strong>
+          <p class="body-fat-classification">{{ result.bodyFatClassification }}</p>
+          <small>Estimativa com referência geral para adultos por sexo e idade; não é medição direta.</small>
         </div>
 
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
