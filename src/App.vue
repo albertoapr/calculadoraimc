@@ -358,10 +358,9 @@ function sendResult() {
 
         <div class="bmi-summary">
           <strong>IMC: {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong>
-          <p>O Índice de Massa Corporal relaciona o peso à altura e serve como referência geral para adultos; não substitui uma avaliação profissional.</p>
         </div>
         <p v-if="referenceWeightRange" class="weight-range-note">
-          Para sua altura de {{ result.heightCm }} cm, a faixa correspondente ao IMC de referência adulto (18,5 a 24,9) é de
+          Seu peso adequado é de
           <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
           <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>.
         </p>
