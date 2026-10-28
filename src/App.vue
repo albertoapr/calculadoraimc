@@ -433,25 +433,13 @@ async function sendResult() {
     return
   }
 
-  const sexLabel = form.sex === 'masculino' ? 'Homem' : 'Mulher'
   const message = [
     'Preciso da ajuda de um personal',
     '',
     '*Dados do usuário*',
     `Nome: ${clientName}`,
     ...(email ? [`E-mail: ${email}`] : []),
-    `Sexo: ${sexLabel}`,
     ...(age !== undefined ? [`Idade: ${age} anos`] : []),
-    `Peso: ${result.value.weight} kg`,
-    `Altura: ${result.value.heightCm} cm`,
-    `IMC: ${result.value.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}`,
-    ...(result.value.waistCm !== undefined && result.value.bodyFatPercent !== undefined
-      ? [
-          `Cintura: ${result.value.waistCm} cm`,
-          `Gordura corporal estimada (RFM): ${result.value.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%`,
-          `Classificação da gordura corporal: ${result.value.bodyFatClassification}`,
-        ]
-      : []),
     `Cidade: ${city}`,
     ...(form.objective ? [`Objetivo: ${form.objective}`] : []),
     ...(trainingDays.length ? [`Dias disponíveis para treinar: ${trainingDays.join(', ')}`] : []),
@@ -550,7 +538,7 @@ async function sendResult() {
 
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
-          <span>Quero receber ajuda de um personal e autorizo compartilhar meu primeiro nome, WhatsApp, cidade, idade (se informada) e objetivo com um personal ativo que atenda minha cidade.</span>
+          <span>Quero ajuda de um personal e autorizo compartilhar meu contato.</span>
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
