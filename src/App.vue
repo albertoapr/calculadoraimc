@@ -1,10 +1,26 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import foxMark from './assets/fox-mark.svg'
 
 type Sex = 'feminino' | 'masculino' | 'outro'
+type GoogleCredentialResponse = { credential: string }
+type GoogleIdentityApi = {
+  accounts: {
+    id: {
+      initialize: (options: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void
+      renderButton: (parent: HTMLElement, options: Record<string, string | number>) => void
+    }
+  }
+}
+
+declare global {
+  interface Window { google?: GoogleIdentityApi }
+}
+
+// OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
+const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
 
 type ImcResult = {
   weight: number
@@ -65,6 +81,7 @@ const form = reactive({
   bodyFatAge: '',
   contactConsent: false,
   name: '',
+  email: '',
   sex: 'feminino' as Sex,
   age: '',
   whatsapp: '',
@@ -77,6 +94,9 @@ const result = ref<ImcResult | null>(null)
 const evaluating = ref(false)
 const evaluationProgress = ref(0)
 const status = ref('')
+const googleButtonContainer = ref<HTMLDivElement | null>(null)
+const googleProfileStatus = ref('')
+let googleIdentityScriptPromise: Promise<void> | null = null
 const contactAge = computed(() => {
   if (!form.contactConsent || form.age === '') return undefined
   const age = Number(String(form.age))
@@ -204,12 +224,69 @@ function normalizeWhatsapp(value: string) {
 function clearContactDetails() {
   form.contactConsent = false
   form.name = ''
+  form.email = ''
   form.age = ''
   form.whatsapp = ''
   form.city = 'Mesquita'
   form.trainingDays = []
   form.trainingShifts = []
+  googleProfileStatus.value = ''
 }
+
+function loadGoogleIdentityScript() {
+  if (window.google?.accounts.id) return Promise.resolve()
+  if (googleIdentityScriptPromise) return googleIdentityScriptPromise
+  googleIdentityScriptPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client?hl=pt-BR'
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Não foi possível carregar o Google.'))
+    document.head.appendChild(script)
+  })
+  return googleIdentityScriptPromise
+}
+
+function fillFromGoogle(response: GoogleCredentialResponse) {
+  try {
+    const payloadPart = response.credential.split('.')[1]
+    if (!payloadPart) throw new Error('Credencial Google inválida.')
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
+    const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
+    const profile = JSON.parse(new TextDecoder().decode(bytes)) as { name?: string; email?: string }
+    if (!profile.name && !profile.email) throw new Error('O Google não retornou nome ou e-mail.')
+    if (profile.name) form.name = profile.name.trim()
+    if (profile.email) form.email = profile.email.trim().toLowerCase()
+    googleProfileStatus.value = 'Nome e e-mail preenchidos. Confira os dados e complete o restante do formulário.'
+  } catch {
+    googleProfileStatus.value = 'Não consegui ler os dados da conta Google. Tente novamente ou preencha manualmente.'
+  }
+}
+
+async function renderGoogleButton() {
+  const container = googleButtonContainer.value
+  if (!container) return
+  try {
+    await loadGoogleIdentityScript()
+    if (!window.google) throw new Error('Google Identity Services indisponível.')
+    window.google.accounts.id.initialize({ client_id: googleClientId, callback: fillFromGoogle })
+    window.google.accounts.id.renderButton(container, {
+      type: 'standard', theme: 'outline', size: 'large', text: 'continue_with',
+      shape: 'rectangular', logo_alignment: 'left',
+      width: Math.max(200, Math.min(400, Math.round(container.getBoundingClientRect().width))),
+    })
+  } catch {
+    googleProfileStatus.value = 'O preenchimento com Google está indisponível. Você pode preencher os dados manualmente.'
+  }
+}
+
+watch(() => form.contactConsent, async enabled => {
+  if (!enabled) return
+  await nextTick()
+  await renderGoogleButton()
+})
 
 function handleContactConsentChange() {
   if (form.contactConsent) {
@@ -295,6 +372,7 @@ function sendResult() {
   status.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
+  const email = form.email.trim().toLowerCase()
   const city = form.city.trim().replace(/\s+/g, ' ')
   const whatsapp = normalizeWhatsapp(form.whatsapp)
   const age = Number(String(form.age))
@@ -315,6 +393,7 @@ function sendResult() {
     '',
     '*Dados da avaliação*',
     `Nome: ${clientName}`,
+    ...(email ? [`E-mail: ${email}`] : []),
     `Sexo: ${sexLabel}`,
     `Idade: ${age} anos`,
     `Peso: ${result.value.weight} kg`,
@@ -427,8 +506,18 @@ function sendResult() {
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
+          <div class="google-fill field-wide">
+            <p>Preencha nome e e-mail com sua conta Google</p>
+            <div ref="googleButtonContainer" class="google-button-container"></div>
+            <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
+          </div>
+
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
+          </label>
+
+          <label class="field field-wide" for="email"><span class="field-label">E-mail <span>opcional</span></span>
+            <input id="email" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
           </label>
 
           <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
