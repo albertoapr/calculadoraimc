@@ -108,9 +108,10 @@ function classifyBodyFat(percent: number, sex: Sex, age: number) {
   const reference = referenceBands.find(band => age >= band.from && age < band.to)
 
   if (!reference) return 'Faixa de referência indisponível para esta idade'
-  if (percent < reference.minimum) return 'Abaixo da faixa de referência'
-  if (percent > reference.maximum) return 'Acima da faixa de referência'
-  return 'Dentro da faixa de referência'
+  if (percent < reference.minimum) return 'Baixo'
+  if (percent <= reference.maximum) return 'Adequado'
+  if (percent <= reference.maximum + 5) return 'Alto'
+  return 'Muito alto'
 }
 
 const classification = computed(() => result.value ? category(result.value.imc)[0] : '')
@@ -143,14 +144,21 @@ const bodyFatReference = computed(() => {
       ]
   const band = bands.find(item => current.bodyFatAge! >= item.from && current.bodyFatAge! < item.to)
   if (!band) return null
-  const domain = 50
+  const domain = 70
+  const highLimit = Math.min(domain, band.maximum + 5)
   return {
     ...band,
     domain,
+    highLimit,
     sexLabel: current.bodyFatSex === 'masculino' ? 'homens' : 'mulheres',
     ageLabel: `${band.from}–${band.to - 1} anos`,
     marker: `${Math.max(0, Math.min(domain, current.bodyFatPercent)) / domain * 100}%`,
-    widths: [band.minimum / domain * 100, (band.maximum - band.minimum) / domain * 100, (domain - band.maximum) / domain * 100],
+    widths: [
+      band.minimum / domain * 100,
+      (band.maximum - band.minimum) / domain * 100,
+      (highLimit - band.maximum) / domain * 100,
+      (domain - highLimit) / domain * 100,
+    ],
   }
 })
 const bmiSilhouettes = [
@@ -488,18 +496,20 @@ function sendResult() {
         <div v-if="result.bodyFatPercent !== undefined" class="body-fat-scale-wrap">
           <template v-if="bodyFatReference">
             <p class="body-fat-scale-title">Referência para {{ bodyFatReference.sexLabel }}, {{ bodyFatReference.ageLabel }}</p>
-            <div class="body-fat-scale-bar" role="img" :aria-label="`Gordura corporal ${result.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%. Referência para ${bodyFatReference.sexLabel}: ${bodyFatReference.minimum} a ${bodyFatReference.maximum}%`">
+            <div class="body-fat-scale-bar" role="img" :aria-label="`Gordura corporal ${result.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%. Classificações: baixo abaixo de ${bodyFatReference.minimum}%, adequado até ${bodyFatReference.maximum}%, alto até ${bodyFatReference.highLimit}%, muito alto acima disso.`">
               <div class="body-fat-scale-segments">
                 <span class="body-fat-low" :style="{ width: `${bodyFatReference.widths[0]}%` }"></span>
                 <span class="body-fat-healthy" :style="{ width: `${bodyFatReference.widths[1]}%` }"></span>
                 <span class="body-fat-high" :style="{ width: `${bodyFatReference.widths[2]}%` }"></span>
+                <span class="body-fat-very-high" :style="{ width: `${bodyFatReference.widths[3]}%` }"></span>
               </div>
               <div class="body-fat-scale-marker" :style="{ left: bodyFatReference.marker }" aria-hidden="true"></div>
             </div>
             <div class="body-fat-scale-labels" :style="{ gridTemplateColumns: bodyFatReference.widths.map(width => `${width}fr`).join(' ') }">
-              <span><b>Abaixo</b>0–{{ bodyFatReference.minimum }}%</span>
-              <span><b>Referência</b>{{ bodyFatReference.minimum }}–{{ bodyFatReference.maximum }}%</span>
-              <span><b>Acima</b>{{ bodyFatReference.maximum }}–50%</span>
+              <span><b>Baixo</b>&lt;{{ bodyFatReference.minimum }}%</span>
+              <span><b>Adequado</b>{{ bodyFatReference.minimum }}–{{ bodyFatReference.maximum }}%</span>
+              <span><b>Alto</b>&gt;{{ bodyFatReference.maximum }}–{{ bodyFatReference.highLimit }}%</span>
+              <span><b>Muito alto</b>&gt;{{ bodyFatReference.highLimit }}%</span>
             </div>
           </template>
           <p v-else class="body-fat-reference-unavailable">Faixa de referência indisponível para esta idade.</p>
