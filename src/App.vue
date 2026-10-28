@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
-import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.png'
+import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import foxMark from './assets/fox-mark.svg'
 
 type Sex = 'feminino' | 'masculino' | 'outro'
