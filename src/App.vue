@@ -433,7 +433,7 @@ async function sendResult() {
 
   const sexLabel = form.sex === 'masculino' ? 'Homem' : 'Mulher'
   const message = [
-    'Você recebeu uma solicitação de fitpeso.com.br',
+    'Preciso da ajuda de um personal',
     '',
     '*Dados do usuário*',
     `Nome: ${clientName}`,
