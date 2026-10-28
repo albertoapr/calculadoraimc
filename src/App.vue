@@ -392,14 +392,15 @@ async function sendResult() {
   const clientName = form.name.trim().replace(/\s+/g, ' ')
   const email = form.email.trim().toLowerCase()
   const city = form.city.trim().replace(/\s+/g, ' ')
-  const age = Number(String(form.age))
+  const ageInput = String(form.age).trim()
+  const age = ageInput ? Number(ageInput) : undefined
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
   const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
-  const validAge = Number.isInteger(age) && age >= 1 && age <= 120
+  const validAge = age === undefined || (Number.isInteger(age) && age >= 1 && age <= 120)
   const validSex = ['feminino', 'masculino'].includes(form.sex)
 
   if (!validName || !validCity || !validAge || !validSex) {
-    status.value = 'Confira o nome, a idade e a cidade informados.'
+    status.value = 'Confira o nome e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
     return
   }
 
@@ -414,7 +415,7 @@ async function sendResult() {
   try {
     requestCode = await createRequestCode({
       clientName,
-      age,
+      ...(age !== undefined ? { age } : {}),
       city,
       sex: form.sex,
       weight: result.value.weight,
@@ -439,7 +440,7 @@ async function sendResult() {
     `Nome: ${clientName}`,
     ...(email ? [`E-mail: ${email}`] : []),
     `Sexo: ${sexLabel}`,
-    `Idade: ${age} anos`,
+    ...(age !== undefined ? [`Idade: ${age} anos`] : []),
     `Peso: ${result.value.weight} kg`,
     `Altura: ${result.value.heightCm} cm`,
     `IMC: ${result.value.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}`,
@@ -567,7 +568,7 @@ async function sendResult() {
           </label>
 
           <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
-            <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35" required>
+            <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35">
           </label>
 
           <label class="field field-wide" for="city"><span class="field-label">Cidade</span>

@@ -41,7 +41,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
 
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(String(city)) &&
-    Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120 &&
+    (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     ['feminino', 'masculino'].includes(String(data.sex)) &&
     typeof data.weight === 'number' && Number.isInteger(data.weight) && data.weight >= 20 && data.weight <= 200 &&
     typeof data.heightCm === 'number' && Number.isInteger(data.heightCm) && data.heightCm >= 80 && data.heightCm <= 200 &&
