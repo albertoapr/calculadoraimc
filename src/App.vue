@@ -490,7 +490,7 @@ async function sendResult() {
           </svg>
           <span>{{ result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Controle de peso' }}</span>
         </h1>
-        <p v-if="!result" class="intro"><span>Descubra seu peso adequado.</span><span>Informe seu peso e altura; a gordura corporal é opcional.</span></p>
+        <p v-if="!result" class="intro"><span>Descubra seu peso adequado.</span></p>
       </header>
 
       <form v-if="!result" class="form" @submit.prevent="calculateImc">
