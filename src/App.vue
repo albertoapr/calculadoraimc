@@ -403,7 +403,6 @@ async function sendResult() {
     return
   }
 
-  const whatsappWindow = window.open('about:blank', '_blank')
   submittingRequest.value = true
   status.value = 'Preparando a solicitação e o código de validação…'
 
@@ -422,7 +421,6 @@ async function sendResult() {
       consent: true,
     })
   } catch (error) {
-    whatsappWindow?.close()
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
     submittingRequest.value = false
     return
@@ -453,14 +451,8 @@ async function sendResult() {
     `Código de validação da solicitação (válido por 15 minutos): ${requestCode}`,
   ].join('\n')
   const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-  if (whatsappWindow) {
-    whatsappWindow.location.href = whatsappUrl
-    whatsappWindow.opener = null
-    status.value = 'WhatsApp aberto com os dados e código preenchidos. Revise e toque em enviar.'
-  } else {
-    window.location.assign(whatsappUrl)
-  }
   submittingRequest.value = false
+  window.location.assign(whatsappUrl)
 }
 </script>
 
