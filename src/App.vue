@@ -13,6 +13,8 @@ type ImcResult = {
   waistCm?: number
   bodyFatPercent?: number
   bodyFatClassification?: string
+  bodyFatSex?: 'feminino' | 'masculino'
+  bodyFatAge?: number
 }
 
 function getPersonalNameFromPath() {
@@ -125,6 +127,32 @@ const bmiScale = [
   { label: 'Obesidade I', range: '30–34,9', from: 30, to: 35, color: '#fb923c' },
 ]
 const scalePosition = computed(() => result.value ? `${Math.max(0, Math.min(100, ((result.value.imc - 12) / 23) * 100))}%` : '0%')
+const bodyFatReference = computed(() => {
+  const current = result.value
+  if (current?.bodyFatPercent === undefined || current.bodyFatAge === undefined || !current.bodyFatSex) return null
+  const bands = current.bodyFatSex === 'masculino'
+    ? [
+        { from: 20, to: 40, minimum: 8, maximum: 20 },
+        { from: 40, to: 60, minimum: 11, maximum: 22 },
+        { from: 60, to: 80, minimum: 13, maximum: 25 },
+      ]
+    : [
+        { from: 20, to: 40, minimum: 21, maximum: 33 },
+        { from: 40, to: 60, minimum: 23, maximum: 34 },
+        { from: 60, to: 80, minimum: 24, maximum: 36 },
+      ]
+  const band = bands.find(item => current.bodyFatAge! >= item.from && current.bodyFatAge! < item.to)
+  if (!band) return null
+  const domain = 50
+  return {
+    ...band,
+    domain,
+    sexLabel: current.bodyFatSex === 'masculino' ? 'homens' : 'mulheres',
+    ageLabel: `${band.from}–${band.to - 1} anos`,
+    marker: `${Math.max(0, Math.min(domain, current.bodyFatPercent)) / domain * 100}%`,
+    widths: [band.minimum / domain * 100, (band.maximum - band.minimum) / domain * 100, (domain - band.maximum) / domain * 100],
+  }
+})
 const bmiSilhouettes = [
   { label: 'Magreza', range: 'IMC < 18,5', position: 0 },
   { label: 'Peso adequado', range: 'IMC 18,5–24,9', position: 25 },
@@ -226,6 +254,8 @@ function calculateImc() {
     nextResult.waistCm = waistCm
     nextResult.bodyFatPercent = bodyFatPercent
     nextResult.bodyFatClassification = classifyBodyFat(bodyFatPercent, form.sex, age)
+    nextResult.bodyFatSex = form.sex === 'masculino' ? 'masculino' : 'feminino'
+    nextResult.bodyFatAge = age
   }
 
   evaluating.value = true
@@ -438,7 +468,15 @@ function sendResult() {
             Peso ideal <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
             <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
           </p>
-          <p class="bmi-value">IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</p>
+          <p class="bmi-value">IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} <span class="bmi-unit">kg/m²</span></p>
+        </div>
+
+        <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} quilogramas por metro quadrado, classificação ${classification}`">
+          <div class="bmi-scale-bar">
+            <div class="bmi-scale-segments"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
+            <div class="scale-marker" :style="{ left: scalePosition }" aria-hidden="true"></div>
+          </div>
+          <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
         </div>
 
         <div v-if="result.bodyFatPercent !== undefined" class="body-fat-summary" aria-label="Estimativa de gordura corporal pela fórmula RFM">
@@ -447,15 +485,25 @@ function sendResult() {
           <p class="body-fat-classification">{{ result.bodyFatClassification }}</p>
           <small>Estimativa com referência geral para adultos por sexo e idade; não é medição direta.</small>
         </div>
-
-        <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
-          <div class="bmi-scale-bar">
-            <div class="bmi-scale-segments"><span v-for="segment in bmiScale" :key="segment.label" :style="{ backgroundColor: segment.color, flexGrow: segment.to - segment.from }"></span></div>
-            <div class="scale-marker" :style="{ left: scalePosition }" aria-hidden="true"></div>
-          </div>
-          <div class="scale-labels"><span v-for="segment in bmiScale" :key="segment.label"><b>{{ segment.range }}</b>{{ segment.label }}</span></div>
+        <div v-if="result.bodyFatPercent !== undefined" class="body-fat-scale-wrap">
+          <template v-if="bodyFatReference">
+            <p class="body-fat-scale-title">Referência para {{ bodyFatReference.sexLabel }}, {{ bodyFatReference.ageLabel }}</p>
+            <div class="body-fat-scale-bar" role="img" :aria-label="`Gordura corporal ${result.bodyFatPercent.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}%. Referência para ${bodyFatReference.sexLabel}: ${bodyFatReference.minimum} a ${bodyFatReference.maximum}%`">
+              <div class="body-fat-scale-segments">
+                <span class="body-fat-low" :style="{ width: `${bodyFatReference.widths[0]}%` }"></span>
+                <span class="body-fat-healthy" :style="{ width: `${bodyFatReference.widths[1]}%` }"></span>
+                <span class="body-fat-high" :style="{ width: `${bodyFatReference.widths[2]}%` }"></span>
+              </div>
+              <div class="body-fat-scale-marker" :style="{ left: bodyFatReference.marker }" aria-hidden="true"></div>
+            </div>
+            <div class="body-fat-scale-labels" :style="{ gridTemplateColumns: bodyFatReference.widths.map(width => `${width}fr`).join(' ') }">
+              <span><b>Abaixo</b>0–{{ bodyFatReference.minimum }}%</span>
+              <span><b>Referência</b>{{ bodyFatReference.minimum }}–{{ bodyFatReference.maximum }}%</span>
+              <span><b>Acima</b>{{ bodyFatReference.maximum }}–50%</span>
+            </div>
+          </template>
+          <p v-else class="body-fat-reference-unavailable">Faixa de referência indisponível para esta idade.</p>
         </div>
-
         <div class="silhouette-section" :class="{ 'male-silhouettes': form.sex === 'masculino' }" :aria-label="`Escala ilustrativa de silhuetas ${silhouetteGenderLabel.toLowerCase()} por classificação de IMC`">
           <div class="silhouette-list">
             <div v-for="(person, index) in bmiSilhouettes" :key="person.label" class="silhouette-item" :class="{ active: activeSilhouette === index }" :aria-current="activeSilhouette === index ? 'true' : undefined">

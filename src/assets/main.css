@@ -112,12 +112,27 @@ h2 { font-size: 21px; line-height: 1.4; }
 .bmi-summary p { margin: 0; color: #506987; font-size: 17px; line-height: 1.5; text-align: center; }
 .bmi-summary strong { color: var(--ink); font-family: Manrope, sans-serif; font-size: inherit; font-weight: 700; letter-spacing: -.02em; }
 .bmi-summary .bmi-value { margin-top: 4px; color: var(--blue-dark); font-family: Manrope, sans-serif; font-weight: 700; }
+.bmi-summary .bmi-unit { font-size: .72em; font-weight: 600; white-space: nowrap; }
 .body-fat-summary { margin: 0 0 20px; padding: 16px; border: 1px solid #cce7d4; border-radius: 11px; background: #f2f8f4; text-align: center; }
 .body-fat-summary > p { margin: 0; color: #426752; font-size: 15px; line-height: 1.45; }
 .body-fat-summary > p span { font-size: 12px; }
 .body-fat-summary > strong { display: block; margin: 4px 0; color: #218347; font-family: Manrope, sans-serif; font-size: 30px; font-weight: 800; }
 .body-fat-summary .body-fat-classification { margin: 7px 0; color: #87550a; font-weight: 700; }
 .body-fat-summary > small { display: block; color: #71839a; font-size: 11px; line-height: 1.4; }
+.body-fat-scale-wrap { margin: -6px 0 22px; padding: 0 3px; }
+.body-fat-scale-title { margin: 0 0 10px; color: #536984; font-size: 12px; font-weight: 700; text-align: center; }
+.body-fat-scale-bar { position: relative; height: 24px; }
+.body-fat-scale-segments { position: absolute; inset: 0; display: flex; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
+.body-fat-scale-segments span { height: 100%; }
+.body-fat-low { background: #60a5fa; }
+.body-fat-healthy { background: #34d399; }
+.body-fat-high { background: #fb923c; }
+.body-fat-scale-marker { position: absolute; top: 0; z-index: 2; width: 3px; height: 100%; transform: translateX(-50%); background: #dc2626; }
+.body-fat-scale-marker::before { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); border-top: 8px solid #dc2626; border-right: 6px solid transparent; border-left: 6px solid transparent; content: ''; }
+.body-fat-scale-labels { display: grid; gap: 2px; margin-top: 9px; color: #536984; font-size: 10px; line-height: 1.35; text-align: center; }
+.body-fat-scale-labels span { display: flex; min-width: 0; flex-direction: column; overflow-wrap: anywhere; }
+.body-fat-scale-labels b { color: #334d70; font-size: 10px; }
+.body-fat-reference-unavailable { margin: 0; color: #71839a; font-size: 12px; text-align: center; }
 .bmi-scale-wrap { position: relative; margin: 25px 0 23px; padding-top: 1px; }
 .bmi-scale-bar { position: relative; height: 28px; }
 .bmi-scale-segments { position: absolute; inset: 0; display: flex; overflow: hidden; border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(22,52,84,.08); }
