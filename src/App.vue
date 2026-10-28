@@ -83,6 +83,7 @@ const form = reactive({
   provideAvailability: false,
   name: '',
   email: '',
+  objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
   age: '',
   city: 'Mesquita',
@@ -219,6 +220,7 @@ function clearContactDetails() {
   form.contactConsent = false
   form.name = ''
   form.email = ''
+  form.objective = 'Emagrecimento'
   form.age = ''
   form.city = 'Mesquita'
   form.trainingDays = []
@@ -451,15 +453,16 @@ async function sendResult() {
         ]
       : []),
     `Cidade: ${city}`,
+    ...(form.objective ? [`Objetivo: ${form.objective}`] : []),
     ...(trainingDays.length ? [`Dias disponíveis para treinar: ${trainingDays.join(', ')}`] : []),
     ...(trainingShifts.length ? [`Turnos disponíveis: ${trainingShifts.join(', ')}`] : []),
     `Código de validação da solicitação (válido por 15 minutos): ${requestCode}`,
   ].join('\n')
   const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+  status.value = 'No WhatsApp, toque em Enviar para confirmar a solicitação.'
   if (whatsappWindow) {
     whatsappWindow.location.href = whatsappUrl
     whatsappWindow.opener = null
-    status.value = 'WhatsApp aberto com os dados e código preenchidos. Revise e toque em enviar.'
   } else {
     window.location.assign(whatsappUrl)
   }
@@ -574,6 +577,15 @@ async function sendResult() {
               <option value="Mesquita">Mesquita</option>
               <option value="Nilópolis">Nilópolis</option>
               <option value="Nova Iguaçu">Nova Iguaçu</option>
+            </select>
+          </label>
+
+          <label class="field field-wide" for="objective"><span class="field-label">Objetivo <span>opcional</span></span>
+            <select id="objective" v-model="form.objective" name="objective">
+              <option value="">Selecione seu objetivo</option>
+              <option value="Emagrecimento">Emagrecimento</option>
+              <option value="Musculação">Musculação</option>
+              <option value="Outros">Outros</option>
             </select>
           </label>
 
