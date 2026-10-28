@@ -47,8 +47,8 @@ function isValidRequest(data: Record<string, unknown> | null) {
     typeof data.heightCm === 'number' && Number.isInteger(data.heightCm) && data.heightCm >= 80 && data.heightCm <= 200 &&
     typeof data.imc === 'number' && Number.isFinite(data.imc) &&
     Math.abs(data.weight / ((data.heightCm / 100) ** 2) - data.imc) <= 0.11 &&
-    Array.isArray(trainingDays) && trainingDays.length > 0 && trainingDays.every(day => days.includes(String(day))) &&
-    Array.isArray(trainingShifts) && trainingShifts.length > 0 && trainingShifts.every(shift => shifts.includes(String(shift)))
+    Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
+    Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
 
 function hashCode(code: string) {

@@ -80,6 +80,7 @@ const form = reactive({
   calculateBodyFat: false,
   bodyFatAge: '',
   contactConsent: false,
+  provideAvailability: false,
   name: '',
   email: '',
   sex: 'feminino' as Sex,
@@ -396,12 +397,14 @@ async function sendResult() {
   const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
   const validAge = Number.isInteger(age) && age >= 1 && age <= 120
   const validSex = ['feminino', 'masculino'].includes(form.sex)
-  const validAvailability = form.trainingDays.length > 0 && form.trainingShifts.length > 0
 
-  if (!validName || !validCity || !validAge || !validSex || !validAvailability) {
-    status.value = 'Confira os dados de contato e selecione ao menos um dia e um turno para treinar.'
+  if (!validName || !validCity || !validAge || !validSex) {
+    status.value = 'Confira o nome, a idade e a cidade informados.'
     return
   }
+
+  const trainingDays = form.provideAvailability ? form.trainingDays : []
+  const trainingShifts = form.provideAvailability ? form.trainingShifts : []
 
   const whatsappWindow = window.open('about:blank', '_blank')
   submittingRequest.value = true
@@ -417,8 +420,8 @@ async function sendResult() {
       weight: result.value.weight,
       heightCm: result.value.heightCm,
       imc: result.value.imc,
-      trainingDays: form.trainingDays,
-      trainingShifts: form.trainingShifts,
+      trainingDays,
+      trainingShifts,
       consent: true,
     })
   } catch (error) {
@@ -448,8 +451,8 @@ async function sendResult() {
         ]
       : []),
     `Cidade: ${city}`,
-    `Dias disponíveis para treinar: ${form.trainingDays.join(', ')}`,
-    `Turnos disponíveis: ${form.trainingShifts.join(', ')}`,
+    ...(trainingDays.length ? [`Dias disponíveis para treinar: ${trainingDays.join(', ')}`] : []),
+    ...(trainingShifts.length ? [`Turnos disponíveis: ${trainingShifts.join(', ')}`] : []),
     `Código de validação da solicitação (válido por 15 minutos): ${requestCode}`,
   ].join('\n')
   const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
@@ -576,7 +579,12 @@ async function sendResult() {
             </select>
           </label>
 
-          <fieldset class="availability-group field-wide">
+          <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
+            <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
+            <span>Informar disponibilidade para treino</span>
+          </label>
+
+          <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
             <legend>Disponibilidade para treinar — dias da semana</legend>
             <div class="availability-options">
               <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
@@ -586,7 +594,7 @@ async function sendResult() {
             </div>
           </fieldset>
 
-          <fieldset class="availability-group field-wide">
+          <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
             <legend>Turno</legend>
             <div class="availability-options">
               <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
