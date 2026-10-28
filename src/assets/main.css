@@ -97,6 +97,8 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .google-fill > p { margin: 0; color: #345273; font-size: 13px; font-weight: 700; }
 .google-button-container { display: flex; min-height: 40px; justify-content: center; }
 .google-fill > small { max-width: 100%; color: #536984; font-size: 12px; line-height: 1.45; }
+.form-privacy-note { margin: 0; color: #657891; font-size: 12px; line-height: 1.45; text-align: center; }
+.primary-button:disabled { cursor: wait; opacity: .75; }
 .back-button { display: block; width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #c9dcf7; border-radius: 10px; color: var(--blue-dark); background: #fff; font-size: 14px; font-weight: 700; }
 .back-button:hover { border-color: #91b6f1; background: #eaf2ff; }
 .back-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }

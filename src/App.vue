@@ -84,7 +84,6 @@ const form = reactive({
   email: '',
   sex: 'feminino' as Sex,
   age: '',
-  whatsapp: '',
   city: 'Mesquita',
   trainingDays: [] as string[],
   trainingShifts: [] as string[],
@@ -94,6 +93,7 @@ const result = ref<ImcResult | null>(null)
 const evaluating = ref(false)
 const evaluationProgress = ref(0)
 const status = ref('')
+const submittingRequest = ref(false)
 const googleButtonContainer = ref<HTMLDivElement | null>(null)
 const googleProfileStatus = ref('')
 let googleIdentityScriptPromise: Promise<void> | null = null
@@ -214,19 +214,11 @@ const referenceWeightRange = computed(() => {
     maximum: Number((24.9 * heightMetersSquared).toFixed(1)),
   }
 })
-function normalizeWhatsapp(value: string) {
-  const digits = value.replace(/\D/g, '')
-  if (digits.length === 10 || digits.length === 11) return `+55${digits}`
-  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) return `+${digits}`
-  return ''
-}
-
 function clearContactDetails() {
   form.contactConsent = false
   form.name = ''
   form.email = ''
   form.age = ''
-  form.whatsapp = ''
   form.city = 'Mesquita'
   form.trainingDays = []
   form.trainingShifts = []
@@ -367,14 +359,38 @@ function editMeasurement() {
   status.value = ''
 }
 
-function sendResult() {
-  if (!result.value || !form.contactConsent) return
+type AmplifyRuntimeOutputs = { custom?: { imcApi?: { endpoint?: string } } }
+
+async function getRequestApiEndpoint() {
+  const outputResponse = await fetch('/amplify_outputs.json', { cache: 'no-store' })
+  if (!outputResponse.ok) throw new Error('A validação ainda não está disponível. Tente novamente mais tarde.')
+  const outputs = await outputResponse.json() as AmplifyRuntimeOutputs
+  const endpoint = outputs.custom?.imcApi?.endpoint?.trim()
+  if (!endpoint) throw new Error('A validação ainda não está disponível. Tente novamente mais tarde.')
+  return endpoint.replace(/\/+$/, '')
+}
+
+async function createRequestCode(request: Record<string, unknown>) {
+  const endpoint = await getRequestApiEndpoint()
+  const response = await fetch(`${endpoint}/api/imc`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  const body = await response.json() as { code?: string; error?: string }
+  if (!response.ok || !body.code || !/^[A-Za-z0-9_-]{22}$/.test(body.code)) {
+    throw new Error(body.error || 'Não foi possível preparar a solicitação agora. Tente novamente.')
+  }
+  return body.code
+}
+
+async function sendResult() {
+  if (!result.value || !form.contactConsent || submittingRequest.value) return
   status.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
   const email = form.email.trim().toLowerCase()
   const city = form.city.trim().replace(/\s+/g, ' ')
-  const whatsapp = normalizeWhatsapp(form.whatsapp)
   const age = Number(String(form.age))
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
   const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
@@ -382,8 +398,33 @@ function sendResult() {
   const validSex = ['feminino', 'masculino'].includes(form.sex)
   const validAvailability = form.trainingDays.length > 0 && form.trainingShifts.length > 0
 
-  if (!validName || !validCity || !whatsapp || !validAge || !validSex || !validAvailability) {
+  if (!validName || !validCity || !validAge || !validSex || !validAvailability) {
     status.value = 'Confira os dados de contato e selecione ao menos um dia e um turno para treinar.'
+    return
+  }
+
+  const whatsappWindow = window.open('about:blank', '_blank')
+  submittingRequest.value = true
+  status.value = 'Preparando a solicitação e o código de validação…'
+
+  let requestCode: string
+  try {
+    requestCode = await createRequestCode({
+      clientName,
+      age,
+      city,
+      sex: form.sex,
+      weight: result.value.weight,
+      heightCm: result.value.heightCm,
+      imc: result.value.imc,
+      trainingDays: form.trainingDays,
+      trainingShifts: form.trainingShifts,
+      consent: true,
+    })
+  } catch (error) {
+    whatsappWindow?.close()
+    status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
+    submittingRequest.value = false
     return
   }
 
@@ -409,16 +450,17 @@ function sendResult() {
     `Cidade: ${city}`,
     `Dias disponíveis para treinar: ${form.trainingDays.join(', ')}`,
     `Turnos disponíveis: ${form.trainingShifts.join(', ')}`,
-    `WhatsApp para contato: ${whatsapp}`,
+    `Código de validação da solicitação (válido por 15 minutos): ${requestCode}`,
   ].join('\n')
   const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-  const whatsappWindow = window.open(whatsappUrl, '_blank')
   if (whatsappWindow) {
+    whatsappWindow.location.href = whatsappUrl
     whatsappWindow.opener = null
-    status.value = 'WhatsApp aberto com os dados preenchidos. Revise e escolha para quem enviar.'
+    status.value = 'WhatsApp aberto com os dados e código preenchidos. Revise e toque em enviar.'
   } else {
     window.location.assign(whatsappUrl)
   }
+  submittingRequest.value = false
 }
 </script>
 
@@ -511,6 +553,7 @@ function sendResult() {
             <div ref="googleButtonContainer" class="google-button-container"></div>
             <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
           </div>
+          <p class="form-privacy-note field-wide">Ao enviar esta mensagem pelo WhatsApp, a Beta identificará automaticamente o número de origem. Não é necessário informá-lo no formulário.</p>
 
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
@@ -522,10 +565,6 @@ function sendResult() {
 
           <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
             <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35" required>
-          </label>
-
-          <label class="field field-wide" for="whatsapp"><span class="field-label">WhatsApp</span>
-            <input id="whatsapp" v-model="form.whatsapp" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" placeholder="(21) 99999-9999" required>
           </label>
 
           <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
@@ -557,7 +596,9 @@ function sendResult() {
             </div>
           </fieldset>
 
-          <button class="primary-button field-wide" type="submit">Abrir WhatsApp para enviar <span aria-hidden="true">→</span></button>
+          <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
+            {{ submittingRequest ? 'Preparando solicitação…' : 'Abrir WhatsApp para enviar' }} <span aria-hidden="true">→</span>
+          </button>
         </form>
 
         <div class="bmi-summary">
