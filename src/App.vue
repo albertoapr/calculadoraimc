@@ -433,9 +433,9 @@ async function sendResult() {
 
   const sexLabel = form.sex === 'masculino' ? 'Homem' : 'Mulher'
   const message = [
-    'Olá! Gostaria de receber ajuda de um personal trainer.',
+    'Você recebeu uma solicitação de fitpeso.com.br',
     '',
-    '*Dados da avaliação*',
+    '*Dados do usuário*',
     `Nome: ${clientName}`,
     ...(email ? [`E-mail: ${email}`] : []),
     `Sexo: ${sexLabel}`,
