@@ -252,7 +252,6 @@ function fillFromGoogle(response: GoogleCredentialResponse) {
     if (!profile.name && !profile.email) throw new Error('O Google não retornou nome ou e-mail.')
     if (profile.name) form.name = profile.name.trim()
     if (profile.email) form.email = profile.email.trim().toLowerCase()
-    googleProfileStatus.value = 'Nome e e-mail preenchidos. Confira os dados e complete o restante do formulário.'
   } catch {
     googleProfileStatus.value = 'Não consegui ler os dados da conta Google. Tente novamente ou preencha manualmente.'
   }
