@@ -357,12 +357,11 @@ function sendResult() {
         </form>
 
         <div class="bmi-summary">
-          <strong>IMC: {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</strong>
           <p v-if="referenceWeightRange" class="weight-range-note">
-            Faixa de peso ideal :
-            <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
-            <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg.</strong>
+            Peso ideal <strong>{{ referenceWeightRange.minimum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong> a
+            <strong>{{ referenceWeightRange.maximum.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg</strong>
           </p>
+          <p class="bmi-value">IMC {{ result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }}</p>
         </div>
 
         <div class="bmi-scale-wrap" role="img" :aria-label="`Escala de IMC de magreza até obesidade grau I: ${result.imc.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}, classificação ${classification}`">
