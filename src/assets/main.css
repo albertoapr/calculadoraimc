@@ -80,8 +80,8 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 }
 .field input.range-input::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: #dbeafe; }
 .field input.range-input::-moz-range-track { height: 6px; border-radius: 999px; background: #dbeafe; }
-.field input.range-input::-webkit-slider-thumb { width: 28px; height: 38px; margin-top: -16px; border: 0; background: url('/halter-slider.svg') center / contain no-repeat; appearance: none; -webkit-appearance: none; }
-.field input.range-input::-moz-range-thumb { width: 28px; height: 38px; border: 0; border-radius: 0; background: url('/halter-slider.svg') center / contain no-repeat; }
+.field input.range-input::-webkit-slider-thumb { width: 44px; height: 32px; margin-top: -13px; border: 0; background: url('/halter-slider.svg') center / contain no-repeat; appearance: none; -webkit-appearance: none; }
+.field input.range-input::-moz-range-thumb { width: 44px; height: 32px; border: 0; border-radius: 0; background: url('/halter-slider.svg') center / contain no-repeat; }
 .field input.range-input:focus { border: 0; box-shadow: none; }
 .field input.range-input:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 3px; border-radius: 8px; }
 .range-limits { display: flex; justify-content: space-between; margin-top: -7px; color: #8799b0; font-size: 12px; font-weight: 500; }
@@ -205,6 +205,9 @@ html[data-theme='dark'] .field input::placeholder { color: #839087; }
 html[data-theme='dark'] .field input:focus, html[data-theme='dark'] .field select:focus { border-color: #f2a04b; box-shadow: 0 0 0 3px rgba(242, 160, 75, .16); }
 html[data-theme='dark'] .slider-adjust { border-color: #3b4b40; color: #f4f5f0; background: #202e26; }
 html[data-theme='dark'] .slider-adjust:hover:not(:disabled) { border-color: #f2a04b; background: #29382f; }
+html[data-theme='dark'] .field input.range-input::-webkit-slider-runnable-track, html[data-theme='dark'] .field input.range-input::-moz-range-track { background: #45554a; }
+html[data-theme='dark'] .field input.range-input::-webkit-slider-thumb { background-image: url('/halter-slider-dark.svg'); }
+html[data-theme='dark'] .field input.range-input::-moz-range-thumb { background-image: url('/halter-slider-dark.svg'); }
 html[data-theme='dark'] .range-limits, html[data-theme='dark'] .body-fat-help, html[data-theme='dark'] .form-privacy-note, html[data-theme='dark'] .disclaimer, html[data-theme='dark'] .silhouette-note { color: #a6b2a9; }
 html[data-theme='dark'] .body-fat-toggle, html[data-theme='dark'] .contact-opt-in { border-color: #34443a; color: #e7ebe6; background: #1b2720; }
 html[data-theme='dark'] .body-fat-fields { border-color: #34443a; background: #18231c; }
