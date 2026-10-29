@@ -170,6 +170,67 @@ footer img { width: 24px; height: 24px; }
 .trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
 .trainer-signup-link:hover { text-decoration: underline; }
 
+.theme-switch { display: flex; justify-content: flex-end; gap: 4px; margin: -15px 0 15px; }
+.theme-switch button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 700; }
+.theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #edf4ff; }
+.theme-switch button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  color: #f4f5f0;
+  background: #101713;
+  --blue: #f2a04b;
+  --blue-dark: #f6ae61;
+  --ink: #f4f5f0;
+  --muted: #b5c0b8;
+  --line: #34443a;
+}
+html[data-theme='dark'] .page-shell { background: radial-gradient(ellipse at 50% 0%, #202d25 0, #111914 48%, #0d130f 100%); }
+html[data-theme='dark'] .calculator { border-color: #2a3930; background: rgba(20, 29, 24, .98); box-shadow: 0 22px 70px rgba(0, 0, 0, .32); }
+html[data-theme='dark'] .brand { color: #f4f5f0; }
+html[data-theme='dark'] .dumbbell-icon { fill: rgba(242, 160, 75, .15); stroke: #f2a04b; }
+html[data-theme='dark'] .personal-divider { border-top-color: #34443a; }
+html[data-theme='dark'] .eyebrow { color: #9ca99f; }
+html[data-theme='dark'] .gender-tabs { background: #1d2922; }
+html[data-theme='dark'] .gender-tab { color: #c3cdc5; }
+html[data-theme='dark'] .gender-tab.active { color: #1b211c; background: #f2a04b; box-shadow: 0 2px 8px rgba(242, 160, 75, .2); }
+html[data-theme='dark'] .field, html[data-theme='dark'] .field-label, html[data-theme='dark'] .availability-group legend { color: #c3cdc5; }
+html[data-theme='dark'] .field-label > span { color: #8e9c92; }
+html[data-theme='dark'] .availability-option, html[data-theme='dark'] .field input, html[data-theme='dark'] .field select { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
+html[data-theme='dark'] .field input::placeholder { color: #839087; }
+html[data-theme='dark'] .field input:focus, html[data-theme='dark'] .field select:focus { border-color: #f2a04b; box-shadow: 0 0 0 3px rgba(242, 160, 75, .16); }
+html[data-theme='dark'] .slider-adjust { border-color: #3b4b40; color: #f4f5f0; background: #202e26; }
+html[data-theme='dark'] .slider-adjust:hover:not(:disabled) { border-color: #f2a04b; background: #29382f; }
+html[data-theme='dark'] .range-limits, html[data-theme='dark'] .body-fat-help, html[data-theme='dark'] .form-privacy-note, html[data-theme='dark'] .disclaimer, html[data-theme='dark'] .silhouette-note { color: #a6b2a9; }
+html[data-theme='dark'] .body-fat-toggle, html[data-theme='dark'] .contact-opt-in { border-color: #34443a; color: #e7ebe6; background: #1b2720; }
+html[data-theme='dark'] .body-fat-fields { border-color: #34443a; background: #18231c; }
+html[data-theme='dark'] .primary-button { color: #182019; background: #f2a04b; }
+html[data-theme='dark'] .primary-button:hover:not(:disabled) { background: #ffb568; }
+html[data-theme='dark'] .back-button { border-color: #3b4b40; color: #f6ae61; background: #1b2720; }
+html[data-theme='dark'] .back-button:hover { border-color: #f2a04b; background: #26342b; }
+html[data-theme='dark'] .result-card { border-color: #34443a; background: #17211b; }
+html[data-theme='dark'] .evaluation-overlay { background: rgba(3, 8, 5, .72); }
+html[data-theme='dark'] .evaluation-circle { background: conic-gradient(var(--blue) var(--progress), #34443a var(--progress)); }
+html[data-theme='dark'] .evaluation-circle::before { background: #17211b; }
+html[data-theme='dark'] .score { color: #f2a04b; }
+html[data-theme='dark'] .score span, html[data-theme='dark'] .bmi-scale-title { color: #a6b2a9; }
+html[data-theme='dark'] .bmi-summary { border-color: #34443a; background: #202d25; }
+html[data-theme='dark'] .bmi-summary p { color: #c3cdc5; }
+html[data-theme='dark'] .body-fat-summary { border-color: #34443a; background: #1d2c23; }
+html[data-theme='dark'] .body-fat-summary > p, html[data-theme='dark'] .body-fat-summary > small { color: #b5c0b8; }
+html[data-theme='dark'] .body-fat-summary > strong { color: #7ed39b; }
+html[data-theme='dark'] .body-fat-summary .body-fat-classification { color: #f2c47d; }
+html[data-theme='dark'] .body-fat-scale-labels, html[data-theme='dark'] .scale-labels { color: #c0cbc2; }
+html[data-theme='dark'] .body-fat-scale-labels b, html[data-theme='dark'] .scale-labels b { color: #e3e9e3; }
+html[data-theme='dark'] .body-fat-reference-unavailable { color: #a6b2a9; }
+html[data-theme='dark'] .silhouette-item { color: #a6b2a9; }
+html[data-theme='dark'] .silhouette-item.active { border-color: #f2a04b; color: #ffbd7d; background: #27352c; }
+html[data-theme='dark'] .status { color: #d9e6db; background: #26372b; }
+html[data-theme='dark'] footer { color: #7ed39b; }
+html[data-theme='dark'] .trainer-signup-link { color: #f6ae61; }
+html[data-theme='dark'] .theme-switch button { border-color: #3b4b40; color: #c3cdc5; }
+html[data-theme='dark'] .theme-switch button.active { border-color: #f2a04b; color: #182019; background: #f2a04b; }
+
 @media (max-width: 520px) {
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }

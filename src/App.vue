@@ -22,6 +22,24 @@ declare global {
 // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
 const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
 
+type Theme = 'light' | 'dark'
+function readStoredTheme(): Theme {
+  try {
+    return localStorage.getItem('beta-imc-theme') === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+const theme = ref<Theme>(readStoredTheme())
+watch(theme, value => {
+  document.documentElement.dataset.theme = value
+  try {
+    localStorage.setItem('beta-imc-theme', value)
+  } catch {
+    // Keep the in-memory selection if browser storage is unavailable.
+  }
+}, { immediate: true })
+
 type ImcResult = {
   weight: number
   heightCm: number
@@ -461,6 +479,10 @@ async function sendResult() {
 <template>
   <main class="page-shell">
     <section class="calculator" aria-labelledby="page-title">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+        <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
+        <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
+      </div>
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
