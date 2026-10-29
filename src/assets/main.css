@@ -67,7 +67,7 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .field input::placeholder { color: #a6b4c5; }
 .field input:focus, .field select:focus { border-color: #76a7f7; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 .slider-field { gap: 11px; }
-.slider-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.slider-heading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; }
 .slider-heading output { color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .slider-control-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 9px; }
 .slider-adjust { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid #c9dcf7; border-radius: 10px; color: var(--blue-dark); background: #f2f7ff; font-size: 24px; font-weight: 600; line-height: 1; }
@@ -76,8 +76,12 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .slider-adjust:disabled { cursor: not-allowed; opacity: .42; }
 .field input.range-input {
   width: 100%; min-height: 32px; height: 32px; padding: 0; border: 0; border-radius: 0;
-  outline: none; background: transparent; box-shadow: none; accent-color: var(--blue); cursor: pointer;
+  outline: none; background: transparent; box-shadow: none; accent-color: var(--blue); cursor: pointer; appearance: none; -webkit-appearance: none;
 }
+.field input.range-input::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: #dbeafe; }
+.field input.range-input::-moz-range-track { height: 6px; border-radius: 999px; background: #dbeafe; }
+.field input.range-input::-webkit-slider-thumb { width: 28px; height: 38px; margin-top: -16px; border: 0; background: url('/halter-slider.svg') center / contain no-repeat; appearance: none; -webkit-appearance: none; }
+.field input.range-input::-moz-range-thumb { width: 28px; height: 38px; border: 0; border-radius: 0; background: url('/halter-slider.svg') center / contain no-repeat; }
 .field input.range-input:focus { border: 0; box-shadow: none; }
 .field input.range-input:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 3px; border-radius: 8px; }
 .range-limits { display: flex; justify-content: space-between; margin-top: -7px; color: #8799b0; font-size: 12px; font-weight: 500; }

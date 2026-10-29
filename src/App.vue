@@ -310,8 +310,8 @@ function handleContactConsentChange() {
 }
 
 function adjustMeasurement(field: 'weight' | 'height' | 'waist', amount: number) {
-  const minimum = field === 'weight' ? 20 : field === 'height' ? 80 : 40
-  const maximum = field === 'waist' ? 160 : 200
+  const minimum = field === 'weight' ? 50 : field === 'height' ? 140 : 40
+  const maximum = field === 'weight' ? 150 : field === 'height' ? 190 : 160
   const nextValue = Math.max(minimum, Math.min(maximum, Number(form[field]) + amount))
   form[field] = String(nextValue)
 }
@@ -324,8 +324,8 @@ function calculateImc() {
 
   const weight = Number(form.weight)
   const heightCm = Number(form.height)
-  if (!Number.isInteger(weight) || weight < 20 || weight > 200 ||
-      !Number.isInteger(heightCm) || heightCm < 80 || heightCm > 200) {
+  if (!Number.isInteger(weight) || weight < 50 || weight > 150 ||
+      !Number.isInteger(heightCm) || heightCm < 140 || heightCm > 190) {
     status.value = 'Confira o peso e a altura informados.'
     return
   }
@@ -511,20 +511,20 @@ async function sendResult() {
         <div id="measurement-panel" class="measurement-fields field-wide" role="tabpanel" :aria-labelledby="form.sex === 'feminino' ? 'tab-woman' : 'tab-man'">
         <label class="field slider-field" for="weight"><span class="slider-heading"><span class="field-label">Peso <span>kg</span></span><output for="weight">{{ Number(form.weight).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} kg</output></span>
           <div class="slider-control-row">
-            <button class="slider-adjust" type="button" aria-label="Diminuir peso" :disabled="Number(form.weight) <= 20" @click="adjustMeasurement('weight', -1)">−</button>
-            <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="20" max="200" step="1" aria-label="Peso em quilogramas">
-            <button class="slider-adjust" type="button" aria-label="Aumentar peso" :disabled="Number(form.weight) >= 200" @click="adjustMeasurement('weight', 1)">+</button>
+            <button class="slider-adjust" type="button" aria-label="Diminuir peso" :disabled="Number(form.weight) <= 50" @click="adjustMeasurement('weight', -1)">−</button>
+            <input id="weight" v-model="form.weight" class="range-input" name="weight" type="range" min="50" max="150" step="1" aria-label="Peso em quilogramas">
+            <button class="slider-adjust" type="button" aria-label="Aumentar peso" :disabled="Number(form.weight) >= 150" @click="adjustMeasurement('weight', 1)">+</button>
           </div>
-          <span class="range-limits" aria-hidden="true"><span>20 kg</span><span>200 kg</span></span>
+          <span class="range-limits" aria-hidden="true"><span>50 kg</span><span>150 kg</span></span>
         </label>
 
         <label class="field slider-field" for="height"><span class="slider-heading"><span class="field-label">Altura <span>cm</span></span><output for="height">{{ Number(form.height).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) }} cm</output></span>
           <div class="slider-control-row">
-            <button class="slider-adjust" type="button" aria-label="Diminuir altura" :disabled="Number(form.height) <= 80" @click="adjustMeasurement('height', -1)">−</button>
-            <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="80" max="200" step="1" aria-label="Altura em centímetros">
-            <button class="slider-adjust" type="button" aria-label="Aumentar altura" :disabled="Number(form.height) >= 200" @click="adjustMeasurement('height', 1)">+</button>
+            <button class="slider-adjust" type="button" aria-label="Diminuir altura" :disabled="Number(form.height) <= 140" @click="adjustMeasurement('height', -1)">−</button>
+            <input id="height" v-model="form.height" class="range-input" name="height" type="range" min="140" max="190" step="1" aria-label="Altura em centímetros">
+            <button class="slider-adjust" type="button" aria-label="Aumentar altura" :disabled="Number(form.height) >= 190" @click="adjustMeasurement('height', 1)">+</button>
           </div>
-          <span class="range-limits" aria-hidden="true"><span>80 cm</span><span>200 cm</span></span>
+          <span class="range-limits" aria-hidden="true"><span>140 cm</span><span>190 cm</span></span>
         </label>
 
         <label class="body-fat-toggle field-wide" for="calculate-body-fat">

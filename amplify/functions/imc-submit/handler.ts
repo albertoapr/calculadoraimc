@@ -43,8 +43,8 @@ function isValidRequest(data: Record<string, unknown> | null) {
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     ['feminino', 'masculino'].includes(String(data.sex)) &&
-    typeof data.weight === 'number' && Number.isInteger(data.weight) && data.weight >= 20 && data.weight <= 200 &&
-    typeof data.heightCm === 'number' && Number.isInteger(data.heightCm) && data.heightCm >= 80 && data.heightCm <= 200 &&
+    typeof data.weight === 'number' && Number.isInteger(data.weight) && data.weight >= 50 && data.weight <= 150 &&
+    typeof data.heightCm === 'number' && Number.isInteger(data.heightCm) && data.heightCm >= 140 && data.heightCm <= 190 &&
     typeof data.imc === 'number' && Number.isFinite(data.imc) &&
     Math.abs(data.weight / ((data.heightCm / 100) ** 2) - data.imc) <= 0.11 &&
     Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
