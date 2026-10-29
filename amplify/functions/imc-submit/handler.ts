@@ -40,7 +40,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const trainingShifts = data.trainingShifts
 
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
-    ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(String(city)) &&
+    ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     ['feminino', 'masculino'].includes(String(data.sex)) &&
     typeof data.weight === 'number' && Number.isInteger(data.weight) && data.weight >= 20 && data.weight <= 200 &&

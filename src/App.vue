@@ -396,7 +396,7 @@ async function sendResult() {
   const ageInput = String(form.age).trim()
   const age = ageInput ? Number(ageInput) : undefined
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
-  const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu'].includes(city)
+  const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city)
   const validAge = age === undefined || (Number.isInteger(age) && age >= 1 && age <= 120)
   const validSex = ['feminino', 'masculino'].includes(form.sex)
 
@@ -565,6 +565,7 @@ async function sendResult() {
               <option value="Mesquita">Mesquita</option>
               <option value="Nilópolis">Nilópolis</option>
               <option value="Nova Iguaçu">Nova Iguaçu</option>
+              <option value="Rio de Janeiro">Rio de Janeiro</option>
             </select>
           </label>
 
