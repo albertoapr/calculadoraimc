@@ -672,5 +672,12 @@ async function sendResult() {
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
     </section>
     <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta Soluções IA</a></footer>
+    <a
+      v-if="!result"
+      class="trainer-signup-link"
+      href="https://wa.me/5521971118383?text=Sou%20personal%20trainer.%20Quero%20receber%20solicita%C3%A7%C3%B5es%20de%20ajuda%20dos%20usu%C3%A1rios"
+      target="_blank"
+      rel="noopener noreferrer"
+    >Sou personal. Quero me cadastrar</a>
   </main>
 </template>
