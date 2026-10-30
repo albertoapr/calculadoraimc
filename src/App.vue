@@ -497,9 +497,18 @@ async function createRequestCode(request: Record<string, unknown>) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
   })
-  const body = await response.json() as { sent?: boolean; error?: string }
+  const body = await response.json() as {
+    sent?: boolean
+    error?: string
+    eligibleProfessionals?: number
+    notifiedProfessionals?: number
+  }
   if (!response.ok || body.sent !== true) {
     throw new Error(body.error || 'Não foi possível preparar a solicitação agora. Tente novamente.')
+  }
+  return {
+    eligibleProfessionals: body.eligibleProfessionals ?? 0,
+    notifiedProfessionals: body.notifiedProfessionals ?? 0,
   }
 }
 
@@ -531,8 +540,9 @@ async function sendResult() {
   submittingRequest.value = true
   status.value = 'Enviando sua solicitação para a Beta…'
 
+  let delivery: { eligibleProfessionals: number; notifiedProfessionals: number }
   try {
-    await createRequestCode({
+    delivery = await createRequestCode({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
@@ -549,7 +559,13 @@ async function sendResult() {
     return
   }
 
-  status.value = 'Solicitação enviada para a Beta. Você poderá ser contatado pelo WhatsApp informado.'
+  if (delivery.eligibleProfessionals === 0) {
+    status.value = 'Solicitação enviada à Beta. Ainda não há profissional ativo com e-mail cadastrado para atender sua cidade.'
+  } else if (delivery.notifiedProfessionals === delivery.eligibleProfessionals) {
+    status.value = `Solicitação enviada à Beta e a ${delivery.notifiedProfessionals} profissional(is) que atendem sua cidade.`
+  } else {
+    status.value = `A Beta recebeu a solicitação. ${delivery.notifiedProfessionals} de ${delivery.eligibleProfessionals} profissional(is) que atendem sua cidade foram notificados.`
+  }
   submittingRequest.value = false
 }
 </script>

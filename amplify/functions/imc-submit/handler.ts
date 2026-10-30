@@ -5,11 +5,10 @@ import {
   PutItemCommand,
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
+import nodemailer from 'nodemailer'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
 const dynamodb = new DynamoDBClient({})
-const ses = new SESv2Client({})
 const codeLifetimeSeconds = 15 * 60
 const corsHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -66,6 +65,38 @@ function hashCode(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
+type TrainerRosterEntry = {
+  email?: unknown
+  cities?: unknown
+  active?: unknown
+}
+
+function normalizeCity(city: string) {
+  return city.trim().toLocaleLowerCase('pt-BR')
+}
+
+function getTrainerEmailsForCity(city: string) {
+  const rawRoster = process.env.TRAINER_ROSTER_JSON
+  if (!rawRoster) return []
+
+  let roster: unknown
+  try {
+    roster = JSON.parse(rawRoster)
+  } catch {
+    throw new Error('Trainer roster configuration is invalid')
+  }
+  if (!Array.isArray(roster)) throw new Error('Trainer roster configuration is invalid')
+
+  const matchingEmails = roster
+    .filter((entry): entry is TrainerRosterEntry => typeof entry === 'object' && entry !== null)
+    .filter(entry => entry.active === true && Array.isArray(entry.cities) &&
+      entry.cities.some(value => typeof value === 'string' && normalizeCity(value) === normalizeCity(city)))
+    .map(entry => typeof entry.email === 'string' ? entry.email.trim().toLowerCase() : '')
+    .filter(email => email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+
+  return [...new Set(matchingEmails)]
+}
+
 async function createCode() {
   const tableName = process.env.IMC_REQUESTS_TABLE
   if (!tableName) throw new Error('Request table is not configured')
@@ -85,8 +116,10 @@ async function createCode() {
 
 async function sendRequestEmail(data: Record<string, unknown>, code: string) {
   const recipient = process.env.BETA_EMAIL_ADDRESS
-  const sender = process.env.SES_FROM_EMAIL
-  if (!recipient || !sender) throw new Error('Email delivery is not configured')
+  const sender = process.env.GMAIL_USER
+  const password = process.env.GMAIL_PASSWORD?.replace(/\s/g, '')
+  if (!recipient || !sender || !password) throw new Error('Gmail SMTP delivery is not configured')
+  const trainerEmails = getTrainerEmailsForCity(String(data.city))
   const age = data.age === undefined ? '' : `${data.age} anos`
   const days = Array.isArray(data.trainingDays) ? data.trainingDays.join(', ') : ''
   const shifts = Array.isArray(data.trainingShifts) ? data.trainingShifts.join(', ') : ''
@@ -101,17 +134,37 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
     ...(days ? [`Dias disponíveis: ${days}`] : []),
     ...(shifts ? [`Turnos disponíveis: ${shifts}`] : []),
-    '',
-    `Código de validação (válido por 15 minutos): ${code}`,
   ]
-  await ses.send(new SendEmailCommand({
-    FromEmailAddress: sender,
-    Destination: { ToAddresses: [recipient] },
-    Content: { Simple: {
-      Subject: { Data: 'Nova solicitação de personal trainer', Charset: 'UTF-8' },
-      Body: { Text: { Data: lines.join('\n'), Charset: 'UTF-8' } },
-    } },
-  }))
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: sender, pass: password },
+  })
+  const message = {
+    from: sender,
+    subject: 'Fitpeso - solicitação de personal trainer',
+  }
+  await transporter.sendMail({
+    ...message,
+    to: recipient,
+    text: [...lines, '', `Código de validação (válido por 15 minutos): ${code}`].join('\n'),
+  })
+
+  let notifiedProfessionals = 0
+  for (const trainerEmail of trainerEmails) {
+    try {
+      await transporter.sendMail({ ...message, to: trainerEmail, text: lines.join('\n') })
+      notifiedProfessionals += 1
+    } catch (error) {
+      console.error('[imc-submit] Trainer email delivery failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+        errorCode: typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : undefined,
+      })
+    }
+  }
+
+  return { eligibleProfessionals: trainerEmails.length, notifiedProfessionals }
 }
 
 async function consumeCode(data: Record<string, unknown> | null) {
@@ -147,13 +200,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/verify')) return consumeCode(data)
   if (!isValidRequest(data)) return response(400, { error: 'Confira os dados e o consentimento.' })
 
+  let failureStage = 'request_code_creation'
   try {
     const issued = await createCode()
-    await sendRequestEmail(data!, issued.code)
-    return response(201, { sent: true })
+    failureStage = 'gmail_smtp_delivery'
+    const delivery = await sendRequestEmail(data!, issued.code)
+    return response(201, { sent: true, ...delivery })
   } catch (error) {
     console.error('[imc-submit] Request email delivery failed', {
+      stage: failureStage,
       errorClass: error instanceof Error ? error.name : typeof error,
+      errorCode: typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : undefined,
     })
     return response(503, { error: 'Não foi possível preparar a solicitação agora.' })
   }

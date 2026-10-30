@@ -2,7 +2,6 @@ import { defineBackend } from '@aws-amplify/backend'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib'
-import * as iam from 'aws-cdk-lib/aws-iam'
 import { imcSubmit } from './functions/imc-submit/resource'
 
 const backend = defineBackend({ imcSubmit })
@@ -16,15 +15,6 @@ const requestCodes = new dynamodb.Table(requestStack, 'ImcRequestCodes', {
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
-backend.imcSubmit.addEnvironment('SES_FROM_EMAIL', 'betasolucoesia@gmail.com')
-backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
-  actions: ['ses:SendEmail'],
-  resources: [Stack.of(backend.imcSubmit.resources.lambda).formatArn({
-    service: 'ses',
-    resource: 'identity',
-    resourceName: 'betasolucoesia@gmail.com'
-  })],
-}))
 const apiStack = backend.createStack('imc-api-stack')
 
 const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {

@@ -1,17 +1,20 @@
 # Calculadora de IMC da Beta
 
-Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC é calculado no navegador. Após a avaliação, a opção **Receber ajuda de um personal** abre os campos de contato. Ao enviar, o aplicativo abre a conversa com a Beta no WhatsApp, com os dados preenchidos para a pessoa revisar e enviar.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC é calculado no navegador. Após a avaliação, a opção **Receber ajuda de um personal** abre os campos de contato. Ao enviar, o backend valida os dados e encaminha a solicitação para o e-mail da Beta pelo Gmail SMTP.
 
 ## O que é implantado
 
 - Frontend Vue hospedado pelo Amplify Hosting.
-- O projeto mantém recursos de backend/API provisionados pelo Amplify, mas o formulário atual não os chama: o envio é iniciado manualmente pelo WhatsApp.
+- API Gateway e função Lambda provisionados pelo Amplify Gen 2 para validar solicitações e enviar e-mails.
+- DynamoDB armazena temporariamente os códigos de confirmação usados no fluxo.
 
 ## Implantar pelo Amplify
 
 1. No AWS Amplify, escolha **New app → Host web app → GitHub** e conecte o repositório `albertoapr/calculadoraimc` (branch `main`).
 2. O Amplify detecta `amplify.yml`. O backend é provisionado primeiro; em seguida o build publica `dist/`.
-3. Dispare ou repita o deploy do branch e aguarde o frontend ficar com status **Deployed**. Acesse o domínio HTTPS disponibilizado em **Hosting**. O backend continua no projeto, mas não é necessário configurar um hook para o fluxo atual de WhatsApp.
+3. Configure o secret `GMAIL_PASSWORD` nas configurações de secrets do branch conectado. Use uma senha de app do Google, nunca a senha normal da conta.
+4. Configure `TRAINER_ROSTER_JSON` como secret com a lista de e-mails dos profissionais aprovados. Exemplo inicial: `[]`. Cada item deve ter `email`, `cities` e `active: true`; inclua somente profissionais ativos e validados.
+5. Dispare ou repita o deploy do branch e aguarde frontend e backend implantados. Acesse o domínio HTTPS disponibilizado em **Hosting**.
 
 ## Desenvolvimento local
 
@@ -20,10 +23,12 @@ npm ci
 npm run dev
 ```
 
-O cálculo funciona localmente. Para testar o formulário, marque a opção de contato, preencha os dados e clique em **Abrir WhatsApp para enviar**; a conversa com a Beta abre com a mensagem preenchida para a pessoa revisar e enviar.
+O cálculo funciona localmente. O envio por e-mail depende do backend implantado e do secret `GMAIL_PASSWORD` configurado no Amplify. A senha é usada exclusivamente pela Lambda e nunca deve ser incluída no código ou no frontend.
+
+O e-mail sempre vai para a Beta. A função também envia mensagens individuais aos endereços ativos em `TRAINER_ROSTER_JSON` que atendem a cidade informada; o código de validação é enviado somente à Beta. A lista não deve ser exposta no frontend nem versionada no repositório.
 
 ## Dados e privacidade
 
-Nome, WhatsApp, cidade, idade, sexo, peso, altura e IMC só são incluídos na mensagem após consentimento explícito. Sem marcar a opção, peso e altura são usados somente no cálculo local. A aplicação não envia esses dados automaticamente nem mantém banco de dados: a pessoa precisa revisar e confirmar o envio no WhatsApp para a Beta.
+Nome, WhatsApp, cidade, idade, objetivo e disponibilidade são enviados à Beta após consentimento explícito. Peso, altura, sexo e IMC permanecem no cálculo local e não são incluídos no e-mail da solicitação.
 
 O IMC é uma referência para adultos e não substitui avaliação de profissional de saúde. Para menores de 18 anos, a tela informa que a interpretação precisa de curvas de crescimento.
