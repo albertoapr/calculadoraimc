@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import foxMark from './assets/fox-mark.svg'
@@ -81,6 +81,10 @@ function getPersonalNameFromPath() {
 
 const personalName = getPersonalNameFromPath()
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+type TrainerDirectoryEntry = { name: string; whatsapp: string; cities: string[] }
+const publicTrainers = ref<TrainerDirectoryEntry[]>([])
+const trainerDirectoryLoading = ref(false)
+const trainerDirectoryFailed = ref(false)
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const trainerForm = reactive({
   name: '',
@@ -490,6 +494,46 @@ async function getRequestApiEndpoint() {
   return endpoint.replace(/\/+$/, '')
 }
 
+async function loadPublicTrainers() {
+  trainerDirectoryLoading.value = true
+  trainerDirectoryFailed.value = false
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const responses = await Promise.all(availableCities.map(async city => {
+      const response = await fetch(`${endpoint}/api/trainers?city=${encodeURIComponent(city)}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error('Trainer directory unavailable')
+      const body = await response.json() as { trainers?: Array<{ name?: unknown; city?: unknown; whatsapp?: unknown }> }
+      return Array.isArray(body.trainers) ? body.trainers : []
+    }))
+    const byPhone = new Map<string, TrainerDirectoryEntry>()
+    for (const trainers of responses) {
+      for (const trainer of trainers) {
+        const name = typeof trainer.name === 'string' ? trainer.name.trim() : ''
+        const whatsapp = typeof trainer.whatsapp === 'string' ? trainer.whatsapp.replace(/\D/g, '') : ''
+        const city = typeof trainer.city === 'string' && availableCities.includes(trainer.city) ? trainer.city : ''
+        if (!name || !/^55[1-9]{2}9?\d{8}$/.test(whatsapp) || !city) continue
+        const entry = byPhone.get(whatsapp) ?? { name, whatsapp, cities: [] }
+        if (!entry.cities.includes(city)) entry.cities.push(city)
+        byPhone.set(whatsapp, entry)
+      }
+    }
+    publicTrainers.value = [...byPhone.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  } catch {
+    trainerDirectoryFailed.value = true
+  } finally {
+    trainerDirectoryLoading.value = false
+  }
+}
+
+function trainerWhatsAppLink(trainer: TrainerDirectoryEntry) {
+  const text = `Olá, ${trainer.name}! Encontrei seu contato pela calculadora de IMC.`
+  return `https://wa.me/${trainer.whatsapp}?text=${encodeURIComponent(text)}`
+}
+
+onMounted(() => {
+  if (!showTrainerSignup.value) void loadPublicTrainers()
+})
+
 async function createRequestCode(request: Record<string, unknown>) {
   const endpoint = await getRequestApiEndpoint()
   const response = await fetch(`${endpoint}/api/imc`, {
@@ -858,6 +902,21 @@ async function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
+    </section>
+    <section v-if="!showTrainerSignup" class="trainer-directory" aria-labelledby="trainer-directory-title">
+      <h2 id="trainer-directory-title">Fale diretamente com um personal</h2>
+      <p v-if="trainerDirectoryLoading" class="trainer-directory-message" role="status">Carregando profissionais…</p>
+      <p v-else-if="trainerDirectoryFailed" class="trainer-directory-message" role="status">A lista está temporariamente indisponível.</p>
+      <p v-else-if="publicTrainers.length === 0" class="trainer-directory-message">Ainda não há profissionais ativos disponíveis.</p>
+      <ul v-else class="trainer-directory-list">
+        <li v-for="trainer in publicTrainers" :key="trainer.whatsapp">
+          <a :href="trainerWhatsAppLink(trainer)" target="_blank" rel="noopener noreferrer">
+            <span class="trainer-directory-name">{{ trainer.name }}</span>
+            <span class="trainer-directory-cities">{{ trainer.cities.join(' · ') }}</span>
+            <span class="trainer-directory-action">Falar no WhatsApp <span aria-hidden="true">↗</span></span>
+          </a>
+        </li>
+      </ul>
     </section>
     <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta Soluções IA</a></footer>
     <a

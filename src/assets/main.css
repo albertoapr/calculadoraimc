@@ -175,6 +175,16 @@ footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
 .trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
 .trainer-signup-link:hover { text-decoration: underline; }
+.trainer-directory { width: min(100%, 560px); margin: 16px auto 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface, #fff); }
+.trainer-directory h2 { margin: 0; color: var(--ink); font-size: 16px; text-align: center; }
+.trainer-directory-message { margin: 10px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.trainer-directory-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.trainer-directory-list a { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; }
+.trainer-directory-list a:hover { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 7%, transparent); }
+.trainer-directory-name { color: var(--blue-dark); font-size: 14px; font-weight: 700; }
+.trainer-directory-cities { color: var(--muted); font-size: 11px; }
+.trainer-directory-action { grid-column: 2; grid-row: 1 / span 2; color: var(--blue-dark); font-size: 11px; font-weight: 700; }
+html[data-theme='dark'] .trainer-directory { background: #141d18; }
 
 .theme-switch { display: flex; justify-content: flex-end; gap: 4px; margin: -15px 0 15px; }
 .theme-switch button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 700; }

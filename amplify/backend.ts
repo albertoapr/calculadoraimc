@@ -27,7 +27,7 @@ const apiStack = backend.createStack('imc-api-stack')
 
 const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   restApiName: 'calculadora-imc-api',
-  description: 'Emite e valida códigos temporários de solicitações da Calculadora de IMC.',
+  description: 'API de solicitações da Calculadora de IMC e diretório público de personais ativos.',
   deployOptions: {
     stageName: 'prod',
     throttlingRateLimit: 10,
@@ -35,17 +35,22 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   },
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
-    allowMethods: ['POST', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
     allowHeaders: ['Content-Type'],
   },
 })
 
-const imcResource = api.root.addResource('api').addResource('imc')
+const apiResource = api.root.addResource('api')
+const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))
 imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+apiResource.addResource('trainers').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

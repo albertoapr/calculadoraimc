@@ -5,6 +5,7 @@ import {
   PutItemCommand,
   QueryCommand,
   UpdateItemCommand,
+  type AttributeValue,
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
@@ -81,6 +82,44 @@ async function getTrainerEmailsForCity(city: string) {
     .filter(email => email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
 
   return [...new Set(matchingEmails)]
+}
+
+async function getPublicTrainersForCity(city: string) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+
+  const trainers: Array<{ name: string; city: string; whatsapp: string }> = []
+  let exclusiveStartKey: Record<string, AttributeValue> | undefined
+  do {
+    const result = await dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: '#city = :city',
+      FilterExpression: '#active = :active',
+      ProjectionExpression: '#city, #name, #whatsapp, #active',
+      ExpressionAttributeNames: {
+        '#city': 'city',
+        '#name': 'name',
+        '#whatsapp': 'whatsapp',
+        '#active': 'active',
+      },
+      ExpressionAttributeValues: {
+        ':city': { S: city },
+        ':active': { BOOL: true },
+      },
+      ExclusiveStartKey: exclusiveStartKey,
+    }))
+
+    for (const item of result.Items ?? []) {
+      const name = item.name?.S?.trim() ?? ''
+      const whatsapp = normalizePhone(item.whatsapp?.S)
+      if (name.length >= 2 && name.length <= 80 && whatsapp) {
+        trainers.push({ name, city, whatsapp: whatsapp.slice(1) })
+      }
+    }
+    exclusiveStartKey = result.LastEvaluatedKey
+  } while (exclusiveStartKey)
+
+  return trainers
 }
 
 async function createCode() {
@@ -195,6 +234,21 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers')) {
+    const city = event.queryStringParameters?.city?.trim() ?? ''
+    if (!['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city)) {
+      return response(400, { error: 'Cidade inválida.' })
+    }
+    try {
+      const trainers = await getPublicTrainersForCity(city)
+      return response(200, { trainers })
+    } catch (error) {
+      console.error('[imc-submit] Public trainer directory lookup failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Lista de profissionais indisponível no momento.' })
+    }
+  }
   if (event.httpMethod !== 'POST') return response(405, { error: 'Método não permitido.' })
 
   const data = parseBody(event)

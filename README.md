@@ -14,7 +14,7 @@ Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC 
 2. O Amplify detecta `amplify.yml`. O backend é provisionado primeiro; em seguida o build publica `dist/`.
 3. Configure o secret `GMAIL_PASSWORD` nas configurações de secrets do branch conectado. Use uma senha de app do Google, nunca a senha normal da conta.
 4. Dispare ou repita o deploy do branch e aguarde frontend e backend implantados. Acesse o domínio HTTPS disponibilizado em **Hosting**.
-5. Consulte `custom.trainerDirectory.tableName` em `amplify_outputs.json` e abra essa tabela no DynamoDB, na região indicada em `custom.imcApi.region`. Adicione um item para cada cidade atendida, com `city` (String), `trainerId` (String), `email` (String) e `active` (Boolean `true`).
+5. Consulte `custom.trainerDirectory.tableName` em `amplify_outputs.json` e abra essa tabela no DynamoDB, na região indicada em `custom.imcApi.region`. Adicione um item por profissional e cidade atendida, com `city` (String), `trainerId` (String único), `name` (String), `whatsapp` (String com DDI e DDD, só números ou formato internacional), `email` (String) e `active` (Boolean). O campo `email` é usado apenas no backend para encaminhar solicitações; a API pública da lista retorna somente nome, cidade e WhatsApp dos profissionais ativos.
 
 ## Desenvolvimento local
 
@@ -26,6 +26,8 @@ npm run dev
 O cálculo funciona localmente. O envio por e-mail depende do backend implantado e do secret `GMAIL_PASSWORD` configurado no Amplify. A senha é usada exclusivamente pela Lambda e nunca deve ser incluída no código ou no frontend.
 
 O e-mail sempre vai para a Beta. A função também consulta a tabela privada `FitpesoProfessionals` e envia mensagens individuais aos profissionais ativos da cidade; o código de validação é enviado somente à Beta. Se um profissional atende duas cidades, adicione um item para cada cidade.
+
+A aplicação carrega a lista pública por cidade através de `GET /api/trainers?city=...`. O nome de cada profissional abre uma conversa no WhatsApp com uma saudação pré-preenchida. Não leia o DynamoDB diretamente do navegador nem inclua os e-mails na resposta pública; a Lambda faz a consulta com acesso IAM limitado à tabela.
 
 ## Dados e privacidade
 
