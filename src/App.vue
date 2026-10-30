@@ -91,7 +91,6 @@ const trainerForm = reactive({
   cref: '',
 })
 const trainerStatus = ref('')
-const submittingTrainerSignup = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer'>('client')
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -364,8 +363,7 @@ function normalizeInstagramHandle(value: string) {
   return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
 }
 
-async function sendTrainerSignup() {
-  if (submittingTrainerSignup.value) return
+function sendTrainerSignup() {
   trainerStatus.value = ''
   const name = trainerForm.name.trim().replace(/\s+/g, ' ')
   const phone = normalizeBrazilianPhone(trainerForm.phone)
@@ -379,31 +377,24 @@ async function sendTrainerSignup() {
     return
   }
 
-  submittingTrainerSignup.value = true
-  trainerStatus.value = 'Enviando seu cadastro para análise…'
-  try {
-    const endpoint = await getRequestApiEndpoint()
-    const response = await fetch(`${endpoint}/api/imc`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'trainerSignup', name, phone, ...(email ? { email } : {}),
-        cities: trainerForm.cities, instagram, cref,
-      }),
-    })
-    const body = await response.json() as { sent?: boolean; error?: string }
-    if (!response.ok || body.sent !== true) throw new Error(body.error || 'Não foi possível enviar o cadastro agora.')
-    trainerStatus.value = 'Cadastro enviado para análise manual. Ele só será ativado após a validação da Beta.'
-    trainerForm.name = ''
-    trainerForm.phone = ''
-    trainerForm.email = ''
-    trainerForm.cities = []
-    trainerForm.instagram = ''
-    trainerForm.cref = ''
-  } catch (error) {
-    trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível enviar o cadastro agora.'
-  } finally {
-    submittingTrainerSignup.value = false
+  const message = [
+    'Sou personal trainer e quero receber solicitações de ajuda dos usuários.',
+    '',
+    '*Cadastro de personal trainer*',
+    `Nome completo: ${name}`,
+    `Telefone: ${phone}`,
+    ...(email ? [`E-mail: ${email}`] : []),
+    `Cidades de atuação: ${trainerForm.cities.join(', ')}`,
+    `Instagram: ${instagram}`,
+    ...(cref ? [`Registro do conselho de Educação Física: ${cref}`] : []),
+  ].join('\n')
+  const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+  const whatsappWindow = window.open(whatsappUrl, '_blank')
+  if (whatsappWindow) {
+    whatsappWindow.opener = null
+    trainerStatus.value = 'O WhatsApp foi aberto com seus dados. Revise a mensagem e toque em Enviar para concluir o cadastro.'
+  } else {
+    window.location.assign(whatsappUrl)
   }
 }
 
@@ -579,6 +570,11 @@ async function sendResult() {
       </header>
 
       <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
+        <div class="google-fill field-wide trainer-contact-reminder">
+          <p>Antes de enviar o cadastro, salve o contato da Beta para receber o retorno.</p>
+          <a class="trainer-contact-card" href="https://bit.ly/4j3ymBg" target="_blank" rel="noopener noreferrer">Salvar contato da Beta</a>
+          <small>WhatsApp: +55 21 97111-8383</small>
+        </div>
         <div class="google-fill field-wide">
           <p>Complete nome e e-mail com sua conta Google</p>
           <div ref="googleButtonContainer" class="google-button-container"></div>
@@ -608,8 +604,8 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-cref"><span class="field-label">Registro do conselho de Educação Física <span>opcional</span></span>
           <input id="trainer-cref" v-model="trainerForm.cref" name="cref" type="text" maxlength="40" placeholder="Ex.: CREF 000000-G/RJ">
         </label>
-        <button class="primary-button field-wide" type="submit" :disabled="submittingTrainerSignup">
-          {{ submittingTrainerSignup ? 'Enviando cadastro…' : 'Enviar cadastro' }} <span aria-hidden="true">→</span>
+        <button class="primary-button field-wide" type="submit">
+          Abrir WhatsApp para enviar <span aria-hidden="true">→</span>
         </button>
         <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
       </form>

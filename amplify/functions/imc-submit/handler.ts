@@ -62,38 +62,6 @@ function normalizePhone(value: unknown) {
   return /^55[1-9]{2}9?\d{8}$/.test(digits) ? `+${digits}` : ''
 }
 
-function normalizeInstagram(value: unknown) {
-  if (typeof value !== 'string') return ''
-  let handle = value.trim()
-  if (!handle) return ''
-  if (/^https?:\/\//i.test(handle)) {
-    try {
-      const profileUrl = new URL(handle)
-      if (!['instagram.com', 'www.instagram.com'].includes(profileUrl.hostname.toLowerCase())) return ''
-      handle = profileUrl.pathname.replace(/^\/+|\/+$/g, '')
-    } catch {
-      return ''
-    }
-  }
-  handle = handle.replace(/^@/, '')
-  return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
-}
-
-function isValidTrainerSignup(data: Record<string, unknown> | null) {
-  if (!data || data.type !== 'trainerSignup') return false
-  const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
-  const email = typeof data.email === 'string' ? data.email.trim() : ''
-  const cities = data.cities
-  const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
-  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
-    Boolean(normalizePhone(data.phone)) && Boolean(normalizeInstagram(data.instagram)) &&
-    (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
-    Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
-    new Set(cities).size === cities.length &&
-    cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city))) &&
-    cref.length <= 40 && (cref === '' || /^[\p{L}\p{M}0-9 .\/-]+$/u.test(cref))
-}
-
 function hashCode(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
@@ -146,32 +114,6 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
   }))
 }
 
-async function sendTrainerSignupEmail(data: Record<string, unknown>) {
-  const recipient = process.env.BETA_EMAIL_ADDRESS
-  const sender = process.env.SES_FROM_EMAIL
-  if (!recipient || !sender || !Array.isArray(data.cities)) throw new Error('Email delivery is not configured')
-  const lines = [
-    'Novo cadastro de personal trainer para análise manual',
-    '',
-    `Nome completo: ${String(data.name).trim()}`,
-    `Telefone/WhatsApp: ${normalizePhone(data.phone)}`,
-    ...(typeof data.email === 'string' && data.email.trim() ? [`E-mail: ${data.email.trim()}`] : []),
-    `Cidades de atuação: ${data.cities.join(', ')}`,
-    `Instagram: ${normalizeInstagram(data.instagram)}`,
-    ...(typeof data.cref === 'string' && data.cref.trim() ? [`Registro do conselho de EF: ${data.cref.trim()}`] : []),
-    '',
-    'Este cadastro aguarda validação manual e não ativa o profissional automaticamente.',
-  ]
-  await ses.send(new SendEmailCommand({
-    FromEmailAddress: sender,
-    Destination: { ToAddresses: [recipient] },
-    Content: { Simple: {
-      Subject: { Data: 'Cadastro de personal trainer para análise', Charset: 'UTF-8' },
-      Body: { Text: { Data: lines.join('\n'), Charset: 'UTF-8' } },
-    } },
-  }))
-}
-
 async function consumeCode(data: Record<string, unknown> | null) {
   const code = typeof data?.code === 'string' ? data.code : ''
   if (!/^[A-Za-z0-9_-]{22}$/.test(code)) return response(200, { valid: false })
@@ -203,18 +145,6 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   const data = parseBody(event)
   if (event.resource?.endsWith('/verify')) return consumeCode(data)
-  if (data?.type === 'trainerSignup') {
-    if (!isValidTrainerSignup(data)) return response(400, { error: 'Confira os dados do cadastro.' })
-    try {
-      await sendTrainerSignupEmail(data)
-      return response(201, { sent: true })
-    } catch (error) {
-      console.error('[imc-submit] Trainer signup email delivery failed', {
-        errorClass: error instanceof Error ? error.name : typeof error,
-      })
-      return response(503, { error: 'Não foi possível enviar o cadastro agora. Tente novamente.' })
-    }
-  }
   if (!isValidRequest(data)) return response(400, { error: 'Confira os dados e o consentimento.' })
 
   try {
