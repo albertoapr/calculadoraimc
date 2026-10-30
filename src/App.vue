@@ -571,8 +571,8 @@ async function sendResult() {
 
       <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
         <div class="google-fill field-wide trainer-contact-reminder">
-          <p>Antes de enviar o cadastro, salve o contato da Beta para receber o retorno.</p>
-          <a class="trainer-contact-card" href="https://bit.ly/4j3ymBg" target="_blank" rel="noopener noreferrer">Salvar contato da Beta</a>
+          <p>Antes de enviar o cadastro, baixe e salve o cartão de contato da Beta para receber o retorno.</p>
+          <a class="trainer-contact-card" href="https://drive.usercontent.google.com/download?id=1itlX4W0doax1jYpc7GkGa-hM2v8rZ98l&amp;export=download" download="Beta.vcf">Baixar cartão de contato da Beta</a>
           <small>WhatsApp: +55 21 97111-8383</small>
         </div>
         <div class="google-fill field-wide">
