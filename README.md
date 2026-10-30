@@ -13,8 +13,8 @@ Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC 
 1. No AWS Amplify, escolha **New app → Host web app → GitHub** e conecte o repositório `albertoapr/calculadoraimc` (branch `main`).
 2. O Amplify detecta `amplify.yml`. O backend é provisionado primeiro; em seguida o build publica `dist/`.
 3. Configure o secret `GMAIL_PASSWORD` nas configurações de secrets do branch conectado. Use uma senha de app do Google, nunca a senha normal da conta.
-4. Configure `TRAINER_ROSTER_JSON` como secret com a lista de e-mails dos profissionais aprovados. Exemplo inicial: `[]`. Cada item deve ter `email`, `cities` e `active: true`; inclua somente profissionais ativos e validados.
-5. Dispare ou repita o deploy do branch e aguarde frontend e backend implantados. Acesse o domínio HTTPS disponibilizado em **Hosting**.
+4. Dispare ou repita o deploy do branch e aguarde frontend e backend implantados. Acesse o domínio HTTPS disponibilizado em **Hosting**.
+5. Consulte `custom.trainerDirectory.tableName` em `amplify_outputs.json` e abra essa tabela no DynamoDB, na região indicada em `custom.imcApi.region`. Adicione um item para cada cidade atendida, com `city` (String), `trainerId` (String), `email` (String) e `active` (Boolean `true`).
 
 ## Desenvolvimento local
 
@@ -25,7 +25,7 @@ npm run dev
 
 O cálculo funciona localmente. O envio por e-mail depende do backend implantado e do secret `GMAIL_PASSWORD` configurado no Amplify. A senha é usada exclusivamente pela Lambda e nunca deve ser incluída no código ou no frontend.
 
-O e-mail sempre vai para a Beta. A função também envia mensagens individuais aos endereços ativos em `TRAINER_ROSTER_JSON` que atendem a cidade informada; o código de validação é enviado somente à Beta. A lista não deve ser exposta no frontend nem versionada no repositório.
+O e-mail sempre vai para a Beta. A função também consulta a tabela privada `FitpesoProfessionals` e envia mensagens individuais aos profissionais ativos da cidade; o código de validação é enviado somente à Beta. Se um profissional atende duas cidades, adicione um item para cada cidade.
 
 ## Dados e privacidade
 

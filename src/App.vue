@@ -502,6 +502,7 @@ async function createRequestCode(request: Record<string, unknown>) {
     error?: string
     eligibleProfessionals?: number
     notifiedProfessionals?: number
+    professionalLookupFailed?: boolean
   }
   if (!response.ok || body.sent !== true) {
     throw new Error(body.error || 'Não foi possível preparar a solicitação agora. Tente novamente.')
@@ -509,6 +510,7 @@ async function createRequestCode(request: Record<string, unknown>) {
   return {
     eligibleProfessionals: body.eligibleProfessionals ?? 0,
     notifiedProfessionals: body.notifiedProfessionals ?? 0,
+    professionalLookupFailed: body.professionalLookupFailed ?? false,
   }
 }
 
@@ -540,7 +542,7 @@ async function sendResult() {
   submittingRequest.value = true
   status.value = 'Enviando sua solicitação para a Beta…'
 
-  let delivery: { eligibleProfessionals: number; notifiedProfessionals: number }
+  let delivery: { eligibleProfessionals: number; notifiedProfessionals: number; professionalLookupFailed: boolean }
   try {
     delivery = await createRequestCode({
       clientName,
@@ -559,7 +561,9 @@ async function sendResult() {
     return
   }
 
-  if (delivery.eligibleProfessionals === 0) {
+  if (delivery.professionalLookupFailed) {
+    status.value = 'A Beta recebeu sua solicitação, mas não foi possível consultar os profissionais da cidade agora.'
+  } else if (delivery.eligibleProfessionals === 0) {
     status.value = 'Solicitação enviada à Beta. Ainda não há profissional ativo com e-mail cadastrado para atender sua cidade.'
   } else if (delivery.notifiedProfessionals === delivery.eligibleProfessionals) {
     status.value = `Solicitação enviada à Beta e a ${delivery.notifiedProfessionals} profissional(is) que atendem sua cidade.`

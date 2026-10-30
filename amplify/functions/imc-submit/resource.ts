@@ -7,6 +7,5 @@ export const imcSubmit = defineFunction({
   environment: {
     GMAIL_USER: 'betasolucoesia@gmail.com',
     GMAIL_PASSWORD: secret('GMAIL_PASSWORD'),
-    TRAINER_ROSTER_JSON: secret('TRAINER_ROSTER_JSON'),
   },
 })

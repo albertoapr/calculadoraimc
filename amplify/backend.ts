@@ -12,8 +12,16 @@ const requestCodes = new dynamodb.Table(requestStack, 'ImcRequestCodes', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.DESTROY,
 })
+const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
+  partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
+trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query')
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
+backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
 const apiStack = backend.createStack('imc-api-stack')
 
@@ -47,6 +55,9 @@ backend.addOutput({
     imcApi: {
       endpoint: api.url,
       region: Stack.of(api).region,
+    },
+    trainerDirectory: {
+      tableName: trainers.tableName,
     },
   },
 })

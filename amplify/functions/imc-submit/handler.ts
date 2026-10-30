@@ -3,6 +3,7 @@ import {
   ConditionalCheckFailedException,
   DynamoDBClient,
   PutItemCommand,
+  QueryCommand,
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
@@ -65,33 +66,18 @@ function hashCode(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
-type TrainerRosterEntry = {
-  email?: unknown
-  cities?: unknown
-  active?: unknown
-}
-
-function normalizeCity(city: string) {
-  return city.trim().toLocaleLowerCase('pt-BR')
-}
-
-function getTrainerEmailsForCity(city: string) {
-  const rawRoster = process.env.TRAINER_ROSTER_JSON
-  if (!rawRoster) return []
-
-  let roster: unknown
-  try {
-    roster = JSON.parse(rawRoster)
-  } catch {
-    throw new Error('Trainer roster configuration is invalid')
-  }
-  if (!Array.isArray(roster)) throw new Error('Trainer roster configuration is invalid')
-
-  const matchingEmails = roster
-    .filter((entry): entry is TrainerRosterEntry => typeof entry === 'object' && entry !== null)
-    .filter(entry => entry.active === true && Array.isArray(entry.cities) &&
-      entry.cities.some(value => typeof value === 'string' && normalizeCity(value) === normalizeCity(city)))
-    .map(entry => typeof entry.email === 'string' ? entry.email.trim().toLowerCase() : '')
+async function getTrainerEmailsForCity(city: string) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const result = await dynamodb.send(new QueryCommand({
+    TableName: tableName,
+    KeyConditionExpression: '#city = :city',
+    ExpressionAttributeNames: { '#city': 'city' },
+    ExpressionAttributeValues: { ':city': { S: city } },
+  }))
+  const matchingEmails = (result.Items ?? [])
+    .filter(item => item.active?.BOOL === true)
+    .map(item => typeof item.email?.S === 'string' ? item.email.S.trim().toLowerCase() : '')
     .filter(email => email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
 
   return [...new Set(matchingEmails)]
@@ -119,7 +105,6 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
   const sender = process.env.GMAIL_USER
   const password = process.env.GMAIL_PASSWORD?.replace(/\s/g, '')
   if (!recipient || !sender || !password) throw new Error('Gmail SMTP delivery is not configured')
-  const trainerEmails = getTrainerEmailsForCity(String(data.city))
   const age = data.age === undefined ? '' : `${data.age} anos`
   const days = Array.isArray(data.trainingDays) ? data.trainingDays.join(', ') : ''
   const shifts = Array.isArray(data.trainingShifts) ? data.trainingShifts.join(', ') : ''
@@ -151,6 +136,18 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     text: [...lines, '', `Código de validação (válido por 15 minutos): ${code}`].join('\n'),
   })
 
+  let trainerEmails: string[] = []
+  let professionalLookupFailed = false
+  try {
+    trainerEmails = await getTrainerEmailsForCity(String(data.city))
+  } catch (error) {
+    professionalLookupFailed = true
+    console.error('[imc-submit] Trainer directory lookup failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+      errorCode: typeof error === 'object' && error !== null && 'name' in error ? String(error.name) : undefined,
+    })
+  }
+
   let notifiedProfessionals = 0
   for (const trainerEmail of trainerEmails) {
     try {
@@ -164,7 +161,11 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     }
   }
 
-  return { eligibleProfessionals: trainerEmails.length, notifiedProfessionals }
+  return {
+    eligibleProfessionals: trainerEmails.length,
+    notifiedProfessionals,
+    professionalLookupFailed,
+  }
 }
 
 async function consumeCode(data: Record<string, unknown> | null) {
