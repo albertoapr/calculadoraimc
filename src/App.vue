@@ -110,6 +110,7 @@ const form = reactive({
   calculateBodyFat: false,
   bodyFatAge: '',
   contactConsent: false,
+  shareContactConsent: false,
   provideAvailability: false,
   name: '',
   phone: '',
@@ -249,6 +250,7 @@ const referenceWeightRange = computed(() => {
 })
 function clearContactDetails() {
   form.contactConsent = false
+  form.shareContactConsent = false
   form.name = ''
   form.phone = ''
   form.email = ''
@@ -502,7 +504,7 @@ async function createRequestCode(request: Record<string, unknown>) {
 }
 
 async function sendResult() {
-  if (!result.value || !form.contactConsent || submittingRequest.value) return
+  if (!result.value || !form.contactConsent || !form.shareContactConsent || submittingRequest.value) return
   status.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
@@ -539,7 +541,7 @@ async function sendResult() {
       objective: form.objective,
       trainingDays,
       trainingShifts,
-      consent: true,
+      consent: form.shareContactConsent,
     })
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
@@ -694,7 +696,7 @@ async function sendResult() {
 
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
-          <span>Quero ajuda de um personal e autorizo enviar à Beta os dados informados e meu contato para encaminhar minha solicitação a um profissional.</span>
+          <span>Receber ajuda de um profissional.</span>
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
@@ -762,6 +764,11 @@ async function sendResult() {
               </label>
             </div>
           </fieldset>
+
+          <label class="contact-opt-in field-wide availability-toggle" for="share-contact-consent">
+            <input id="share-contact-consent" v-model="form.shareContactConsent" name="shareContactConsent" type="checkbox" required>
+            <span>Autorizo o compartilhamento do meu contato.</span>
+          </label>
 
           <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
             {{ submittingRequest ? 'Enviando solicitação…' : 'Enviar solicitação' }} <span aria-hidden="true">→</span>
