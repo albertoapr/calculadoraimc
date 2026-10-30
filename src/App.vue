@@ -80,6 +80,19 @@ function getPersonalNameFromPath() {
 }
 
 const personalName = getPersonalNameFromPath()
+const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
+const trainerForm = reactive({
+  name: '',
+  phone: '',
+  email: '',
+  cities: [] as string[],
+  instagram: '',
+  cref: '',
+})
+const trainerStatus = ref('')
+const submittingTrainerSignup = ref(false)
+const googleProfileTarget = ref<'client' | 'trainer'>('client')
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
   { label: 'Ter', value: 'Terça-feira' },
@@ -100,6 +113,7 @@ const form = reactive({
   contactConsent: false,
   provideAvailability: false,
   name: '',
+  phone: '',
   email: '',
   objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
@@ -237,6 +251,7 @@ const referenceWeightRange = computed(() => {
 function clearContactDetails() {
   form.contactConsent = false
   form.name = ''
+  form.phone = ''
   form.email = ''
   form.objective = 'Emagrecimento'
   form.age = ''
@@ -270,17 +285,19 @@ function fillFromGoogle(response: GoogleCredentialResponse) {
     const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
     const profile = JSON.parse(new TextDecoder().decode(bytes)) as { name?: string; email?: string }
     if (!profile.name && !profile.email) throw new Error('O Google não retornou nome ou e-mail.')
-    if (profile.name) form.name = profile.name.trim()
-    if (profile.email) form.email = profile.email.trim().toLowerCase()
+    const target = googleProfileTarget.value === 'trainer' ? trainerForm : form
+    if (profile.name) target.name = profile.name.trim()
+    if (profile.email) target.email = profile.email.trim().toLowerCase()
   } catch {
     googleProfileStatus.value = 'Não consegui ler os dados da conta Google. Tente novamente ou preencha manualmente.'
   }
 }
 
-async function renderGoogleButton() {
+async function renderGoogleButton(target: 'client' | 'trainer' = 'client') {
   const container = googleButtonContainer.value
   if (!container) return
   try {
+    googleProfileTarget.value = target
     await loadGoogleIdentityScript()
     if (!window.google) throw new Error('Google Identity Services indisponível.')
     window.google.accounts.id.initialize({ client_id: googleClientId, callback: fillFromGoogle })
@@ -297,8 +314,98 @@ async function renderGoogleButton() {
 watch(() => form.contactConsent, async enabled => {
   if (!enabled) return
   await nextTick()
-  await renderGoogleButton()
+  await renderGoogleButton('client')
 })
+
+watch(showTrainerSignup, async enabled => {
+  if (!enabled) return
+  await nextTick()
+  await renderGoogleButton('trainer')
+}, { immediate: true })
+
+window.addEventListener('hashchange', () => {
+  showTrainerSignup.value = window.location.hash === '#cadastro-personal'
+})
+
+function closeTrainerSignup() {
+  showTrainerSignup.value = false
+  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  trainerStatus.value = ''
+}
+
+function toggleTrainerCity(city: string) {
+  const index = trainerForm.cities.indexOf(city)
+  if (index >= 0) {
+    trainerForm.cities.splice(index, 1)
+  } else if (trainerForm.cities.length < 2) {
+    trainerForm.cities.push(city)
+  }
+}
+
+function normalizeBrazilianPhone(value: string) {
+  let digits = value.replace(/\D/g, '').replace(/^0/, '')
+  if (!digits.startsWith('55')) digits = `55${digits}`
+  return /^55[1-9]{2}9?\d{8}$/.test(digits) ? `+${digits}` : ''
+}
+
+function normalizeInstagramHandle(value: string) {
+  let handle = value.trim()
+  if (!handle) return ''
+  if (/^https?:\/\//i.test(handle)) {
+    try {
+      const profileUrl = new URL(handle)
+      if (!['instagram.com', 'www.instagram.com'].includes(profileUrl.hostname.toLowerCase())) return ''
+      handle = profileUrl.pathname.replace(/^\/+|\/+$/g, '')
+    } catch {
+      return ''
+    }
+  }
+  handle = handle.replace(/^@/, '')
+  return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
+}
+
+async function sendTrainerSignup() {
+  if (submittingTrainerSignup.value) return
+  trainerStatus.value = ''
+  const name = trainerForm.name.trim().replace(/\s+/g, ' ')
+  const phone = normalizeBrazilianPhone(trainerForm.phone)
+  const email = trainerForm.email.trim().toLowerCase()
+  const instagram = normalizeInstagramHandle(trainerForm.instagram)
+  const cref = trainerForm.cref.trim()
+  if (!name || !phone || trainerForm.cities.length < 1 || trainerForm.cities.length > 2 || !instagram ||
+      (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+      (cref && !/^[\p{L}\p{M}0-9 .\/-]{1,40}$/u.test(cref))) {
+    trainerStatus.value = 'Confira o nome, telefone com DDD, cidades, Instagram e, se informar, o e-mail e o registro profissional.'
+    return
+  }
+
+  submittingTrainerSignup.value = true
+  trainerStatus.value = 'Enviando seu cadastro para análise…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/imc`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'trainerSignup', name, phone, ...(email ? { email } : {}),
+        cities: trainerForm.cities, instagram, cref,
+      }),
+    })
+    const body = await response.json() as { sent?: boolean; error?: string }
+    if (!response.ok || body.sent !== true) throw new Error(body.error || 'Não foi possível enviar o cadastro agora.')
+    trainerStatus.value = 'Cadastro enviado para análise manual. Ele só será ativado após a validação da Beta.'
+    trainerForm.name = ''
+    trainerForm.phone = ''
+    trainerForm.email = ''
+    trainerForm.cities = []
+    trainerForm.instagram = ''
+    trainerForm.cref = ''
+  } catch (error) {
+    trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível enviar o cadastro agora.'
+  } finally {
+    submittingTrainerSignup.value = false
+  }
+}
 
 function handleContactConsentChange() {
   if (form.contactConsent) {
@@ -397,11 +504,10 @@ async function createRequestCode(request: Record<string, unknown>) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
   })
-  const body = await response.json() as { code?: string; error?: string }
-  if (!response.ok || !body.code || !/^[A-Za-z0-9_-]{22}$/.test(body.code)) {
+  const body = await response.json() as { sent?: boolean; error?: string }
+  if (!response.ok || body.sent !== true) {
     throw new Error(body.error || 'Não foi possível preparar a solicitação agora. Tente novamente.')
   }
-  return body.code
 }
 
 async function sendResult() {
@@ -409,6 +515,8 @@ async function sendResult() {
   status.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
+  const phone = form.phone.trim()
+  const phoneDigits = phone.replace(/\D/g, '').replace(/^0/, '')
   const email = form.email.trim().toLowerCase()
   const city = form.city.trim().replace(/\s+/g, ' ')
   const ageInput = String(form.age).trim()
@@ -416,69 +524,99 @@ async function sendResult() {
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
   const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city)
   const validAge = age === undefined || (Number.isInteger(age) && age >= 1 && age <= 120)
-  const validSex = ['feminino', 'masculino'].includes(form.sex)
+  const normalizedPhoneDigits = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
+  const validPhone = /^55[1-9]{2}9?\d{8}$/.test(normalizedPhoneDigits)
 
-  if (!validName || !validCity || !validAge || !validSex) {
-    status.value = 'Confira o nome e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
+  if (!validName || !validCity || !validAge || !validPhone) {
+    status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
     return
   }
 
   const trainingDays = form.provideAvailability ? form.trainingDays : []
   const trainingShifts = form.provideAvailability ? form.trainingShifts : []
 
-  const whatsappWindow = window.open('about:blank', '_blank')
   submittingRequest.value = true
-  status.value = 'Preparando a solicitação e o código de validação…'
+  status.value = 'Enviando sua solicitação para a Beta…'
 
-  let requestCode: string
   try {
-    requestCode = await createRequestCode({
+    await createRequestCode({
       clientName,
+      clientPhone: `+${normalizedPhoneDigits}`,
+      ...(email ? { email } : {}),
       ...(age !== undefined ? { age } : {}),
       city,
-      sex: form.sex,
-      weight: result.value.weight,
-      heightCm: result.value.heightCm,
-      imc: result.value.imc,
+      objective: form.objective,
       trainingDays,
       trainingShifts,
       consent: true,
     })
   } catch (error) {
-    whatsappWindow?.close()
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
     submittingRequest.value = false
     return
   }
 
-  const message = [
-    'Preciso da ajuda de um personal',
-    '',
-    '*Dados do usuário*',
-    `Nome: ${clientName}`,
-    ...(email ? [`E-mail: ${email}`] : []),
-    ...(age !== undefined ? [`Idade: ${age} anos`] : []),
-    `Cidade: ${city}`,
-    ...(form.objective ? [`Objetivo: ${form.objective}`] : []),
-    ...(trainingDays.length ? [`Dias disponíveis para treinar: ${trainingDays.join(', ')}`] : []),
-    ...(trainingShifts.length ? [`Turnos disponíveis: ${trainingShifts.join(', ')}`] : []),
-    `Código de validação da solicitação (válido por 15 minutos): ${requestCode}`,
-  ].join('\n')
-  const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-  status.value = 'No WhatsApp, toque em Enviar para confirmar a solicitação.'
-  if (whatsappWindow) {
-    whatsappWindow.location.href = whatsappUrl
-    whatsappWindow.opener = null
-  } else {
-    window.location.assign(whatsappUrl)
-  }
+  status.value = 'Solicitação enviada para a Beta. Você poderá ser contatado pelo WhatsApp informado.'
   submittingRequest.value = false
 }
 </script>
 
 <template>
   <main class="page-shell">
-    <section class="calculator" aria-labelledby="page-title">
+    <section v-if="showTrainerSignup" class="calculator" aria-labelledby="page-title">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+        <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
+        <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
+      </div>
+      <header class="hero">
+        <div class="brand" :aria-label="personalName">
+          <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
+          <span>{{ personalName }}</span>
+        </div>
+        <hr class="personal-divider">
+        <h1 id="page-title">Cadastro de personal</h1>
+        <p class="intro">Preencha seus dados para receber solicitações de usuários. O cadastro será analisado antes de ser ativado.</p>
+      </header>
+
+      <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
+        <div class="google-fill field-wide">
+          <p>Complete nome e e-mail com sua conta Google</p>
+          <div ref="googleButtonContainer" class="google-button-container"></div>
+          <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
+        </div>
+        <label class="field field-wide" for="trainer-name"><span class="field-label">Nome completo</span>
+          <input id="trainer-name" v-model="trainerForm.name" name="trainerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" required>
+        </label>
+        <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
+          <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
+        </label>
+        <label class="field field-wide" for="trainer-email"><span class="field-label">E-mail <span>opcional</span></span>
+          <input id="trainer-email" v-model="trainerForm.email" name="trainerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
+        </label>
+        <fieldset class="availability-group field-wide trainer-city-group">
+          <legend>Cidades de atuação <span>(escolha de 1 a 2)</span></legend>
+          <div class="availability-options">
+            <label v-for="city in availableCities" :key="city" class="availability-option">
+              <input type="checkbox" :checked="trainerForm.cities.includes(city)" :disabled="!trainerForm.cities.includes(city) && trainerForm.cities.length >= 2" @change="toggleTrainerCity(city)">
+              <span>{{ city }}</span>
+            </label>
+          </div>
+        </fieldset>
+        <label class="field field-wide" for="trainer-instagram"><span class="field-label">Perfil do Instagram</span>
+          <input id="trainer-instagram" v-model="trainerForm.instagram" name="instagram" type="text" autocomplete="url" maxlength="100" placeholder="@seuperfil ou instagram.com/seuperfil" required>
+        </label>
+        <label class="field field-wide" for="trainer-cref"><span class="field-label">Registro do conselho de Educação Física <span>opcional</span></span>
+          <input id="trainer-cref" v-model="trainerForm.cref" name="cref" type="text" maxlength="40" placeholder="Ex.: CREF 000000-G/RJ">
+        </label>
+        <button class="primary-button field-wide" type="submit" :disabled="submittingTrainerSignup">
+          {{ submittingTrainerSignup ? 'Enviando cadastro…' : 'Enviar cadastro' }} <span aria-hidden="true">→</span>
+        </button>
+        <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
+      </form>
+      <button class="back-button" type="button" @click="closeTrainerSignup">Voltar à calculadora</button>
+    </section>
+
+    <section v-else class="calculator" aria-labelledby="page-title">
       <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
         <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
         <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
@@ -560,7 +698,7 @@ async function sendResult() {
 
         <label class="contact-opt-in" for="contact-consent">
           <input id="contact-consent" v-model="form.contactConsent" name="contactConsent" type="checkbox" aria-controls="contact-fields" :aria-expanded="form.contactConsent" @change="handleContactConsentChange">
-          <span>Quero ajuda de um personal e autorizo compartilhar meu contato.</span>
+          <span>Quero ajuda de um personal e autorizo enviar à Beta os dados informados e meu contato para encaminhar minha solicitação a um profissional.</span>
         </label>
 
         <form v-if="form.contactConsent" id="contact-fields" class="form contact-fields" @submit.prevent="sendResult">
@@ -571,6 +709,10 @@ async function sendResult() {
           </div>
           <label class="field field-wide" for="name"><span class="field-label">Nome</span>
             <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
+          </label>
+
+          <label class="field field-wide" for="phone"><span class="field-label">WhatsApp com DDD</span>
+            <input id="phone" v-model="form.phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
           </label>
 
           <label class="field field-wide" for="email"><span class="field-label">E-mail <span>opcional</span></span>
@@ -626,7 +768,7 @@ async function sendResult() {
           </fieldset>
 
           <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
-            {{ submittingRequest ? 'Preparando solicitação…' : 'Abrir WhatsApp para enviar' }} <span aria-hidden="true">→</span>
+            {{ submittingRequest ? 'Enviando solicitação…' : 'Enviar solicitação' }} <span aria-hidden="true">→</span>
           </button>
         </form>
 
@@ -696,11 +838,10 @@ async function sendResult() {
     </section>
     <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta Soluções IA</a></footer>
     <a
-      v-if="!result"
+      v-if="!result && !showTrainerSignup"
       class="trainer-signup-link"
-      href="https://wa.me/5521971118383?text=Sou%20personal%20trainer.%20Quero%20receber%20solicita%C3%A7%C3%B5es%20de%20ajuda%20dos%20usu%C3%A1rios"
-      target="_blank"
-      rel="noopener noreferrer"
+      href="#cadastro-personal"
+      @click="showTrainerSignup = true"
     >Sou personal. Quero me cadastrar</a>
   </main>
 </template>

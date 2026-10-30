@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.933.0",
+    "@aws-sdk/client-sesv2": "3.933.0",
     "vue": "^3.4.21"
   },
   "devDependencies": {
