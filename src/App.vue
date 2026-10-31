@@ -731,7 +731,7 @@ async function sendResult() {
           <span>{{ result ? 'Resultado da avaliação' : viewMode === 'home' ? 'Você consegue!' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'contact'" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
-        <p v-else-if="!result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
+        <p v-else-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
