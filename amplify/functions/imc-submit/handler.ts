@@ -186,10 +186,9 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   const trainerId = slugResult.Item?.trainerId?.S
   if (!trainerId) throw new TrainerSlugUnavailableError()
 
-  const trainerResult = await dynamodb.send(new QueryCommand({
+  const records = await Promise.all(cities.map(city => dynamodb.send(new GetItemCommand({
     TableName: trainersTable,
-    IndexName: 'TrainerById',
-    KeyConditionExpression: '#trainerId = :trainerId',
+    Key: { city: { S: city }, trainerId: { S: trainerId } },
     ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #status, #slug',
     ExpressionAttributeNames: {
       '#city': 'city',
@@ -200,15 +199,14 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
       '#status': 'status',
       '#slug': 'slug',
     },
-    ExpressionAttributeValues: { ':trainerId': { S: trainerId } },
-  }))
-  const records = trainerResult.Items ?? []
-  const citySet = new Set(cities)
-  const matchingSignup = records.length === cities.length && records.every(item =>
-    item.city?.S && citySet.has(item.city.S) &&
-    item.name?.S === name && item.whatsapp?.S === whatsapp && item.slug?.S === slug &&
-    item.active?.BOOL === false && ['pending', 'pending_verification'].includes(item.status?.S ?? '')
-  )
+    ConsistentRead: true,
+  }))))
+  const matchingSignup = records.every((record, index) => {
+    const item = record.Item
+    return item?.city?.S === cities[index] && item.trainerId?.S === trainerId &&
+      item.name?.S === name && item.whatsapp?.S === whatsapp && item.slug?.S === slug &&
+      item.active?.BOOL === false && ['pending', 'pending_verification'].includes(item.status?.S ?? '')
+  })
   if (!matchingSignup) throw new TrainerSlugUnavailableError()
 
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)

@@ -28,7 +28,7 @@ trainers.addGlobalSecondaryIndex({
   indexName: 'TrainerById',
   partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
   projectionType: dynamodb.ProjectionType.INCLUDE,
-  nonKeyAttributes: ['name', 'whatsapp', 'active', 'status', 'slug'],
+  nonKeyAttributes: ['name', 'whatsapp', 'active'],
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
