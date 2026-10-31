@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
   DynamoDBClient,
@@ -20,7 +20,7 @@ const corsHeaders = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
-  'access-control-allow-headers': 'Content-Type',
+  'access-control-allow-headers': 'Content-Type, X-Fitpeso-Verification-Secret',
   'access-control-allow-methods': 'POST,OPTIONS',
 }
 
@@ -152,9 +152,81 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
     new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
 }
 
+class TrainerSlugUnavailableError extends Error {}
+
+function createTrainerCode(trainerId: string, whatsapp: string, cities: string[], slug: string) {
+  const code = randomBytes(16).toString('base64url')
+  const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
+  return {
+    code,
+    item: {
+      codeHash: { S: hashCode(code) },
+      flow: { S: 'trainer-whatsapp' },
+      trainerId: { S: trainerId },
+      whatsapp: { S: whatsapp },
+      cities: { SS: cities },
+      slug: { S: slug },
+      expiresAt: { N: String(expiresAt) },
+    },
+  }
+}
+
+async function issueCodeForExistingSignup(data: Record<string, unknown>, requestCodesTable: string, slugTableName: string, trainersTable: string) {
+  const slug = String(data.slug).trim().toLowerCase()
+  const name = String(data.name).trim().replace(/\s+/g, ' ')
+  const whatsapp = normalizePhone(data.whatsapp)
+  const cities = data.cities as string[]
+  const slugResult = await dynamodb.send(new GetItemCommand({
+    TableName: slugTableName,
+    Key: { slug: { S: slug } },
+    ProjectionExpression: '#trainerId',
+    ExpressionAttributeNames: { '#trainerId': 'trainerId' },
+    ConsistentRead: true,
+  }))
+  const trainerId = slugResult.Item?.trainerId?.S
+  if (!trainerId) throw new TrainerSlugUnavailableError()
+
+  const trainerResult = await dynamodb.send(new QueryCommand({
+    TableName: trainersTable,
+    IndexName: 'TrainerById',
+    KeyConditionExpression: '#trainerId = :trainerId',
+    ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #status, #slug',
+    ExpressionAttributeNames: {
+      '#city': 'city',
+      '#trainerId': 'trainerId',
+      '#name': 'name',
+      '#whatsapp': 'whatsapp',
+      '#active': 'active',
+      '#status': 'status',
+      '#slug': 'slug',
+    },
+    ExpressionAttributeValues: { ':trainerId': { S: trainerId } },
+  }))
+  const records = trainerResult.Items ?? []
+  const citySet = new Set(cities)
+  const matchingSignup = records.length === cities.length && records.every(item =>
+    item.city?.S && citySet.has(item.city.S) &&
+    item.name?.S === name && item.whatsapp?.S === whatsapp && item.slug?.S === slug &&
+    item.active?.BOOL === false && ['pending', 'pending_verification'].includes(item.status?.S ?? '')
+  )
+  if (!matchingSignup) throw new TrainerSlugUnavailableError()
+
+  const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
+  await dynamodb.send(new PutItemCommand({
+    TableName: requestCodesTable,
+    Item: challenge.item,
+    ConditionExpression: 'attribute_not_exists(codeHash)',
+  }))
+  return { slug, verificationCode: challenge.code }
+}
+
 async function registerTrainer(data: Record<string, unknown>) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
+  const requestCodesTable = process.env.IMC_REQUESTS_TABLE
+  if (!requestCodesTable) throw new Error('Trainer verification store is not configured')
+  const slugTableName = process.env.TRAINER_SLUGS_TABLE
+  if (!slugTableName) throw new Error('Trainer slug directory is not configured')
   const name = String(data.name).trim().replace(/\s+/g, ' ')
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
@@ -164,11 +236,26 @@ async function registerTrainer(data: Record<string, unknown>) {
   const cities = data.cities as string[]
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
+  const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
 
-  const slugTableName = process.env.TRAINER_SLUGS_TABLE
-  if (!slugTableName) throw new Error('Trainer slug directory is not configured')
+  const existingSlug = await dynamodb.send(new GetItemCommand({
+    TableName: slugTableName,
+    Key: { slug: { S: slug } },
+    ProjectionExpression: '#trainerId',
+    ExpressionAttributeNames: { '#trainerId': 'trainerId' },
+    ConsistentRead: true,
+  }))
+  if (existingSlug.Item) return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
+      {
+        Put: {
+          TableName: requestCodesTable,
+          Item: challenge.item,
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      },
       {
         Put: {
           TableName: slugTableName,
@@ -189,7 +276,8 @@ async function registerTrainer(data: Record<string, unknown>) {
             instagram: { S: instagram },
             ...(cref ? { cref: { S: cref } } : {}),
             active: { BOOL: false },
-            status: { S: 'pending' },
+            whatsappVerified: { BOOL: false },
+            status: { S: 'pending_verification' },
             submittedAt: { N: submittedAt },
           },
           ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
@@ -197,7 +285,89 @@ async function registerTrainer(data: Record<string, unknown>) {
       })),
     ],
   }))
-  return slug
+  return { slug, verificationCode: challenge.code }
+}
+
+function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const expected = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
+  const supplied = Object.entries(event.headers ?? {}).find(([name]) => name.toLowerCase() === 'x-fitpeso-verification-secret')?.[1]
+  if (!expected || !supplied) return false
+  const expectedBuffer = Buffer.from(expected)
+  const suppliedBuffer = Buffer.from(supplied)
+  return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer)
+}
+
+async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!codesTable || !trainersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const codeResult = await dynamodb.send(new GetItemCommand({
+      TableName: codesTable,
+      Key: { codeHash: { S: hashCode(code) } },
+      ConsistentRead: true,
+    }))
+    const item = codeResult.Item
+    if (item?.flow?.S !== 'trainer-whatsapp' || item.whatsapp?.S !== whatsapp) return response(200, { verified: false })
+    const slug = item.slug?.S ?? ''
+    if (item.consumedAt?.N) return response(200, { verified: true, slug })
+    if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
+    const trainerId = item.trainerId?.S
+    const cities = item.cities?.SS ?? []
+    if (!trainerId || cities.length < 1 || cities.length > 2) return response(200, { verified: false })
+
+    await dynamodb.send(new TransactWriteItemsCommand({
+      TransactItems: [
+        {
+          Update: {
+            TableName: codesTable,
+            Key: { codeHash: { S: hashCode(code) } },
+            UpdateExpression: 'SET consumedAt = :now',
+            ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+            ExpressionAttributeNames: { '#flow': 'flow' },
+            ExpressionAttributeValues: {
+              ':flow': { S: 'trainer-whatsapp' },
+              ':whatsapp': { S: whatsapp },
+              ':now': { N: String(now) },
+            },
+          },
+        },
+        ...cities.map(city => ({
+          Update: {
+            TableName: trainersTable,
+            Key: { city: { S: city }, trainerId: { S: trainerId } },
+            UpdateExpression: 'SET active = :active, #status = :status, whatsappVerified = :verified, whatsappVerifiedAt = :now',
+            ConditionExpression: 'whatsapp = :whatsapp AND active = :inactive AND #status IN (:legacyPending, :pendingVerification)',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: {
+              ':active': { BOOL: true },
+              ':inactive': { BOOL: false },
+              ':status': { S: 'active' },
+              ':legacyPending': { S: 'pending' },
+              ':pendingVerification': { S: 'pending_verification' },
+              ':verified': { BOOL: true },
+              ':whatsapp': { S: whatsapp },
+              ':now': { N: String(now) },
+            },
+          },
+        })),
+      ],
+    }))
+    return response(200, { verified: true, slug })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
+      return response(200, { verified: false })
+    }
+    console.error('[imc-submit] Trainer WhatsApp verification failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível confirmar o WhatsApp agora.' })
+  }
 }
 
 async function createCode() {
@@ -297,7 +467,8 @@ async function consumeCode(data: Record<string, unknown> | null) {
       TableName: tableName,
       Key: { codeHash: { S: hashCode(code) } },
       UpdateExpression: 'SET consumedAt = :now',
-      ConditionExpression: 'attribute_exists(codeHash) AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+      ConditionExpression: 'attribute_exists(codeHash) AND attribute_not_exists(#flow) AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+      ExpressionAttributeNames: { '#flow': 'flow' },
       ExpressionAttributeValues: { ':now': { N: String(now) } },
     }))
     return response(200, { valid: true })
@@ -342,13 +513,22 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod !== 'POST') return response(405, { error: 'Método não permitido.' })
 
+  if (event.resource?.endsWith('/trainers/verify-whatsapp')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return verifyTrainerWhatsApp(parseBody(event))
+  }
+
   if (event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)
     if (!isValidTrainerRegistration(registration)) return response(400, { error: 'Confira nome, telefone, cidades, Instagram e os campos opcionais.' })
     try {
-      const slug = await registerTrainer(registration!)
-      return response(201, { registered: true, status: 'pending', slug })
+      const { slug, verificationCode } = await registerTrainer(registration!)
+      return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
     } catch (error) {
+      if (error instanceof TrainerSlugUnavailableError) {
+        return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
+      }
       if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
         return response(409, { error: 'Esse endereço já está reservado. Escolha outro subdomínio.' })
       }

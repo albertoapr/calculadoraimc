@@ -28,10 +28,10 @@ trainers.addGlobalSecondaryIndex({
   indexName: 'TrainerById',
   partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
   projectionType: dynamodb.ProjectionType.INCLUDE,
-  nonKeyAttributes: ['name', 'whatsapp', 'active'],
+  nonKeyAttributes: ['name', 'whatsapp', 'active', 'status', 'slug'],
 })
-requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
-trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
+requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
+trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
@@ -54,7 +54,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'X-Fitpeso-Verification-Secret'],
   },
 })
 
@@ -70,6 +70,10 @@ imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegra
 }))
 const trainersResource = apiResource.addResource('trainers')
 trainersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+trainersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

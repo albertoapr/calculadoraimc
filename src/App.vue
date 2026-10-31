@@ -91,6 +91,7 @@ const trainerForm = reactive({
   cref: '',
 })
 const trainerStatus = ref('')
+const trainerVerificationLink = ref('')
 const trainerSubmitting = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer'>('client')
 const trainingDayOptions = [
@@ -380,6 +381,7 @@ function suggestTrainerSlug() {
 async function sendTrainerSignup() {
   if (trainerSubmitting.value) return
   trainerStatus.value = ''
+  trainerVerificationLink.value = ''
   const name = trainerForm.name.trim().replace(/\s+/g, ' ')
   const slug = trainerForm.slug.trim().toLowerCase()
   const phone = normalizeBrazilianPhone(trainerForm.phone)
@@ -404,11 +406,14 @@ async function sendTrainerSignup() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
-    const body = await response.json() as { registered?: boolean; error?: string; slug?: string }
+    const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
       throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
     }
-    trainerStatus.value = `Cadastro salvo para análise. O endereço https://${body.slug || slug}.fitpeso.com.br ficará disponível após a aprovação.`
+    if (!body.verificationCode) throw new Error('Cadastro recebido, mas não foi possível gerar o código de confirmação. Tente novamente.')
+    const message = `Confirmar personal Fitpeso ${body.verificationCode}`
+    trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+    trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://${body.slug || slug}.fitpeso.com.br.`
   } catch (error) {
     trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível registrar seu cadastro agora.'
   } finally {
@@ -626,7 +631,7 @@ async function sendResult() {
         </div>
         <hr class="personal-divider">
         <h1 id="page-title">Cadastro de personal</h1>
-        <p class="intro">Preencha seus dados para receber solicitações de usuários. O cadastro será analisado antes de ser ativado.</p>
+        <p class="intro">Preencha seus dados para receber solicitações de usuários. Confirme o WhatsApp informado para ativar seu perfil.</p>
       </header>
 
       <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
@@ -645,7 +650,7 @@ async function sendResult() {
         </label>
         <label class="field field-wide" for="trainer-slug"><span class="field-label">Endereço do seu perfil</span>
           <input id="trainer-slug" v-model="trainerForm.slug" name="trainerSlug" type="text" autocapitalize="none" maxlength="40" pattern="[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])" placeholder="joao-silva" required>
-          <small>Seu perfil será publicado como https://{{ trainerForm.slug || 'seu-identificador' }}.fitpeso.com.br após aprovação.</small>
+          <small>Seu perfil será ativado em https://{{ trainerForm.slug || 'seu-identificador' }}.fitpeso.com.br após a confirmação do WhatsApp.</small>
         </label>
         <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
           <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
@@ -669,9 +674,10 @@ async function sendResult() {
           <input id="trainer-cref" v-model="trainerForm.cref" name="cref" type="text" maxlength="40" placeholder="Ex.: CREF 000000-G/RJ">
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
-          {{ trainerSubmitting ? 'Salvando cadastro…' : 'Enviar cadastro para análise' }} <span aria-hidden="true">→</span>
+          {{ trainerSubmitting ? 'Salvando cadastro…' : 'Enviar cadastro' }} <span aria-hidden="true">→</span>
         </button>
         <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
+        <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
       <button class="back-button" type="button" @click="closeTrainerSignup">Voltar à calculadora</button>
     </section>
