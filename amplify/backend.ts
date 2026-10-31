@@ -24,6 +24,24 @@ const trainerSlugs = new dynamodb.Table(requestStack, 'FitpesoTrainerSlugs', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const fitpesoRequests = new dynamodb.Table(requestStack, 'FitpesoUserRequests', {
+  partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  timeToLiveAttribute: 'expiresAt',
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+fitpesoRequests.addGlobalSecondaryIndex({
+  indexName: 'RequestsByStatus',
+  partitionKey: { name: 'status', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'validUntil', type: dynamodb.AttributeType.NUMBER },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+const requestLocks = new dynamodb.Table(requestStack, 'FitpesoRequestPhoneLocks', {
+  partitionKey: { name: 'clientPhone', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  timeToLiveAttribute: 'expiresAt',
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 trainers.addGlobalSecondaryIndex({
   indexName: 'TrainerById',
   partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
@@ -33,13 +51,21 @@ trainers.addGlobalSecondaryIndex({
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
+fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
+requestLocks.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainers.tableArn}/index/TrainerById`],
 }))
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${fitpesoRequests.tableArn}/index/RequestsByStatus`],
+}))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
+backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
+backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tableName)
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
 const apiStack = backend.createStack('imc-api-stack')
 
@@ -82,6 +108,23 @@ trainersResource.addResource('by-slug').addResource('{slug}').addMethod('GET', n
   timeout: Duration.seconds(20),
 }))
 trainersResource.addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+const requestsResource = apiResource.addResource('requests')
+requestsResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestsResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestsResource.addResource('valid').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestsResource.addResource('{requestId}').addResource('processed').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
   DynamoDBClient,
@@ -295,6 +295,198 @@ function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandl
   return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer)
 }
 
+async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
+  if (!codesTable || !requestsTable || !locksTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const codeHash = hashCode(code)
+  try {
+    const codeResult = await dynamodb.send(new GetItemCommand({
+      TableName: codesTable,
+      Key: { codeHash: { S: codeHash } },
+      ConsistentRead: true,
+    }))
+    const codeItem = codeResult.Item
+    if (codeItem?.flow?.S !== 'fitpeso-request-whatsapp' || codeItem.whatsapp?.S !== whatsapp) return response(200, { verified: false })
+    const requestId = codeItem.requestId?.S
+    const verificationExpiresAt = Number(codeItem.expiresAt?.N ?? 0)
+    if (!requestId) return response(200, { verified: false })
+
+    const requestResult = await dynamodb.send(new GetItemCommand({
+      TableName: requestsTable,
+      Key: { requestId: { S: requestId } },
+      ConsistentRead: true,
+    }))
+    const request = requestResult.Item
+    if (request?.clientPhone?.S !== whatsapp) return response(200, { verified: false })
+    if (request.status?.S === 'VALIDATED' || request.status?.S === 'PROCESSED') {
+      return response(200, { verified: true, requestId, validUntil: Number(request.validUntil?.N ?? 0) })
+    }
+    if (request.status?.S !== 'PENDING_VERIFICATION' || verificationExpiresAt <= now) return response(200, { verified: false })
+
+    const validUntil = now + 7 * 24 * 60 * 60
+    const nowIso = new Date(now * 1000).toISOString()
+    await dynamodb.send(new TransactWriteItemsCommand({
+      TransactItems: [
+        {
+          Update: {
+            TableName: codesTable,
+            Key: { codeHash: { S: codeHash } },
+            UpdateExpression: 'SET consumedAt = :now',
+            ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+            ExpressionAttributeNames: { '#flow': 'flow' },
+            ExpressionAttributeValues: {
+              ':flow': { S: 'fitpeso-request-whatsapp' },
+              ':whatsapp': { S: whatsapp },
+              ':now': { N: String(now) },
+            },
+          },
+        },
+        {
+          Update: {
+            TableName: requestsTable,
+            Key: { requestId: { S: requestId } },
+            UpdateExpression: 'SET #status = :validated, validUntil = :validUntil, expiresAt = :validUntil, verifiedAt = :nowIso, updatedAt = :nowIso',
+            ConditionExpression: '#status = :pending AND verificationExpiresAt > :now AND clientPhone = :whatsapp',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: {
+              ':validated': { S: 'VALIDATED' },
+              ':pending': { S: 'PENDING_VERIFICATION' },
+              ':validUntil': { N: String(validUntil) },
+              ':now': { N: String(now) },
+              ':nowIso': { S: nowIso },
+              ':whatsapp': { S: whatsapp },
+            },
+          },
+        },
+        {
+          Put: {
+            TableName: locksTable,
+            Item: {
+              clientPhone: { S: whatsapp },
+              requestId: { S: requestId },
+              validUntil: { N: String(validUntil) },
+              expiresAt: { N: String(validUntil) },
+            },
+            ConditionExpression: 'attribute_not_exists(clientPhone) OR validUntil <= :now',
+            ExpressionAttributeValues: { ':now': { N: String(now) } },
+          },
+        },
+      ],
+    }))
+    return response(200, { verified: true, requestId, validUntil })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
+      const codeResult = await dynamodb.send(new GetItemCommand({
+        TableName: codesTable,
+        Key: { codeHash: { S: codeHash } },
+        ConsistentRead: true,
+      }))
+      const requestId = codeResult.Item?.requestId?.S
+      const lockResult = await dynamodb.send(new GetItemCommand({
+        TableName: locksTable,
+        Key: { clientPhone: { S: whatsapp } },
+        ConsistentRead: true,
+      }))
+      if (Number(lockResult.Item?.validUntil?.N ?? 0) > now && lockResult.Item?.requestId?.S !== requestId) {
+        return response(409, { verified: false, alreadyValidRequest: true })
+      }
+      return response(200, { verified: false })
+    }
+    console.error('[imc-submit] Fitpeso request verification failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível confirmar a solicitação agora.' })
+  }
+}
+
+function deserializeFitpesoRequest(item: Record<string, any>) {
+  return {
+    requestId: item.requestId?.S ?? '',
+    clientName: item.clientName?.S ?? '',
+    clientPhone: item.clientPhone?.S ?? '',
+    ...(item.email?.S ? { email: item.email.S } : {}),
+    ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+    city: item.city?.S ?? '',
+    ...(item.objective?.S ? { objective: item.objective.S } : {}),
+    trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    createdAt: item.createdAt?.S ?? '',
+    validUntil: Number(item.validUntil?.N ?? 0),
+  }
+}
+
+async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const cursor = event.queryStringParameters?.cursor
+  let exclusiveStartKey: Record<string, any> | undefined
+  if (cursor) {
+    try {
+      exclusiveStartKey = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
+    } catch {
+      return response(400, { error: 'Cursor inválido.' })
+    }
+  }
+  try {
+    const result = await dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'RequestsByStatus',
+      KeyConditionExpression: '#status = :validated AND validUntil > :now',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':validated': { S: 'VALIDATED' }, ':now': { N: String(now) } },
+      ExclusiveStartKey: exclusiveStartKey,
+      Limit: 100,
+    }))
+    const nextCursor = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64url') : undefined
+    return response(200, { requests: (result.Items ?? []).map(deserializeFitpesoRequest), ...(nextCursor ? { nextCursor } : {}) })
+  } catch (error) {
+    console.error('[imc-submit] Valid Fitpeso request lookup failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível consultar as solicitações agora.' })
+  }
+}
+
+async function markFitpesoRequestProcessed(requestId: string) {
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!tableName || !/^[0-9a-f-]{36}$/i.test(requestId)) return response(400, { processed: false })
+  const now = Math.floor(Date.now() / 1000)
+  const nowIso = new Date(now * 1000).toISOString()
+  try {
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: tableName,
+      Key: { requestId: { S: requestId } },
+      UpdateExpression: 'SET #status = :processed, processedAt = :nowIso, updatedAt = :nowIso',
+      ConditionExpression: '#status = :validated AND validUntil > :now',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':processed': { S: 'PROCESSED' },
+        ':validated': { S: 'VALIDATED' },
+        ':now': { N: String(now) },
+        ':nowIso': { S: nowIso },
+      },
+    }))
+    return response(200, { processed: true })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) {
+      const existing = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { requestId: { S: requestId } }, ConsistentRead: true }))
+      if (existing.Item?.status?.S === 'PROCESSED') return response(200, { processed: true, alreadyProcessed: true })
+      return response(409, { processed: false, error: 'A solicitação não está mais válida para processamento.' })
+    }
+    console.error('[imc-submit] Fitpeso request processing update failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { processed: false, error: 'Não foi possível atualizar a solicitação agora.' })
+  }
+}
+
 async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
   const code = typeof data?.code === 'string' ? data.code.trim() : ''
   const whatsapp = normalizePhone(data?.whatsapp)
@@ -383,6 +575,70 @@ async function createCode() {
     ConditionExpression: 'attribute_not_exists(codeHash)',
   }))
   return { code, expiresAt }
+}
+
+async function createFitpesoRequest(data: Record<string, unknown>) {
+  const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!requestsTable || !locksTable || !codesTable) throw new Error('Fitpeso request storage is not configured')
+
+  const clientPhone = normalizePhone(data.clientPhone)
+  const now = Math.floor(Date.now() / 1000)
+  const existingLock = await dynamodb.send(new GetItemCommand({
+    TableName: locksTable,
+    Key: { clientPhone: { S: clientPhone } },
+    ProjectionExpression: 'validUntil',
+    ConsistentRead: true,
+  }))
+  if (Number(existingLock.Item?.validUntil?.N ?? 0) > now) return response(409, { error: 'Já existe uma solicitação válida para este WhatsApp. Aguarde o retorno da equipe.' })
+
+  const code = randomBytes(16).toString('base64url')
+  const requestId = randomUUID()
+  const verificationExpiresAt = now + codeLifetimeSeconds
+  const createdAt = new Date(now * 1000).toISOString()
+  const item = {
+    requestId: { S: requestId },
+    clientName: { S: String(data.clientName).trim().replace(/\s+/g, ' ') },
+    clientPhone: { S: clientPhone },
+    city: { S: String(data.city).trim() },
+    status: { S: 'PENDING_VERIFICATION' },
+    createdAt: { S: createdAt },
+    consentAt: { S: createdAt },
+    verificationExpiresAt: { N: String(verificationExpiresAt) },
+    expiresAt: { N: String(verificationExpiresAt) },
+    ...(typeof data.email === 'string' && data.email.trim() ? { email: { S: data.email.trim().toLowerCase() } } : {}),
+    ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
+    ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
+    ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),
+    ...(Array.isArray(data.trainingShifts) && data.trainingShifts.length ? { trainingShifts: { L: data.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
+  }
+
+  await dynamodb.send(new TransactWriteItemsCommand({
+    TransactItems: [
+      {
+        Put: {
+          TableName: requestsTable,
+          Item: item,
+          ConditionExpression: 'attribute_not_exists(requestId)',
+        },
+      },
+      {
+        Put: {
+          TableName: codesTable,
+          Item: {
+            codeHash: { S: hashCode(code) },
+            flow: { S: 'fitpeso-request-whatsapp' },
+            requestId: { S: requestId },
+            whatsapp: { S: clientPhone },
+            expiresAt: { N: String(verificationExpiresAt) },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      },
+    ],
+  }))
+  return response(201, { created: true, requestId, verificationCode: code, verificationExpiresAt })
 }
 
 async function sendRequestEmail(data: Record<string, unknown>, code: string) {
@@ -481,6 +737,11 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/valid')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return listValidFitpesoRequests(event)
+  }
   if (event.httpMethod === 'GET' && event.resource?.includes('/trainers/')) {
     if (event.resource.includes('/by-slug/')) {
       const slug = event.pathParameters?.slug?.trim().toLowerCase() ?? ''
@@ -510,6 +771,31 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   }
   if (event.httpMethod !== 'POST') return response(405, { error: 'Método não permitido.' })
+
+  if (event.resource?.endsWith('/requests/verify-whatsapp')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return verifyFitpesoRequest(parseBody(event))
+  }
+
+  if (event.resource?.endsWith('/requests/{requestId}/processed')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return markFitpesoRequestProcessed(event.pathParameters?.requestId?.trim() ?? '')
+  }
+
+  if (event.resource === '/api/requests') {
+    const request = parseBody(event)
+    if (!isValidRequest(request)) return response(400, { error: 'Confira os dados e o consentimento.' })
+    try {
+      return await createFitpesoRequest(request!)
+    } catch (error) {
+      console.error('[imc-submit] Fitpeso request registration failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Não foi possível registrar a solicitação agora. Tente novamente.' })
+    }
+  }
 
   if (event.resource?.endsWith('/trainers/verify-whatsapp')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })

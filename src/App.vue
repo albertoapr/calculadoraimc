@@ -80,6 +80,7 @@ const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janei
 const viewMode = ref<'home' | 'assessment' | 'contact'>('home')
 const showRequestForm = ref(false)
 const requestSent = ref(false)
+const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const trainerForm = reactive({
   name: '',
@@ -553,33 +554,28 @@ async function openRequestForm() {
 
 onMounted(() => { void loadTrainerProfile() })
 
-async function createRequestCode(request: Record<string, unknown>) {
+async function createFitpesoRequest(request: Record<string, unknown>) {
   const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/imc`, {
+  const response = await fetch(`${endpoint}/api/requests`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request),
   })
   const body = await response.json() as {
-    sent?: boolean
+    created?: boolean
+    verificationCode?: string
     error?: string
-    eligibleProfessionals?: number
-    notifiedProfessionals?: number
-    professionalLookupFailed?: boolean
   }
-  if (!response.ok || body.sent !== true) {
-    throw new Error(body.error || 'Não foi possível preparar a solicitação agora. Tente novamente.')
+  if (!response.ok || body.created !== true || !body.verificationCode) {
+    throw new Error(body.error || 'Não foi possível registrar a solicitação agora. Tente novamente.')
   }
-  return {
-    eligibleProfessionals: body.eligibleProfessionals ?? 0,
-    notifiedProfessionals: body.notifiedProfessionals ?? 0,
-    professionalLookupFailed: body.professionalLookupFailed ?? false,
-  }
+  return body.verificationCode
 }
 
 async function sendResult() {
   if (!form.shareContactConsent || submittingRequest.value) return
   status.value = ''
+  requestVerificationLink.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
   const phone = form.phone.trim()
@@ -606,7 +602,7 @@ async function sendResult() {
   status.value = 'Enviando sua solicitação para a Beta…'
 
   try {
-    await createRequestCode({
+    const verificationCode = await createFitpesoRequest({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
@@ -617,6 +613,8 @@ async function sendResult() {
       trainingShifts,
       consent: form.shareContactConsent,
     })
+    const confirmationMessage = `Confirmar solicitação Fitpeso ${verificationCode}`
+    requestVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(confirmationMessage)}`
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
     submittingRequest.value = false
@@ -949,12 +947,13 @@ async function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="requestSent = false; status = ''">
+      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="requestSent = false; status = ''; requestVerificationLink = ''">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="request-sent-title">
           <div class="success-mark" aria-hidden="true">✓</div>
-          <h2 id="request-sent-title">Solicitação enviada!</h2>
-          <p>Aguarde o contato da equipe Fitpeso.</p>
-          <button class="primary-button" type="button" @click="requestSent = false; status = ''; showRequestForm = false; viewMode = 'home'">Entendi</button>
+          <h2 id="request-sent-title">Solicitação registrada!</h2>
+          <p>Para confirmar seu WhatsApp, envie o código para a Beta pelo botão abaixo em até 15 minutos. Após a confirmação, sua solicitação ficará válida por 7 dias.</p>
+          <a v-if="requestVerificationLink" class="primary-button request-verification-link" :href="requestVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <button class="primary-button" type="button" @click="requestSent = false; status = ''; requestVerificationLink = ''; showRequestForm = false; viewMode = 'home'">Entendi</button>
         </section>
       </div>
       <a
