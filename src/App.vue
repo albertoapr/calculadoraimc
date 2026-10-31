@@ -681,8 +681,14 @@ async function sendResult() {
       </header>
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
-        <button class="primary-button" type="button" @click="viewMode = 'assessment'">Avaliar meu peso <span aria-hidden="true">→</span></button>
-        <button class="secondary-button" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
+        <div class="home-action">
+          <p>Descubra quanto falta pra chegar no peso adequado.</p>
+          <button class="primary-button" type="button" @click="viewMode = 'assessment'">Avaliar meu peso <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="home-action">
+          <p>Receba apoio para atingir seu objetivo.</p>
+          <button class="secondary-button" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
+        </div>
       </div>
 
       <form v-if="viewMode === 'assessment' && !result" class="form" @submit.prevent="calculateImc">
