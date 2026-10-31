@@ -743,7 +743,7 @@ async function sendResult() {
           <p>Receba apoio especializado</p>
           <button class="secondary-button" type="button" @click="openRequestForm">
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-            <span>Informe sua disponibilidade</span><span aria-hidden="true">→</span>
+            <span>Solicitar atendimento</span><span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
