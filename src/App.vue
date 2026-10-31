@@ -389,12 +389,23 @@ async function sendTrainerSignup() {
   const email = trainerForm.email.trim().toLowerCase()
   const instagram = normalizeInstagramHandle(trainerForm.instagram)
   const cref = trainerForm.cref.trim()
-  if (!name || !phone || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ||
-      ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) ||
-      trainerForm.cities.length < 1 || trainerForm.cities.length > 2 || !instagram ||
-      (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
-      (cref && !/^[\p{L}\p{M}0-9 .\/-]{1,40}$/u.test(cref))) {
-    trainerStatus.value = 'Confira o nome, telefone, subdomínio desejado, cidades, Instagram e os campos opcionais.'
+  const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda']
+  let validationError = ''
+  if (!name) validationError = 'Informe seu nome completo.'
+  else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
+  else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
+    validationError = 'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
+  } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
+    validationError = 'Escolha uma ou duas cidades de atuação.'
+  } else if (!instagram) {
+    validationError = 'Informe um Instagram válido: @usuario, usuario ou instagram.com/usuario.'
+  } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'
+  } else if (cref && !/^[\p{L}\p{M}0-9 .\/-]{1,40}$/u.test(cref)) {
+    validationError = 'Confira o CREF ou deixe o campo vazio.'
+  }
+  if (validationError) {
+    trainerStatus.value = validationError
     return
   }
 
