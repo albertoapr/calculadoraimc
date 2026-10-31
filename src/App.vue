@@ -639,7 +639,8 @@ async function sendResult() {
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
-          <span>{{ personalName }}</span>
+          <span v-if="personalName === 'FitPersonal'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-personal">Personal</span></span>
+          <span v-else>{{ personalName }}</span>
         </div>
         <hr class="personal-divider">
         <h1 id="page-title">Cadastro de personal</h1>
@@ -705,7 +706,8 @@ async function sendResult() {
             <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
             <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
           </svg>
-          <span>{{ personalName }}</span>
+          <span v-if="personalName === 'FitPersonal'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-personal">Personal</span></span>
+          <span v-else>{{ personalName }}</span>
           <a
             v-if="trainerWhatsApp"
             class="trainer-whatsapp-link"
