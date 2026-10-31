@@ -73,7 +73,7 @@ function getTrainerSlugFromHost() {
 
 const trainerIdFromPath = getTrainerIdFromPath()
 const trainerSlugFromHost = getTrainerSlugFromHost()
-const personalName = ref('FitPersonal')
+const personalName = ref('FitPeso')
 const trainerWhatsApp = ref('')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
@@ -639,7 +639,7 @@ async function sendResult() {
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
-          <span v-if="personalName === 'FitPersonal'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-personal">Personal</span></span>
+          <span v-if="personalName === 'FitPeso'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span>
           <span v-else>{{ personalName }}</span>
         </div>
         <hr class="personal-divider">
@@ -695,7 +695,7 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Voltar à calculadora</button>
     </section>
 
-    <section v-else class="calculator" aria-labelledby="page-title">
+    <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
       <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
         <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
         <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
@@ -706,7 +706,7 @@ async function sendResult() {
             <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
             <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
           </svg>
-          <span v-if="personalName === 'FitPersonal'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-personal">Personal</span></span>
+          <span v-if="personalName === 'FitPeso'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span>
           <span v-else>{{ personalName }}</span>
           <a
             v-if="trainerWhatsApp"
@@ -722,13 +722,13 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
-        <h1 id="page-title">
+        <h1 v-if="viewMode !== 'home' || result" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'home' ? 'Você consegue!' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'contact'" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
         <p v-else-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
@@ -739,14 +739,14 @@ async function sendResult() {
           <p>Trace sua meta</p>
           <button class="primary-button" type="button" @click="viewMode = 'assessment'">
             <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 10a4 4 0 0 1 8 0m-4 0 2.5-2M8 14h8m-6 3h4"/><circle cx="12" cy="10" r=".7"/></svg>
-            <span>Avaliar meu peso</span><span aria-hidden="true">→</span>
+            <span>Avalie seu peso</span><span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="home-action">
           <p>Receba apoio</p>
           <button class="secondary-button" type="button" @click="openRequestForm">
             <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="2"/><path d="M12 8.5v5m-4-2 4-2 4 2m-8 1 2 3.5m6-3.5L14 16m-4 0-2 4m6-4 2 4M5 5v4m-1.5-2H6.5M19 5v4m-1.5-2H21"/></svg>
-            <span>Encontrar personal</span><span aria-hidden="true">→</span>
+            <span>Encontre seu personal</span><span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
