@@ -19,6 +19,11 @@ const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const trainerSlugs = new dynamodb.Table(requestStack, 'FitpesoTrainerSlugs', {
+  partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 trainers.addGlobalSecondaryIndex({
   indexName: 'TrainerById',
   partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
@@ -27,12 +32,14 @@ trainers.addGlobalSecondaryIndex({
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query', 'dynamodb:TransactWriteItems')
+trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainers.tableArn}/index/TrainerById`],
 }))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
+backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
 const apiStack = backend.createStack('imc-api-stack')
 
@@ -66,6 +73,10 @@ trainersResource.addResource('register').addMethod('POST', new apigateway.Lambda
   proxy: true,
   timeout: Duration.seconds(20),
 }))
+trainersResource.addResource('by-slug').addResource('{slug}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
 trainersResource.addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
@@ -79,6 +90,7 @@ backend.addOutput({
     },
     trainerDirectory: {
       tableName: trainers.tableName,
+      slugTableName: trainerSlugs.tableName,
     },
   },
 })

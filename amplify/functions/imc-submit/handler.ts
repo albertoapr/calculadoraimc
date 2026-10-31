@@ -2,8 +2,10 @@ import { createHash, randomBytes } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
   DynamoDBClient,
+  GetItemCommand,
   PutItemCommand,
   QueryCommand,
+  TransactionCanceledException,
   TransactWriteItemsCommand,
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
@@ -118,16 +120,32 @@ async function getPublicTrainerById(trainerId: string) {
   return { name, whatsapp: whatsapp.slice(1) }
 }
 
+async function getPublicTrainerBySlug(slug: string) {
+  const tableName = process.env.TRAINER_SLUGS_TABLE
+  if (!tableName) throw new Error('Trainer slug directory is not configured')
+  const result = await dynamodb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { slug: { S: slug } },
+    ProjectionExpression: '#trainerId',
+    ExpressionAttributeNames: { '#trainerId': 'trainerId' },
+  }))
+  const trainerId = result.Item?.trainerId?.S
+  return trainerId ? getPublicTrainerById(trainerId) : null
+}
+
 function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : ''
   const instagram = typeof data.instagram === 'string' ? data.instagram.trim() : ''
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
+    /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
+    !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) &&
     /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
@@ -140,32 +158,46 @@ async function registerTrainer(data: Record<string, unknown>) {
   const name = String(data.name).trim().replace(/\s+/g, ' ')
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
 
+  const slugTableName = process.env.TRAINER_SLUGS_TABLE
+  if (!slugTableName) throw new Error('Trainer slug directory is not configured')
   await dynamodb.send(new TransactWriteItemsCommand({
-    TransactItems: cities.map(city => ({
-      Put: {
-        TableName: tableName,
-        Item: {
-          city: { S: city },
-          trainerId: { S: trainerId },
-          name: { S: name },
-          whatsapp: { S: whatsapp },
-          ...(email ? { email: { S: email } } : {}),
-          instagram: { S: instagram },
-          ...(cref ? { cref: { S: cref } } : {}),
-          active: { BOOL: false },
-          status: { S: 'pending' },
-          submittedAt: { N: submittedAt },
+    TransactItems: [
+      {
+        Put: {
+          TableName: slugTableName,
+          Item: { slug: { S: slug }, trainerId: { S: trainerId } },
+          ConditionExpression: 'attribute_not_exists(slug)',
         },
-        ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
       },
-    })),
+      ...cities.map(city => ({
+        Put: {
+          TableName: tableName,
+          Item: {
+            city: { S: city },
+            trainerId: { S: trainerId },
+            slug: { S: slug },
+            name: { S: name },
+            whatsapp: { S: whatsapp },
+            ...(email ? { email: { S: email } } : {}),
+            instagram: { S: instagram },
+            ...(cref ? { cref: { S: cref } } : {}),
+            active: { BOOL: false },
+            status: { S: 'pending' },
+            submittedAt: { N: submittedAt },
+          },
+          ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
+        },
+      })),
+    ],
   }))
+  return slug
 }
 
 async function createCode() {
@@ -281,6 +313,20 @@ async function consumeCode(data: Record<string, unknown> | null) {
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
   if (event.httpMethod === 'GET' && event.resource?.includes('/trainers/')) {
+    if (event.resource.includes('/by-slug/')) {
+      const slug = event.pathParameters?.slug?.trim().toLowerCase() ?? ''
+      if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return response(400, { error: 'Identificador inválido.' })
+      try {
+        const trainer = await getPublicTrainerBySlug(slug)
+        if (!trainer) return response(404, { error: 'Personal não encontrado.' })
+        return response(200, { trainer })
+      } catch (error) {
+        console.error('[imc-submit] Public trainer slug lookup failed', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+        return response(503, { error: 'Lista de profissionais indisponível no momento.' })
+      }
+    }
     const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Identificador inválido.' })
     try {
@@ -300,9 +346,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const registration = parseBody(event)
     if (!isValidTrainerRegistration(registration)) return response(400, { error: 'Confira nome, telefone, cidades, Instagram e os campos opcionais.' })
     try {
-      await registerTrainer(registration!)
-      return response(201, { registered: true, status: 'pending' })
+      const slug = await registerTrainer(registration!)
+      return response(201, { registered: true, status: 'pending', slug })
     } catch (error) {
+      if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
+        return response(409, { error: 'Esse endereço já está reservado. Escolha outro subdomínio.' })
+      }
       console.error('[imc-submit] Trainer registration failed', {
         errorClass: error instanceof Error ? error.name : typeof error,
       })

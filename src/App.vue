@@ -62,7 +62,17 @@ function getTrainerIdFromPath() {
   }
 }
 
+function getTrainerSlugFromHost() {
+  const hostname = window.location.hostname.toLowerCase()
+  const suffix = '.fitpeso.com.br'
+  if (!hostname.endsWith(suffix)) return ''
+  const slug = hostname.slice(0, -suffix.length)
+  if (slug.includes('.') || ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug)) return ''
+  return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
+}
+
 const trainerIdFromPath = getTrainerIdFromPath()
+const trainerSlugFromHost = getTrainerSlugFromHost()
 const personalName = ref('Beta Personal Trainer')
 const trainerWhatsApp = ref('')
 const trainerProfileFailed = ref(false)
@@ -73,6 +83,7 @@ const requestSent = ref(false)
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const trainerForm = reactive({
   name: '',
+  slug: '',
   phone: '',
   email: '',
   cities: [] as string[],
@@ -354,18 +365,33 @@ function normalizeInstagramHandle(value: string) {
   return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
 }
 
+function suggestTrainerSlug() {
+  if (trainerForm.slug.trim()) return
+  trainerForm.slug = trainerForm.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '')
+}
+
 async function sendTrainerSignup() {
   if (trainerSubmitting.value) return
   trainerStatus.value = ''
   const name = trainerForm.name.trim().replace(/\s+/g, ' ')
+  const slug = trainerForm.slug.trim().toLowerCase()
   const phone = normalizeBrazilianPhone(trainerForm.phone)
   const email = trainerForm.email.trim().toLowerCase()
   const instagram = normalizeInstagramHandle(trainerForm.instagram)
   const cref = trainerForm.cref.trim()
-  if (!name || !phone || trainerForm.cities.length < 1 || trainerForm.cities.length > 2 || !instagram ||
+  if (!name || !phone || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ||
+      ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) ||
+      trainerForm.cities.length < 1 || trainerForm.cities.length > 2 || !instagram ||
       (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
       (cref && !/^[\p{L}\p{M}0-9 .\/-]{1,40}$/u.test(cref))) {
-    trainerStatus.value = 'Confira o nome, telefone com DDD, cidades, Instagram e, se informar, o e-mail e o registro profissional.'
+    trainerStatus.value = 'Confira o nome, telefone, subdomínio desejado, cidades, Instagram e os campos opcionais.'
     return
   }
 
@@ -376,13 +402,13 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
-    const body = await response.json() as { registered?: boolean; error?: string }
+    const body = await response.json() as { registered?: boolean; error?: string; slug?: string }
     if (!response.ok || body.registered !== true) {
       throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
     }
-    trainerStatus.value = 'Cadastro salvo para análise. Ele só ficará disponível aos usuários depois da aprovação.'
+    trainerStatus.value = `Cadastro salvo para análise. O endereço https://${body.slug || slug}.fitpeso.com.br ficará disponível após a aprovação.`
   } catch (error) {
     trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível registrar seu cadastro agora.'
   } finally {
@@ -473,10 +499,13 @@ async function getRequestApiEndpoint() {
 }
 
 async function loadTrainerProfile() {
-  if (!trainerIdFromPath) return
+  if (!trainerIdFromPath && !trainerSlugFromHost) return
   try {
     const endpoint = await getRequestApiEndpoint()
-    const response = await fetch(`${endpoint}/api/trainers/${encodeURIComponent(trainerIdFromPath)}`, { cache: 'no-store' })
+    const profilePath = trainerSlugFromHost
+      ? `/api/trainers/by-slug/${encodeURIComponent(trainerSlugFromHost)}`
+      : `/api/trainers/${encodeURIComponent(trainerIdFromPath)}`
+    const response = await fetch(`${endpoint}${profilePath}`, { cache: 'no-store' })
     if (!response.ok) throw new Error('Trainer profile unavailable')
     const body = await response.json() as { trainer?: { name?: unknown; whatsapp?: unknown } }
     const name = typeof body.trainer?.name === 'string' ? body.trainer.name.trim() : ''
@@ -612,7 +641,11 @@ async function sendResult() {
           <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
         </div>
         <label class="field field-wide" for="trainer-name"><span class="field-label">Nome completo</span>
-          <input id="trainer-name" v-model="trainerForm.name" name="trainerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" required>
+          <input id="trainer-name" v-model="trainerForm.name" name="trainerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" @blur="suggestTrainerSlug" required>
+        </label>
+        <label class="field field-wide" for="trainer-slug"><span class="field-label">Endereço do seu perfil</span>
+          <input id="trainer-slug" v-model="trainerForm.slug" name="trainerSlug" type="text" autocapitalize="none" maxlength="40" pattern="[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])" placeholder="joao-silva" required>
+          <small>Seu perfil será publicado como https://{{ trainerForm.slug || 'seu-identificador' }}.fitpeso.com.br após aprovação.</small>
         </label>
         <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
           <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
@@ -667,7 +700,7 @@ async function sendResult() {
             <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15"/><path d="M23.3 20.7c-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.4-1 1.2-1.2 1.4-.2.2-.4.3-.8.1-.4-.2-1.6-.6-3-1.9-1.1-1-1.9-2.2-2.1-2.6-.2-.4 0-.6.2-.8l.6-.7c.2-.2.3-.4.4-.6.1-.2 0-.5 0-.6-.1-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7c-.2 0-.6.1-.9.5-.3.4-1.2 1.2-1.2 3s1.3 3.5 1.5 3.8c.2.2 2.5 3.9 6.1 5.4.9.4 1.6.6 2.1.7.9.3 1.7.2 2.3.1.7-.1 2.2-.9 2.5-1.7.3-.8.3-1.5.2-1.7-.1-.1-.4-.3-.8-.5z"/></svg>
           </a>
         </div>
-        <p v-if="trainerIdFromPath && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
+        <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
         <h1 id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
