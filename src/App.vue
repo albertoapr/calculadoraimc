@@ -736,15 +736,15 @@ async function sendResult() {
         <div class="home-action">
           <p>Trace sua meta</p>
           <button class="primary-button" type="button" @click="viewMode = 'assessment'">
-            <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.8" y="1.8" width="20.4" height="20.4" rx="3.1"/><path d="M6.1 9.2a5.9 5.9 0 0 1 11.8 0v.3H6.1zM10.2 9.5a1.8 1.8 0 0 1 3.6 0m-1.8-1.8 2.2-2.6"/><path d="M7.2 10.6c-2-.1-3.1 1.5-2.8 3.3.2 1.1.9 1.9 1.1 3.2.2 1.5.5 2.5 1.7 2.5 1.1 0 1.7-.9 1.5-2.1l-.6-2.7c-.2-.9.3-1.8.4-2.6.2-1.1-.3-3.4-1.3-3.6Zm9.6 0c2-.1 3.1 1.5 2.8 3.3-.2 1.1-.9 1.9-1.1 3.2-.2 1.5-.5 2.5-1.7 2.5-1.1 0-1.7-.9-1.5-2.1l.6-2.7c.2-.9-.3-1.8-.4-2.6-.2-1.1.3-3.4 1.3-3.6Z"/></svg>
+            <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 6.5h6M9 10.5h2m2 0h2m-6 4h2m2 0h2m-6 4h2"/></svg>
             <span>Avalie seu peso</span><span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="home-action">
-          <p>Receba apoio</p>
+          <p>Receba apoio especializado</p>
           <button class="secondary-button" type="button" @click="openRequestForm">
-            <svg class="home-action-icon dumbbell-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x=".8" y="9.3" width="2.8" height="5.4" rx="1.4"/><rect x="2.8" y="7" width="3.4" height="10" rx="1.7"/><rect x="5.2" y="4.1" width="4.5" height="15.8" rx="2.25"/><path d="M8.9 11h6.2v2H8.9z"/><rect x="14.3" y="4.1" width="4.5" height="15.8" rx="2.25"/><rect x="17.8" y="7" width="3.4" height="10" rx="1.7"/><rect x="20.4" y="9.3" width="2.8" height="5.4" rx="1.4"/></svg>
-            <span>Ache seu personal</span><span aria-hidden="true">→</span>
+            <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
+            <span>Informe sua disponibilidade</span><span aria-hidden="true">→</span>
           </button>
         </div>
       </div>
@@ -906,7 +906,8 @@ async function sendResult() {
 
         <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
           <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
-          <span>Informar disponibilidade para treino</span>
+          <svg class="home-action-icon availability-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
+          <span>Informe sua disponibilidade</span>
         </label>
 
         <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
