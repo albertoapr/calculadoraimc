@@ -745,7 +745,7 @@ async function sendResult() {
         <div class="home-action">
           <p>Receba apoio</p>
           <button class="secondary-button" type="button" @click="openRequestForm">
-            <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="2"/><path d="M12 8.5v5m-4-2 4-2 4 2m-8 1 2 3.5m6-3.5L14 16m-4 0-2 4m6-4 2 4M5 5v4m-1.5-2H6.5M19 5v4m-1.5-2H21"/></svg>
+            <svg class="home-action-icon dumbbell-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x=".8" y="9.3" width="2.8" height="5.4" rx="1.4"/><rect x="2.8" y="7" width="3.4" height="10" rx="1.7"/><rect x="5.2" y="4.1" width="4.5" height="15.8" rx="2.25"/><path d="M8.9 11h6.2v2H8.9z"/><rect x="14.3" y="4.1" width="4.5" height="15.8" rx="2.25"/><rect x="17.8" y="7" width="3.4" height="10" rx="1.7"/><rect x="20.4" y="9.3" width="2.8" height="5.4" rx="1.4"/></svg>
             <span>Encontre seu personal</span><span aria-hidden="true">→</span>
           </button>
         </div>
