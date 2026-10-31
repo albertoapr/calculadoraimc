@@ -720,16 +720,15 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
-        <h1 v-if="viewMode !== 'home' || result" id="page-title">
+        <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
-        <p v-if="viewMode === 'contact'" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
-        <p v-else-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
+        <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
