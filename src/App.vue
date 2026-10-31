@@ -540,7 +540,7 @@ async function loadTrainerProfile() {
 function trainerWhatsAppLink() {
   if (!trainerWhatsApp.value) return ''
   const firstName = personalName.value.replace(/\s+Personal Trainer$/, '')
-  const text = `Olá, ${firstName}! Encontrei sua calculadora de IMC.`
+  const text = `Olá,professor ${firstName}. Te encontrei em fitpeso.com.br. Preciso de um personal trainer.`
   return `https://wa.me/${trainerWhatsApp.value}?text=${encodeURIComponent(text)}`
 }
 
