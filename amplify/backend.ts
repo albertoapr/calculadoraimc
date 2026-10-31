@@ -26,7 +26,7 @@ trainers.addGlobalSecondaryIndex({
   nonKeyAttributes: ['name', 'whatsapp', 'active'],
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
-trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query')
+trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainers.tableArn}/index/TrainerById`],
@@ -61,7 +61,12 @@ imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegra
   proxy: true,
   timeout: Duration.seconds(20),
 }))
-apiResource.addResource('trainers').addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+const trainersResource = apiResource.addResource('trainers')
+trainersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+trainersResource.addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

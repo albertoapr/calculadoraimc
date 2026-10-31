@@ -80,6 +80,7 @@ const trainerForm = reactive({
   cref: '',
 })
 const trainerStatus = ref('')
+const trainerSubmitting = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer'>('client')
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -353,7 +354,8 @@ function normalizeInstagramHandle(value: string) {
   return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
 }
 
-function sendTrainerSignup() {
+async function sendTrainerSignup() {
+  if (trainerSubmitting.value) return
   trainerStatus.value = ''
   const name = trainerForm.name.trim().replace(/\s+/g, ' ')
   const phone = normalizeBrazilianPhone(trainerForm.phone)
@@ -367,24 +369,24 @@ function sendTrainerSignup() {
     return
   }
 
-  const message = [
-    'Sou personal trainer e quero receber solicitações de ajuda dos usuários.',
-    '',
-    '*Cadastro de personal trainer*',
-    `Nome completo: ${name}`,
-    `Telefone: ${phone}`,
-    ...(email ? [`E-mail: ${email}`] : []),
-    `Cidades de atuação: ${trainerForm.cities.join(', ')}`,
-    `Instagram: ${instagram}`,
-    ...(cref ? [`Registro do conselho de Educação Física: ${cref}`] : []),
-  ].join('\n')
-  const whatsappUrl = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-  const whatsappWindow = window.open(whatsappUrl, '_blank')
-  if (whatsappWindow) {
-    whatsappWindow.opener = null
-    trainerStatus.value = 'O WhatsApp foi aberto com seus dados. Revise a mensagem e toque em Enviar para concluir o cadastro.'
-  } else {
-    window.location.assign(whatsappUrl)
+  trainerSubmitting.value = true
+  trainerStatus.value = 'Salvando seu cadastro…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/trainers/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+    })
+    const body = await response.json() as { registered?: boolean; error?: string }
+    if (!response.ok || body.registered !== true) {
+      throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
+    }
+    trainerStatus.value = 'Cadastro salvo para análise. Ele só ficará disponível aos usuários depois da aprovação.'
+  } catch (error) {
+    trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível registrar seu cadastro agora.'
+  } finally {
+    trainerSubmitting.value = false
   }
 }
 
@@ -633,8 +635,8 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-cref"><span class="field-label">Registro do conselho de Educação Física <span>opcional</span></span>
           <input id="trainer-cref" v-model="trainerForm.cref" name="cref" type="text" maxlength="40" placeholder="Ex.: CREF 000000-G/RJ">
         </label>
-        <button class="primary-button field-wide" type="submit">
-          Abrir WhatsApp para enviar <span aria-hidden="true">→</span>
+        <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
+          {{ trainerSubmitting ? 'Salvando cadastro…' : 'Enviar cadastro para análise' }} <span aria-hidden="true">→</span>
         </button>
         <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
       </form>
@@ -688,6 +690,10 @@ async function sendResult() {
         <div class="home-action">
           <p>Receba apoio para atingir seu objetivo.</p>
           <button class="secondary-button" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="home-action">
+          <p>Salve o contato da IA Beta para auxiliar nos treinos.</p>
+          <a class="primary-button home-contact-download" href="https://drive.usercontent.google.com/download?id=1itlX4W0doax1jYpc7GkGa-hM2v8rZ98l&amp;export=download" download="Beta.vcf">Salvar contato da Beta <span aria-hidden="true">↓</span></a>
         </div>
       </div>
 

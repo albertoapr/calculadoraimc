@@ -4,6 +4,7 @@ import {
   DynamoDBClient,
   PutItemCommand,
   QueryCommand,
+  TransactWriteItemsCommand,
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
@@ -115,6 +116,56 @@ async function getPublicTrainerById(trainerId: string) {
   if (!name || !whatsapp) return null
 
   return { name, whatsapp: whatsapp.slice(1) }
+}
+
+function isValidTrainerRegistration(data: Record<string, unknown> | null) {
+  if (!data) return false
+  const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  const phone = normalizePhone(data.whatsapp)
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const instagram = typeof data.instagram === 'string' ? data.instagram.trim() : ''
+  const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
+  const cities = data.cities
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
+    (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
+    /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
+    (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
+    Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
+    new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
+}
+
+async function registerTrainer(data: Record<string, unknown>) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const name = String(data.name).trim().replace(/\s+/g, ' ')
+  const whatsapp = normalizePhone(data.whatsapp)
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const instagram = String(data.instagram).trim()
+  const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
+  const cities = data.cities as string[]
+  const trainerId = randomBytes(16).toString('hex')
+  const submittedAt = String(Math.floor(Date.now() / 1000))
+
+  await dynamodb.send(new TransactWriteItemsCommand({
+    TransactItems: cities.map(city => ({
+      Put: {
+        TableName: tableName,
+        Item: {
+          city: { S: city },
+          trainerId: { S: trainerId },
+          name: { S: name },
+          whatsapp: { S: whatsapp },
+          ...(email ? { email: { S: email } } : {}),
+          instagram: { S: instagram },
+          ...(cref ? { cref: { S: cref } } : {}),
+          active: { BOOL: false },
+          status: { S: 'pending' },
+          submittedAt: { N: submittedAt },
+        },
+        ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
+      },
+    })),
+  }))
 }
 
 async function createCode() {
@@ -244,6 +295,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   }
   if (event.httpMethod !== 'POST') return response(405, { error: 'Método não permitido.' })
+
+  if (event.resource?.endsWith('/trainers/register')) {
+    const registration = parseBody(event)
+    if (!isValidTrainerRegistration(registration)) return response(400, { error: 'Confira nome, telefone, cidades, Instagram e os campos opcionais.' })
+    try {
+      await registerTrainer(registration!)
+      return response(201, { registered: true, status: 'pending' })
+    } catch (error) {
+      console.error('[imc-submit] Trainer registration failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Não foi possível registrar o cadastro agora. Tente novamente mais tarde.' })
+    }
+  }
 
   const data = parseBody(event)
   if (event.resource?.endsWith('/verify')) return consumeCode(data)
