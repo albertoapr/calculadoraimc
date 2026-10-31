@@ -179,9 +179,10 @@ footer img { width: 24px; height: 24px; }
 .secondary-button:hover { background: color-mix(in srgb, var(--blue) 8%, transparent); }
 .home-actions { display: grid; gap: 20px; margin-top: 8px; }
 .home-action { display: grid; gap: 9px; }
-.home-action p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; text-align: center; }
-.home-actions .primary-button, .home-actions .secondary-button { width: 100%; min-height: 58px; font-size: 16px; }
+.home-action p { margin: 0; color: var(--muted); font-size: 17px; font-weight: 600; line-height: 1.45; text-align: center; }
+.home-actions .primary-button, .home-actions .secondary-button { width: 100%; min-height: 60px; font-size: 18px; }
 .home-actions .secondary-button { border-width: 2px; }
+.home-action-icon { width: 25px; height: 25px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .home-contact-download { text-decoration: none; }
 .success-overlay { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(22, 52, 84, .5); backdrop-filter: blur(3px); }
 .success-dialog { display: grid; width: min(100%, 390px); justify-items: center; gap: 12px; padding: 30px 24px 24px; border: 1px solid #dce6f2; border-radius: 20px; background: #fff; box-shadow: 0 24px 80px rgba(12, 35, 70, .25); text-align: center; animation: evaluation-fade-in .18s ease-out both; }

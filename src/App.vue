@@ -734,11 +734,18 @@ async function sendResult() {
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
         <div class="home-action">
-          <p>Descubra quanto falta pra chegar no peso adequado.</p>
-          <button class="primary-button" type="button" @click="viewMode = 'assessment'">Avaliar meu peso <span aria-hidden="true">→</span></button>
+          <p>Trace sua meta</p>
+          <button class="primary-button" type="button" @click="viewMode = 'assessment'">
+            <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 10a4 4 0 0 1 8 0m-4 0 2.5-2M8 14h8m-6 3h4"/><circle cx="12" cy="10" r=".7"/></svg>
+            <span>Avaliar meu peso</span><span aria-hidden="true">→</span>
+          </button>
         </div>
         <div class="home-action">
-          <button class="secondary-button" type="button" @click="openRequestForm">Encontrar profissionais disponíveis <span aria-hidden="true">→</span></button>
+          <p>Receba apoio</p>
+          <button class="secondary-button" type="button" @click="openRequestForm">
+            <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="2"/><path d="M12 8.5v5m-4-2 4-2 4 2m-8 1 2 3.5m6-3.5L14 16m-4 0-2 4m6-4 2 4M5 5v4m-1.5-2H6.5M19 5v4m-1.5-2H21"/></svg>
+            <span>Encontrar personal</span><span aria-hidden="true">→</span>
+          </button>
         </div>
       </div>
 
