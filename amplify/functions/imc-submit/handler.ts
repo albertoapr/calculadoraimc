@@ -435,7 +435,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -443,6 +443,7 @@ async function getActiveTrainersForCity(city: string) {
         '#whatsapp': 'whatsapp',
         '#active': 'active',
         '#slug': 'slug',
+        '#instagram': 'instagram',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -456,7 +457,8 @@ async function getActiveTrainersForCity(city: string) {
     const whatsapp = normalizePhone(item.whatsapp?.S)
     const slug = item.slug?.S?.trim().toLowerCase() ?? ''
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
-    return [{ trainerId, name, whatsapp, slug }]
+    const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
+    return [{ trainerId, name, whatsapp, slug, ...(instagram ? { instagram } : {}) }]
   })
 }
 
@@ -545,21 +547,24 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const trainerResult = await dynamodb.send(new GetItemCommand({
       TableName: trainersTable,
       Key: { city: { S: item.city?.S ?? '' }, trainerId: { S: claims.tid } },
-      ProjectionExpression: '#trainerId, #active',
-      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#active': 'active' },
+      ProjectionExpression: '#trainerId, #active, #instagram',
+      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#active': 'active', '#instagram': 'instagram' },
       ConsistentRead: true,
     }))
     if (trainerResult.Item?.active?.BOOL !== true || trainerResult.Item.trainerId?.S !== claims.tid) return invalid()
 
     const fullName = item.clientName?.S?.trim() ?? ''
-    const clientPhone = normalizePhone(item.clientPhone?.S)
-    if (!fullName || !clientPhone) return invalid()
+    if (!fullName) return invalid()
+    const instagram = trainerResult.Item.instagram?.S?.trim() ?? ''
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
-      clientPhone,
+      ...(item.email?.S ? { email: item.email.S } : {}),
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
+      trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+      trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+      ...(instagram ? { trainerInstagram: instagram } : {}),
       validUntil,
     } })
   } catch (error) {
