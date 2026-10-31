@@ -554,10 +554,12 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (trainerResult.Item?.active?.BOOL !== true || trainerResult.Item.trainerId?.S !== claims.tid) return invalid()
 
     const fullName = item.clientName?.S?.trim() ?? ''
-    if (!fullName) return invalid()
+    const clientPhone = normalizePhone(item.clientPhone?.S)
+    if (!fullName || !clientPhone) return invalid()
     const instagram = trainerResult.Item.instagram?.S?.trim() ?? ''
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
+      clientPhone,
       ...(item.email?.S ? { email: item.email.S } : {}),
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',

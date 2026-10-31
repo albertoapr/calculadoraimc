@@ -73,6 +73,7 @@ function getTrainerSlugFromHost() {
 
 type TrainerRequestDetails = {
   clientName: string
+  clientPhone: string
   email?: string
   age?: number
   city: string
@@ -755,6 +756,7 @@ async function sendResult() {
             <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
             <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
+            <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
             <div v-if="trainerRequest.email"><dt>E-mail</dt><dd><a :href="`mailto:${trainerRequest.email}`">{{ trainerRequest.email }}</a></dd></div>
             <div><dt>Disponibilidade para treino</dt><dd>{{ [trainerRequest.trainingDays.length ? `Dias: ${trainerRequest.trainingDays.join(', ')}` : '', trainerRequest.trainingShifts.length ? `Turnos: ${trainerRequest.trainingShifts.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Não informada' }}</dd></div>
             <div v-if="trainerRequest.trainerInstagram"><dt>Instagram do personal</dt><dd><a :href="`https://www.instagram.com/${trainerRequest.trainerInstagram.replace(/^@/, '')}/`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.trainerInstagram }}</a></dd></div>
