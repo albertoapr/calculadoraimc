@@ -1,6 +1,7 @@
 import { defineBackend } from '@aws-amplify/backend'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import * as iam from 'aws-cdk-lib/aws-iam'
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib'
 import { imcSubmit } from './functions/imc-submit/resource'
 
@@ -18,8 +19,18 @@ const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+trainers.addGlobalSecondaryIndex({
+  indexName: 'TrainerById',
+  partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.INCLUDE,
+  nonKeyAttributes: ['name', 'whatsapp', 'active'],
+})
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query')
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${trainers.tableArn}/index/TrainerById`],
+}))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
@@ -50,7 +61,7 @@ imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegra
   proxy: true,
   timeout: Duration.seconds(20),
 }))
-apiResource.addResource('trainers').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+apiResource.addResource('trainers').addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

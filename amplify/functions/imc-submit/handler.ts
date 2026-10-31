@@ -5,7 +5,6 @@ import {
   PutItemCommand,
   QueryCommand,
   UpdateItemCommand,
-  type AttributeValue,
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
@@ -84,42 +83,38 @@ async function getTrainerEmailsForCity(city: string) {
   return [...new Set(matchingEmails)]
 }
 
-async function getPublicTrainersForCity(city: string) {
+async function getPublicTrainerById(trainerId: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
 
-  const trainers: Array<{ name: string; city: string; whatsapp: string }> = []
-  let exclusiveStartKey: Record<string, AttributeValue> | undefined
-  do {
-    const result = await dynamodb.send(new QueryCommand({
-      TableName: tableName,
-      KeyConditionExpression: '#city = :city',
-      FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #name, #whatsapp, #active',
-      ExpressionAttributeNames: {
-        '#city': 'city',
-        '#name': 'name',
-        '#whatsapp': 'whatsapp',
-        '#active': 'active',
-      },
-      ExpressionAttributeValues: {
-        ':city': { S: city },
-        ':active': { BOOL: true },
-      },
-      ExclusiveStartKey: exclusiveStartKey,
-    }))
+  const result = await dynamodb.send(new QueryCommand({
+    TableName: tableName,
+    IndexName: 'TrainerById',
+    KeyConditionExpression: '#trainerId = :trainerId',
+    FilterExpression: '#active = :active',
+    ProjectionExpression: '#name, #whatsapp, #active',
+    ExpressionAttributeNames: {
+      '#trainerId': 'trainerId',
+      '#name': 'name',
+      '#whatsapp': 'whatsapp',
+      '#active': 'active',
+    },
+    ExpressionAttributeValues: {
+      ':trainerId': { S: trainerId },
+      ':active': { BOOL: true },
+    },
+  }))
 
-    for (const item of result.Items ?? []) {
-      const name = item.name?.S?.trim() ?? ''
-      const whatsapp = normalizePhone(item.whatsapp?.S)
-      if (name.length >= 2 && name.length <= 80 && whatsapp) {
-        trainers.push({ name, city, whatsapp: whatsapp.slice(1) })
-      }
-    }
-    exclusiveStartKey = result.LastEvaluatedKey
-  } while (exclusiveStartKey)
+  const item = (result.Items ?? []).find(candidate => {
+    const name = candidate.name?.S?.trim() ?? ''
+    return name.length >= 2 && name.length <= 80 && Boolean(normalizePhone(candidate.whatsapp?.S))
+  })
+  if (!item) return null
+  const name = item.name?.S?.trim() ?? ''
+  const whatsapp = normalizePhone(item.whatsapp?.S)
+  if (!name || !whatsapp) return null
 
-  return trainers
+  return { name, whatsapp: whatsapp.slice(1) }
 }
 
 async function createCode() {
@@ -234,14 +229,13 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
-  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers')) {
-    const city = event.queryStringParameters?.city?.trim() ?? ''
-    if (!['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city)) {
-      return response(400, { error: 'Cidade inválida.' })
-    }
+  if (event.httpMethod === 'GET' && event.resource?.includes('/trainers/')) {
+    const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Identificador inválido.' })
     try {
-      const trainers = await getPublicTrainersForCity(city)
-      return response(200, { trainers })
+      const trainer = await getPublicTrainerById(trainerId)
+      if (!trainer) return response(404, { error: 'Personal não encontrado.' })
+      return response(200, { trainer })
     } catch (error) {
       console.error('[imc-submit] Public trainer directory lookup failed', {
         errorClass: error instanceof Error ? error.name : typeof error,
