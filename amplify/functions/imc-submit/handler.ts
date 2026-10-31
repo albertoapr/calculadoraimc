@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
   DynamoDBClient,
@@ -21,7 +21,7 @@ const corsHeaders = {
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Content-Type, X-Fitpeso-Verification-Secret',
-  'access-control-allow-methods': 'POST,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
 }
 
 function response(statusCode: number, body: Record<string, unknown>) {
@@ -95,11 +95,10 @@ async function getPublicTrainerById(trainerId: string) {
     IndexName: 'TrainerById',
     KeyConditionExpression: '#trainerId = :trainerId',
     FilterExpression: '#active = :active',
-    ProjectionExpression: '#name, #whatsapp, #active',
+    ProjectionExpression: '#name, #active',
     ExpressionAttributeNames: {
       '#trainerId': 'trainerId',
       '#name': 'name',
-      '#whatsapp': 'whatsapp',
       '#active': 'active',
     },
     ExpressionAttributeValues: {
@@ -110,14 +109,11 @@ async function getPublicTrainerById(trainerId: string) {
 
   const item = (result.Items ?? []).find(candidate => {
     const name = candidate.name?.S?.trim() ?? ''
-    return name.length >= 2 && name.length <= 80 && Boolean(normalizePhone(candidate.whatsapp?.S))
+    return candidate.active?.BOOL === true && name.length >= 2 && name.length <= 80
   })
   if (!item) return null
   const name = item.name?.S?.trim() ?? ''
-  const whatsapp = normalizePhone(item.whatsapp?.S)
-  if (!name || !whatsapp) return null
-
-  return { name, whatsapp: whatsapp.slice(1) }
+  return name ? { name } : null
 }
 
 async function getPublicTrainerBySlug(slug: string) {
@@ -421,6 +417,49 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
   }
 }
 
+function createTrainerRequestToken(requestId: string, trainerId: string, expiresAt: number) {
+  const secret = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
+  if (!secret) throw new Error('Trainer request access signing is not configured')
+  const payload = Buffer.from(JSON.stringify({ v: 1, rid: requestId, tid: trainerId, exp: expiresAt })).toString('base64url')
+  const signature = createHmac('sha256', secret).update(`fitpeso-trainer-request.v1.${payload}`).digest('base64url')
+  return `${payload}.${signature}`
+}
+
+async function getActiveTrainersForCity(city: string) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const items: Record<string, any>[] = []
+  let exclusiveStartKey: Record<string, any> | undefined
+  do {
+    const result = await dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: '#city = :city',
+      FilterExpression: '#active = :active',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug',
+      ExpressionAttributeNames: {
+        '#city': 'city',
+        '#trainerId': 'trainerId',
+        '#name': 'name',
+        '#whatsapp': 'whatsapp',
+        '#active': 'active',
+        '#slug': 'slug',
+      },
+      ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
+      ExclusiveStartKey: exclusiveStartKey,
+    }))
+    items.push(...(result.Items ?? []))
+    exclusiveStartKey = result.LastEvaluatedKey
+  } while (exclusiveStartKey)
+  return items.flatMap(item => {
+    const trainerId = item.trainerId?.S ?? ''
+    const name = item.name?.S?.trim() ?? ''
+    const whatsapp = normalizePhone(item.whatsapp?.S)
+    const slug = item.slug?.S?.trim().toLowerCase() ?? ''
+    if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
+    return [{ trainerId, name, whatsapp, slug }]
+  })
+}
+
 async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
   const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
   if (!tableName) return response(503, { error: 'Serviço temporariamente indisponível.' })
@@ -445,12 +484,89 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
       Limit: 100,
     }))
     const nextCursor = result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64url') : undefined
-    return response(200, { requests: (result.Items ?? []).map(deserializeFitpesoRequest), ...(nextCursor ? { nextCursor } : {}) })
+    const trainerCache = new Map<string, ReturnType<typeof getActiveTrainersForCity>>()
+    const requests = await Promise.all((result.Items ?? []).map(async item => {
+      const request = deserializeFitpesoRequest(item)
+      if (!trainerCache.has(request.city)) trainerCache.set(request.city, getActiveTrainersForCity(request.city))
+      const trainers = await trainerCache.get(request.city)!
+      const validUntil = request.validUntil
+      return {
+        ...request,
+        eligibleTrainers: trainers.map(trainer => ({
+          ...trainer,
+          requestUrl: `https://${trainer.slug}.fitpeso.com.br/?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
+        })),
+      }
+    }))
+    return response(200, { requests, ...(nextCursor ? { nextCursor } : {}) })
   } catch (error) {
     console.error('[imc-submit] Valid Fitpeso request lookup failed', {
       errorClass: error instanceof Error ? error.name : typeof error,
     })
     return response(503, { error: 'Não foi possível consultar as solicitações agora.' })
+  }
+}
+
+async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const token = event.queryStringParameters?.token ?? ''
+  const invalid = () => response(404, { error: 'Solicitação não encontrada ou acesso indisponível.' })
+  if (token.length > 2048) return invalid()
+  const [payloadPart, signaturePart, extra] = token.split('.')
+  if (!payloadPart || !signaturePart || extra !== undefined) return invalid()
+  const secret = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
+  if (!secret) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const expectedSignature = createHmac('sha256', secret).update(`fitpeso-trainer-request.v1.${payloadPart}`).digest()
+  let suppliedSignature: Buffer
+  try { suppliedSignature = Buffer.from(signaturePart, 'base64url') } catch { return invalid() }
+  if (suppliedSignature.length !== expectedSignature.length || !timingSafeEqual(suppliedSignature, expectedSignature)) return invalid()
+
+  let claims: { v?: unknown; rid?: unknown; tid?: unknown; exp?: unknown }
+  try { claims = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8')) } catch { return invalid() }
+  if (claims.v !== 1 || typeof claims.rid !== 'string' || !/^[0-9a-f-]{36}$/i.test(claims.rid) ||
+      typeof claims.tid !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(claims.tid) ||
+      !Number.isSafeInteger(claims.exp) || Number(claims.exp) <= 0) return invalid()
+  const now = Math.floor(Date.now() / 1000)
+  if (Number(claims.exp) <= now) return response(410, { expired: true })
+
+  const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!requestsTable || !trainersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const requestResult = await dynamodb.send(new GetItemCommand({
+      TableName: requestsTable,
+      Key: { requestId: { S: claims.rid } },
+      ConsistentRead: true,
+    }))
+    const item = requestResult.Item
+    const validUntil = Number(item?.validUntil?.N ?? 0)
+    if (item && validUntil <= now) return response(410, { expired: true })
+    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '')) return invalid()
+
+    const trainerResult = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable,
+      Key: { city: { S: item.city?.S ?? '' }, trainerId: { S: claims.tid } },
+      ProjectionExpression: '#trainerId, #active',
+      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#active': 'active' },
+      ConsistentRead: true,
+    }))
+    if (trainerResult.Item?.active?.BOOL !== true || trainerResult.Item.trainerId?.S !== claims.tid) return invalid()
+
+    const fullName = item.clientName?.S?.trim() ?? ''
+    const clientPhone = normalizePhone(item.clientPhone?.S)
+    if (!fullName || !clientPhone) return invalid()
+    return response(200, { request: {
+      clientName: fullName.split(/\s+/)[0],
+      clientPhone,
+      ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+      city: item.city?.S ?? '',
+      ...(item.objective?.S ? { objective: item.objective.S } : {}),
+      validUntil,
+    } })
+  } catch (error) {
+    console.error('[imc-submit] Trainer request view failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível carregar esta solicitação agora.' })
   }
 }
 
@@ -737,6 +853,7 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/valid')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })

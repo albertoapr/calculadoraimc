@@ -116,6 +116,10 @@ requestsResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcS
   proxy: true,
   timeout: Duration.seconds(20),
 }))
+requestsResource.addResource('trainer-view').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
 requestsResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),

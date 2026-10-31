@@ -71,13 +71,24 @@ function getTrainerSlugFromHost() {
   return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
 }
 
+type TrainerRequestDetails = {
+  clientName: string
+  clientPhone: string
+  age?: number
+  city: string
+  objective?: string
+  validUntil: number
+}
+
+const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
 const trainerIdFromPath = getTrainerIdFromPath()
 const trainerSlugFromHost = getTrainerSlugFromHost()
 const personalName = ref('FitPeso')
-const trainerWhatsApp = ref('')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact'>('home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request'>(trainerRequestToken ? 'trainer-request' : 'home')
+const trainerRequest = ref<TrainerRequestDetails | null>(null)
+const trainerRequestStatus = ref(trainerRequestToken ? 'Carregando solicitação…' : '')
 const showRequestForm = ref(false)
 const requestSent = ref(false)
 const requestVerificationLink = ref('')
@@ -525,23 +536,32 @@ async function loadTrainerProfile() {
       : `/api/trainers/${encodeURIComponent(trainerIdFromPath)}`
     const response = await fetch(`${endpoint}${profilePath}`, { cache: 'no-store' })
     if (!response.ok) throw new Error('Trainer profile unavailable')
-    const body = await response.json() as { trainer?: { name?: unknown; whatsapp?: unknown } }
+    const body = await response.json() as { trainer?: { name?: unknown } }
     const name = typeof body.trainer?.name === 'string' ? body.trainer.name.trim() : ''
-    const whatsapp = typeof body.trainer?.whatsapp === 'string' ? body.trainer.whatsapp.replace(/\D/g, '') : ''
-    if (!name || !/^55[1-9]{2}9?\d{8}$/.test(whatsapp)) throw new Error('Invalid trainer profile')
+    if (!name) throw new Error('Invalid trainer profile')
     const firstName = name.split(/\s+/)[0]
     personalName.value = `${firstName} Personal Trainer`
-    trainerWhatsApp.value = whatsapp
   } catch {
     trainerProfileFailed.value = true
   }
 }
 
-function trainerWhatsAppLink() {
-  if (!trainerWhatsApp.value) return ''
-  const firstName = personalName.value.replace(/\s+Personal Trainer$/, '')
-  const text = `Olá,professor ${firstName}. Te encontrei em fitpeso.com.br. Preciso de um personal trainer.`
-  return `https://wa.me/${trainerWhatsApp.value}?text=${encodeURIComponent(text)}`
+async function loadTrainerRequest() {
+  if (!trainerRequestToken) return
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/requests/trainer-view?token=${encodeURIComponent(trainerRequestToken)}`, { cache: 'no-store' })
+    const body = await response.json() as { request?: TrainerRequestDetails; expired?: boolean; error?: string }
+    if (response.status === 410 || body.expired) {
+      trainerRequestStatus.value = 'Esta solicitação expirou e não pode mais ser visualizada.'
+      return
+    }
+    if (!response.ok || !body.request) throw new Error(body.error || 'Solicitação indisponível.')
+    trainerRequest.value = body.request
+    trainerRequestStatus.value = ''
+  } catch (error) {
+    trainerRequestStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar esta solicitação.'
+  }
 }
 
 async function openRequestForm() {
@@ -552,7 +572,11 @@ async function openRequestForm() {
   document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-onMounted(() => { void loadTrainerProfile() })
+onMounted(() => {
+  if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
+  void loadTrainerProfile()
+  void loadTrainerRequest()
+})
 
 async function createFitpesoRequest(request: Record<string, unknown>) {
   const endpoint = await getRequestApiEndpoint()
@@ -706,17 +730,6 @@ async function sendResult() {
           </svg>
           <span v-if="personalName === 'FitPeso'" class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span>
           <span v-else>{{ personalName }}</span>
-          <a
-            v-if="trainerWhatsApp"
-            class="trainer-whatsapp-link"
-            :href="trainerWhatsAppLink()"
-            target="_blank"
-            rel="noopener noreferrer"
-            :aria-label="`Falar com ${personalName} pelo WhatsApp`"
-            title="Falar no WhatsApp"
-          >
-            <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15"/><path d="M23.3 20.7c-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.4-1 1.2-1.2 1.4-.2.2-.4.3-.8.1-.4-.2-1.6-.6-3-1.9-1.1-1-1.9-2.2-2.1-2.6-.2-.4 0-.6.2-.8l.6-.7c.2-.2.3-.4.4-.6.1-.2 0-.5 0-.6-.1-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7c-.2 0-.6.1-.9.5-.3.4-1.2 1.2-1.2 3s1.3 3.5 1.5 3.8c.2.2 2.5 3.9 6.1 5.4.9.4 1.6.6 2.1.7.9.3 1.7.2 2.3.1.7-.1 2.2-.9 2.5-1.7.3-.8.3-1.5.2-1.7-.1-.1-.4-.3-.8-.5z"/></svg>
-          </a>
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
@@ -726,10 +739,24 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
+
+      <section v-if="viewMode === 'trainer-request'" class="trainer-request-view" aria-labelledby="page-title">
+        <p v-if="trainerRequestStatus" class="status" role="status" aria-live="polite">{{ trainerRequestStatus }}</p>
+        <div v-else-if="trainerRequest" class="trainer-request-details">
+          <dl>
+            <div><dt>Nome</dt><dd>{{ trainerRequest.clientName }}</dd></div>
+            <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
+            <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
+            <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
+            <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
+          </dl>
+          <p class="trainer-request-expiry">Válida até {{ new Date(trainerRequest.validUntil * 1000).toLocaleString('pt-BR') }}.</p>
+        </div>
+      </section>
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
         <div class="home-action">
@@ -857,12 +884,12 @@ async function sendResult() {
           <p v-if="result.imc >= 35" class="silhouette-note severe-obesity-note">O gráfico e a escala visual terminam em obesidade grau I; seu IMC está acima da faixa exibida.</p>
         </div>
 
-        <button class="primary-button field-wide" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
+        <button class="primary-button result-request-button" type="button" @click="openRequestForm">Solicitar atendimento <span aria-hidden="true">→</span></button>
         <button class="back-button" type="button" @click="editMeasurement">Nova avaliação</button>
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" @submit.prevent="sendResult">
-        <h2 class="field-wide request-form-title">Solicitar contato de um personal</h2>
+        <h2 class="field-wide request-form-title">Solicitar atendimento</h2>
         <div class="google-fill field-wide">
           <p>Preencha nome e e-mail com sua conta Google</p>
           <div ref="googleButtonContainer" class="google-button-container"></div>
@@ -906,7 +933,7 @@ async function sendResult() {
         <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
           <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
           <svg class="home-action-icon availability-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-          <span>Informe sua disponibilidade</span>
+          <span>Informar disponibilidade para treino</span>
         </label>
 
         <fieldset v-if="form.provideAvailability" class="availability-group field-wide">

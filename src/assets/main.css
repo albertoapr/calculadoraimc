@@ -112,6 +112,15 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .back-button:hover { border-color: #91b6f1; background: #eaf2ff; }
 .back-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 .result-card { margin-top: 23px; padding: 22px; border: 1px solid #dbeafe; border-radius: 15px; background: #f7faff; }
+.result-request-button { width: min(100%, 380px); margin: 18px auto 0; }
+.trainer-request-view { margin: 22px auto 0; }
+.trainer-request-details { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.trainer-request-details dl { display: grid; gap: 13px; margin: 0; }
+.trainer-request-details dl > div { display: grid; grid-template-columns: minmax(90px, 130px) 1fr; gap: 12px; }
+.trainer-request-details dt { color: var(--muted); font-weight: 700; }
+.trainer-request-details dd { margin: 0; overflow-wrap: anywhere; }
+.trainer-request-details a { color: var(--blue-dark); font-weight: 700; }
+.trainer-request-expiry { margin: 18px 0 0; color: var(--muted); font-size: 13px; }
 .evaluation-overlay { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; background: rgba(22, 52, 84, .42); backdrop-filter: blur(3px); animation: evaluation-fade-in .18s ease-out both; }
 .evaluation-circle { --progress: 0deg; position: relative; display: grid; width: 142px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: conic-gradient(var(--blue) var(--progress), #dbeafe var(--progress)); box-shadow: 0 16px 48px rgba(12, 35, 70, .22); }
 .evaluation-circle::before { position: absolute; width: 116px; aspect-ratio: 1; border-radius: 50%; background: #fff; content: ''; }
@@ -248,6 +257,8 @@ html[data-theme='dark'] .back-button:hover { border-color: #f2a04b; background: 
 html[data-theme='dark'] .trainer-contact-card { border-color: #3b4b40; color: #f6ae61; background: #1b2720; }
 html[data-theme='dark'] .trainer-contact-card:hover { border-color: #f2a04b; background: #26342b; }
 html[data-theme='dark'] .result-card { border-color: #34443a; background: #17211b; }
+html[data-theme='dark'] .trainer-request-details { border-color: #3b4b40; background: #1b2720; }
+html[data-theme='dark'] .trainer-request-details a { color: #a8c7ff; }
 html[data-theme='dark'] .evaluation-overlay { background: rgba(3, 8, 5, .72); }
 html[data-theme='dark'] .evaluation-circle { background: conic-gradient(var(--blue) var(--progress), #34443a var(--progress)); }
 html[data-theme='dark'] .evaluation-circle::before { background: #17211b; }
