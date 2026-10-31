@@ -738,7 +738,7 @@ async function sendResult() {
         <div class="home-action">
           <p>Trace sua meta</p>
           <button class="primary-button" type="button" @click="viewMode = 'assessment'">
-            <svg class="home-action-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 10a4 4 0 0 1 8 0m-4 0 2.5-2M8 14h8m-6 3h4"/><circle cx="12" cy="10" r=".7"/></svg>
+            <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.8" y="1.8" width="20.4" height="20.4" rx="3.1"/><path d="M6.1 9.2a5.9 5.9 0 0 1 11.8 0v.3H6.1zM10.2 9.5a1.8 1.8 0 0 1 3.6 0m-1.8-1.8 2.2-2.6"/><path d="M7.2 10.6c-2-.1-3.1 1.5-2.8 3.3.2 1.1.9 1.9 1.1 3.2.2 1.5.5 2.5 1.7 2.5 1.1 0 1.7-.9 1.5-2.1l-.6-2.7c-.2-.9.3-1.8.4-2.6.2-1.1-.3-3.4-1.3-3.6Zm9.6 0c2-.1 3.1 1.5 2.8 3.3-.2 1.1-.9 1.9-1.1 3.2-.2 1.5-.5 2.5-1.7 2.5-1.1 0-1.7-.9-1.5-2.1l.6-2.7c.2-.9-.3-1.8-.4-2.6-.2-1.1.3-3.4 1.3-3.6Z"/></svg>
             <span>Avalie seu peso</span><span aria-hidden="true">→</span>
           </button>
         </div>
