@@ -739,12 +739,7 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="viewMode = 'assessment'">Avaliar meu peso <span aria-hidden="true">→</span></button>
         </div>
         <div class="home-action">
-          <p>Receba apoio para atingir seu objetivo.</p>
-          <button class="secondary-button" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
-        </div>
-        <div class="home-action">
-          <p>Salve o contato da IA Beta para auxiliar nos treinos.</p>
-          <a class="primary-button home-contact-download" href="https://drive.usercontent.google.com/download?id=1itlX4W0doax1jYpc7GkGa-hM2v8rZ98l&amp;export=download" download="Beta.vcf">Salvar contato da Beta <span aria-hidden="true">↓</span></a>
+          <button class="secondary-button" type="button" @click="openRequestForm">Encontrar profissionais disponíveis <span aria-hidden="true">→</span></button>
         </div>
       </div>
 
