@@ -31,8 +31,8 @@ trainers.addGlobalSecondaryIndex({
   nonKeyAttributes: ['name', 'whatsapp', 'active'],
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:PutItem', 'dynamodb:UpdateItem')
-trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query', 'dynamodb:TransactWriteItems')
-trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems')
+trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
+trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainers.tableArn}/index/TrainerById`],
