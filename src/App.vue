@@ -728,7 +728,7 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'home' ? 'Como podemos ajudar?' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'home' ? 'Você consegue!' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'contact'" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
         <p v-else-if="!result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
