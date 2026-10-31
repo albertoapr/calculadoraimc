@@ -73,7 +73,7 @@ function getTrainerSlugFromHost() {
 
 const trainerIdFromPath = getTrainerIdFromPath()
 const trainerSlugFromHost = getTrainerSlugFromHost()
-const personalName = ref('Beta Personal Trainer')
+const personalName = ref('FitPersonal')
 const trainerWhatsApp = ref('')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
@@ -948,13 +948,13 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="requestSent = false; status = ''; showRequestForm = false; viewMode = 'home'">Entendi</button>
         </section>
       </div>
+      <a
+        v-if="viewMode === 'home'"
+        class="trainer-signup-link"
+        href="#cadastro-personal"
+        @click="showTrainerSignup = true"
+      >Sou personal. Quero me cadastrar</a>
     </section>
-    <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta Soluções IA</a></footer>
-    <a
-      v-if="!showTrainerSignup && viewMode === 'home'"
-      class="trainer-signup-link"
-      href="#cadastro-personal"
-      @click="showTrainerSignup = true"
-    >Sou personal. Quero me cadastrar</a>
+    <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta</a></footer>
   </main>
 </template>
