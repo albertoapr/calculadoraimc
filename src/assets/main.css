@@ -177,6 +177,15 @@ footer img { width: 24px; height: 24px; }
 .trainer-signup-link:hover { text-decoration: underline; }
 .secondary-button { min-height: 46px; padding: 11px 16px; border: 1px solid var(--blue); border-radius: 12px; color: var(--blue-dark); background: transparent; font-size: 15px; font-weight: 700; }
 .secondary-button:hover { background: color-mix(in srgb, var(--blue) 8%, transparent); }
+.home-actions { display: grid; gap: 13px; margin-top: 8px; }
+.home-actions .primary-button, .home-actions .secondary-button { width: 100%; min-height: 58px; font-size: 16px; }
+.home-actions .secondary-button { border-width: 2px; }
+.success-overlay { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(22, 52, 84, .5); backdrop-filter: blur(3px); }
+.success-dialog { display: grid; width: min(100%, 390px); justify-items: center; gap: 12px; padding: 30px 24px 24px; border: 1px solid #dce6f2; border-radius: 20px; background: #fff; box-shadow: 0 24px 80px rgba(12, 35, 70, .25); text-align: center; animation: evaluation-fade-in .18s ease-out both; }
+.success-mark { display: grid; width: 54px; height: 54px; place-items: center; border-radius: 50%; color: #fff; background: #22a06b; font-size: 29px; font-weight: 800; }
+.success-dialog h2 { font-size: 23px; }
+.success-dialog p { margin: 0 0 5px; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.success-dialog .primary-button { width: 100%; margin-top: 4px; }
 .trainer-whatsapp-link { display: inline-flex; width: 32px; height: 32px; flex: 0 0 auto; color: #25d366; }
 .trainer-whatsapp-link svg { display: block; width: 100%; height: 100%; fill: currentColor; }
 .trainer-whatsapp-link svg path { fill: #fff; }
@@ -250,6 +259,8 @@ html[data-theme='dark'] footer { color: #7ed39b; }
 html[data-theme='dark'] .trainer-signup-link { color: #f6ae61; }
 html[data-theme='dark'] .theme-switch button { border-color: #3b4b40; color: #c3cdc5; }
 html[data-theme='dark'] .theme-switch button.active { border-color: #f2a04b; color: #182019; background: #f2a04b; }
+html[data-theme='dark'] .success-dialog { border-color: #34443a; background: #1b2720; }
+html[data-theme='dark'] .success-dialog p { color: #bdc9bf; }
 
 @media (max-width: 520px) {
   .page-shell { padding: 14px 10px 20px; }

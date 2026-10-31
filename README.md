@@ -1,6 +1,6 @@
 # Calculadora de IMC da Beta
 
-Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. O IMC é calculado no navegador. O botão **Encontrar personal** abre o formulário de solicitação antes ou depois da avaliação. Ao enviar, o backend valida os dados e encaminha a solicitação para o e-mail da Beta pelo Gmail SMTP.
+Aplicação em Vue 3 + Vite preparada para deploy pelo AWS Amplify Gen 2. A tela inicial oferece **Avaliar meu peso**, que abre o formulário de avaliação, e **Encontrar personal**, que abre o formulário de contato. O IMC é calculado no navegador. Ao enviar uma solicitação de contato, o backend valida os dados e encaminha a solicitação para a Beta pelo Gmail SMTP; após o envio ser aceito, a tela confirma em um popup e pede que a pessoa aguarde contato.
 
 ## O que é implantado
 
@@ -29,7 +29,7 @@ O e-mail sempre vai para a Beta. A função também consulta a tabela privada `F
 
 O link público `https://fitpeso.com.br/p/<trainerId>` consulta `GET /api/trainers/<trainerId>` pela Lambda, personaliza o título com o primeiro nome e mostra o ícone do WhatsApp. A tabela usa o índice secundário `TrainerById` para buscar o perfil sem varrer itens. Não leia o DynamoDB diretamente do navegador nem inclua os e-mails na resposta pública; a Lambda faz a consulta com acesso IAM limitado à tabela e ao índice.
 
-Sem o trecho `/p/<trainerId>`, a calculadora usa o título padrão **Beta Personal Trainer**. O botão **Encontrar personal** abre o formulário de solicitação tanto antes quanto depois da avaliação; o consentimento explícito para compartilhar o contato continua obrigatório ao enviar.
+Sem o trecho `/p/<trainerId>`, a calculadora usa o título padrão **Beta Personal Trainer**. A tela inicial oferece acesso direto à avaliação ou ao formulário de solicitação de personal; o consentimento explícito para compartilhar o contato continua obrigatório ao enviar.
 
 ## Dados e privacidade
 

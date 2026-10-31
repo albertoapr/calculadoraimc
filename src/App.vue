@@ -67,7 +67,9 @@ const personalName = ref('Beta Personal Trainer')
 const trainerWhatsApp = ref('')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+const viewMode = ref<'home' | 'assessment' | 'contact'>('home')
 const showRequestForm = ref(false)
+const requestSent = ref(false)
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const trainerForm = reactive({
   name: '',
@@ -454,6 +456,7 @@ function editMeasurement() {
   result.value = null
   clearContactDetails()
   status.value = ''
+  viewMode.value = 'assessment'
 }
 
 type AmplifyRuntimeOutputs = { custom?: { imcApi?: { endpoint?: string } } }
@@ -495,6 +498,7 @@ function trainerWhatsAppLink() {
 async function openRequestForm() {
   status.value = ''
   showRequestForm.value = true
+  viewMode.value = 'contact'
   await nextTick()
   document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -553,9 +557,8 @@ async function sendResult() {
   submittingRequest.value = true
   status.value = 'Enviando sua solicitação para a Beta…'
 
-  let delivery: { eligibleProfessionals: number; notifiedProfessionals: number; professionalLookupFailed: boolean }
   try {
-    delivery = await createRequestCode({
+    await createRequestCode({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
@@ -572,15 +575,8 @@ async function sendResult() {
     return
   }
 
-  if (delivery.professionalLookupFailed) {
-    status.value = 'A Beta recebeu sua solicitação, mas não foi possível consultar os profissionais da cidade agora.'
-  } else if (delivery.eligibleProfessionals === 0) {
-    status.value = 'Solicitação enviada à Beta. Ainda não há profissional ativo com e-mail cadastrado para atender sua cidade.'
-  } else if (delivery.notifiedProfessionals === delivery.eligibleProfessionals) {
-    status.value = `Solicitação enviada à Beta e a ${delivery.notifiedProfessionals} profissional(is) que atendem sua cidade.`
-  } else {
-    status.value = `A Beta recebeu a solicitação. ${delivery.notifiedProfessionals} de ${delivery.eligibleProfessionals} profissional(is) que atendem sua cidade foram notificados.`
-  }
+  status.value = ''
+  requestSent.value = true
   submittingRequest.value = false
 }
 </script>
@@ -677,13 +673,19 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Controle de peso' }}</span>
+          <span>{{ result ? 'Resultado da avaliação' : viewMode === 'home' ? 'Como podemos ajudar?' : viewMode === 'contact' ? 'Encontrar personal' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
-        <p v-if="showRequestForm" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
-        <p v-else-if="!result" class="intro"><span>Descubra seu peso adequado.</span><span>Receba ajuda de um profissional.</span></p>
+        <p v-if="viewMode === 'contact'" class="intro">Preencha seus dados para solicitar contato de um personal.</p>
+        <p v-else-if="viewMode === 'home'" class="intro">Escolha uma opção para continuar.</p>
+        <p v-else-if="!result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
-      <form v-if="!result" class="form" @submit.prevent="calculateImc">
+      <div v-if="viewMode === 'home' && !result" class="home-actions">
+        <button class="primary-button" type="button" @click="viewMode = 'assessment'">Avaliar meu peso <span aria-hidden="true">→</span></button>
+        <button class="secondary-button" type="button" @click="openRequestForm">Encontrar personal <span aria-hidden="true">→</span></button>
+      </div>
+
+      <form v-if="viewMode === 'assessment' && !result" class="form" @submit.prevent="calculateImc">
         <div class="gender-tabs field-wide" role="tablist" aria-label="Selecione uma escala corporal">
           <button id="tab-woman" class="gender-tab" :class="{ active: form.sex === 'feminino' }" type="button" role="tab" :aria-selected="form.sex === 'feminino'" aria-controls="measurement-panel" @click="form.sex = 'feminino'">Mulher</button>
           <button id="tab-man" class="gender-tab" :class="{ active: form.sex === 'masculino' }" type="button" role="tab" :aria-selected="form.sex === 'masculino'" aria-controls="measurement-panel" @click="form.sex = 'masculino'">Homem</button>
@@ -728,11 +730,11 @@ async function sendResult() {
         </div>
 
         <button class="primary-button field-wide" type="submit">Avaliar <span aria-hidden="true">→</span></button>
-        <button class="secondary-button field-wide" type="button" @click="openRequestForm">Encontrar personal</button>
+        <button class="back-button field-wide" type="button" @click="viewMode = 'home'; status = ''">Voltar</button>
         </div>
       </form>
 
-      <section v-else id="result" class="result-card" aria-live="polite">
+      <section v-else-if="viewMode === 'assessment' && result" id="result" class="result-card" aria-live="polite">
         <div class="result-heading">
           <h2>
             {{ classification }} {{ classificationEmoji }}<template v-if="weightGoalAmount !== null">: {{ weightGoalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) }} kg {{ result.imc < 18.5 ? 'a ganhar' : 'a perder' }}</template>
@@ -796,7 +798,7 @@ async function sendResult() {
         <button class="back-button" type="button" @click="editMeasurement">Nova avaliação</button>
       </section>
 
-      <form v-if="showRequestForm" id="contact-fields" class="form contact-fields request-form" @submit.prevent="sendResult">
+      <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" @submit.prevent="sendResult">
         <h2 class="field-wide request-form-title">Solicitar contato de um personal</h2>
         <div class="google-fill field-wide">
           <p>Preencha nome e e-mail com sua conta Google</p>
@@ -871,7 +873,7 @@ async function sendResult() {
         <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
           {{ submittingRequest ? 'Enviando solicitação…' : 'Enviar solicitação' }} <span aria-hidden="true">→</span>
         </button>
-        <button class="back-button field-wide" type="button" @click="showRequestForm = false">Voltar</button>
+        <button class="back-button field-wide" type="button" @click="showRequestForm = false; viewMode = 'home'; status = ''">Voltar</button>
       </form>
 
       <div v-if="evaluating" class="evaluation-overlay" role="status" aria-live="polite" :aria-label="`Avaliando: ${evaluationProgress}%`">
@@ -881,10 +883,18 @@ async function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
+      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="requestSent = false; status = ''">
+        <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="request-sent-title">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h2 id="request-sent-title">Solicitação enviada!</h2>
+          <p>Aguarde o contato da equipe Fitpeso.</p>
+          <button class="primary-button" type="button" @click="requestSent = false; status = ''; showRequestForm = false; viewMode = 'home'">Entendi</button>
+        </section>
+      </div>
     </section>
     <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta Soluções IA</a></footer>
     <a
-      v-if="!result && !showTrainerSignup"
+      v-if="!showTrainerSignup && viewMode === 'home'"
       class="trainer-signup-link"
       href="#cadastro-personal"
       @click="showTrainerSignup = true"
