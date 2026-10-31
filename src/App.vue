@@ -353,6 +353,7 @@ function normalizeBrazilianPhone(value: string) {
 function normalizeInstagramHandle(value: string) {
   let handle = value.trim()
   if (!handle) return ''
+  if (/^(?:www\.)?instagram\.com\//i.test(handle)) handle = `https://${handle}`
   if (/^https?:\/\//i.test(handle)) {
     try {
       const profileUrl = new URL(handle)
