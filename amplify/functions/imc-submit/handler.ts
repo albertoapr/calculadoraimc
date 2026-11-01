@@ -41,6 +41,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const city = typeof data.city === 'string' ? data.city.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.clientPhone)
   const email = typeof data.email === 'string' ? data.email.trim() : ''
+  const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
@@ -50,6 +51,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
     Boolean(phone) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
+    typeof instagram === 'string' && (instagram === '' || (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
@@ -547,8 +549,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const trainerResult = await dynamodb.send(new GetItemCommand({
       TableName: trainersTable,
       Key: { city: { S: item.city?.S ?? '' }, trainerId: { S: claims.tid } },
-      ProjectionExpression: '#trainerId, #active, #instagram',
-      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#active': 'active', '#instagram': 'instagram' },
+      ProjectionExpression: '#trainerId, #active',
+      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#active': 'active' },
       ConsistentRead: true,
     }))
     if (trainerResult.Item?.active?.BOOL !== true || trainerResult.Item.trainerId?.S !== claims.tid) return invalid()
@@ -556,17 +558,16 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const fullName = item.clientName?.S?.trim() ?? ''
     const clientPhone = normalizePhone(item.clientPhone?.S)
     if (!fullName || !clientPhone) return invalid()
-    const instagram = trainerResult.Item.instagram?.S?.trim() ?? ''
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
       clientPhone,
       ...(item.email?.S ? { email: item.email.S } : {}),
+      ...(item.clientInstagram?.S ? { clientInstagram: item.clientInstagram.S } : {}),
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
-      ...(instagram ? { trainerInstagram: instagram } : {}),
       validUntil,
     } })
   } catch (error) {
@@ -731,6 +732,7 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
     verificationExpiresAt: { N: String(verificationExpiresAt) },
     expiresAt: { N: String(verificationExpiresAt) },
     ...(typeof data.email === 'string' && data.email.trim() ? { email: { S: data.email.trim().toLowerCase() } } : {}),
+    ...(typeof data.clientInstagram === 'string' && data.clientInstagram.trim() ? { clientInstagram: { S: data.clientInstagram.trim() } } : {}),
     ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
     ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
     ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),

@@ -75,12 +75,12 @@ type TrainerRequestDetails = {
   clientName: string
   clientPhone: string
   email?: string
+  clientInstagram?: string
   age?: number
   city: string
   objective?: string
   trainingDays: string[]
   trainingShifts: string[]
-  trainerInstagram?: string
   validUntil: number
 }
 
@@ -132,6 +132,7 @@ const form = reactive({
   name: '',
   phone: '',
   email: '',
+  clientInstagram: '',
   objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
   age: '',
@@ -609,6 +610,8 @@ async function sendResult() {
   const phone = form.phone.trim()
   const phoneDigits = phone.replace(/\D/g, '').replace(/^0/, '')
   const email = form.email.trim().toLowerCase()
+  const instagramInput = form.clientInstagram.trim()
+  const clientInstagram = instagramInput ? normalizeInstagramHandle(instagramInput) : ''
   const city = form.city.trim().replace(/\s+/g, ' ')
   const ageInput = String(form.age).trim()
   const age = ageInput ? Number(ageInput) : undefined
@@ -620,6 +623,10 @@ async function sendResult() {
 
   if (!validName || !validCity || !validAge || !validPhone) {
     status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
+    return
+  }
+  if (instagramInput && !clientInstagram) {
+    status.value = 'Confira o Instagram informado. Use @usuario ou instagram.com/usuario, ou deixe o campo vazio.'
     return
   }
 
@@ -634,6 +641,7 @@ async function sendResult() {
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
+      ...(clientInstagram ? { clientInstagram } : {}),
       ...(age !== undefined ? { age } : {}),
       city,
       objective: form.objective,
@@ -759,8 +767,8 @@ async function sendResult() {
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
             <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
             <div v-if="trainerRequest.email"><dt>E-mail</dt><dd><a :href="`mailto:${trainerRequest.email}`">{{ trainerRequest.email }}</a></dd></div>
+            <div v-if="trainerRequest.clientInstagram"><dt>Instagram do solicitante</dt><dd><a :href="`https://www.instagram.com/${trainerRequest.clientInstagram.replace(/^@/, '')}/`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientInstagram }}</a></dd></div>
             <div><dt>Disponibilidade para treino</dt><dd>{{ [trainerRequest.trainingDays.length ? `Dias: ${trainerRequest.trainingDays.join(', ')}` : '', trainerRequest.trainingShifts.length ? `Turnos: ${trainerRequest.trainingShifts.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Não informada' }}</dd></div>
-            <div v-if="trainerRequest.trainerInstagram"><dt>Instagram do personal</dt><dd><a :href="`https://www.instagram.com/${trainerRequest.trainerInstagram.replace(/^@/, '')}/`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.trainerInstagram }}</a></dd></div>
           </dl>
           <p class="trainer-request-expiry">Válida até {{ new Date(trainerRequest.validUntil * 1000).toLocaleString('pt-BR') }}.</p>
         </div>
@@ -915,6 +923,10 @@ async function sendResult() {
           <input id="email" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
         </label>
 
+        <label class="field field-wide" for="client-instagram"><span class="field-label">Instagram <span>opcional</span></span>
+          <input id="client-instagram" v-model="form.clientInstagram" name="clientInstagram" type="text" autocomplete="url" autocapitalize="none" maxlength="100" placeholder="@seuperfil ou instagram.com/seuperfil">
+        </label>
+
         <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
           <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35">
         </label>
@@ -966,7 +978,7 @@ async function sendResult() {
 
         <label class="contact-opt-in field-wide availability-toggle" for="share-contact-consent">
           <input id="share-contact-consent" v-model="form.shareContactConsent" name="shareContactConsent" type="checkbox" required>
-          <span>Autorizo o compartilhamento do meu contato.</span>
+          <span>Autorizo o compartilhamento dos meus contatos informados com os profissionais.</span>
         </label>
 
         <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
