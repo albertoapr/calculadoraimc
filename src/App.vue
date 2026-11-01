@@ -737,6 +737,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
+        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Cuide do seu peso</h1>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
@@ -770,7 +771,7 @@ async function sendResult() {
           <p>Trace sua meta</p>
           <button class="primary-button" type="button" @click="viewMode = 'assessment'">
             <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 6.5h6M9 10.5h2m2 0h2m-6 4h2m2 0h2m-6 4h2"/></svg>
-            <span>Avalie seu peso</span><span aria-hidden="true">→</span>
+            <span>Realizar avaliação</span><span aria-hidden="true">→</span>
           </button>
         </div>
         <div class="home-action">

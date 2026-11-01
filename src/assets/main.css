@@ -34,10 +34,11 @@ button { cursor: pointer; }
   box-shadow: 0 22px 70px rgba(37, 99, 235, .10);
 }
 .hero { text-align: center; }
+.home-tagline { width: 100%; max-width: 100%; margin: 4px auto 24px; padding: 0 8px; font-size: clamp(27px, 8vw, 40px); line-height: 1.08; text-wrap: balance; }
 .brand { display: inline-flex; max-width: 100%; align-items: center; justify-content: center; gap: 9px; color: var(--blue-dark); font-size: clamp(19px, 5vw, 25px); font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
 .brand-default { font-size: clamp(32px, 7vw, 39px); font-weight: 900; letter-spacing: -.04em; line-height: 1.1; }
-.brand-fit { color: #228342; }
-.brand-peso { color: #1d4ed8; }
+.brand-fit { color: #147a5b; }
+.brand-peso { color: #18324b; }
 .dumbbell-icon { display: block; width: 34px; height: 34px; flex: 0 0 auto; fill: #dbeafe; stroke: var(--blue); stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
 .personal-divider { width: 100%; margin: 18px 0 22px; border: 0; border-top: 1px solid #18356d; }
 .eyebrow { margin: 22px 0 8px; color: #8799b0; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
@@ -193,6 +194,7 @@ footer img { width: 24px; height: 24px; }
 .home-action { display: grid; gap: 9px; }
 .home-action p { margin: 0; color: var(--muted); font-size: 19px; font-weight: 600; line-height: 1.45; text-align: center; }
 .home-actions .primary-button, .home-actions .secondary-button { width: 100%; min-height: 64px; font-size: 20px; }
+.home-actions .primary-button > span:not([aria-hidden]), .home-actions .secondary-button > span:not([aria-hidden]) { min-width: 0; flex: 1; text-align: center; line-height: 1.2; }
 .home-actions .secondary-button { border-width: 2px; }
 .home-action-icon { width: 25px; height: 25px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .home-contact-download { text-decoration: none; }
@@ -229,8 +231,8 @@ html[data-theme='dark'] {
 html[data-theme='dark'] .page-shell { background: radial-gradient(ellipse at 50% 0%, #202d25 0, #111914 48%, #0d130f 100%); }
 html[data-theme='dark'] .calculator { border-color: #2a3930; background: rgba(20, 29, 24, .98); box-shadow: 0 22px 70px rgba(0, 0, 0, .32); }
 html[data-theme='dark'] .brand { color: #f4f5f0; }
-html[data-theme='dark'] .brand-fit { color: #67d995; }
-html[data-theme='dark'] .brand-peso { color: #82b5ff; }
+html[data-theme='dark'] .brand-fit { color: #55d6a3; }
+html[data-theme='dark'] .brand-peso { color: #f1f5f3; }
 html[data-theme='dark'] .dumbbell-icon { fill: rgba(242, 160, 75, .15); stroke: #f2a04b; }
 html[data-theme='dark'] .personal-divider { border-top-color: #34443a; }
 html[data-theme='dark'] .eyebrow { color: #9ca99f; }
