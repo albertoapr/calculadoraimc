@@ -745,7 +745,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
-        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Cuide do seu peso</h1>
+        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Cuide do seu corpo</h1>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
