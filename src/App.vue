@@ -745,7 +745,7 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
-    <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
+    <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -757,6 +757,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
+        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title">Solicitar atendimento</h2>
         <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Encontre seu personal</h1>
         <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
         <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">Cuide do seu corpo</p>
@@ -918,8 +919,7 @@ async function sendResult() {
         <button class="back-button" type="button" @click="editMeasurement">Nova avaliação</button>
       </section>
 
-      <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" @submit.prevent="sendResult">
-        <h2 class="field-wide request-form-title">Solicitar atendimento</h2>
+      <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <div class="google-fill field-wide">
           <p>Preencha nome e e-mail com sua conta Google</p>
           <div ref="googleButtonContainer" class="google-button-container"></div>
