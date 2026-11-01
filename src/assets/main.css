@@ -183,8 +183,9 @@ h2 { font-size: 21px; line-height: 1.4; }
 .send-button { width: 100%; margin-top: 15px; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
-footer { display: grid; width: min(100%, 560px); justify-items: stretch; gap: 10px; margin: 17px auto 0; color: #228342; text-align: center; font-size: 15px; font-weight: 700; }
-.footer-brand { display: flex; align-items: center; justify-content: center; gap: 8px; justify-self: center; }
+footer { width: min(100%, 560px); margin: 17px auto 0; color: #228342; text-align: center; font-size: 15px; font-weight: 700; }
+.footer-bar { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; }
+.footer-brand { display: flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; }
 footer a { color: inherit; text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
@@ -218,8 +219,9 @@ footer img { width: 24px; height: 24px; }
 .request-form { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .request-form-title { font-size: 19px; text-align: center; }
 
-.theme-switch { display: flex; justify-content: flex-end; gap: 6px; justify-self: end; margin: 0 44px 0 0; }
-.theme-switch button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 700; }
+.theme-switch { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: 6px; margin: 0; }
+.theme-switch button { display: grid; width: 36px; min-height: 36px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
+.theme-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #edf4ff; }
 .theme-switch button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
 
@@ -293,7 +295,6 @@ html[data-theme='dark'] .success-dialog p { color: #bdc9bf; }
 @media (max-width: 520px) {
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }
-  .theme-switch { margin-right: 17px; }
   .intro { margin: 10px auto 23px; font-size: 17px; }
   .form, .contact-fields { grid-template-columns: 1fr; gap: 15px; }
   .measurement-fields { grid-template-columns: 1fr; gap: 15px; }
