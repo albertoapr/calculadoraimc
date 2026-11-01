@@ -80,6 +80,8 @@ type TrainerRequestDetails = {
   age?: number
   city: string
   objective?: string
+  attendsGym: boolean
+  gymName?: string
   trainingDays: string[]
   trainingShifts: string[]
   validUntil: number
@@ -141,6 +143,8 @@ const form = reactive({
   age: '',
   city: 'Mesquita',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
+  attendsGym: false,
+  gymName: '',
   trainingDays: [] as string[],
   trainingShifts: [] as string[],
 })
@@ -651,6 +655,8 @@ async function sendResult() {
       ...(age !== undefined ? { age } : {}),
       city,
       trainerGenderPreference: form.trainerGenderPreference,
+      attendsGym: form.attendsGym,
+      ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName.trim() } : {}),
       objective: form.objective,
       trainingDays,
       trainingShifts,
@@ -773,6 +779,8 @@ async function sendResult() {
             <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
             <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
+            <div v-if="trainerRequest.attendsGym"><dt>Frequenta academia</dt><dd>Sim</dd></div>
+            <div v-if="trainerRequest.attendsGym && trainerRequest.gymName"><dt>Qual?</dt><dd>{{ trainerRequest.gymName }}</dd></div>
             <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
             <div v-if="trainerRequest.email"><dt>E-mail</dt><dd><a :href="`mailto:${trainerRequest.email}`">{{ trainerRequest.email }}</a></dd></div>
             <div v-if="trainerRequest.clientInstagram"><dt>Instagram do solicitante</dt><dd><a :href="`https://www.instagram.com/${trainerRequest.clientInstagram.replace(/^@/, '')}/`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientInstagram }}</a></dd></div>
@@ -962,6 +970,14 @@ async function sendResult() {
             <option value="feminino">Mulher</option>
             <option value="masculino">Homem</option>
           </select>
+        </label>
+
+        <label class="contact-opt-in field-wide availability-toggle" for="attends-gym">
+          <input id="attends-gym" v-model="form.attendsGym" name="attendsGym" type="checkbox">
+          <span>Frequento academia</span>
+        </label>
+        <label v-if="form.attendsGym" class="field field-wide" for="gym-name"><span class="field-label">Qual? <span>opcional</span></span>
+          <input id="gym-name" v-model="form.gymName" name="gymName" type="text" maxlength="50" placeholder="Nome da academia">
         </label>
 
         <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">

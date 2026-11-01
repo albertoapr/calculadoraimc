@@ -48,6 +48,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
   const trainingShifts = data.trainingShifts
+  const gymName = data.gymName === undefined ? '' : typeof data.gymName === 'string' ? data.gymName.trim() : null
 
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
     Boolean(phone) &&
@@ -57,6 +58,8 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
+    (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
+    (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
     Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
     Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
@@ -439,6 +442,8 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     city: item.city?.S ?? '',
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
+    attendsGym: item.attendsGym?.BOOL ?? false,
+    ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     createdAt: item.createdAt?.S ?? '',
@@ -599,6 +604,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
+      attendsGym: item.attendsGym?.BOOL ?? false,
+      ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       validUntil,
@@ -769,6 +776,8 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
     ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
     ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
     ...(typeof data.trainerGenderPreference === 'string' ? { trainerGenderPreference: { S: data.trainerGenderPreference } } : {}),
+    ...(typeof data.attendsGym === 'boolean' ? { attendsGym: { BOOL: data.attendsGym } } : {}),
+    ...(data.attendsGym === true && typeof data.gymName === 'string' && data.gymName.trim() ? { gymName: { S: data.gymName.trim().slice(0, 50) } } : {}),
     ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(data.trainingShifts) && data.trainingShifts.length ? { trainingShifts: { L: data.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
   }
@@ -809,6 +818,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
   const days = Array.isArray(data.trainingDays) ? data.trainingDays.join(', ') : ''
   const shifts = Array.isArray(data.trainingShifts) ? data.trainingShifts.join(', ') : ''
   const trainerGenderPreference = data.trainerGenderPreference === 'feminino' ? 'Mulher' : data.trainerGenderPreference === 'masculino' ? 'Homem' : 'Indiferente'
+  const gymName = typeof data.gymName === 'string' ? data.gymName.trim() : ''
   const lines = [
     'Nova solicitação de ajuda de personal trainer',
     '',
@@ -818,6 +828,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(age ? [`Idade: ${age}`] : []),
     `Cidade: ${String(data.city).trim()}`,
     `Gênero do personal: ${trainerGenderPreference}`,
+    ...(data.attendsGym === true ? [`Frequenta academia: Sim${gymName ? ` — ${gymName}` : ''}`] : []),
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
     ...(days ? [`Dias disponíveis: ${days}`] : []),
     ...(shifts ? [`Turnos disponíveis: ${shifts}`] : []),
