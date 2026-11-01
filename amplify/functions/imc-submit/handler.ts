@@ -44,6 +44,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
+  const desiredDurations = ['1 mês', '2 meses', '3 meses', 'Mais de 3 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
@@ -58,6 +59,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
+    (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
     (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
     Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
@@ -442,6 +444,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     city: item.city?.S ?? '',
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
+    ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
     attendsGym: item.attendsGym?.BOOL ?? false,
     ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
@@ -604,6 +607,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
+      ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
       attendsGym: item.attendsGym?.BOOL ?? false,
       ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
@@ -776,6 +780,7 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
     ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
     ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
     ...(typeof data.trainerGenderPreference === 'string' ? { trainerGenderPreference: { S: data.trainerGenderPreference } } : {}),
+    ...(typeof data.desiredDuration === 'string' && data.desiredDuration ? { desiredDuration: { S: data.desiredDuration } } : {}),
     ...(typeof data.attendsGym === 'boolean' ? { attendsGym: { BOOL: data.attendsGym } } : {}),
     ...(data.attendsGym === true && typeof data.gymName === 'string' && data.gymName.trim() ? { gymName: { S: data.gymName.trim().slice(0, 50) } } : {}),
     ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),
@@ -828,6 +833,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(age ? [`Idade: ${age}`] : []),
     `Cidade: ${String(data.city).trim()}`,
     `Gênero do personal: ${trainerGenderPreference}`,
+    ...(typeof data.desiredDuration === 'string' && data.desiredDuration ? [`Tempo de acompanhamento: ${data.desiredDuration}`] : []),
     ...(data.attendsGym === true ? [`Frequenta academia: Sim${gymName ? ` — ${gymName}` : ''}`] : []),
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
     ...(days ? [`Dias disponíveis: ${days}`] : []),

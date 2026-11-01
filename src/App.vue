@@ -80,6 +80,7 @@ type TrainerRequestDetails = {
   age?: number
   city: string
   objective?: string
+  desiredDuration?: string
   attendsGym: boolean
   gymName?: string
   trainingDays: string[]
@@ -143,6 +144,7 @@ const form = reactive({
   age: '',
   city: 'Mesquita',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
+  desiredDuration: '',
   attendsGym: false,
   gymName: '',
   trainingDays: [] as string[],
@@ -655,6 +657,7 @@ async function sendResult() {
       ...(age !== undefined ? { age } : {}),
       city,
       trainerGenderPreference: form.trainerGenderPreference,
+      ...(form.desiredDuration ? { desiredDuration: form.desiredDuration } : {}),
       attendsGym: form.attendsGym,
       ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName.trim() } : {}),
       objective: form.objective,
@@ -780,6 +783,7 @@ async function sendResult() {
             <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
             <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
+            <div v-if="trainerRequest.desiredDuration"><dt>Tempo de acompanhamento</dt><dd>{{ trainerRequest.desiredDuration }}</dd></div>
             <div v-if="trainerRequest.attendsGym"><dt>Frequenta academia</dt><dd>Sim</dd></div>
             <div v-if="trainerRequest.attendsGym && trainerRequest.gymName"><dt>Qual?</dt><dd>{{ trainerRequest.gymName }}</dd></div>
             <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
@@ -969,6 +973,16 @@ async function sendResult() {
             <option value="indiferente">Indiferente</option>
             <option value="feminino">Mulher</option>
             <option value="masculino">Homem</option>
+          </select>
+        </label>
+
+        <label class="field field-wide" for="desired-duration"><span class="field-label">Por quanto tempo você deseja o acompanhamento? <span>opcional</span></span>
+          <select id="desired-duration" v-model="form.desiredDuration" name="desiredDuration">
+            <option value="">Selecione uma duração</option>
+            <option value="1 mês">1 mês</option>
+            <option value="2 meses">2 meses</option>
+            <option value="3 meses">3 meses</option>
+            <option value="Mais de 3 meses">Mais de 3 meses</option>
           </select>
         </label>
 
