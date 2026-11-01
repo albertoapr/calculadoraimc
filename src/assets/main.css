@@ -38,6 +38,8 @@ button { cursor: pointer; }
 .root-home-personal-image { display: block; width: 100%; height: auto; margin: 0 auto 20px; aspect-ratio: 1069 / 594; border-radius: 14px; object-fit: contain; }
 .root-home-tagline-subtitle { margin: -10px 0 24px; color: var(--muted); font-size: 15px; font-weight: 600; line-height: 1.35; text-align: center; }
 .brand { display: inline-flex; max-width: 100%; align-items: center; justify-content: center; gap: 9px; color: var(--blue-dark); font-size: clamp(19px, 5vw, 25px); font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
+.brand-lockup { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+.brand-tagline { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0; line-height: 1.2; }
 .brand-default { font-size: clamp(32px, 7vw, 39px); font-weight: 900; letter-spacing: -.04em; line-height: 1.1; }
 .brand-fit { color: #147a5b; }
 .brand-peso { color: #18324b; }
