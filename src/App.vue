@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
-import rootHomePersonalImage from './assets/root-home-personal.webp'
+import rootHomePersonalImage from './assets/root-home-personal.jpg'
 import foxMark from './assets/fox-mark.svg'
 
 type Sex = 'feminino' | 'masculino' | 'outro'
@@ -740,7 +740,7 @@ async function sendResult() {
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
         <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Evoluindo com você</h1>
-        <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="720" height="400" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
+        <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
         <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">Cuide do seu corpo</p>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
