@@ -724,7 +724,7 @@ async function sendResult() {
         <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
         <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
-      <button class="back-button" type="button" @click="closeTrainerSignup">Voltar à calculadora</button>
+      <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
     <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
