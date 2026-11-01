@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
+import rootHomePersonalImage from './assets/root-home-personal.jpg'
 import foxMark from './assets/fox-mark.svg'
 
 type Sex = 'feminino' | 'masculino' | 'outro'
@@ -87,6 +88,7 @@ type TrainerRequestDetails = {
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
 const trainerIdFromPath = getTrainerIdFromPath()
 const trainerSlugFromHost = getTrainerSlugFromHost()
+const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
 const personalName = ref('FitPeso')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
@@ -746,6 +748,7 @@ async function sendResult() {
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
         <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Cuide do seu corpo</h1>
+        <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" alt="Personal trainer orientando uma aluna durante um exercício" fetchpriority="high">
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
