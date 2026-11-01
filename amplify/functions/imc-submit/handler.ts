@@ -135,12 +135,14 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.whatsapp)
+  const sex = data.sex
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = typeof data.slug === 'string' ? data.slug.trim().toLowerCase() : ''
   const instagram = typeof data.instagram === 'string' ? data.instagram.trim() : ''
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
+    (sex === 'masculino' || sex === 'feminino') &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) &&
@@ -172,6 +174,7 @@ function createTrainerCode(trainerId: string, whatsapp: string, cities: string[]
 async function issueCodeForExistingSignup(data: Record<string, unknown>, requestCodesTable: string, slugTableName: string, trainersTable: string) {
   const slug = String(data.slug).trim().toLowerCase()
   const name = String(data.name).trim().replace(/\s+/g, ' ')
+  const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const cities = data.cities as string[]
   const slugResult = await dynamodb.send(new GetItemCommand({
@@ -187,7 +190,7 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   const records = await Promise.all(cities.map(city => dynamodb.send(new GetItemCommand({
     TableName: trainersTable,
     Key: { city: { S: city }, trainerId: { S: trainerId } },
-    ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #status, #slug',
+    ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #status, #slug, #sex',
     ExpressionAttributeNames: {
       '#city': 'city',
       '#trainerId': 'trainerId',
@@ -196,6 +199,7 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
       '#active': 'active',
       '#status': 'status',
       '#slug': 'slug',
+      '#sex': 'sex',
     },
     ConsistentRead: true,
   }))))
@@ -203,15 +207,32 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
     const item = record.Item
     return item?.city?.S === cities[index] && item.trainerId?.S === trainerId &&
       item.name?.S === name && item.whatsapp?.S === whatsapp && item.slug?.S === slug &&
+      (!item.sex?.S || item.sex.S === sex) &&
       item.active?.BOOL === false && ['pending', 'pending_verification'].includes(item.status?.S ?? '')
   })
   if (!matchingSignup) throw new TrainerSlugUnavailableError()
 
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
-  await dynamodb.send(new PutItemCommand({
-    TableName: requestCodesTable,
-    Item: challenge.item,
-    ConditionExpression: 'attribute_not_exists(codeHash)',
+  await dynamodb.send(new TransactWriteItemsCommand({
+    TransactItems: [
+      {
+        Put: {
+          TableName: requestCodesTable,
+          Item: challenge.item,
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      },
+      ...cities.map(city => ({
+        Update: {
+          TableName: trainersTable,
+          Key: { city: { S: city }, trainerId: { S: trainerId } },
+          UpdateExpression: 'SET #sex = if_not_exists(#sex, :sex)',
+          ConditionExpression: 'attribute_not_exists(#sex) OR #sex = :sex',
+          ExpressionAttributeNames: { '#sex': 'sex' },
+          ExpressionAttributeValues: { ':sex': { S: sex } },
+        },
+      })),
+    ],
   }))
   return { slug, verificationCode: challenge.code }
 }
@@ -224,6 +245,8 @@ async function registerTrainer(data: Record<string, unknown>) {
   const slugTableName = process.env.TRAINER_SLUGS_TABLE
   if (!slugTableName) throw new Error('Trainer slug directory is not configured')
   const name = String(data.name).trim().replace(/\s+/g, ' ')
+  const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
+  if (!sex) throw new Error('Selecione Masculino ou Feminino.')
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = String(data.slug).trim().toLowerCase()
@@ -267,6 +290,7 @@ async function registerTrainer(data: Record<string, unknown>) {
             trainerId: { S: trainerId },
             slug: { S: slug },
             name: { S: name },
+            sex: { S: sex },
             whatsapp: { S: whatsapp },
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },

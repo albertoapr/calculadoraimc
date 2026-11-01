@@ -101,6 +101,7 @@ const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const trainerForm = reactive({
   name: '',
+  sex: '' as '' | 'masculino' | 'feminino',
   slug: '',
   phone: '',
   email: '',
@@ -403,6 +404,7 @@ async function sendTrainerSignup() {
   trainerStatus.value = ''
   trainerVerificationLink.value = ''
   const name = trainerForm.name.trim().replace(/\s+/g, ' ')
+  const sex = trainerForm.sex
   const slug = trainerForm.slug.trim().toLowerCase()
   const phone = normalizeBrazilianPhone(trainerForm.phone)
   const email = trainerForm.email.trim().toLowerCase()
@@ -411,6 +413,7 @@ async function sendTrainerSignup() {
   const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda']
   let validationError = ''
   if (!name) validationError = 'Informe seu nome completo.'
+  else if (sex !== 'masculino' && sex !== 'feminino') validationError = 'Selecione Masculino ou Feminino.'
   else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
   else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
     validationError = 'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
@@ -435,7 +438,7 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
     const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
@@ -692,6 +695,13 @@ async function sendResult() {
         </div>
         <label class="field field-wide" for="trainer-name"><span class="field-label">Nome completo</span>
           <input id="trainer-name" v-model="trainerForm.name" name="trainerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" @blur="suggestTrainerSlug" required>
+        </label>
+        <label class="field field-wide" for="trainer-sex"><span class="field-label">Sexo</span>
+          <select id="trainer-sex" v-model="trainerForm.sex" name="trainerSex" required>
+            <option disabled value="">Selecione</option>
+            <option value="masculino">Masculino</option>
+            <option value="feminino">Feminino</option>
+          </select>
         </label>
         <label class="field field-wide" for="trainer-slug"><span class="field-label">Endereço do seu perfil</span>
           <input id="trainer-slug" v-model="trainerForm.slug" name="trainerSlug" type="text" autocapitalize="none" maxlength="40" pattern="[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])" placeholder="joao-silva" required>
