@@ -140,6 +140,7 @@ const form = reactive({
   sex: 'feminino' as Sex,
   age: '',
   city: 'Mesquita',
+  trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
   trainingDays: [] as string[],
   trainingShifts: [] as string[],
 })
@@ -649,6 +650,7 @@ async function sendResult() {
       ...(clientInstagram ? { clientInstagram } : {}),
       ...(age !== undefined ? { age } : {}),
       city,
+      trainerGenderPreference: form.trainerGenderPreference,
       objective: form.objective,
       trainingDays,
       trainingShifts,
@@ -951,6 +953,14 @@ async function sendResult() {
             <option value="Emagrecimento">Emagrecimento</option>
             <option value="Musculação">Musculação</option>
             <option value="Outros">Outros</option>
+          </select>
+        </label>
+
+        <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
+          <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
+            <option value="indiferente">Indiferente</option>
+            <option value="feminino">Mulher</option>
+            <option value="masculino">Homem</option>
           </select>
         </label>
 

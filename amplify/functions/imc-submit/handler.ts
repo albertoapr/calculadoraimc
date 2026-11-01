@@ -43,6 +43,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const email = typeof data.email === 'string' ? data.email.trim() : ''
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
+  const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
@@ -55,6 +56,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
     (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
+    (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
     Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
     Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
@@ -436,6 +438,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     ...(item.age?.N ? { age: Number(item.age.N) } : {}),
     city: item.city?.S ?? '',
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
+    trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     createdAt: item.createdAt?.S ?? '',
@@ -461,7 +464,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -470,6 +473,7 @@ async function getActiveTrainersForCity(city: string) {
         '#active': 'active',
         '#slug': 'slug',
         '#instagram': 'instagram',
+        '#sex': 'sex',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -484,7 +488,8 @@ async function getActiveTrainersForCity(city: string) {
     const slug = item.slug?.S?.trim().toLowerCase() ?? ''
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
-    return [{ trainerId, name, whatsapp, slug, ...(instagram ? { instagram } : {}) }]
+    const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
+    return [{ trainerId, name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
   })
 }
 
@@ -517,11 +522,15 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
       const request = deserializeFitpesoRequest(item)
       if (!trainerCache.has(request.city)) trainerCache.set(request.city, getActiveTrainersForCity(request.city))
       const trainers = await trainerCache.get(request.city)!
+      const eligibleTrainers = request.trainerGenderPreference === 'indiferente'
+        ? trainers
+        : trainers.filter(trainer => trainer.sex === request.trainerGenderPreference)
       const validUntil = request.validUntil
       return {
         ...request,
-        eligibleTrainers: trainers.map(trainer => ({
+        eligibleTrainers: eligibleTrainers.map(trainer => ({
           ...trainer,
+          sex: undefined,
           requestUrl: `https://${trainer.slug}.fitpeso.com.br/?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
         })),
       }
@@ -759,6 +768,7 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
     ...(typeof data.clientInstagram === 'string' && data.clientInstagram.trim() ? { clientInstagram: { S: data.clientInstagram.trim() } } : {}),
     ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
     ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
+    ...(typeof data.trainerGenderPreference === 'string' ? { trainerGenderPreference: { S: data.trainerGenderPreference } } : {}),
     ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(data.trainingShifts) && data.trainingShifts.length ? { trainingShifts: { L: data.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
   }
@@ -798,6 +808,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
   const age = data.age === undefined ? '' : `${data.age} anos`
   const days = Array.isArray(data.trainingDays) ? data.trainingDays.join(', ') : ''
   const shifts = Array.isArray(data.trainingShifts) ? data.trainingShifts.join(', ') : ''
+  const trainerGenderPreference = data.trainerGenderPreference === 'feminino' ? 'Mulher' : data.trainerGenderPreference === 'masculino' ? 'Homem' : 'Indiferente'
   const lines = [
     'Nova solicitação de ajuda de personal trainer',
     '',
@@ -806,6 +817,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(typeof data.email === 'string' && data.email.trim() ? [`E-mail: ${data.email.trim()}`] : []),
     ...(age ? [`Idade: ${age}`] : []),
     `Cidade: ${String(data.city).trim()}`,
+    `Gênero do personal: ${trainerGenderPreference}`,
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
     ...(days ? [`Dias disponíveis: ${days}`] : []),
     ...(shifts ? [`Turnos disponíveis: ${shifts}`] : []),
