@@ -26,9 +26,9 @@ const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googl
 type Theme = 'light' | 'dark'
 function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem('beta-imc-theme') === 'dark' ? 'dark' : 'light'
+    return localStorage.getItem('beta-imc-theme') === 'light' ? 'light' : 'dark'
   } catch {
-    return 'light'
+    return 'dark'
   }
 }
 const theme = ref<Theme>(readStoredTheme())
@@ -668,10 +668,6 @@ async function sendResult() {
 <template>
   <main class="page-shell">
     <section v-if="showTrainerSignup" class="calculator" aria-labelledby="page-title">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
-        <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
-        <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
-      </div>
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
@@ -732,10 +728,6 @@ async function sendResult() {
     </section>
 
     <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
-        <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
-        <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
-      </div>
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -1011,6 +1003,12 @@ async function sendResult() {
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
     </section>
-    <footer><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta</a></footer>
+    <footer>
+      <div class="footer-brand"><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta</a></div>
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+        <button type="button" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">☀ Claro</button>
+        <button type="button" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">☾ Escuro</button>
+      </div>
+    </footer>
   </main>
 </template>
