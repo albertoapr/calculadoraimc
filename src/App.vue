@@ -377,12 +377,7 @@ async function fillFromGoogle(response: GoogleCredentialResponse) {
       customerLoginStatus.value = `Conectado como ${profile.email}. Seus dados foram preenchidos.`
       googleProfileStatus.value = 'Cadastro carregado. Confira a disponibilidade e os dados antes de enviar.'
       showCustomerLogin.value = false
-      if (requestLoginReturn.value) {
-        showRequestForm.value = true
-        requestLoginReturn.value = false
-        await nextTick()
-        document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
+      await returnToRequestFormAfterLogin()
     } catch (error) {
       customerLoginStatus.value = error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
       googleProfileStatus.value = customerLoginStatus.value
@@ -817,6 +812,18 @@ async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsa
   await renderGoogleButton('client')
 }
 
+async function returnToRequestFormAfterLogin() {
+  if (!requestLoginReturn.value) return
+  requestLoginReturn.value = false
+  viewMode.value = 'contact'
+  showRequestForm.value = true
+  showCustomerLogin.value = false
+  await nextTick()
+  window.requestAnimationFrame(() => {
+    document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
 function scheduleCustomerLoginPoll(delayMs = 3_000) {
   if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
   customerLoginPollTimer = window.setTimeout(() => void pollCustomerLogin(), delayMs)
@@ -844,12 +851,7 @@ async function pollCustomerLogin() {
       if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
       customerLoginPollTimer = undefined
       showCustomerLogin.value = false
-      if (requestLoginReturn.value) {
-        showRequestForm.value = true
-        requestLoginReturn.value = false
-        await nextTick()
-        document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
+      await returnToRequestFormAfterLogin()
       return
     }
     if (response.ok && body.confirmed && !body.authenticated) {
