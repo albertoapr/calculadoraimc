@@ -128,6 +128,7 @@ const trainerVerificationLink = ref('')
 const trainerSubmitting = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
 const customerLoginStatus = ref('')
+const customerLoginError = ref('')
 const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
 const customerLoginWhatsApp = ref('')
 const customerLoginBirthDate = ref('')
@@ -807,6 +808,7 @@ async function openRequestForm() {
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
   requestLoginReturn.value = fromRequest
   customerLoginStatus.value = ''
+  customerLoginError.value = ''
   googleProfileStatus.value = ''
   customerLoginMethod.value = method
   if (fromRequest) showRequestForm.value = false
@@ -835,6 +837,7 @@ async function pollCustomerLogin() {
       sessionStorage.setItem('fitpeso-customer-session', customerLoginSessionToken.value)
       sessionStorage.removeItem('fitpeso-google-session')
       applyCustomerProfile(profile)
+      customerLoginError.value = ''
       customerLoginStatus.value = 'Login confirmado. Seus dados foram carregados.'
       googleProfileStatus.value = 'Cadastro carregado. Confira os dados antes de enviar.'
       showCustomerLoginDialog.value = false
@@ -850,14 +853,16 @@ async function pollCustomerLogin() {
       return
     }
     if (response.ok && body.confirmed && !body.authenticated) {
-      customerLoginStatus.value = 'Não foi possível confirmar o login com esses dados. Confira o WhatsApp e a data de nascimento e tente novamente.'
+      customerLoginError.value = 'Não foi possível confirmar o login com esses dados. Confira o WhatsApp e a data de nascimento e tente novamente.'
+      customerLoginStatus.value = ''
       showCustomerLoginDialog.value = false
       customerLoginCode.value = ''
       customerLoginVerificationLink.value = ''
       return
     }
     if (response.ok && body.expired) {
-      customerLoginStatus.value = 'O código expirou. Inicie o login novamente para gerar outro.'
+      customerLoginError.value = 'O código expirou. Inicie o login novamente para gerar outro.'
+      customerLoginStatus.value = ''
       showCustomerLoginDialog.value = false
       customerLoginCode.value = ''
       customerLoginVerificationLink.value = ''
@@ -867,7 +872,8 @@ async function pollCustomerLogin() {
     // Falhas transitórias não interrompem a consulta automática.
   }
   if (Date.now() - customerLoginPollStartedAt >= 15 * 60 * 1000) {
-    customerLoginStatus.value = 'O prazo do código terminou. Inicie o login novamente.'
+    customerLoginError.value = 'O prazo do código terminou. Inicie o login novamente.'
+    customerLoginStatus.value = ''
     showCustomerLoginDialog.value = false
     customerLoginCode.value = ''
     customerLoginVerificationLink.value = ''
@@ -880,14 +886,15 @@ async function pollCustomerLogin() {
 async function startCustomerWhatsAppLogin() {
   if (customerLoginSubmitting.value) return
   customerLoginStatus.value = ''
+  customerLoginError.value = ''
   const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
   const dateOfBirth = customerLoginBirthDateISO()
   if (!whatsapp) {
-    customerLoginStatus.value = 'Informe um WhatsApp válido com DDD.'
+    customerLoginError.value = 'Informe um WhatsApp válido com DDD.'
     return
   }
   if (!dateOfBirth || dateOfBirth < '1900-01-01' || dateOfBirth > new Date().toISOString().slice(0, 10)) {
-    customerLoginStatus.value = 'Informe uma data de nascimento válida.'
+    customerLoginError.value = 'Informe uma data de nascimento válida.'
     return
   }
   if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
@@ -913,7 +920,8 @@ async function startCustomerWhatsAppLogin() {
     showCustomerLoginDialog.value = true
     scheduleCustomerLoginPoll(1_000)
   } catch (error) {
-    customerLoginStatus.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login agora.'
+    customerLoginError.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login agora.'
+    customerLoginStatus.value = ''
   } finally {
     customerLoginSubmitting.value = false
   }
@@ -922,6 +930,7 @@ async function startCustomerWhatsAppLogin() {
 async function chooseCustomerWhatsAppLogin() {
   customerLoginMethod.value = 'whatsapp'
   customerLoginStatus.value = ''
+  customerLoginError.value = ''
   await nextTick()
   document.getElementById('customer-login-whatsapp')?.focus()
 }
@@ -929,6 +938,7 @@ async function chooseCustomerWhatsAppLogin() {
 async function chooseCustomerGoogleLogin() {
   customerLoginMethod.value = 'google'
   customerLoginStatus.value = ''
+  customerLoginError.value = ''
   await nextTick()
   await renderGoogleButton('client')
 }
@@ -948,6 +958,7 @@ function customerLoginBirthDateISO() {
 }
 
 function maskCustomerLoginBirthDate(event: Event) {
+  customerLoginError.value = ''
   const input = event.target as HTMLInputElement
   const digits = input.value.replace(/\D/g, '').slice(0, 8)
   customerLoginBirthDateText.value = digits.length > 4
@@ -957,6 +968,7 @@ function maskCustomerLoginBirthDate(event: Event) {
 }
 
 function selectCustomerLoginBirthDate(event: Event) {
+  customerLoginError.value = ''
   const value = (event.target as HTMLInputElement).value
   customerLoginBirthDate.value = value
   if (value) {
@@ -1157,6 +1169,7 @@ async function sendResult() {
         <h1 id="customer-login-title">Login</h1>
         <p class="intro">Entre para carregar seus dados já cadastrados.</p>
       </header>
+      <p v-if="customerLoginError && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ customerLoginError }}</p>
       <div v-if="customerLoginMethod === 'google'" class="google-fill field-wide">
         <p>Acesse com sua conta Google</p>
         <div ref="googleButtonContainer" class="google-button-container"></div>
@@ -1164,7 +1177,7 @@ async function sendResult() {
       </div>
       <form v-else class="form" @submit.prevent="startCustomerWhatsAppLogin">
         <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
-          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
+          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''">
         </label>
         <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
           <span class="date-input-with-picker">

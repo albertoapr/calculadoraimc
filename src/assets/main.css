@@ -203,6 +203,7 @@ h2 { font-size: 21px; line-height: 1.4; }
 .severe-obesity-note { color: #9e1238; font-weight: 700; }
 .send-button { width: 100%; margin-top: 15px; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
+.login-validation-error { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; background: #fef2f2; font-size: 13px; font-weight: 600; line-height: 1.45; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
 footer { width: min(100%, 560px); margin: 17px auto 0; color: #228342; text-align: center; font-size: 15px; font-weight: 700; }
 .footer-bar { position: relative; display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 12px; }
@@ -271,6 +272,7 @@ html[data-theme='dark'] .brand-fit { color: #55d6a3; }
 html[data-theme='dark'] .brand-peso { color: #f1f5f3; }
 html[data-theme='dark'] .dumbbell-icon { fill: rgba(242, 160, 75, .15); stroke: #f2a04b; }
 html[data-theme='dark'] .personal-divider { border-top-color: #34443a; }
+html[data-theme='dark'] .login-validation-error { border-color: #7f1d1d; color: #fecaca; background: #321d20; }
 html[data-theme='dark'] .eyebrow { color: #9ca99f; }
 html[data-theme='dark'] .gender-tabs { background: #1d2922; }
 html[data-theme='dark'] .gender-tab { color: #c3cdc5; }
