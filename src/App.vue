@@ -147,7 +147,6 @@ const form = reactive({
   name: '',
   phone: '',
   email: '',
-  clientInstagram: '',
   objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
   age: '',
@@ -406,12 +405,6 @@ async function renderGoogleButton(target: 'client' | 'trainer' | 'customer' = 'c
     googleProfileStatus.value = 'O preenchimento com Google está indisponível. Você pode preencher os dados manualmente.'
   }
 }
-
-watch(showRequestForm, async enabled => {
-  if (!enabled) return
-  await nextTick()
-  await renderGoogleButton('client')
-})
 
 watch(showCustomerLogin, async enabled => {
   if (!enabled) return
@@ -789,8 +782,6 @@ async function sendResult() {
   const phone = form.phone.trim()
   const phoneDigits = phone.replace(/\D/g, '').replace(/^0/, '')
   const email = form.email.trim().toLowerCase()
-  const instagramInput = form.clientInstagram.trim()
-  const clientInstagram = instagramInput ? normalizeInstagramHandle(instagramInput) : ''
   const city = form.city.trim().replace(/\s+/g, ' ')
   const ageInput = String(form.age).trim()
   const age = ageInput ? Number(ageInput) : undefined
@@ -804,11 +795,6 @@ async function sendResult() {
     status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
     return
   }
-  if (instagramInput && !clientInstagram) {
-    status.value = 'Confira o Instagram informado. Use @usuario ou instagram.com/usuario, ou deixe o campo vazio.'
-    return
-  }
-
   const trainingDays = form.provideAvailability ? form.trainingDays : []
   const trainingShifts = form.provideAvailability ? form.trainingShifts : []
 
@@ -820,7 +806,6 @@ async function sendResult() {
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
-      ...(clientInstagram ? { clientInstagram } : {}),
       ...(age !== undefined ? { age } : {}),
       city,
       trainerGenderPreference: form.trainerGenderPreference,
@@ -1148,31 +1133,33 @@ async function sendResult() {
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
-        <div class="google-fill field-wide">
-          <p>{{ customerSignedInEmail ? `Conectado: ${customerSignedInEmail}` : 'Preencha seus dados com seu cadastro FitPeso' }}</p>
-          <div ref="googleButtonContainer" class="google-button-container"></div>
+        <div v-if="!customerSignedInEmail" class="google-fill field-wide">
+          <p>Já tem cadastro? Entre para carregar seus dados.</p>
           <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
-          <button class="text-button" type="button" @click="openCustomerLogin(true)">Fazer login para carregar meus dados</button>
+          <button class="text-button" type="button" @click="openCustomerLogin(true)">Fazer login com Google</button>
         </div>
-        <label class="field field-wide" for="name"><span class="field-label">Nome</span>
-          <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
-        </label>
+        <dl v-if="customerSignedInEmail" class="request-customer-summary field-wide" aria-label="Seus dados">
+          <div><dt>Nome</dt><dd>{{ form.name }}</dd></div>
+          <div><dt>Idade</dt><dd>{{ form.age ? `${form.age} anos` : 'Não informada' }}</dd></div>
+          <div><dt>WhatsApp</dt><dd>{{ form.phone }}</dd></div>
+        </dl>
+        <template v-else>
+          <label class="field field-wide" for="name"><span class="field-label">Nome</span>
+            <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
+          </label>
 
-        <label class="field field-wide" for="phone"><span class="field-label">WhatsApp com DDD</span>
-          <input id="phone" v-model="form.phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
-        </label>
+          <label class="field field-wide" for="phone"><span class="field-label">WhatsApp com DDD</span>
+            <input id="phone" v-model="form.phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
+          </label>
 
-        <label class="field field-wide" for="email"><span class="field-label">E-mail <span>opcional</span></span>
-          <input id="email" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
-        </label>
+          <label class="field field-wide" for="email"><span class="field-label">E-mail <span>opcional</span></span>
+            <input id="email" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
+          </label>
 
-        <label class="field field-wide" for="client-instagram"><span class="field-label">Instagram <span>opcional</span></span>
-          <input id="client-instagram" v-model="form.clientInstagram" name="clientInstagram" type="text" autocomplete="url" autocapitalize="none" maxlength="100" placeholder="@seuperfil ou instagram.com/seuperfil">
-        </label>
-
-        <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
-          <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35">
-        </label>
+          <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
+            <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35">
+          </label>
+        </template>
 
         <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
           <select id="city" v-model="form.city" name="city" autocomplete="address-level2" required>
