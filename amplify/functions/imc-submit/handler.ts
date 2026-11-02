@@ -340,9 +340,42 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
   const match = authorization.match(/^Bearer\s+(.+)$/i)
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
   const tableName = process.env.FITPESO_CUSTOMERS_TABLE
-  if (!match || !clientId || !tableName) return response(401, { error: 'Faça login com o Google para continuar.' })
+  if (!match || !tableName) return response(401, { error: 'Entre para continuar.' })
+  const token = match[1].trim()
+  if (/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    const codesTable = process.env.IMC_REQUESTS_TABLE
+    if (!codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    try {
+      const session = await dynamodb.send(new GetItemCommand({
+        TableName: codesTable,
+        Key: { codeHash: { S: hashCode(token) } },
+        ConsistentRead: true,
+      }))
+      const whatsapp = session.Item?.flow?.S === 'fitpeso-customer-login-session' &&
+        Number(session.Item.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000) ? session.Item.whatsapp?.S : ''
+      if (!whatsapp) return response(401, { error: 'Sua sessão expirou. Entre novamente.' })
+      const customer = await dynamodb.send(new GetItemCommand({
+        TableName: tableName,
+        Key: { whatsapp: { S: whatsapp } },
+        ConsistentRead: true,
+      }))
+      if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
+        return response(401, { error: 'Cadastro indisponível. Entre novamente.' })
+      }
+      return response(200, { authenticated: true, profile: {
+        name: customer.Item.name?.S ?? '',
+        whatsapp,
+        email: customer.Item.email?.S ?? '',
+        dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+      } })
+    } catch (error) {
+      console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+      return response(503, { error: 'Não foi possível carregar seu cadastro agora.' })
+    }
+  }
+  if (!clientId) return response(503, { error: 'Login Google indisponível.' })
   try {
-    const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: match[1], audience: clientId })
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
     const payload = ticket.getPayload()
     const email = payload?.email?.trim().toLowerCase()
     if (!payload?.email_verified || !email) return response(401, { error: 'Não foi possível validar sua conta Google.' })
@@ -374,6 +407,142 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       errorClass: error instanceof Error ? error.name : typeof error,
     })
     return response(401, { error: 'A sessão Google expirou ou não pôde ser validada. Entre novamente.' })
+  }
+}
+
+function isValidBirthDate(value: unknown) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value &&
+    value >= '1900-01-01' && value <= new Date().toISOString().slice(0, 10)
+}
+
+async function beginCustomerLogin(data: Record<string, unknown> | null) {
+  const whatsapp = normalizePhone(data?.whatsapp)
+  const dateOfBirth = data?.dateOfBirth
+  const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
+  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe um WhatsApp e uma data de nascimento válidos.' })
+  }
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!customersTable || !codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const customer = await dynamodb.send(new GetItemCommand({
+      TableName: customersTable,
+      Key: { whatsapp: { S: whatsapp } },
+      ProjectionExpression: '#status, #verified, #dob',
+      ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified', '#dob': 'dateOfBirth' },
+      ConsistentRead: true,
+    }))
+    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true &&
+      customer.Item.dateOfBirth?.S === dateOfBirth
+    const code = randomBytes(16).toString('base64url')
+    const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
+    await dynamodb.send(new PutItemCommand({
+      TableName: codesTable,
+      Item: {
+        codeHash: { S: hashCode(code) },
+        flow: { S: 'fitpeso-customer-login' },
+        whatsapp: { S: whatsapp },
+        eligible: { BOOL: eligible },
+        sessionTokenHash: { S: hashCode(sessionToken) },
+        expiresAt: { N: String(expiresAt) },
+      },
+      ConditionExpression: 'attribute_not_exists(codeHash)',
+    }))
+    return response(200, { started: true, verificationCode: code, expiresAt })
+  } catch (error) {
+    console.error('[imc-submit] Customer login initialization failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível iniciar o login agora.' })
+  }
+}
+
+async function verifyCustomerLogin(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!codesTable || !customersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const codeHash = hashCode(code)
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
+    const challenge = result.Item
+    if (challenge?.flow?.S !== 'fitpeso-customer-login' || challenge.whatsapp?.S !== whatsapp || Number(challenge.expiresAt?.N ?? 0) <= now) {
+      return response(200, { verified: false })
+    }
+    if (challenge.consumedAt?.N) {
+      const sessionHash = challenge.sessionTokenHash?.S ?? ''
+      const existing = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
+      return response(200, { verified: existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now })
+    }
+    const customer = await dynamodb.send(new GetItemCommand({ TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true }))
+    const eligible = challenge.eligible?.BOOL === true && customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    if (!eligible) {
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: codesTable, Key: { codeHash: { S: codeHash } },
+        UpdateExpression: 'SET consumedAt = :now',
+        ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-customer-login' }, ':whatsapp': { S: whatsapp }, ':now': { N: String(now) } },
+      }))
+      return response(200, { verified: false })
+    }
+    const sessionHash = challenge.sessionTokenHash?.S ?? ''
+    if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
+    const sessionExpiry = now + 12 * 60 * 60
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: {
+        TableName: codesTable, Key: { codeHash: { S: codeHash } },
+        UpdateExpression: 'SET consumedAt = :now',
+        ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND eligible = :yes AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-customer-login' }, ':whatsapp': { S: whatsapp }, ':yes': { BOOL: true }, ':now': { N: String(now) } },
+      } },
+      { Put: {
+        TableName: codesTable,
+        Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
+        ConditionExpression: 'attribute_not_exists(codeHash)',
+      } },
+    ] }))
+    return response(200, { verified: true })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) {
+      const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
+      const challenge = result.Item
+      const sessionHash = challenge?.sessionTokenHash?.S ?? ''
+      const session = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
+      return response(200, { verified: session?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(session.Item.expiresAt?.N ?? 0) > now })
+    }
+    console.error('[imc-submit] Customer WhatsApp login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível confirmar o login agora.' })
+  }
+}
+
+async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) return response(200, { authenticated: false })
+  const tableName = process.env.IMC_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const result = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true }))
+    const challenge = result.Item
+    if (challenge?.flow?.S !== 'fitpeso-customer-login' || challenge.whatsapp?.S !== whatsapp || challenge.sessionTokenHash?.S !== hashCode(sessionToken)) {
+      return response(200, { authenticated: false })
+    }
+    if (Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)) return response(200, { authenticated: false, expired: true })
+    if (challenge.eligible?.BOOL !== true) return response(200, { authenticated: false, confirmed: Boolean(challenge.consumedAt?.N) })
+    const session = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: hashCode(sessionToken) } }, ConsistentRead: true }))
+    const authenticated = session.Item?.flow?.S === 'fitpeso-customer-login-session' && session.Item.whatsapp?.S === whatsapp &&
+      Number(session.Item.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000)
+    return response(200, { authenticated })
+  } catch (error) {
+    console.error('[imc-submit] Customer login status lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar o login agora.' })
   }
 }
 
@@ -1133,6 +1302,17 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
+    return beginCustomerLogin(parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login-status')) {
+    return getCustomerLoginStatus(parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-login')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return verifyCustomerLogin(parseBody(event))
+  }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
     return getCustomerVerificationStatus(parseBody(event))

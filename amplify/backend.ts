@@ -130,6 +130,18 @@ customersResource.addResource('verification-status').addMethod('POST', new apiga
   proxy: true,
   timeout: Duration.seconds(20),
 }))
+customersResource.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+customersResource.addResource('login-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+customersResource.addResource('verify-login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
 customersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),

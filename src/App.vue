@@ -128,6 +128,16 @@ const trainerVerificationLink = ref('')
 const trainerSubmitting = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
 const customerLoginStatus = ref('')
+const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
+const customerLoginWhatsApp = ref('')
+const customerLoginBirthDate = ref('')
+const customerLoginCode = ref('')
+const customerLoginSessionToken = ref('')
+const customerLoginVerificationLink = ref('')
+const showCustomerLoginDialog = ref(false)
+const customerLoginSubmitting = ref(false)
+let customerLoginPollTimer: number | undefined
+let customerLoginPollStartedAt = 0
 const customerSignedInEmail = ref('')
 const requestLoginReturn = ref(false)
 const trainingDayOptions = [
@@ -452,6 +462,9 @@ function goHome() {
   googleProfileStatus.value = ''
   if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
   customerVerificationPollTimer = undefined
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = undefined
+  showCustomerLoginDialog.value = false
   history.replaceState(null, '', window.location.pathname)
   void nextTick(() => window.scrollTo(0, 0))
 }
@@ -793,13 +806,134 @@ async function openCustomerLogin(fromRequest = false) {
   requestLoginReturn.value = fromRequest
   customerLoginStatus.value = ''
   googleProfileStatus.value = ''
+  customerLoginMethod.value = 'google'
   if (fromRequest) showRequestForm.value = false
   showCustomerLogin.value = true
   await nextTick()
   await renderGoogleButton('client')
 }
 
+function scheduleCustomerLoginPoll(delayMs = 3_000) {
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = window.setTimeout(() => void pollCustomerLogin(), delayMs)
+}
+
+async function pollCustomerLogin() {
+  if (!customerLoginCode.value || !customerLoginWhatsApp.value || !customerLoginSessionToken.value) return
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/customers/login-status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: customerLoginCode.value, whatsapp: customerLoginWhatsApp.value, sessionToken: customerLoginSessionToken.value }),
+    })
+    const body = await response.json() as { authenticated?: boolean; confirmed?: boolean; expired?: boolean; error?: string }
+    if (response.ok && body.authenticated === true) {
+      const profile = await loadCustomerProfile(customerLoginSessionToken.value)
+      sessionStorage.setItem('fitpeso-customer-session', customerLoginSessionToken.value)
+      sessionStorage.removeItem('fitpeso-google-session')
+      applyCustomerProfile(profile)
+      customerLoginStatus.value = 'Login confirmado. Seus dados foram carregados.'
+      googleProfileStatus.value = 'Cadastro carregado. Confira os dados antes de enviar.'
+      showCustomerLoginDialog.value = false
+      if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+      customerLoginPollTimer = undefined
+      showCustomerLogin.value = false
+      if (requestLoginReturn.value) {
+        showRequestForm.value = true
+        requestLoginReturn.value = false
+        await nextTick()
+        document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+      return
+    }
+    if (response.ok && body.confirmed && !body.authenticated) {
+      customerLoginStatus.value = 'Não foi possível confirmar o login com esses dados. Confira o WhatsApp e a data de nascimento e tente novamente.'
+      showCustomerLoginDialog.value = false
+      customerLoginCode.value = ''
+      customerLoginVerificationLink.value = ''
+      return
+    }
+    if (response.ok && body.expired) {
+      customerLoginStatus.value = 'O código expirou. Inicie o login novamente para gerar outro.'
+      showCustomerLoginDialog.value = false
+      customerLoginCode.value = ''
+      customerLoginVerificationLink.value = ''
+      return
+    }
+  } catch {
+    // Falhas transitórias não interrompem a consulta automática.
+  }
+  if (Date.now() - customerLoginPollStartedAt >= 15 * 60 * 1000) {
+    customerLoginStatus.value = 'O prazo do código terminou. Inicie o login novamente.'
+    showCustomerLoginDialog.value = false
+    customerLoginCode.value = ''
+    customerLoginVerificationLink.value = ''
+    customerLoginPollTimer = undefined
+    return
+  }
+  scheduleCustomerLoginPoll()
+}
+
+async function startCustomerWhatsAppLogin() {
+  if (customerLoginSubmitting.value) return
+  customerLoginStatus.value = ''
+  const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
+  if (!whatsapp) {
+    customerLoginStatus.value = 'Informe um WhatsApp válido com DDD.'
+    return
+  }
+  if (!customerLoginBirthDate.value || customerLoginBirthDate.value > new Date().toISOString().slice(0, 10)) {
+    customerLoginStatus.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginSubmitting.value = true
+  customerLoginStatus.value = 'Preparando o acesso…'
+  try {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32))
+    const sessionToken = btoa(Array.from(randomBytes, byte => String.fromCharCode(byte)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/customers/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ whatsapp, dateOfBirth: customerLoginBirthDate.value, sessionToken }),
+    })
+    const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
+    if (!response.ok || body.started !== true || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login agora.')
+    customerLoginWhatsApp.value = whatsapp
+    customerLoginCode.value = body.verificationCode
+    customerLoginSessionToken.value = sessionToken
+    customerLoginVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(`Confirmar login FitPeso ${body.verificationCode}`)}`
+    customerLoginPollStartedAt = Date.now()
+    customerLoginStatus.value = 'Envie o código pelo WhatsApp. Depois, mantenha esta tela aberta: o login será confirmado automaticamente.'
+    showCustomerLoginDialog.value = true
+    scheduleCustomerLoginPoll(1_000)
+  } catch (error) {
+    customerLoginStatus.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login agora.'
+  } finally {
+    customerLoginSubmitting.value = false
+  }
+}
+
+async function chooseCustomerWhatsAppLogin() {
+  customerLoginMethod.value = 'whatsapp'
+  customerLoginStatus.value = ''
+  await nextTick()
+  document.getElementById('customer-login-whatsapp')?.focus()
+}
+
+async function chooseCustomerGoogleLogin() {
+  customerLoginMethod.value = 'google'
+  customerLoginStatus.value = ''
+  await nextTick()
+  await renderGoogleButton('client')
+}
+
 function closeCustomerLogin() {
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = undefined
+  showCustomerLoginDialog.value = false
   goHome()
 }
 
@@ -814,9 +948,10 @@ onMounted(() => {
   void loadTrainerProfile()
   void loadTrainerRequest()
   try {
-    const token = sessionStorage.getItem('fitpeso-google-session')
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
     if (token) void loadCustomerProfile(token).then(applyCustomerProfile).catch(() => {
       sessionStorage.removeItem('fitpeso-google-session')
+      sessionStorage.removeItem('fitpeso-customer-session')
       customerSignedInEmail.value = ''
     })
   } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
@@ -974,15 +1109,35 @@ async function sendResult() {
         </div>
         <hr class="personal-divider">
         <h1 id="customer-login-title">Entrar na FitPeso</h1>
-        <p class="intro">Entre com o Google para carregar seus dados já cadastrados.</p>
+        <p class="intro">Entre para carregar seus dados já cadastrados.</p>
       </header>
-      <div class="google-fill field-wide">
+      <div v-if="customerLoginMethod === 'google'" class="google-fill field-wide">
         <p>Acesse com sua conta Google</p>
         <div ref="googleButtonContainer" class="google-button-container"></div>
-        <small v-if="customerLoginStatus" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
+        <button class="secondary-button" type="button" @click="chooseCustomerWhatsAppLogin">Entrar com WhatsApp</button>
       </div>
+      <form v-else class="form" @submit.prevent="startCustomerWhatsAppLogin">
+        <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
+          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
+        </label>
+        <label class="field field-wide" for="customer-login-birth-date"><span class="field-label">Data de nascimento</span>
+          <input id="customer-login-birth-date" v-model="customerLoginBirthDate" name="customerLoginBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        </label>
+        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting">{{ customerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
+        <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
+      </form>
+      <small v-if="customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
       <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
       <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
+      <div v-if="showCustomerLoginDialog" class="success-overlay" role="presentation">
+        <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="customer-login-confirm-title">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h2 id="customer-login-confirm-title">Confirme seu login</h2>
+          <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
+          <a v-if="customerLoginVerificationLink" class="primary-button customer-verification-link" :href="customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <button class="secondary-button" type="button" @click="pollCustomerLogin">Verificar agora</button>
+        </section>
+      </div>
     </section>
 
     <section v-else-if="showCustomerSignup" class="calculator customer-signup" aria-labelledby="customer-signup-title">
