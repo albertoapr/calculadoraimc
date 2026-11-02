@@ -99,7 +99,7 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .body-fat-help { color: #71839a; font-size: 12px; font-weight: 400; line-height: 1.4; }
 .primary-button { display: flex; min-height: 54px; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 11px; color: #fff; background: var(--blue); font-size: 16px; font-weight: 700; transition: background .15s, transform .15s; }
 .primary-button:hover:not(:disabled) { transform: translateY(-1px); background: var(--blue-dark); }
-.primary-button:focus-visible, .text-button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 3px; }
+.primary-button:focus-visible, .google-login-link:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 3px; }
 .primary-button:disabled { cursor: not-allowed; opacity: .48; }
 .form > .primary-button { margin-top: 5px; }
 .contact-opt-in { display: flex; min-height: 54px; align-items: center; gap: 11px; margin: 22px 0 20px; padding: 12px 14px; border: 1px solid #dbeafe; border-radius: 10px; color: #345273; background: #f7faff; font-size: 15px; font-weight: 700; cursor: pointer; }
@@ -109,7 +109,9 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 .google-fill > p { margin: 0; color: #345273; font-size: 13px; font-weight: 700; }
 .google-button-container { display: flex; min-height: 40px; justify-content: center; }
 .google-fill > small { max-width: 100%; color: #536984; font-size: 12px; line-height: 1.45; }
-.text-button { border: 0; padding: 4px 8px; color: var(--accent); background: transparent; font: inherit; font-size: 13px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.google-login-link { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; border: 1px solid #4285f4; border-radius: 10px; color: #17365d; background: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .15s, transform .15s; }
+.google-login-link:hover { transform: translateY(-1px); background: #edf4ff; }
+.google-login-icon { width: 20px; height: 20px; flex: 0 0 auto; }
 .request-customer-summary { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #f7faff; }
 .request-customer-summary > div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
 .request-customer-summary dt { color: var(--muted); font-size: 14px; font-weight: 700; }
@@ -273,6 +275,8 @@ html[data-theme='dark'] .body-fat-toggle, html[data-theme='dark'] .contact-opt-i
 html[data-theme='dark'] .body-fat-fields { border-color: #34443a; background: #18231c; }
 html[data-theme='dark'] .primary-button { color: #182019; background: #f2a04b; }
 html[data-theme='dark'] .primary-button:hover:not(:disabled) { background: #ffb568; }
+html[data-theme='dark'] .google-login-link { border-color: #f2a04b; color: #182019; background: #f2a04b; }
+html[data-theme='dark'] .google-login-link:hover { background: #ffb568; }
 html[data-theme='dark'] .back-button { border-color: #3b4b40; color: #f6ae61; background: #1b2720; }
 html[data-theme='dark'] .back-button:hover { border-color: #f2a04b; background: #26342b; }
 html[data-theme='dark'] .trainer-contact-card { border-color: #3b4b40; color: #f6ae61; background: #1b2720; }
