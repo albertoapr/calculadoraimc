@@ -205,6 +205,10 @@ footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
 .trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
 .trainer-signup-link:hover { text-decoration: underline; }
+.customer-account-links { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; color: var(--blue-dark); font-size: 13px; font-weight: 600; }
+.customer-account-links a, .customer-account-links button { padding: 0; border: 0; color: inherit; background: none; font: inherit; text-decoration: none; cursor: pointer; }
+.customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
+.customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 2px solid #a8c7ff; outline-offset: 3px; }
 .customer-signup-intro { margin-bottom: 20px; font-size: 15px; }
 .customer-signup-confirmation { display: grid; gap: 12px; }
 .customer-signup-confirmation > small { color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }

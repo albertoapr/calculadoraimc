@@ -1503,12 +1503,11 @@ async function sendResult() {
         href="#cadastro-personal"
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
-      <a
-        v-if="viewMode === 'home' && isRootHome"
-        class="trainer-signup-link"
-        href="#cadastro-cliente"
-        @click="showCustomerSignup = true"
-      >Criar cadastro de cliente</a>
+      <div v-if="viewMode === 'home' && isRootHome" class="customer-account-links">
+        <button type="button" @click="openCustomerLogin()">Login</button>
+        <span aria-hidden="true">|</span>
+        <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+      </div>
     </section>
     <footer>
       <div class="footer-bar">
