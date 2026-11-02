@@ -131,6 +131,7 @@ const customerLoginStatus = ref('')
 const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
 const customerLoginWhatsApp = ref('')
 const customerLoginBirthDate = ref('')
+const customerLoginBirthDateText = ref('')
 const customerLoginCode = ref('')
 const customerLoginSessionToken = ref('')
 const customerLoginVerificationLink = ref('')
@@ -879,11 +880,12 @@ async function startCustomerWhatsAppLogin() {
   if (customerLoginSubmitting.value) return
   customerLoginStatus.value = ''
   const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
+  const dateOfBirth = customerLoginBirthDateISO()
   if (!whatsapp) {
     customerLoginStatus.value = 'Informe um WhatsApp válido com DDD.'
     return
   }
-  if (!customerLoginBirthDate.value || customerLoginBirthDate.value > new Date().toISOString().slice(0, 10)) {
+  if (!dateOfBirth || dateOfBirth < '1900-01-01' || dateOfBirth > new Date().toISOString().slice(0, 10)) {
     customerLoginStatus.value = 'Informe uma data de nascimento válida.'
     return
   }
@@ -897,7 +899,7 @@ async function startCustomerWhatsAppLogin() {
     const response = await fetch(`${endpoint}/api/customers/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ whatsapp, dateOfBirth: customerLoginBirthDate.value, sessionToken }),
+      body: JSON.stringify({ whatsapp, dateOfBirth, sessionToken }),
     })
     const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || body.started !== true || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login agora.')
@@ -928,6 +930,28 @@ async function chooseCustomerGoogleLogin() {
   customerLoginStatus.value = ''
   await nextTick()
   await renderGoogleButton('client')
+}
+
+function customerLoginBirthDateISO() {
+  const typedDate = customerLoginBirthDateText.value.trim()
+  let isoDate = customerLoginBirthDate.value
+  if (typedDate) {
+    const match = typedDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (!match) return ''
+    isoDate = `${match[3]}-${match[2]}-${match[1]}`
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return ''
+  const parsed = new Date(`${isoDate}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== isoDate) return ''
+  return isoDate
+}
+
+function clearTypedLoginBirthDate() {
+  customerLoginBirthDate.value = ''
+}
+
+function clearSelectedLoginBirthDate() {
+  customerLoginBirthDateText.value = ''
 }
 
 function closeCustomerLogin() {
@@ -1120,8 +1144,11 @@ async function sendResult() {
         <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
           <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
-        <label class="field field-wide" for="customer-login-birth-date"><span class="field-label">Data de nascimento</span>
-          <input id="customer-login-birth-date" v-model="customerLoginBirthDate" name="customerLoginBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
+          <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia, mês e ano" @input="clearTypedLoginBirthDate">
+        </label>
+        <label class="field field-wide" for="customer-login-birth-date"><span class="field-label">Ou selecione no calendário</span>
+          <input id="customer-login-birth-date" v-model="customerLoginBirthDate" name="customerLoginBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-label="Selecione a data de nascimento no calendário" @change="clearSelectedLoginBirthDate">
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting">{{ customerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
         <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
