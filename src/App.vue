@@ -105,6 +105,7 @@ const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
 const showCustomerLogin = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
+const customerEmailGoogleFilled = ref(false)
 const customerStatus = ref('')
 const customerVerificationLink = ref('')
 const customerVerificationCode = ref('')
@@ -386,7 +387,10 @@ async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (!profile.name && !profile.email) throw new Error('O Google não retornou nome ou e-mail.')
     const target = googleProfileTarget.value === 'trainer' ? trainerForm : googleProfileTarget.value === 'customer' ? customerForm : form
     if (profile.name) target.name = profile.name.trim()
-    if (profile.email) target.email = profile.email.trim().toLowerCase()
+    if (profile.email) {
+      target.email = profile.email.trim().toLowerCase()
+      if (googleProfileTarget.value === 'customer') customerEmailGoogleFilled.value = true
+    }
   } catch {
     googleProfileStatus.value = 'Não consegui ler os dados da conta Google. Tente novamente ou preencha manualmente.'
   }
@@ -977,11 +981,10 @@ async function sendResult() {
         </div>
         <hr class="personal-divider">
         <h1 id="customer-signup-title">Cadastro de cliente</h1>
-        <p class="intro customer-signup-intro">Preencha seus dados e confirme seu WhatsApp para ativar o cadastro.</p>
       </header>
       <form v-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
         <div class="google-fill field-wide">
-          <p>Continuar com Google para preencher nome e e-mail</p>
+          <p>Preencher nome e e-mail</p>
           <div ref="googleButtonContainer" class="google-button-container"></div>
           <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
         </div>
@@ -992,7 +995,7 @@ async function sendResult() {
           <input id="customer-whatsapp" v-model="customerForm.whatsapp" name="customerWhatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
         <label class="field field-wide" for="customer-email"><span class="field-label">E-mail</span>
-          <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" required>
+          <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" :readonly="customerEmailGoogleFilled" required>
         </label>
         <label class="field field-wide" for="customer-date-of-birth"><span class="field-label">Data de nascimento</span>
           <input id="customer-date-of-birth" v-model="customerForm.dateOfBirth" name="dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
