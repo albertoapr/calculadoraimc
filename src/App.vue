@@ -1373,7 +1373,7 @@ async function sendResult() {
               <path d="M16 3.5a12.2 12.2 0 0 0-10.4 18.6L4.3 27.7l5.8-1.5A12.2 12.2 0 1 0 16 3.5Z" />
               <path d="M12.1 9.7c-.3-.7-.7-.7-1-.7h-.8c-.3 0-.7.1-1 .5s-1.3 1.2-1.3 3 .1 3.4 1.4 5.2 3.3 4.4 7.2 5.8c3.5 1.3 4.2 1 4.9.9s2.3-.9 2.6-1.8.3-1.7.2-1.8-.4-.3-.8-.5l-2.4-1.2c-.3-.1-.6-.2-.8.2s-.9 1.2-1.1 1.4-.4.3-.8.1a9.8 9.8 0 0 1-2.9-1.8 10.8 10.8 0 0 1-2-2.5c-.2-.4 0-.6.2-.8l.6-.7.4-.6c.1-.3.1-.5 0-.7l-1.1-2.6Z" />
             </svg>
-            <span>Fazer login com WhatsApp</span>
+            <span>Login com WhatsApp</span>
           </button>
         </div>
         <dl v-if="customerSignedInEmail" class="request-customer-summary field-wide" aria-label="Seus dados">
