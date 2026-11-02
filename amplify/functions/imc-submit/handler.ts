@@ -437,6 +437,12 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
     }))
     const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true &&
       customer.Item.dateOfBirth?.S === dateOfBirth
+    if (!eligible) {
+      return response(200, {
+        started: false,
+        error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento ou faça seu cadastro.',
+      })
+    }
     const code = randomBytes(16).toString('base64url')
     const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
     await dynamodb.send(new PutItemCommand({
@@ -445,7 +451,7 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
         codeHash: { S: hashCode(code) },
         flow: { S: 'fitpeso-customer-login' },
         whatsapp: { S: whatsapp },
-        eligible: { BOOL: eligible },
+        eligible: { BOOL: true },
         sessionTokenHash: { S: hashCode(sessionToken) },
         expiresAt: { N: String(expiresAt) },
       },
