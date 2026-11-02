@@ -74,6 +74,13 @@ h1 { display: flex; align-items: center; justify-content: center; gap: 9px; font
 }
 .field input::placeholder { color: #a6b4c5; }
 .field input:focus, .field select:focus { border-color: #76a7f7; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.date-input-with-picker { position: relative; display: flex; align-items: center; }
+.field .date-input-with-picker > input[type='text'] { padding-right: 54px; }
+.date-picker-button { position: absolute; top: 4px; right: 4px; display: grid; width: 42px; height: 40px; place-items: center; border: 0; border-radius: 8px; color: var(--blue-dark); background: transparent; cursor: pointer; }
+.date-picker-button:hover { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.date-picker-button:focus-visible { outline: 2px solid #76a7f7; outline-offset: 1px; }
+.date-picker-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.field .date-picker-native { position: fixed; z-index: -1; width: 1px; min-height: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
 .slider-field { gap: 11px; }
 .slider-heading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; }
 .slider-heading output { color: var(--blue-dark); font-family: Manrope, sans-serif; font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -273,6 +280,7 @@ html[data-theme='dark'] .field-label > span { color: #8e9c92; }
 html[data-theme='dark'] .availability-option, html[data-theme='dark'] .field input, html[data-theme='dark'] .field select { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
 html[data-theme='dark'] .field input::placeholder { color: #839087; }
 html[data-theme='dark'] .field input:focus, html[data-theme='dark'] .field select:focus { border-color: #f2a04b; box-shadow: 0 0 0 3px rgba(242, 160, 75, .16); }
+html[data-theme='dark'] .date-picker-button { color: #f6ae61; }
 html[data-theme='dark'] .slider-adjust { border-color: #3b4b40; color: #f4f5f0; background: #202e26; }
 html[data-theme='dark'] .slider-adjust:hover:not(:disabled) { border-color: #f2a04b; background: #29382f; }
 html[data-theme='dark'] .field input.range-input::-webkit-slider-runnable-track, html[data-theme='dark'] .field input.range-input::-moz-range-track { background: #45554a; }

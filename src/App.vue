@@ -132,6 +132,7 @@ const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
 const customerLoginWhatsApp = ref('')
 const customerLoginBirthDate = ref('')
 const customerLoginBirthDateText = ref('')
+const customerLoginDatePicker = ref<HTMLInputElement | null>(null)
 const customerLoginCode = ref('')
 const customerLoginSessionToken = ref('')
 const customerLoginVerificationLink = ref('')
@@ -946,12 +947,33 @@ function customerLoginBirthDateISO() {
   return isoDate
 }
 
-function clearTypedLoginBirthDate() {
+function maskCustomerLoginBirthDate(event: Event) {
+  const input = event.target as HTMLInputElement
+  const digits = input.value.replace(/\D/g, '').slice(0, 8)
+  customerLoginBirthDateText.value = digits.length > 4
+    ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+    : digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
   customerLoginBirthDate.value = ''
 }
 
-function clearSelectedLoginBirthDate() {
-  customerLoginBirthDateText.value = ''
+function selectCustomerLoginBirthDate(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  customerLoginBirthDate.value = value
+  if (value) {
+    const [year, month, day] = value.split('-')
+    customerLoginBirthDateText.value = `${day}/${month}/${year}`
+  } else customerLoginBirthDateText.value = ''
+}
+
+function openCustomerLoginDatePicker() {
+  const picker = customerLoginDatePicker.value as (HTMLInputElement & { showPicker?: () => void }) | null
+  if (!picker) return
+  try {
+    if (picker.showPicker) picker.showPicker()
+    else picker.click()
+  } catch {
+    picker.click()
+  }
 }
 
 function closeCustomerLogin() {
@@ -1145,10 +1167,13 @@ async function sendResult() {
           <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
         <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
-          <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia, mês e ano" @input="clearTypedLoginBirthDate">
-        </label>
-        <label class="field field-wide" for="customer-login-birth-date"><span class="field-label">Ou selecione no calendário</span>
-          <input id="customer-login-birth-date" v-model="customerLoginBirthDate" name="customerLoginBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-label="Selecione a data de nascimento no calendário" @change="clearSelectedLoginBirthDate">
+          <span class="date-input-with-picker">
+            <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia, mês e ano" @input="maskCustomerLoginBirthDate">
+            <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openCustomerLoginDatePicker">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>
+            </button>
+            <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
+          </span>
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting">{{ customerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
         <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
