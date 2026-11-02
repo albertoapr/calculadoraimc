@@ -437,15 +437,33 @@ window.addEventListener('hashchange', () => {
   showCustomerSignup.value = window.location.hash === '#cadastro-cliente'
 })
 
+function goHome() {
+  showTrainerSignup.value = false
+  showCustomerSignup.value = false
+  showCustomerLogin.value = false
+  showRequestForm.value = false
+  viewMode.value = 'home'
+  requestSent.value = false
+  requestVerificationLink.value = ''
+  requestLoginReturn.value = false
+  result.value = null
+  status.value = ''
+  customerLoginStatus.value = ''
+  googleProfileStatus.value = ''
+  if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
+  customerVerificationPollTimer = undefined
+  history.replaceState(null, '', window.location.pathname)
+  void nextTick(() => window.scrollTo(0, 0))
+}
+
 function closeCustomerSignup() {
   if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
   customerVerificationPollTimer = undefined
-  showCustomerSignup.value = false
-  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   customerStatus.value = ''
   customerVerificationLink.value = ''
   customerVerificationCode.value = ''
   customerVerificationComplete.value = false
+  goHome()
 }
 
 function scheduleCustomerVerificationPoll(delayMs = 10_000) {
@@ -540,9 +558,8 @@ async function sendCustomerSignup() {
 }
 
 function closeTrainerSignup() {
-  showTrainerSignup.value = false
-  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   trainerStatus.value = ''
+  goHome()
 }
 
 function toggleTrainerCity(city: string) {
@@ -783,12 +800,7 @@ async function openCustomerLogin(fromRequest = false) {
 }
 
 function closeCustomerLogin() {
-  showCustomerLogin.value = false
-  customerLoginStatus.value = ''
-  if (requestLoginReturn.value) {
-    showRequestForm.value = true
-    requestLoginReturn.value = false
-  }
+  goHome()
 }
 
 function openCustomerSignupFromLogin() {
@@ -1120,7 +1132,7 @@ async function sendResult() {
         </div>
 
         <button class="primary-button field-wide" type="submit">Avaliar <span aria-hidden="true">→</span></button>
-        <button class="back-button field-wide" type="button" @click="viewMode = 'home'; status = ''">Voltar</button>
+        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </div>
       </form>
 
@@ -1304,7 +1316,7 @@ async function sendResult() {
         <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
           {{ submittingRequest ? 'Enviando solicitação…' : 'Enviar solicitação' }} <span aria-hidden="true">→</span>
         </button>
-        <button class="back-button field-wide" type="button" @click="showRequestForm = false; viewMode = 'home'; status = ''">Voltar</button>
+        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
       </form>
 
       <div v-if="evaluating" class="evaluation-overlay" role="status" aria-live="polite" :aria-label="`Avaliando: ${evaluationProgress}%`">
@@ -1314,13 +1326,13 @@ async function sendResult() {
       </div>
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="requestSent = false; status = ''; requestVerificationLink = ''">
+      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="goHome">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="request-sent-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="request-sent-title">Solicitação registrada!</h2>
           <p>Para confirmar seu WhatsApp, envie o código para a Beta pelo botão abaixo em até 15 minutos. Após a confirmação, sua solicitação ficará válida por 7 dias.</p>
           <a v-if="requestVerificationLink" class="primary-button request-verification-link" :href="requestVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
-          <button class="primary-button" type="button" @click="requestSent = false; status = ''; requestVerificationLink = ''; showRequestForm = false; viewMode = 'home'">Entendi</button>
+          <button class="primary-button" type="button" @click="goHome">Entendi</button>
         </section>
       </div>
       <a
