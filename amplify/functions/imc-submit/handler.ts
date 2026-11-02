@@ -159,6 +159,155 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
     new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
 }
 
+function isValidCustomerRegistration(data: Record<string, unknown> | null) {
+  if (!data) return false
+  const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  const whatsapp = normalizePhone(data.whatsapp)
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
+  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00.000Z`) : null
+  const validDate = Boolean(parsedDate && !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === dateOfBirth &&
+    dateOfBirth >= '1900-01-01' && dateOfBirth <= new Date().toISOString().slice(0, 10))
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
+    email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && validDate
+}
+
+async function registerCustomer(data: Record<string, unknown>) {
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!customersTable || !codesTable) throw new Error('Customer registration is not configured')
+  const whatsapp = normalizePhone(data.whatsapp)
+  const name = String(data.name).trim().replace(/\s+/g, ' ')
+  const email = String(data.email).trim().toLowerCase()
+  const dateOfBirth = String(data.dateOfBirth)
+  const existing = await dynamodb.send(new GetItemCommand({
+    TableName: customersTable,
+    Key: { whatsapp: { S: whatsapp } },
+    ProjectionExpression: '#verified',
+    ExpressionAttributeNames: { '#verified': 'whatsappVerified' },
+    ConsistentRead: true,
+  }))
+  if (existing.Item?.whatsappVerified?.BOOL === true) throw new Error('Esse WhatsApp já tem um cadastro confirmado.')
+
+  const code = randomBytes(16).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  const expiresAt = now + codeLifetimeSeconds
+  await dynamodb.send(new TransactWriteItemsCommand({
+    TransactItems: [
+      {
+        Put: {
+          TableName: customersTable,
+          Item: {
+            whatsapp: { S: whatsapp },
+            name: { S: name },
+            email: { S: email },
+            dateOfBirth: { S: dateOfBirth },
+            status: { S: 'PENDING_VERIFICATION' },
+            whatsappVerified: { BOOL: false },
+            createdAt: { S: new Date(now * 1000).toISOString() },
+          },
+          ConditionExpression: 'attribute_not_exists(whatsapp) OR attribute_not_exists(#verified) OR #verified = :false',
+          ExpressionAttributeNames: { '#verified': 'whatsappVerified' },
+          ExpressionAttributeValues: { ':false': { BOOL: false } },
+        },
+      },
+      {
+        Put: {
+          TableName: codesTable,
+          Item: {
+            codeHash: { S: hashCode(code) },
+            flow: { S: 'fitpeso-customer-whatsapp' },
+            whatsapp: { S: whatsapp },
+            expiresAt: { N: String(expiresAt) },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      },
+    ],
+  }))
+  return { verificationCode: code, verificationExpiresAt: expiresAt }
+}
+
+async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!codesTable || !customersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const codeHash = hashCode(code)
+  try {
+    const codeResult = await dynamodb.send(new GetItemCommand({
+      TableName: codesTable,
+      Key: { codeHash: { S: codeHash } },
+      ConsistentRead: true,
+    }))
+    const challenge = codeResult.Item
+    if (challenge?.flow?.S !== 'fitpeso-customer-whatsapp' || challenge.whatsapp?.S !== whatsapp) return response(200, { verified: false })
+
+    const customerResult = await dynamodb.send(new GetItemCommand({
+      TableName: customersTable,
+      Key: { whatsapp: { S: whatsapp } },
+      ConsistentRead: true,
+    }))
+    const customer = customerResult.Item
+    if (customer?.whatsappVerified?.BOOL === true && challenge.consumedAt?.N) return response(200, { verified: true, alreadyVerified: true })
+    if (Number(challenge.expiresAt?.N ?? 0) <= now || customer?.status?.S !== 'PENDING_VERIFICATION') return response(200, { verified: false })
+
+    const verifiedAt = new Date(now * 1000).toISOString()
+    await dynamodb.send(new TransactWriteItemsCommand({
+      TransactItems: [
+        {
+          Update: {
+            TableName: codesTable,
+            Key: { codeHash: { S: codeHash } },
+            UpdateExpression: 'SET consumedAt = :now',
+            ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+            ExpressionAttributeNames: { '#flow': 'flow' },
+            ExpressionAttributeValues: {
+              ':flow': { S: 'fitpeso-customer-whatsapp' },
+              ':whatsapp': { S: whatsapp },
+              ':now': { N: String(now) },
+            },
+          },
+        },
+        {
+          Update: {
+            TableName: customersTable,
+            Key: { whatsapp: { S: whatsapp } },
+            UpdateExpression: 'SET #status = :active, whatsappVerified = :true, verifiedAt = :verifiedAt',
+            ConditionExpression: '#status = :pending AND whatsappVerified = :false',
+            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeValues: {
+              ':active': { S: 'ACTIVE' },
+              ':pending': { S: 'PENDING_VERIFICATION' },
+              ':true': { BOOL: true },
+              ':false': { BOOL: false },
+              ':verifiedAt': { S: verifiedAt },
+            },
+          },
+        },
+      ],
+    }))
+    return response(200, { verified: true })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
+      const customerResult = await dynamodb.send(new GetItemCommand({
+        TableName: customersTable,
+        Key: { whatsapp: { S: whatsapp } },
+        ConsistentRead: true,
+      }))
+      if (customerResult.Item?.whatsappVerified?.BOOL === true) return response(200, { verified: true, alreadyVerified: true })
+      return response(200, { verified: false })
+    }
+    console.error('[imc-submit] Customer WhatsApp verification failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível confirmar o WhatsApp agora.' })
+  }
+}
+
 class TrainerSlugUnavailableError extends Error {}
 
 function createTrainerCode(trainerId: string, whatsapp: string, cities: string[], slug: string) {
@@ -916,6 +1065,28 @@ async function consumeCode(data: Record<string, unknown> | null) {
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-whatsapp')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return verifyCustomerWhatsApp(parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
+    const registration = parseBody(event)
+    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira nome, WhatsApp, e-mail e data de nascimento.' })
+    try {
+      const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
+      return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Esse WhatsApp já tem um cadastro confirmado.') return response(409, { error: error.message })
+      if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
+        return response(409, { error: 'Não foi possível iniciar o cadastro. Verifique se este WhatsApp já está cadastrado e tente novamente.' })
+      }
+      console.error('[imc-submit] Customer registration failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Não foi possível registrar o cadastro agora. Tente novamente mais tarde.' })
+    }
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/valid')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })

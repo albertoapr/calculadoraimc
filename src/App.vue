@@ -102,6 +102,11 @@ const showRequestForm = ref(false)
 const requestSent = ref(false)
 const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
+const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
+const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
+const customerStatus = ref('')
+const customerVerificationLink = ref('')
+const customerSubmitting = ref(false)
 const trainerForm = reactive({
   name: '',
   sex: '' as '' | 'masculino' | 'feminino',
@@ -354,7 +359,63 @@ watch(showTrainerSignup, async enabled => {
 
 window.addEventListener('hashchange', () => {
   showTrainerSignup.value = window.location.hash === '#cadastro-personal'
+  showCustomerSignup.value = window.location.hash === '#cadastro-cliente'
 })
+
+function closeCustomerSignup() {
+  showCustomerSignup.value = false
+  history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  customerStatus.value = ''
+  customerVerificationLink.value = ''
+}
+
+async function sendCustomerSignup() {
+  if (customerSubmitting.value) return
+  customerStatus.value = ''
+  customerVerificationLink.value = ''
+  const name = customerForm.name.trim().replace(/\s+/g, ' ')
+  const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
+  const email = customerForm.email.trim().toLowerCase()
+  const dateOfBirth = customerForm.dateOfBirth
+  if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
+    customerStatus.value = 'Informe um nome válido.'
+    return
+  }
+  if (!whatsapp) {
+    customerStatus.value = 'Informe um WhatsApp válido com DDD.'
+    return
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    customerStatus.value = 'Informe um e-mail válido.'
+    return
+  }
+  if (!dateOfBirth || dateOfBirth > new Date().toISOString().slice(0, 10) || dateOfBirth < '1900-01-01') {
+    customerStatus.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+
+  customerSubmitting.value = true
+  customerStatus.value = 'Registrando seu cadastro…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/customers/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, whatsapp, email, dateOfBirth }),
+    })
+    const body = await response.json() as { registered?: boolean; verificationCode?: string; error?: string }
+    if (!response.ok || body.registered !== true || !body.verificationCode) {
+      throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
+    }
+    const message = `Confirmar cadastro FitPeso ${body.verificationCode}`
+    customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+    customerStatus.value = 'Cadastro recebido. Para ativá-lo, confirme seu WhatsApp pelo botão abaixo em até 15 minutos.'
+  } catch (error) {
+    customerStatus.value = error instanceof Error ? error.message : 'Não foi possível registrar o cadastro agora.'
+  } finally {
+    customerSubmitting.value = false
+  }
+}
 
 function closeTrainerSignup() {
   showTrainerSignup.value = false
@@ -748,6 +809,40 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
+    <section v-else-if="showCustomerSignup" class="calculator customer-signup" aria-labelledby="customer-signup-title">
+      <header class="hero">
+        <div class="brand" aria-label="FitPeso">
+          <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
+          <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small class="brand-tagline">Evoluindo com você</small></span>
+        </div>
+        <hr class="personal-divider">
+        <h1 id="customer-signup-title">Cadastro de cliente</h1>
+        <p class="intro customer-signup-intro">Preencha seus dados e confirme seu WhatsApp para ativar o cadastro.</p>
+      </header>
+      <form v-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
+        <label class="field field-wide" for="customer-name"><span class="field-label">Nome</span>
+          <input id="customer-name" v-model="customerForm.name" name="customerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" required>
+        </label>
+        <label class="field field-wide" for="customer-whatsapp"><span class="field-label">WhatsApp com DDD</span>
+          <input id="customer-whatsapp" v-model="customerForm.whatsapp" name="customerWhatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
+        </label>
+        <label class="field field-wide" for="customer-email"><span class="field-label">E-mail</span>
+          <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" required>
+        </label>
+        <label class="field field-wide" for="customer-date-of-birth"><span class="field-label">Data de nascimento</span>
+          <input id="customer-date-of-birth" v-model="customerForm.dateOfBirth" name="dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        </label>
+        <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? 'Salvando cadastro…' : 'Criar cadastro' }}</button>
+      </form>
+      <div v-else class="customer-signup-confirmation">
+        <p class="status" role="status" aria-live="polite">{{ customerStatus }}</p>
+        <a class="primary-button customer-verification-link" :href="customerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp</a>
+        <small>O link abre uma conversa com a Beta e prepara a mensagem. Toque em enviar para concluir a confirmação.</small>
+      </div>
+      <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
+      <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
+    </section>
+
     <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
       <header class="hero">
         <div class="brand" :aria-label="personalName">
@@ -1053,6 +1148,12 @@ async function sendResult() {
         href="#cadastro-personal"
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
+      <a
+        v-if="viewMode === 'home' && isRootHome"
+        class="trainer-signup-link"
+        href="#cadastro-cliente"
+        @click="showCustomerSignup = true"
+      >Criar cadastro de cliente</a>
     </section>
     <footer>
       <div class="footer-bar">
