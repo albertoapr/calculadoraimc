@@ -1132,7 +1132,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <hr class="personal-divider">
-        <h1 id="customer-login-title">Entrar na FitPeso</h1>
+        <h1 id="customer-login-title">Login</h1>
         <p class="intro">Entre para carregar seus dados já cadastrados.</p>
       </header>
       <div v-if="customerLoginMethod === 'google'" class="google-fill field-wide">
