@@ -126,6 +126,10 @@ customersResource.addResource('profile').addMethod('POST', new apigateway.Lambda
   proxy: true,
   timeout: Duration.seconds(20),
 }))
+customersResource.addResource('verification-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
 customersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),

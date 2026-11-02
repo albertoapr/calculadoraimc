@@ -309,6 +309,32 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
   }
 }
 
+async function getCustomerVerificationStatus(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const result = await dynamodb.send(new GetItemCommand({
+      TableName: codesTable,
+      Key: { codeHash: { S: hashCode(code) } },
+      ConsistentRead: true,
+    }))
+    const challenge = result.Item
+    if (challenge?.flow?.S !== 'fitpeso-customer-whatsapp' || challenge.whatsapp?.S !== whatsapp) {
+      return response(200, { verified: false })
+    }
+    if (challenge.consumedAt?.N) return response(200, { verified: true })
+    return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
+  } catch (error) {
+    console.error('[imc-submit] Customer verification status lookup failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível consultar a confirmação agora.' })
+  }
+}
+
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
@@ -1108,6 +1134,9 @@ async function consumeCode(data: Record<string, unknown> | null) {
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
+    return getCustomerVerificationStatus(parseBody(event))
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-whatsapp')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })

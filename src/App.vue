@@ -107,7 +107,11 @@ const showCustomerLogin = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
 const customerStatus = ref('')
 const customerVerificationLink = ref('')
+const customerVerificationCode = ref('')
+const customerVerificationComplete = ref(false)
 const customerSubmitting = ref(false)
+let customerVerificationPollTimer: number | undefined
+let customerVerificationPollStartedAt = 0
 const trainerForm = reactive({
   name: '',
   sex: '' as '' | 'masculino' | 'feminino',
@@ -430,16 +434,60 @@ window.addEventListener('hashchange', () => {
 })
 
 function closeCustomerSignup() {
+  if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
+  customerVerificationPollTimer = undefined
   showCustomerSignup.value = false
   history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
   customerStatus.value = ''
   customerVerificationLink.value = ''
+  customerVerificationCode.value = ''
+  customerVerificationComplete.value = false
+}
+
+function scheduleCustomerVerificationPoll(delayMs = 10_000) {
+  if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
+  customerVerificationPollTimer = window.setTimeout(() => void pollCustomerVerification(), delayMs)
+}
+
+async function pollCustomerVerification() {
+  if (!customerVerificationCode.value || !customerForm.whatsapp || customerVerificationComplete.value) return
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/customers/verification-status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: customerVerificationCode.value, whatsapp: customerForm.whatsapp }),
+    })
+    const body = await response.json() as { verified?: boolean; expired?: boolean; error?: string }
+    if (response.ok && body.verified === true) {
+      customerVerificationComplete.value = true
+      customerStatus.value = 'WhatsApp confirmado e cadastro ativo. Você não precisa salvar o contato da Beta para receber esta confirmação.'
+      return
+    }
+    if (response.ok && body.expired) {
+      customerStatus.value = 'O link de confirmação expirou. Volte ao formulário e inicie o cadastro novamente.'
+      customerVerificationLink.value = ''
+      return
+    }
+  } catch {
+    // Falhas momentâneas de rede não interrompem a verificação automática.
+  }
+  if (Date.now() - customerVerificationPollStartedAt >= 15 * 60 * 1000) {
+    customerStatus.value = 'O prazo de confirmação terminou. Confira seus dados e envie um novo cadastro para gerar outro link.'
+    customerVerificationLink.value = ''
+    return
+  }
+  scheduleCustomerVerificationPoll()
 }
 
 async function sendCustomerSignup() {
   if (customerSubmitting.value) return
   customerStatus.value = ''
   customerVerificationLink.value = ''
+  customerVerificationCode.value = ''
+  customerVerificationComplete.value = false
+  customerVerificationPollStartedAt = 0
+  if (customerVerificationPollTimer !== undefined) window.clearTimeout(customerVerificationPollTimer)
   const name = customerForm.name.trim().replace(/\s+/g, ' ')
   const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
   const email = customerForm.email.trim().toLowerCase()
@@ -475,8 +523,11 @@ async function sendCustomerSignup() {
       throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
     }
     const message = `Confirmar cadastro FitPeso ${body.verificationCode}`
+    customerVerificationCode.value = body.verificationCode
     customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-    customerStatus.value = 'Cadastro recebido. Para ativá-lo, confirme seu WhatsApp pelo botão abaixo em até 15 minutos.'
+    customerStatus.value = 'Cadastro recebido. Toque no botão, envie a mensagem pelo WhatsApp e volte a esta tela. Ela mostrará a confirmação automaticamente; não precisa salvar o contato da Beta.'
+    customerVerificationPollStartedAt = Date.now()
+    scheduleCustomerVerificationPoll(1_000)
   } catch (error) {
     customerStatus.value = error instanceof Error ? error.message : 'Não foi possível registrar o cadastro agora.'
   } finally {
@@ -950,8 +1001,10 @@ async function sendResult() {
       </form>
       <div v-else class="customer-signup-confirmation">
         <p class="status" role="status" aria-live="polite">{{ customerStatus }}</p>
-        <a class="primary-button customer-verification-link" :href="customerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp</a>
-        <small>O link abre uma conversa com a Beta e prepara a mensagem. Toque em enviar para concluir a confirmação.</small>
+        <a v-if="!customerVerificationComplete" class="primary-button customer-verification-link" :href="customerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp</a>
+        <button v-if="!customerVerificationComplete" class="secondary-button" type="button" @click="pollCustomerVerification">Verificar agora</button>
+        <button v-else class="primary-button" type="button" @click="closeCustomerSignup">Concluir cadastro</button>
+        <small>O botão abre uma conversa com a Beta e prepara a mensagem. Envie-a e retorne a esta página para ver a confirmação.</small>
       </div>
       <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
       <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
