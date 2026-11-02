@@ -120,7 +120,7 @@ const trainerForm = reactive({
 const trainerStatus = ref('')
 const trainerVerificationLink = ref('')
 const trainerSubmitting = ref(false)
-const googleProfileTarget = ref<'client' | 'trainer'>('client')
+const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
   { label: 'Ter', value: 'Terça-feira' },
@@ -319,7 +319,7 @@ function fillFromGoogle(response: GoogleCredentialResponse) {
     const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
     const profile = JSON.parse(new TextDecoder().decode(bytes)) as { name?: string; email?: string }
     if (!profile.name && !profile.email) throw new Error('O Google não retornou nome ou e-mail.')
-    const target = googleProfileTarget.value === 'trainer' ? trainerForm : form
+    const target = googleProfileTarget.value === 'trainer' ? trainerForm : googleProfileTarget.value === 'customer' ? customerForm : form
     if (profile.name) target.name = profile.name.trim()
     if (profile.email) target.email = profile.email.trim().toLowerCase()
   } catch {
@@ -327,7 +327,7 @@ function fillFromGoogle(response: GoogleCredentialResponse) {
   }
 }
 
-async function renderGoogleButton(target: 'client' | 'trainer' = 'client') {
+async function renderGoogleButton(target: 'client' | 'trainer' | 'customer' = 'client') {
   const container = googleButtonContainer.value
   if (!container) return
   try {
@@ -355,6 +355,12 @@ watch(showTrainerSignup, async enabled => {
   if (!enabled) return
   await nextTick()
   await renderGoogleButton('trainer')
+}, { immediate: true })
+
+watch(showCustomerSignup, async enabled => {
+  if (!enabled) return
+  await nextTick()
+  await renderGoogleButton('customer')
 }, { immediate: true })
 
 window.addEventListener('hashchange', () => {
@@ -820,6 +826,11 @@ async function sendResult() {
         <p class="intro customer-signup-intro">Preencha seus dados e confirme seu WhatsApp para ativar o cadastro.</p>
       </header>
       <form v-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
+        <div class="google-fill field-wide">
+          <p>Continuar com Google para preencher nome e e-mail</p>
+          <div ref="googleButtonContainer" class="google-button-container"></div>
+          <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
+        </div>
         <label class="field field-wide" for="customer-name"><span class="field-label">Nome</span>
           <input id="customer-name" v-model="customerForm.name" name="customerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" required>
         </label>
