@@ -103,6 +103,7 @@ const requestSent = ref(false)
 const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
+const showCustomerLogin = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
 const customerStatus = ref('')
 const customerVerificationLink = ref('')
@@ -121,6 +122,9 @@ const trainerStatus = ref('')
 const trainerVerificationLink = ref('')
 const trainerSubmitting = ref(false)
 const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
+const customerLoginStatus = ref('')
+const customerSignedInEmail = ref('')
+const requestLoginReturn = ref(false)
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
   { label: 'Ter', value: 'Terça-feira' },
@@ -295,6 +299,41 @@ function clearContactDetails() {
   googleProfileStatus.value = ''
 }
 
+function applyCustomerProfile(profile: { name: string; whatsapp: string; email: string; dateOfBirth?: string }) {
+  form.name = profile.name
+  form.phone = profile.whatsapp
+  form.email = profile.email
+  if (profile.dateOfBirth) {
+    const birth = new Date(`${profile.dateOfBirth}T00:00:00`)
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age -= 1
+    form.age = String(age)
+  }
+  customerForm.name = profile.name
+  customerForm.whatsapp = profile.whatsapp
+  customerForm.email = profile.email
+  customerForm.dateOfBirth = profile.dateOfBirth ?? ''
+  customerSignedInEmail.value = profile.email
+}
+
+async function loadCustomerProfile(token: string) {
+  const endpoint = await getRequestApiEndpoint()
+  const response = await fetch(`${endpoint}/api/customers/profile`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  })
+  const body = await response.json() as {
+    authenticated?: boolean
+    profile?: { name: string; whatsapp: string; email: string; dateOfBirth?: string }
+    error?: string
+  }
+  if (!response.ok || body.authenticated !== true || !body.profile) {
+    throw new Error(body.error || 'Não foi possível carregar seu cadastro.')
+  }
+  return body.profile
+}
+
 function loadGoogleIdentityScript() {
   if (window.google?.accounts.id) return Promise.resolve()
   if (googleIdentityScriptPromise) return googleIdentityScriptPromise
@@ -310,7 +349,30 @@ function loadGoogleIdentityScript() {
   return googleIdentityScriptPromise
 }
 
-function fillFromGoogle(response: GoogleCredentialResponse) {
+async function fillFromGoogle(response: GoogleCredentialResponse) {
+  if (googleProfileTarget.value === 'client') {
+    customerLoginStatus.value = 'Validando sua conta e buscando seu cadastro…'
+    googleProfileStatus.value = ''
+    try {
+      const profile = await loadCustomerProfile(response.credential)
+      sessionStorage.setItem('fitpeso-google-session', response.credential)
+      applyCustomerProfile(profile)
+      customerLoginStatus.value = `Conectado como ${profile.email}. Seus dados foram preenchidos.`
+      googleProfileStatus.value = 'Cadastro carregado. Confira a disponibilidade e os dados antes de enviar.'
+      showCustomerLogin.value = false
+      if (requestLoginReturn.value) {
+        showRequestForm.value = true
+        requestLoginReturn.value = false
+        await nextTick()
+        document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    } catch (error) {
+      customerLoginStatus.value = error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
+      googleProfileStatus.value = customerLoginStatus.value
+      try { sessionStorage.removeItem('fitpeso-google-session') } catch { /* Storage pode estar desativado. */ }
+    }
+    return
+  }
   try {
     const payloadPart = response.credential.split('.')[1]
     if (!payloadPart) throw new Error('Credencial Google inválida.')
@@ -346,6 +408,12 @@ async function renderGoogleButton(target: 'client' | 'trainer' | 'customer' = 'c
 }
 
 watch(showRequestForm, async enabled => {
+  if (!enabled) return
+  await nextTick()
+  await renderGoogleButton('client')
+})
+
+watch(showCustomerLogin, async enabled => {
   if (!enabled) return
   await nextTick()
   await renderGoogleButton('client')
@@ -656,10 +724,42 @@ async function openRequestForm() {
   document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+async function openCustomerLogin(fromRequest = false) {
+  requestLoginReturn.value = fromRequest
+  customerLoginStatus.value = ''
+  googleProfileStatus.value = ''
+  if (fromRequest) showRequestForm.value = false
+  showCustomerLogin.value = true
+  await nextTick()
+  await renderGoogleButton('client')
+}
+
+function closeCustomerLogin() {
+  showCustomerLogin.value = false
+  customerLoginStatus.value = ''
+  if (requestLoginReturn.value) {
+    showRequestForm.value = true
+    requestLoginReturn.value = false
+  }
+}
+
+function openCustomerSignupFromLogin() {
+  showCustomerLogin.value = false
+  showCustomerSignup.value = true
+  history.replaceState(null, '', `${window.location.pathname}#cadastro-cliente`)
+}
+
 onMounted(() => {
   if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
   void loadTrainerProfile()
   void loadTrainerRequest()
+  try {
+    const token = sessionStorage.getItem('fitpeso-google-session')
+    if (token) void loadCustomerProfile(token).then(applyCustomerProfile).catch(() => {
+      sessionStorage.removeItem('fitpeso-google-session')
+      customerSignedInEmail.value = ''
+    })
+  } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
 })
 
 async function createFitpesoRequest(request: Record<string, unknown>) {
@@ -813,6 +913,24 @@ async function sendResult() {
         <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
+    </section>
+
+    <section v-else-if="showCustomerLogin" class="calculator customer-signup" aria-labelledby="customer-login-title">
+      <header class="hero">
+        <div class="brand" :aria-label="personalName">
+          <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
+        </div>
+        <hr class="personal-divider">
+        <h1 id="customer-login-title">Entrar na FitPeso</h1>
+        <p class="intro">Entre com o Google para carregar seus dados já cadastrados.</p>
+      </header>
+      <div class="google-fill field-wide">
+        <p>Acesse com sua conta Google</p>
+        <div ref="googleButtonContainer" class="google-button-container"></div>
+        <small v-if="customerLoginStatus" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
+      </div>
+      <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
+      <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
     </section>
 
     <section v-else-if="showCustomerSignup" class="calculator customer-signup" aria-labelledby="customer-signup-title">
@@ -1031,9 +1149,10 @@ async function sendResult() {
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <div class="google-fill field-wide">
-          <p>Preencha nome e e-mail com sua conta Google</p>
+          <p>{{ customerSignedInEmail ? `Conectado: ${customerSignedInEmail}` : 'Preencha seus dados com seu cadastro FitPeso' }}</p>
           <div ref="googleButtonContainer" class="google-button-container"></div>
           <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
+          <button class="text-button" type="button" @click="openCustomerLogin(true)">Fazer login para carregar meus dados</button>
         </div>
         <label class="field field-wide" for="name"><span class="field-label">Nome</span>
           <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>

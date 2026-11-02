@@ -10,6 +10,7 @@ import {
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
+import { OAuth2Client } from 'google-auth-library'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
 const dynamodb = new DynamoDBClient({})
@@ -20,7 +21,7 @@ const corsHeaders = {
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
-  'access-control-allow-headers': 'Content-Type, X-Fitpeso-Verification-Secret',
+  'access-control-allow-headers': 'Content-Type, Authorization, X-Fitpeso-Verification-Secret',
   'access-control-allow-methods': 'GET,POST,OPTIONS',
 }
 
@@ -305,6 +306,48 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
       errorClass: error instanceof Error ? error.name : typeof error,
     })
     return response(503, { error: 'Não foi possível confirmar o WhatsApp agora.' })
+  }
+}
+
+async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
+  const match = authorization.match(/^Bearer\s+(.+)$/i)
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+  const tableName = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!match || !clientId || !tableName) return response(401, { error: 'Faça login com o Google para continuar.' })
+  try {
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: match[1], audience: clientId })
+    const payload = ticket.getPayload()
+    const email = payload?.email?.trim().toLowerCase()
+    if (!payload?.email_verified || !email) return response(401, { error: 'Não foi possível validar sua conta Google.' })
+    const result = await dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      IndexName: 'CustomerByEmail',
+      KeyConditionExpression: '#email = :email',
+      FilterExpression: '#status = :active AND #verified = :verified',
+      ExpressionAttributeNames: { '#email': 'email', '#status': 'status', '#verified': 'whatsappVerified' },
+      ExpressionAttributeValues: {
+        ':email': { S: email },
+        ':active': { S: 'ACTIVE' },
+        ':verified': { BOOL: true },
+      },
+    }))
+    const customer = result.Items?.[0]
+    if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
+    return response(200, {
+      authenticated: true,
+      profile: {
+        name: customer.name?.S ?? '',
+        whatsapp: customer.whatsapp?.S ?? '',
+        email,
+        dateOfBirth: customer.dateOfBirth?.S ?? '',
+      },
+    })
+  } catch (error) {
+    console.error('[imc-submit] Google sign-in verification failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(401, { error: 'A sessão Google expirou ou não pôde ser validada. Entre novamente.' })
   }
 }
 
@@ -1064,6 +1107,7 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-whatsapp')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })

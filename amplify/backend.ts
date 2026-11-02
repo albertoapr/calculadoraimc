@@ -59,6 +59,16 @@ trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dyna
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 requestLocks.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:TransactWriteItems')
 customers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
+customers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query')
+customers.addGlobalSecondaryIndex({
+  indexName: 'CustomerByEmail',
+  partitionKey: { name: 'email', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${customers.tableArn}/index/CustomerByEmail`],
+}))
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainers.tableArn}/index/TrainerById`],
@@ -73,6 +83,7 @@ backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_CUSTOMERS_TABLE', customers.tableName)
+backend.imcSubmit.addEnvironment('GOOGLE_OAUTH_CLIENT_ID', '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com')
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
 const apiStack = backend.createStack('imc-api-stack')
 
@@ -87,7 +98,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'X-Fitpeso-Verification-Secret'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Fitpeso-Verification-Secret'],
   },
 })
 
@@ -111,6 +122,10 @@ trainersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway
   timeout: Duration.seconds(20),
 }))
 const customersResource = apiResource.addResource('customers')
+customersResource.addResource('profile').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
 customersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
