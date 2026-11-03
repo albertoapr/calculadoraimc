@@ -1336,11 +1336,14 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
     if (!request || Number(request.validUntil?.N ?? 0) <= now || Number(request.validUntil?.N ?? 0) !== claims.expiresAt || request.lifecycle?.S !== 'OPEN') {
       return response(410, { expired: true, error: 'Esta solicitação não está mais recebendo propostas.' })
     }
-    const trainerResult = await dynamodb.send(new QueryCommand({
-      TableName: trainersTable, IndexName: 'TrainerById', KeyConditionExpression: '#trainerId = :trainerId',
-      ExpressionAttributeNames: { '#trainerId': 'trainerId' }, ExpressionAttributeValues: { ':trainerId': { S: claims.trainerId } },
+    const trainerResult = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable,
+      Key: { city: { S: request.city?.S ?? '' }, trainerId: { S: claims.trainerId } },
+      ProjectionExpression: '#trainerId, #name, #whatsapp, #active, #instagram',
+      ExpressionAttributeNames: { '#trainerId': 'trainerId', '#name': 'name', '#whatsapp': 'whatsapp', '#active': 'active', '#instagram': 'instagram' },
+      ConsistentRead: true,
     }))
-    const trainer = trainerResult.Items?.find(item => item.active?.BOOL === true && item.city?.S === request.city?.S)
+    const trainer = trainerResult.Item?.active?.BOOL === true ? trainerResult.Item : undefined
     if (!trainer) return response(403, { error: 'Este profissional não está ativo ou não está selecionado para esta solicitação.' })
     const validUntil = Math.min(now + 3 * 24 * 60 * 60, Number(request.validUntil.N))
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
@@ -1358,10 +1361,12 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
     ] }))
     const updated = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: claims.requestId } }, ConsistentRead: true }))
     if (Number(updated.Item?.proposalCount?.N ?? 0) >= 5) {
-      await dynamodb.send(new UpdateItemCommand({
-        TableName: requestTable, Key: { requestId: { S: claims.requestId } }, UpdateExpression: 'SET lifecycle = :closed, closedReason = :reason',
-        ConditionExpression: 'lifecycle = :open', ExpressionAttributeValues: { ':closed': { S: 'CLOSED' }, ':open': { S: 'OPEN' }, ':reason': { S: 'FIVE_PROPOSALS' } },
-      }))
+      try {
+        await dynamodb.send(new UpdateItemCommand({
+          TableName: requestTable, Key: { requestId: { S: claims.requestId } }, UpdateExpression: 'SET lifecycle = :closed, closedReason = :reason',
+          ConditionExpression: 'lifecycle = :open', ExpressionAttributeValues: { ':closed': { S: 'CLOSED' }, ':open': { S: 'OPEN' }, ':reason': { S: 'FIVE_PROPOSALS' } },
+        }))
+      } catch (error) { if (!(error instanceof ConditionalCheckFailedException)) throw error }
       const phone = request.clientPhone?.S
       if (phone && process.env.FITPESO_REQUEST_LOCKS_TABLE) await dynamodb.send(new UpdateItemCommand({
         TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: phone } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } },
@@ -1388,7 +1393,8 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
       const requestId = item.requestId?.S ?? ''
       const result = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
       const proposals = (result.Items ?? []).map(proposal => ({ trainerId: proposal.trainerId?.S ?? '', name: proposal.trainerName?.S ?? '', whatsapp: proposal.trainerWhatsapp?.S ?? '', ...(proposal.trainerInstagram?.S ? { instagram: proposal.trainerInstagram.S } : {}), monthlyPrice: Number(proposal.monthlyPrice?.N ?? 0), message: proposal.message?.S ?? '', status: proposal.status?.S ?? '', validUntil: Number(proposal.validUntil?.N ?? 0), expired: Number(proposal.validUntil?.N ?? 0) <= now }))
-      return { ...deserializeFitpesoRequest(item), lifecycle: item.lifecycle?.S ?? 'OPEN', proposalCount: Number(item.proposalCount?.N ?? proposals.length), requestExpired: Number(item.validUntil?.N ?? 0) <= now, proposals }
+      const proposalCount = Number(item.proposalCount?.N ?? proposals.length)
+      return { ...deserializeFitpesoRequest(item), lifecycle: proposalCount >= 5 && item.lifecycle?.S === 'OPEN' ? 'CLOSED' : item.lifecycle?.S ?? 'OPEN', proposalCount, requestExpired: Number(item.validUntil?.N ?? 0) <= now, proposals }
     }))
     return response(200, { requests })
   } catch (error) {
@@ -1426,7 +1432,10 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
       { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: auth.profile!.whatsapp }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
       ...updates,
     ] }))
-    if (process.env.FITPESO_REQUEST_LOCKS_TABLE) await dynamodb.send(new UpdateItemCommand({ TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: auth.profile!.whatsapp } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } } }))
+    if (process.env.FITPESO_REQUEST_LOCKS_TABLE) {
+      try { await dynamodb.send(new UpdateItemCommand({ TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: auth.profile!.whatsapp } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } } })) }
+      catch { /* O atendimento já foi registrado; a trava pode expirar naturalmente se não for atualizada. */ }
+    }
     return response(200, { accepted: true, acceptedAt: new Date(now * 1000).toISOString() })
   } catch (error) {
     if (error instanceof TransactionCanceledException) return response(409, { error: 'A solicitação ou proposta já foi encerrada.' })
