@@ -36,6 +36,24 @@ fitpesoRequests.addGlobalSecondaryIndex({
   sortKey: { name: 'validUntil', type: dynamodb.AttributeType.NUMBER },
   projectionType: dynamodb.ProjectionType.ALL,
 })
+fitpesoRequests.addGlobalSecondaryIndex({
+  indexName: 'RequestsByCustomer',
+  partitionKey: { name: 'clientPhone', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+const fitpesoProposals = new dynamodb.Table(requestStack, 'FitpesoProposals', {
+  partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  timeToLiveAttribute: 'expiresAt',
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+const fitpesoAtendimentos = new dynamodb.Table(requestStack, 'FitpesoAtendimentos', {
+  partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 const requestLocks = new dynamodb.Table(requestStack, 'FitpesoRequestPhoneLocks', {
   partitionKey: { name: 'clientPhone', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -57,6 +75,8 @@ requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dyna
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
+fitpesoProposals.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
+fitpesoAtendimentos.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:TransactWriteItems')
 requestLocks.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:TransactWriteItems')
 customers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 customers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Query')
@@ -77,10 +97,16 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${fitpesoRequests.tableArn}/index/RequestsByStatus`],
 }))
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${fitpesoRequests.tableArn}/index/RequestsByCustomer`],
+}))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
+backend.imcSubmit.addEnvironment('FITPESO_PROPOSALS_TABLE', fitpesoProposals.tableName)
+backend.imcSubmit.addEnvironment('FITPESO_ATENDIMENTOS_TABLE', fitpesoAtendimentos.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_CUSTOMERS_TABLE', customers.tableName)
 backend.imcSubmit.addEnvironment('GOOGLE_OAUTH_CLIENT_ID', '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com')
@@ -175,7 +201,32 @@ requestsResource.addResource('valid').addMethod('GET', new apigateway.LambdaInte
   proxy: true,
   timeout: Duration.seconds(20),
 }))
-requestsResource.addResource('{requestId}').addResource('processed').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+requestsResource.addResource('proposals').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestsResource.addResource('accepted-notifications').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+const requestIdResource = requestsResource.addResource('{requestId}')
+requestIdResource.addResource('processed').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestIdResource.addResource('accept').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+requestIdResource.addResource('acceptance-notified').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+trainersResource.addResource('eligible').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
+  proxy: true,
+  timeout: Duration.seconds(20),
+}))
+customersResource.addResource('requests').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
 }))

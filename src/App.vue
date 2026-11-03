@@ -74,9 +74,6 @@ function getTrainerSlugFromHost() {
 
 type TrainerRequestDetails = {
   clientName: string
-  clientPhone: string
-  email?: string
-  clientInstagram?: string
   age?: number
   city: string
   objective?: string
@@ -86,7 +83,12 @@ type TrainerRequestDetails = {
   trainingDays: string[]
   trainingShifts: string[]
   validUntil: number
+  proposalAlreadySent?: boolean
 }
+
+type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string }
+type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
+type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
 const trainerIdFromPath = getTrainerIdFromPath()
@@ -95,11 +97,20 @@ const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !tr
 const personalName = ref('FitPeso')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
+const trainerProposalPrice = ref('')
+const trainerProposalMessage = ref('')
+const trainerProposalSubmitting = ref(false)
 const trainerRequestStatus = ref(trainerRequestToken ? 'Carregando solicitação…' : '')
 const showRequestForm = ref(false)
 const requestSent = ref(false)
+const requestStep = ref(1)
+const eligibleTrainers = ref<EligibleTrainer[]>([])
+const selectedTrainerIds = ref<string[]>([])
+const checkingTrainers = ref(false)
+const customerRequests = ref<CustomerRequest[]>([])
+const customerRequestsStatus = ref('')
 const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
@@ -168,7 +179,7 @@ const form = reactive({
   objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
   age: '',
-  city: 'Mesquita',
+  city: '',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
   desiredDuration: '',
   attendsGym: false,
@@ -310,7 +321,7 @@ function clearContactDetails() {
   form.email = ''
   form.objective = 'Emagrecimento'
   form.age = ''
-  form.city = 'Mesquita'
+  form.city = ''
   form.trainingDays = []
   form.trainingShifts = []
   googleProfileStatus.value = ''
@@ -473,6 +484,19 @@ function closeCustomerSignup() {
   customerStatus.value = ''
   customerVerificationLink.value = ''
   customerVerificationCode.value = ''
+  if (requestLoginReturn.value && customerVerificationComplete.value) {
+    customerVerificationComplete.value = false
+    showCustomerSignup.value = false
+    showCustomerLogin.value = true
+    showRequestForm.value = true
+    viewMode.value = 'contact'
+    requestStep.value = 4
+    customerLoginMethod.value = 'whatsapp'
+    customerLoginStatus.value = 'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+    history.replaceState(null, '', window.location.pathname)
+    void nextTick(() => window.scrollTo(0, 0))
+    return
+  }
   customerVerificationComplete.value = false
   goHome()
 }
@@ -792,9 +816,29 @@ async function loadTrainerRequest() {
   }
 }
 
+async function submitTrainerProposal() {
+  if (!trainerRequestToken || !trainerProposalPrice.value || trainerProposalSubmitting.value) return
+  trainerProposalSubmitting.value = true
+  trainerRequestStatus.value = 'Enviando proposta…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/requests/proposals`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: trainerRequestToken, monthlyPrice: Number(trainerProposalPrice.value), message: trainerProposalMessage.value }) })
+    const body = await response.json() as { submitted?: boolean; error?: string }
+    if (!response.ok || body.submitted !== true) throw new Error(body.error || 'Não foi possível enviar a proposta.')
+    if (trainerRequest.value) trainerRequest.value.proposalAlreadySent = true
+    trainerRequestStatus.value = 'Proposta enviada. O usuário poderá conversar com os profissionais e escolher uma proposta pelo painel.'
+  } catch (error) { trainerRequestStatus.value = error instanceof Error ? error.message : 'Não foi possível enviar a proposta agora.' }
+  finally { trainerProposalSubmitting.value = false }
+}
+
 async function openRequestForm() {
   status.value = ''
   showRequestForm.value = true
+  requestStep.value = 1
+  form.city = ''
+  form.trainerGenderPreference = 'indiferente'
+  eligibleTrainers.value = []
+  selectedTrainerIds.value = []
   viewMode.value = 'contact'
   await nextTick()
   document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -817,11 +861,87 @@ async function returnToRequestFormAfterLogin() {
   requestLoginReturn.value = false
   viewMode.value = 'contact'
   showRequestForm.value = true
+  requestStep.value = 4
   showCustomerLogin.value = false
   await nextTick()
   window.requestAnimationFrame(() => {
     document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
+}
+
+async function searchEligibleTrainers() {
+  status.value = ''
+  selectedTrainerIds.value = []
+  if (!form.city) { status.value = 'Selecione sua cidade para buscar profissionais.'; return }
+  if (checkingTrainers.value) return
+  checkingTrainers.value = true
+  status.value = 'Consultando profissionais ativos…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const query = new URLSearchParams({ city: form.city, gender: form.trainerGenderPreference })
+    const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`, { cache: 'no-store' })
+    const body = await response.json() as { trainers?: EligibleTrainer[]; error?: string }
+    if (!response.ok || !Array.isArray(body.trainers)) throw new Error(body.error || 'Não foi possível consultar os profissionais.')
+    eligibleTrainers.value = body.trainers
+    if (!eligibleTrainers.value.length) {
+      status.value = 'Não encontramos profissionais ativos para esses critérios. Altere a cidade ou a preferência de gênero e tente novamente.'
+      return
+    }
+    status.value = ''
+    requestStep.value = 2
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Não foi possível consultar os profissionais agora.'
+  } finally { checkingTrainers.value = false }
+}
+
+function continueToTrainerSelection() {
+  if (!form.shareContactConsent) { status.value = 'Autorize o compartilhamento dos dados para continuar.'; return }
+  requestStep.value = 3
+  status.value = ''
+}
+
+function reviewRequest() {
+  if (!selectedTrainerIds.value.length) { status.value = 'Selecione ao menos um profissional.'; return }
+  requestStep.value = 4
+  status.value = ''
+}
+
+async function confirmServiceRequest() {
+  if (!customerSignedInEmail.value) {
+    await openCustomerLogin(true, 'whatsapp')
+    return
+  }
+  await sendResult()
+}
+
+async function openCustomerRequests() {
+  viewMode.value = 'customer-requests'
+  customerRequestsStatus.value = 'Carregando suas solicitações…'
+  await nextTick()
+  window.scrollTo(0, 0)
+  try {
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    if (!token) { customerRequestsStatus.value = 'Entre na sua conta para consultar suas propostas.'; return }
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/customers/requests`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' })
+    const body = await response.json() as { requests?: CustomerRequest[]; error?: string }
+    if (!response.ok || !Array.isArray(body.requests)) throw new Error(body.error || 'Não foi possível carregar suas solicitações.')
+    customerRequests.value = body.requests
+    customerRequestsStatus.value = body.requests.length ? '' : 'Você ainda não tem solicitações.'
+  } catch (error) { customerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar suas solicitações.' }
+}
+
+async function acceptProposal(request: CustomerRequest, proposal: CustomerProposal) {
+  if (proposal.expired || proposal.status !== 'OPEN') return
+  try {
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/requests/${encodeURIComponent(request.requestId)}/accept`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ trainerId: proposal.trainerId }) })
+    const body = await response.json() as { accepted?: boolean; error?: string }
+    if (!response.ok || body.accepted !== true) throw new Error(body.error || 'Não foi possível aceitar esta proposta.')
+    await openCustomerRequests()
+    status.value = `Proposta de ${proposal.name} aceita. O profissional será avisado.`
+  } catch (error) { status.value = error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.' }
 }
 
 function scheduleCustomerLoginPoll(delayMs = 3_000) {
@@ -1019,26 +1139,25 @@ onMounted(() => {
 
 async function createFitpesoRequest(request: Record<string, unknown>) {
   const endpoint = await getRequestApiEndpoint()
+  const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+  if (!token) throw new Error('Entre na sua conta para enviar a solicitação.')
   const response = await fetch(`${endpoint}/api/requests`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify(request),
   })
   const body = await response.json() as {
     created?: boolean
-    verificationCode?: string
     error?: string
   }
-  if (!response.ok || body.created !== true || !body.verificationCode) {
+  if (!response.ok || body.created !== true) {
     throw new Error(body.error || 'Não foi possível registrar a solicitação agora. Tente novamente.')
   }
-  return body.verificationCode
 }
 
 async function sendResult() {
   if (!form.shareContactConsent || submittingRequest.value) return
   status.value = ''
-  requestVerificationLink.value = ''
 
   const clientName = form.name.trim().replace(/\s+/g, ' ')
   const phone = form.phone.trim()
@@ -1064,7 +1183,7 @@ async function sendResult() {
   status.value = 'Enviando sua solicitação para a Beta…'
 
   try {
-    const verificationCode = await createFitpesoRequest({
+    await createFitpesoRequest({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
@@ -1077,10 +1196,9 @@ async function sendResult() {
       objective: form.objective,
       trainingDays,
       trainingShifts,
+      selectedTrainerIds: selectedTrainerIds.value,
       consent: form.shareContactConsent,
     })
-    const confirmationMessage = `Confirmar solicitação Fitpeso ${verificationCode}`
-    requestVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(confirmationMessage)}`
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
     submittingRequest.value = false
@@ -1269,7 +1387,7 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -1285,13 +1403,38 @@ async function sendResult() {
             <div v-if="trainerRequest.desiredDuration"><dt>Tempo de acompanhamento</dt><dd>{{ trainerRequest.desiredDuration }}</dd></div>
             <div v-if="trainerRequest.attendsGym"><dt>Frequenta academia</dt><dd>Sim</dd></div>
             <div v-if="trainerRequest.attendsGym && trainerRequest.gymName"><dt>Qual?</dt><dd>{{ trainerRequest.gymName }}</dd></div>
-            <div><dt>WhatsApp</dt><dd><a :href="`https://wa.me/${trainerRequest.clientPhone.replace(/\D/g, '')}`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientPhone }}</a></dd></div>
-            <div v-if="trainerRequest.email"><dt>E-mail</dt><dd><a :href="`mailto:${trainerRequest.email}`">{{ trainerRequest.email }}</a></dd></div>
-            <div v-if="trainerRequest.clientInstagram"><dt>Instagram do solicitante</dt><dd><a :href="`https://www.instagram.com/${trainerRequest.clientInstagram.replace(/^@/, '')}/`" target="_blank" rel="noopener noreferrer">{{ trainerRequest.clientInstagram }}</a></dd></div>
             <div><dt>Disponibilidade para treino</dt><dd>{{ [trainerRequest.trainingDays.length ? `Dias: ${trainerRequest.trainingDays.join(', ')}` : '', trainerRequest.trainingShifts.length ? `Turnos: ${trainerRequest.trainingShifts.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Não informada' }}</dd></div>
           </dl>
           <p class="trainer-request-expiry">Válida até {{ new Date(trainerRequest.validUntil * 1000).toLocaleString('pt-BR') }}.</p>
+          <form v-if="!trainerRequest.proposalAlreadySent" class="form contact-fields" @submit.prevent="submitTrainerProposal">
+            <label class="field field-wide" for="trainer-proposal-price"><span class="field-label">Valor mensal (R$)</span><input id="trainer-proposal-price" v-model="trainerProposalPrice" type="number" min="0.01" max="100000" step="0.01" inputmode="decimal" required></label>
+            <label class="field field-wide" for="trainer-proposal-message"><span class="field-label">Mensagem <span>opcional</span></span><textarea id="trainer-proposal-message" v-model="trainerProposalMessage" maxlength="500" rows="4" placeholder="Apresente sua proposta"></textarea></label>
+            <button class="primary-button field-wide" type="submit" :disabled="trainerProposalSubmitting">{{ trainerProposalSubmitting ? 'Enviando…' : 'Enviar proposta' }}</button>
+          </form>
+          <p v-else class="status">Você já enviou uma proposta para esta solicitação.</p>
         </div>
+      </section>
+
+      <section v-if="viewMode === 'customer-requests'" class="customer-requests-view" aria-labelledby="page-title">
+        <p v-if="customerRequestsStatus" class="status" role="status">{{ customerRequestsStatus }}</p>
+        <button class="secondary-button" type="button" @click="openCustomerRequests">Atualizar propostas</button>
+        <article v-for="request in customerRequests" :key="request.requestId" class="customer-request-card">
+          <h2>{{ request.city }}<span v-if="request.objective"> · {{ request.objective }}</span></h2>
+          <p>Status: {{ request.lifecycle === 'ACCEPTED' ? 'Atendimento iniciado' : request.requestExpired ? 'Solicitação expirada' : request.lifecycle === 'CLOSED' ? 'Solicitação fechada; propostas válidas ainda podem ser escolhidas' : 'Recebendo propostas' }}</p>
+          <p v-if="request.acceptedAt">Atendimento iniciado em {{ new Date(request.acceptedAt).toLocaleString('pt-BR') }}.</p>
+          <p>{{ request.proposalCount }} de até 5 propostas · válida até {{ new Date(request.validUntil * 1000).toLocaleDateString('pt-BR') }}</p>
+          <p v-if="!request.proposals.length">Ainda não há propostas. Confira novamente mais tarde.</p>
+          <div v-for="proposal in request.proposals" :key="proposal.trainerId" class="customer-proposal-card">
+            <h3>{{ proposal.name }}</h3>
+            <p><strong>Valor:</strong> {{ proposal.monthlyPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</p>
+            <p v-if="proposal.message">{{ proposal.message }}</p>
+            <p>Válida até {{ new Date(proposal.validUntil * 1000).toLocaleString('pt-BR') }}<span v-if="proposal.expired"> · Expirada</span></p>
+            <p v-if="proposal.status === 'OPEN' && !proposal.expired && request.lifecycle !== 'ACCEPTED'" class="proposal-contact-links"><a :href="'https://wa.me/' + proposal.whatsapp.replace(/\D/g, '')" target="_blank" rel="noopener noreferrer">Conversar pelo WhatsApp</a><a v-if="proposal.instagram" :href="'https://www.instagram.com/' + proposal.instagram.replace(/^@/, '') + '/'" target="_blank" rel="noopener noreferrer">Instagram</a></p>
+            <button v-if="request.lifecycle !== 'ACCEPTED' && proposal.status === 'OPEN' && !proposal.expired" class="primary-button" type="button" @click="acceptProposal(request, proposal)">Aceitar proposta</button>
+            <p v-else-if="proposal.status === 'ACCEPTED'">Proposta escolhida</p>
+          </div>
+        </article>
+        <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
@@ -1423,49 +1566,8 @@ async function sendResult() {
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
-        <div v-if="!customerSignedInEmail" class="google-fill field-wide">
-          <p>Já tem cadastro? Entre para carregar seus dados.</p>
-          <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
-          <button class="google-login-link" type="button" @click="openCustomerLogin(true)">
-            <svg class="google-login-icon" viewBox="0 0 48 48" aria-hidden="true">
-              <path fill="#4285F4" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z"/>
-              <path fill="#34A853" d="M24 44c5.5 0 10.1-1.8 13.5-4.8l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.5H5.8v5.3A20.4 20.4 0 0 0 24 44Z"/>
-              <path fill="#FBBC05" d="M12.6 27.6a12.2 12.2 0 0 1 0-7.2v-5.3H5.8a20.4 20.4 0 0 0 0 17.8l6.8-5.3Z"/>
-              <path fill="#EA4335" d="M24 11.9c3 0 5.7 1 7.8 3.1l5.9-5.9C34.1 5.8 29.5 4 24 4A20.4 20.4 0 0 0 5.8 15.1l6.8 5.3c1.6-4.9 6.1-8.5 11.4-8.5Z"/>
-            </svg>
-            <span>Fazer login com Google</span>
-          </button>
-          <button class="whatsapp-login-link" type="button" @click="openCustomerLogin(true, 'whatsapp')">
-            <svg class="whatsapp-login-icon" viewBox="0 0 32 32" aria-hidden="true">
-              <path d="M16 3.5a12.2 12.2 0 0 0-10.4 18.6L4.3 27.7l5.8-1.5A12.2 12.2 0 1 0 16 3.5Z" />
-              <path d="M12.1 9.7c-.3-.7-.7-.7-1-.7h-.8c-.3 0-.7.1-1 .5s-1.3 1.2-1.3 3 .1 3.4 1.4 5.2 3.3 4.4 7.2 5.8c3.5 1.3 4.2 1 4.9.9s2.3-.9 2.6-1.8.3-1.7.2-1.8-.4-.3-.8-.5l-2.4-1.2c-.3-.1-.6-.2-.8.2s-.9 1.2-1.1 1.4-.4.3-.8.1a9.8 9.8 0 0 1-2.9-1.8 10.8 10.8 0 0 1-2-2.5c-.2-.4 0-.6.2-.8l.6-.7.4-.6c.1-.3.1-.5 0-.7l-1.1-2.6Z" />
-            </svg>
-            <span>Login com WhatsApp</span>
-          </button>
-        </div>
-        <dl v-if="customerSignedInEmail" class="request-customer-summary field-wide" aria-label="Seus dados">
-          <div><dt>Nome</dt><dd>{{ form.name }}</dd></div>
-          <div><dt>Idade</dt><dd>{{ form.age ? `${form.age} anos` : 'Não informada' }}</dd></div>
-          <div><dt>WhatsApp</dt><dd>{{ form.phone }}</dd></div>
-        </dl>
-        <template v-else>
-          <label class="field field-wide" for="name"><span class="field-label">Nome</span>
-            <input id="name" v-model="form.name" name="name" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome" required>
-          </label>
-
-          <label class="field field-wide" for="phone"><span class="field-label">WhatsApp com DDD</span>
-            <input id="phone" v-model="form.phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
-          </label>
-
-          <label class="field field-wide" for="email"><span class="field-label">E-mail <span>opcional</span></span>
-            <input id="email" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
-          </label>
-
-          <label class="field" for="age"><span class="field-label">Idade <span>anos</span></span>
-            <input id="age" v-model="form.age" name="age" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Ex.: 35">
-          </label>
-        </template>
-
+        <template v-if="requestStep === 1">
+        <p class="field-wide intro">Primeiro, vamos conferir se há profissionais que atendem na sua cidade.</p>
         <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
           <select id="city" v-model="form.city" name="city" autocomplete="address-level2" required>
             <option value="" disabled>Selecione sua cidade</option>
@@ -1475,21 +1577,22 @@ async function sendResult() {
             <option value="Rio de Janeiro">Rio de Janeiro</option>
           </select>
         </label>
+        <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
+          <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
+            <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
+          </select>
+        </label>
+        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="searchEligibleTrainers">{{ checkingTrainers ? 'Buscando…' : 'Buscar profissionais' }}</button>
+        </template>
 
+        <template v-else-if="requestStep === 2">
+        <p class="field-wide">Encontramos {{ eligibleTrainers.length }} profissional(is) em {{ form.city }}. Conte um pouco sobre o atendimento que procura.</p>
         <label class="field field-wide" for="objective"><span class="field-label">Objetivo <span>opcional</span></span>
           <select id="objective" v-model="form.objective" name="objective">
             <option value="">Selecione seu objetivo</option>
             <option value="Emagrecimento">Emagrecimento</option>
             <option value="Musculação">Musculação</option>
             <option value="Outros">Outros</option>
-          </select>
-        </label>
-
-        <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
-          <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
-            <option value="indiferente">Indiferente</option>
-            <option value="feminino">Mulher</option>
-            <option value="masculino">Homem</option>
           </select>
         </label>
 
@@ -1539,13 +1642,29 @@ async function sendResult() {
 
         <label class="contact-opt-in field-wide availability-toggle" for="share-contact-consent">
           <input id="share-contact-consent" v-model="form.shareContactConsent" name="shareContactConsent" type="checkbox" required>
-          <span>Autorizo o compartilhamento dos meus contatos informados com os profissionais.</span>
+          <span>Autorizo o envio desta solicitação aos profissionais que eu selecionar.</span>
         </label>
+        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">Escolher profissionais</button>
+        <button class="back-button field-wide" type="button" @click="requestStep = 1">Voltar</button>
+        </template>
 
-        <button class="primary-button field-wide" type="submit" :disabled="submittingRequest">
-          {{ submittingRequest ? 'Enviando solicitação…' : 'Enviar solicitação' }} <span aria-hidden="true">→</span>
-        </button>
-        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
+        <template v-else-if="requestStep === 3">
+          <p class="field-wide">Escolha quem receberá sua solicitação. Você pode selecionar até 20 profissionais.</p>
+          <label v-for="trainer in eligibleTrainers" :key="trainer.trainerId" class="contact-opt-in field-wide availability-toggle">
+            <input v-model="selectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20">
+            <span><strong>{{ trainer.name }}</strong><small v-if="trainer.instagram"> · Instagram: @{{ trainer.instagram.replace(/^@/, '') }}</small></span>
+          </label>
+          <button class="primary-button field-wide" type="button" @click="reviewRequest">Revisar solicitação</button>
+          <button class="back-button field-wide" type="button" @click="requestStep = 2">Voltar</button>
+        </template>
+
+        <template v-else>
+          <h3 class="field-wide">Revise antes de enviar</h3>
+          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
+          <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
+          <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInEmail ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
+          <button class="back-button field-wide" type="button" @click="requestStep = 3">Voltar e editar</button>
+        </template>
       </form>
 
       <div v-if="evaluating" class="evaluation-overlay" role="status" aria-live="polite" :aria-label="`Avaliando: ${evaluationProgress}%`">
@@ -1559,9 +1678,8 @@ async function sendResult() {
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="request-sent-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="request-sent-title">Solicitação registrada!</h2>
-          <p>Para confirmar seu WhatsApp, envie o código para a Beta pelo botão abaixo em até 15 minutos. Após a confirmação, sua solicitação ficará válida por 7 dias.</p>
-          <a v-if="requestVerificationLink" class="primary-button request-verification-link" :href="requestVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
-          <button class="primary-button" type="button" @click="goHome">Entendi</button>
+          <p>Sua solicitação foi enviada aos profissionais escolhidos. Ela ficará aberta por até 7 dias ou até receber 5 propostas. Você pode conversar com vários profissionais antes de escolher.</p>
+          <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
         </section>
       </div>
       <a
@@ -1574,6 +1692,7 @@ async function sendResult() {
         <button type="button" @click="openCustomerLogin()">Login</button>
         <span aria-hidden="true">|</span>
         <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+        <template v-if="customerSignedInEmail"><span aria-hidden="true">|</span><button type="button" @click="openCustomerRequests">Minhas solicitações</button></template>
       </div>
     </section>
     <footer>

@@ -410,6 +410,35 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
   }
 }
 
+async function authenticateCustomer(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const profileResponse = await getCustomerProfile(event)
+  if (profileResponse.statusCode !== 200) return { error: profileResponse }
+  try {
+    const body = JSON.parse(profileResponse.body) as { profile?: { name?: string; whatsapp?: string; email?: string; dateOfBirth?: string } }
+    const profile = body.profile
+    if (!profile || typeof profile.name !== 'string' || typeof profile.whatsapp !== 'string') {
+      return { error: response(401, { error: 'Entre para continuar.' }) }
+    }
+    const dateOfBirth = typeof profile.dateOfBirth === 'string' ? profile.dateOfBirth : ''
+    const nowDate = new Date()
+    const birthDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00`) : null
+    let age: number | undefined
+    if (birthDate && !Number.isNaN(birthDate.getTime())) {
+      age = nowDate.getFullYear() - birthDate.getFullYear()
+      if (nowDate.getMonth() < birthDate.getMonth() || (nowDate.getMonth() === birthDate.getMonth() && nowDate.getDate() < birthDate.getDate())) age -= 1
+      if (age < 1 || age > 120) age = undefined
+    }
+    return { profile: {
+      name: profile.name.trim().replace(/\s+/g, ' '),
+      whatsapp: normalizePhone(profile.whatsapp),
+      email: typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '',
+      ...(age !== undefined ? { age } : {}),
+    } }
+  } catch {
+    return { error: response(401, { error: 'Entre para continuar.' }) }
+  }
+}
+
 function isValidBirthDate(value: unknown) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(`${value}T00:00:00.000Z`)
@@ -844,6 +873,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     createdAt: item.createdAt?.S ?? '',
     validUntil: Number(item.validUntil?.N ?? 0),
+    ...(item.acceptedAt?.S ? { acceptedAt: item.acceptedAt.S } : {}),
   }
 }
 
@@ -894,6 +924,31 @@ async function getActiveTrainersForCity(city: string) {
   })
 }
 
+async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const city = event.queryStringParameters?.city?.trim() ?? ''
+  const preference = event.queryStringParameters?.gender?.trim() ?? 'indiferente'
+  if (!['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city) ||
+      !['indiferente', 'feminino', 'masculino'].includes(preference)) {
+    return response(400, { error: 'Selecione uma cidade e uma preferência válida.' })
+  }
+  try {
+    const trainers = await getActiveTrainersForCity(city)
+    const eligible = trainers
+      .filter(trainer => preference === 'indiferente' || trainer.sex === preference)
+      .map(trainer => ({
+        trainerId: trainer.trainerId,
+        name: trainer.name,
+        slug: trainer.slug,
+        ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
+    return response(200, { trainers: eligible, count: eligible.length })
+  } catch (error) {
+    console.error('[imc-submit] Eligible trainer lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar os profissionais agora.' })
+  }
+}
+
 async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
   const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
   if (!tableName) return response(503, { error: 'Serviço temporariamente indisponível.' })
@@ -923,13 +978,17 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
       const request = deserializeFitpesoRequest(item)
       if (!trainerCache.has(request.city)) trainerCache.set(request.city, getActiveTrainersForCity(request.city))
       const trainers = await trainerCache.get(request.city)!
+      const selectedTrainerIds = item.selectedTrainerIds?.SS as string[] | undefined
       const eligibleTrainers = request.trainerGenderPreference === 'indiferente'
         ? trainers
         : trainers.filter(trainer => trainer.sex === request.trainerGenderPreference)
+      const selectedTrainers = selectedTrainerIds?.length
+        ? eligibleTrainers.filter(trainer => selectedTrainerIds.includes(trainer.trainerId))
+        : eligibleTrainers
       const validUntil = request.validUntil
       return {
         ...request,
-        eligibleTrainers: eligibleTrainers.map(trainer => ({
+        eligibleTrainers: selectedTrainers.map(trainer => ({
           ...trainer,
           sex: undefined,
           requestUrl: `https://${trainer.slug}.fitpeso.com.br/?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
@@ -978,7 +1037,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const item = requestResult.Item
     const validUntil = Number(item?.validUntil?.N ?? 0)
     if (item && validUntil <= now) return response(410, { expired: true })
-    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '')) return invalid()
+    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') ||
+        (item.selectedTrainerIds?.SS && !item.selectedTrainerIds.SS.includes(claims.tid))) return invalid()
 
     const trainerResult = await dynamodb.send(new GetItemCommand({
       TableName: trainersTable,
@@ -990,13 +1050,15 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (trainerResult.Item?.active?.BOOL !== true || trainerResult.Item.trainerId?.S !== claims.tid) return invalid()
 
     const fullName = item.clientName?.S?.trim() ?? ''
-    const clientPhone = normalizePhone(item.clientPhone?.S)
-    if (!fullName || !clientPhone) return invalid()
+    if (!fullName) return invalid()
+    const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+    const existingProposal = proposalsTable ? await dynamodb.send(new GetItemCommand({
+      TableName: proposalsTable,
+      Key: { requestId: { S: claims.rid }, trainerId: { S: claims.tid } },
+      ConsistentRead: true,
+    })) : undefined
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
-      clientPhone,
-      ...(item.email?.S ? { email: item.email.S } : {}),
-      ...(item.clientInstagram?.S ? { clientInstagram: item.clientInstagram.S } : {}),
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
@@ -1006,7 +1068,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       validUntil,
-    } })
+      proposalAlreadySent: Boolean(existingProposal?.Item),
+    }, token })
   } catch (error) {
     console.error('[imc-submit] Trainer request view failed', {
       errorClass: error instanceof Error ? error.name : typeof error,
@@ -1138,13 +1201,39 @@ async function createCode() {
   return { code, expiresAt }
 }
 
-async function createFitpesoRequest(data: Record<string, unknown>) {
+async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown>) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const customer = auth.profile!
+  const requestData: Record<string, unknown> = {
+    ...data,
+    clientName: customer.name,
+    clientPhone: customer.whatsapp,
+    ...(customer.age !== undefined ? { age: customer.age } : { age: undefined }),
+    ...(customer.email ? { email: customer.email } : {}),
+    consent: data.consent === true,
+  }
+  if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento e autorize o envio aos profissionais.' })
+
   const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
-  const codesTable = process.env.IMC_REQUESTS_TABLE
-  if (!requestsTable || !locksTable || !codesTable) throw new Error('Fitpeso request storage is not configured')
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!requestsTable || !locksTable || !trainersTable) throw new Error('Fitpeso request storage is not configured')
 
-  const clientPhone = normalizePhone(data.clientPhone)
+  const clientPhone = customer.whatsapp
+  const city = String(requestData.city).trim()
+  const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
+  const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
+  const selectedTrainerIds = [...new Set(rawTrainerIds.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))]
+  if (selectedTrainerIds.length < 1 || selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
+    return response(400, { error: 'Selecione de 1 a 20 profissionais.' })
+  }
+  const cityTrainers = await getActiveTrainersForCity(city)
+  const matchingTrainers = cityTrainers.filter(trainer => preference === 'indiferente' || trainer.sex === preference)
+  const matchingIds = new Set(matchingTrainers.map(trainer => trainer.trainerId))
+  if (selectedTrainerIds.some(id => !matchingIds.has(id))) {
+    return response(409, { error: 'A lista de profissionais mudou. Confira os critérios e selecione novamente.' })
+  }
   const now = Math.floor(Date.now() / 1000)
   const existingLock = await dynamodb.send(new GetItemCommand({
     TableName: locksTable,
@@ -1154,30 +1243,31 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
   }))
   if (Number(existingLock.Item?.validUntil?.N ?? 0) > now) return response(409, { error: 'Já existe uma solicitação válida para este WhatsApp. Aguarde o retorno da equipe.' })
 
-  const code = randomBytes(16).toString('base64url')
   const requestId = randomUUID()
-  const verificationExpiresAt = now + codeLifetimeSeconds
+  const validUntil = now + 7 * 24 * 60 * 60
   const createdAt = new Date(now * 1000).toISOString()
   const item = {
     requestId: { S: requestId },
-    clientName: { S: String(data.clientName).trim().replace(/\s+/g, ' ') },
+    clientName: { S: customer.name },
     clientPhone: { S: clientPhone },
-    city: { S: String(data.city).trim() },
-    status: { S: 'PENDING_VERIFICATION' },
+    city: { S: city },
+    status: { S: 'VALIDATED' },
+    lifecycle: { S: 'OPEN' },
+    proposalCount: { N: '0' },
+    selectedTrainerIds: { SS: selectedTrainerIds },
     createdAt: { S: createdAt },
     consentAt: { S: createdAt },
-    verificationExpiresAt: { N: String(verificationExpiresAt) },
-    expiresAt: { N: String(verificationExpiresAt) },
-    ...(typeof data.email === 'string' && data.email.trim() ? { email: { S: data.email.trim().toLowerCase() } } : {}),
-    ...(typeof data.clientInstagram === 'string' && data.clientInstagram.trim() ? { clientInstagram: { S: data.clientInstagram.trim() } } : {}),
-    ...(Number.isInteger(data.age) ? { age: { N: String(data.age) } } : {}),
-    ...(typeof data.objective === 'string' && data.objective ? { objective: { S: data.objective } } : {}),
-    ...(typeof data.trainerGenderPreference === 'string' ? { trainerGenderPreference: { S: data.trainerGenderPreference } } : {}),
-    ...(typeof data.desiredDuration === 'string' && data.desiredDuration ? { desiredDuration: { S: data.desiredDuration } } : {}),
-    ...(typeof data.attendsGym === 'boolean' ? { attendsGym: { BOOL: data.attendsGym } } : {}),
-    ...(data.attendsGym === true && typeof data.gymName === 'string' && data.gymName.trim() ? { gymName: { S: data.gymName.trim().slice(0, 50) } } : {}),
-    ...(Array.isArray(data.trainingDays) && data.trainingDays.length ? { trainingDays: { L: data.trainingDays.map(day => ({ S: String(day) })) } } : {}),
-    ...(Array.isArray(data.trainingShifts) && data.trainingShifts.length ? { trainingShifts: { L: data.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
+    validUntil: { N: String(validUntil) },
+    expiresAt: { N: String(validUntil) },
+    ...(customer.email ? { email: { S: customer.email } } : {}),
+    ...(Number.isInteger(requestData.age) ? { age: { N: String(requestData.age) } } : {}),
+    ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
+    trainerGenderPreference: { S: preference },
+    ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
+    ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
+    ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
+    ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
+    ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
   }
 
   await dynamodb.send(new TransactWriteItemsCommand({
@@ -1191,20 +1281,191 @@ async function createFitpesoRequest(data: Record<string, unknown>) {
       },
       {
         Put: {
-          TableName: codesTable,
+          TableName: locksTable,
           Item: {
-            codeHash: { S: hashCode(code) },
-            flow: { S: 'fitpeso-request-whatsapp' },
+            clientPhone: { S: clientPhone },
             requestId: { S: requestId },
-            whatsapp: { S: clientPhone },
-            expiresAt: { N: String(verificationExpiresAt) },
+            validUntil: { N: String(validUntil) },
+            expiresAt: { N: String(validUntil) },
           },
-          ConditionExpression: 'attribute_not_exists(codeHash)',
+          ConditionExpression: 'attribute_not_exists(clientPhone) OR validUntil <= :now',
+          ExpressionAttributeValues: { ':now': { N: String(now) } },
         },
       },
     ],
   }))
-  return response(201, { created: true, requestId, verificationCode: code, verificationExpiresAt })
+  return response(201, { created: true, requestId, validUntil, selectedTrainerCount: selectedTrainerIds.length })
+}
+
+function parseTrainerRequestClaims(token: string) {
+  const invalid = () => null
+  if (token.length > 2048) return invalid()
+  const [payloadPart, signaturePart, extra] = token.split('.')
+  if (!payloadPart || !signaturePart || extra !== undefined) return invalid()
+  const secret = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
+  if (!secret) return invalid()
+  const expected = createHmac('sha256', secret).update(`fitpeso-trainer-request.v1.${payloadPart}`).digest()
+  let supplied: Buffer
+  try { supplied = Buffer.from(signaturePart, 'base64url') } catch { return invalid() }
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return invalid()
+  let claims: { v?: unknown; rid?: unknown; tid?: unknown; exp?: unknown }
+  try { claims = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8')) } catch { return invalid() }
+  if (claims.v !== 1 || typeof claims.rid !== 'string' || !/^[0-9a-f-]{36}$/i.test(claims.rid) ||
+      typeof claims.tid !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(claims.tid) ||
+      !Number.isSafeInteger(claims.exp) || Number(claims.exp) <= Math.floor(Date.now() / 1000)) return invalid()
+  return { requestId: claims.rid, trainerId: claims.tid, expiresAt: Number(claims.exp) }
+}
+
+async function submitTrainerProposal(data: Record<string, unknown> | null) {
+  const claims = parseTrainerRequestClaims(typeof data?.token === 'string' ? data.token : '')
+  if (!claims) return response(404, { error: 'Link inválido ou expirado.' })
+  const monthlyPrice = Number(data?.monthlyPrice)
+  const message = typeof data?.message === 'string' ? data.message.trim().slice(0, 500) : ''
+  if (!Number.isFinite(monthlyPrice) || monthlyPrice <= 0 || monthlyPrice > 100000 ||
+      (data?.message !== undefined && typeof data.message !== 'string')) {
+    return response(400, { error: 'Informe um valor mensal válido e uma mensagem opcional.' })
+  }
+  const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!requestTable || !proposalsTable || !trainersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const requestResult = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: claims.requestId } }, ConsistentRead: true }))
+    const request = requestResult.Item
+    if (!request || Number(request.validUntil?.N ?? 0) <= now || Number(request.validUntil?.N ?? 0) !== claims.expiresAt || request.lifecycle?.S !== 'OPEN') {
+      return response(410, { expired: true, error: 'Esta solicitação não está mais recebendo propostas.' })
+    }
+    const trainerResult = await dynamodb.send(new QueryCommand({
+      TableName: trainersTable, IndexName: 'TrainerById', KeyConditionExpression: '#trainerId = :trainerId',
+      ExpressionAttributeNames: { '#trainerId': 'trainerId' }, ExpressionAttributeValues: { ':trainerId': { S: claims.trainerId } },
+    }))
+    const trainer = trainerResult.Items?.find(item => item.active?.BOOL === true && item.city?.S === request.city?.S)
+    if (!trainer) return response(403, { error: 'Este profissional não está ativo ou não está selecionado para esta solicitação.' })
+    const validUntil = Math.min(now + 3 * 24 * 60 * 60, Number(request.validUntil.N))
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: {
+        TableName: requestTable, Key: { requestId: { S: claims.requestId } },
+        UpdateExpression: 'ADD proposalCount :one',
+        ConditionExpression: 'lifecycle = :open AND validUntil > :now AND proposalCount < :max AND contains(selectedTrainerIds, :trainerId)',
+        ExpressionAttributeValues: { ':one': { N: '1' }, ':open': { S: 'OPEN' }, ':now': { N: String(now) }, ':max': { N: '5' }, ':trainerId': { S: claims.trainerId } },
+      } },
+      { Put: {
+        TableName: proposalsTable,
+        Item: { requestId: { S: claims.requestId }, trainerId: { S: claims.trainerId }, trainerName: { S: trainer.name?.S ?? '' }, trainerWhatsapp: { S: normalizePhone(trainer.whatsapp?.S) }, ...(trainer.instagram?.S ? { trainerInstagram: { S: trainer.instagram.S } } : {}), monthlyPrice: { N: monthlyPrice.toFixed(2) }, ...(message ? { message: { S: message } } : {}), status: { S: 'OPEN' }, createdAt: { S: new Date(now * 1000).toISOString() }, validUntil: { N: String(validUntil) }, expiresAt: { N: String(validUntil) } },
+        ConditionExpression: 'attribute_not_exists(requestId) AND attribute_not_exists(trainerId)',
+      } },
+    ] }))
+    const updated = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: claims.requestId } }, ConsistentRead: true }))
+    if (Number(updated.Item?.proposalCount?.N ?? 0) >= 5) {
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: requestTable, Key: { requestId: { S: claims.requestId } }, UpdateExpression: 'SET lifecycle = :closed, closedReason = :reason',
+        ConditionExpression: 'lifecycle = :open', ExpressionAttributeValues: { ':closed': { S: 'CLOSED' }, ':open': { S: 'OPEN' }, ':reason': { S: 'FIVE_PROPOSALS' } },
+      }))
+      const phone = request.clientPhone?.S
+      if (phone && process.env.FITPESO_REQUEST_LOCKS_TABLE) await dynamodb.send(new UpdateItemCommand({
+        TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: phone } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } },
+      }))
+    }
+    return response(201, { submitted: true, validUntil, closed: Number(updated.Item?.proposalCount?.N ?? 0) >= 5 })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'A solicitação encerrou, atingiu o limite de propostas ou você já enviou uma proposta.' })
+    console.error('[imc-submit] Trainer proposal failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível enviar a proposta agora.' })
+  }
+}
+
+async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  if (!requestTable || !proposalsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const result = await dynamodb.send(new QueryCommand({ TableName: requestTable, IndexName: 'RequestsByCustomer', KeyConditionExpression: '#phone = :phone', ExpressionAttributeNames: { '#phone': 'clientPhone' }, ExpressionAttributeValues: { ':phone': { S: auth.profile!.whatsapp } }, ScanIndexForward: false, Limit: 30 }))
+    const now = Math.floor(Date.now() / 1000)
+    const requests = await Promise.all((result.Items ?? []).map(async item => {
+      const requestId = item.requestId?.S ?? ''
+      const result = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
+      const proposals = (result.Items ?? []).map(proposal => ({ trainerId: proposal.trainerId?.S ?? '', name: proposal.trainerName?.S ?? '', whatsapp: proposal.trainerWhatsapp?.S ?? '', ...(proposal.trainerInstagram?.S ? { instagram: proposal.trainerInstagram.S } : {}), monthlyPrice: Number(proposal.monthlyPrice?.N ?? 0), message: proposal.message?.S ?? '', status: proposal.status?.S ?? '', validUntil: Number(proposal.validUntil?.N ?? 0), expired: Number(proposal.validUntil?.N ?? 0) <= now }))
+      return { ...deserializeFitpesoRequest(item), lifecycle: item.lifecycle?.S ?? 'OPEN', proposalCount: Number(item.proposalCount?.N ?? proposals.length), requestExpired: Number(item.validUntil?.N ?? 0) <= now, proposals }
+    }))
+    return response(200, { requests })
+  } catch (error) {
+    console.error('[imc-submit] Customer requests lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível carregar suas solicitações.' })
+  }
+}
+
+async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestId = event.pathParameters?.requestId?.trim() ?? ''
+  const trainerId = typeof data?.trainerId === 'string' ? data.trainerId : ''
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Proposta inválida.' })
+  const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  const atendimentosTable = process.env.FITPESO_ATENDIMENTOS_TABLE
+  if (!requestTable || !proposalsTable || !atendimentosTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const requestResult = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: requestId } }, ConsistentRead: true }))
+    const request = requestResult.Item
+    const proposalResult = await dynamodb.send(new GetItemCommand({ TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: trainerId } }, ConsistentRead: true }))
+    const proposal = proposalResult.Item
+    if (!request || request.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (!proposal || proposal.status?.S !== 'OPEN' || Number(proposal.validUntil?.N ?? 0) <= now || Number(request.validUntil?.N ?? 0) <= now || request.lifecycle?.S === 'ACCEPTED') return response(409, { error: 'Esta proposta não está mais disponível.' })
+    const all = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
+    const updates = (all.Items ?? []).flatMap(item => {
+      const proposalTrainerId = item.trainerId?.S
+      if (!proposalTrainerId || item.status?.S !== 'OPEN') return []
+      return [{ Update: { TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: proposalTrainerId } }, UpdateExpression: 'SET #status = :status', ConditionExpression: '#status = :open', ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ':status': { S: proposalTrainerId === trainerId ? 'ACCEPTED' : 'NOT_SELECTED' }, ':open': { S: 'OPEN' } } } }]
+    })
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: { TableName: requestTable, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET lifecycle = :accepted, acceptedAt = :nowIso, acceptedTrainerId = :trainerId REMOVE expiresAt', ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle IN (:open, :closed)', ExpressionAttributeValues: { ':accepted': { S: 'ACCEPTED' }, ':nowIso': { S: new Date(now * 1000).toISOString() }, ':trainerId': { S: trainerId }, ':phone': { S: auth.profile!.whatsapp }, ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } } } },
+      { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: auth.profile!.whatsapp }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
+      ...updates,
+    ] }))
+    if (process.env.FITPESO_REQUEST_LOCKS_TABLE) await dynamodb.send(new UpdateItemCommand({ TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: auth.profile!.whatsapp } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } } }))
+    return response(200, { accepted: true, acceptedAt: new Date(now * 1000).toISOString() })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'A solicitação ou proposta já foi encerrada.' })
+    console.error('[imc-submit] Proposal acceptance failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível aceitar a proposta agora.' })
+  }
+}
+
+async function listAcceptedNotifications(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const result = await dynamodb.send(new QueryCommand({ TableName: tableName, IndexName: 'RequestsByStatus', KeyConditionExpression: '#status = :processed', ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ':processed': { S: 'PROCESSED' } }, Limit: 100 }))
+    const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+    if (!proposalsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    const requests = await Promise.all((result.Items ?? []).filter(item => item.lifecycle?.S === 'ACCEPTED' && item.acceptanceNotified?.BOOL !== true).map(async item => {
+      const requestId = item.requestId?.S ?? ''
+      const trainerId = item.acceptedTrainerId?.S ?? ''
+      if (!requestId || !trainerId) return null
+      const proposalResult = await dynamodb.send(new GetItemCommand({ TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: trainerId } }, ConsistentRead: true }))
+      return { requestId, trainerId, clientPhone: item.clientPhone?.S ?? '', clientName: item.clientName?.S ?? '', trainerWhatsapp: proposalResult.Item?.trainerWhatsapp?.S ?? '' }
+    }))
+    return response(200, { requests: requests.filter((item): item is NonNullable<typeof item> => Boolean(item?.trainerWhatsapp)) })
+  } catch (error) {
+    console.error('[imc-submit] Acceptance notification lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar os aceites.' })
+  }
+}
+
+async function markAcceptanceNotified(requestId: string) {
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!tableName || !/^[0-9a-f-]{36}$/i.test(requestId)) return response(400, { notified: false })
+  try {
+    await dynamodb.send(new UpdateItemCommand({ TableName: tableName, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET acceptanceNotified = :yes', ConditionExpression: 'lifecycle = :accepted', ExpressionAttributeValues: { ':yes': { BOOL: true }, ':accepted': { S: 'ACCEPTED' } } }))
+    return response(200, { notified: true })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { notified: false })
+    return response(503, { notified: false })
+  }
 }
 
 async function sendRequestEmail(data: Record<string, unknown>, code: string) {
@@ -1324,6 +1585,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return getCustomerVerificationStatus(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/eligible')) return listEligibleTrainers(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/customers/requests')) return listCustomerRequests(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposals')) return submitTrainerProposal(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/accept')) return acceptTrainerProposal(event, parseBody(event))
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/accepted-notifications')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return listAcceptedNotifications(event)
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/acceptance-notified')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return markAcceptanceNotified(event.pathParameters?.requestId?.trim() ?? '')
+  }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-whatsapp')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
@@ -1395,9 +1670,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (event.resource === '/api/requests') {
     const request = parseBody(event)
-    if (!isValidRequest(request)) return response(400, { error: 'Confira os dados e o consentimento.' })
+    if (!request) return response(400, { error: 'Confira os dados do atendimento.' })
     try {
-      return await createFitpesoRequest(request!)
+      return await createFitpesoRequest(event, request!)
     } catch (error) {
       console.error('[imc-submit] Fitpeso request registration failed', {
         errorClass: error instanceof Error ? error.name : typeof error,

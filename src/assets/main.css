@@ -329,6 +329,16 @@ html[data-theme='dark'] .theme-switch button.active { border-color: #f2a04b; col
 html[data-theme='dark'] .success-dialog { border-color: #34443a; background: #1b2720; }
 html[data-theme='dark'] .success-dialog p { color: #bdc9bf; }
 
+.customer-request-card, .customer-proposal-card { display: grid; gap: 12px; margin: 18px 0; padding: 18px; border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: #fff; }
+.customer-request-card h2, .customer-proposal-card h3, .customer-request-card p, .customer-proposal-card p { margin: 0; }
+.customer-proposal-card { margin: 12px 0; background: #f8faff; }
+.proposal-contact-links { display: flex; flex-wrap: wrap; gap: 16px; }
+.proposal-contact-links a { color: var(--blue-dark); font-weight: 650; }
+.field textarea { width: 100%; min-height: 110px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: #fff; font: inherit; resize: vertical; }
+html[data-theme='dark'] .customer-request-card, html[data-theme='dark'] .customer-proposal-card { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
+html[data-theme='dark'] .proposal-contact-links a { color: #f6ae61; }
+html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
+
 @media (max-width: 520px) {
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }
