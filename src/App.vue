@@ -1953,7 +1953,7 @@ async function sendResult() {
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
         <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title">Solicitar atendimento</h2>
-        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Encontre seu personal</h1>
+        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">Encontre apoio para seus objetivos</h1>
         <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
         <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">Apoio profissional faz a diferença</p>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
