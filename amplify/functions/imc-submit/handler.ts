@@ -1,3 +1,4 @@
+import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -1772,6 +1773,10 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  // Progressive signup is isolated: the existing registration/login remains unchanged.
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/verify-phone')) return verifyPhoneSignupFromBeta(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login-status')) return getTrainerLoginStatus(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/verify-login')) {
