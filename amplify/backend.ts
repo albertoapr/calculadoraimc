@@ -132,7 +132,7 @@ const apiResource = api.root.addResource('api')
 const apiLambdaInvokeRole = new iam.Role(apiStack, 'ApiGatewayInvokeImcSubmitRole', {
   assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com').withConditions({
     StringEquals: { 'aws:SourceAccount': Stack.of(api).account },
-    ArnLike: { 'aws:SourceArn': api.arnForExecuteApi('*', '*', '*') },
+    ArnLike: { 'aws:SourceArn': api.arnForExecuteApi() },
   }),
 })
 apiLambdaInvokeRole.addToPolicy(new iam.PolicyStatement({
