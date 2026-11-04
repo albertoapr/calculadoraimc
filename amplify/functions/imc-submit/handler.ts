@@ -1778,7 +1778,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-login')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
-    return verifyCustomerLogin(parseBody(event))
+    const loginData = parseBody(event)
+    const code = typeof loginData?.code === 'string' ? loginData.code.trim() : ''
+    if (!/^[A-Za-z0-9_-]{22}$/.test(code)) return response(200, { verified: false })
+    const codesTable = process.env.IMC_REQUESTS_TABLE
+    if (!codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    try {
+      const challenge = await dynamodb.send(new GetItemCommand({
+        TableName: codesTable, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+      }))
+      if (challenge.Item?.flow?.S === 'fitpeso-trainer-login') return verifyTrainerLogin(loginData)
+      if (challenge.Item?.flow?.S === 'fitpeso-customer-login') return verifyCustomerLogin(loginData)
+      return response(200, { verified: false })
+    } catch (error) {
+      console.error('[imc-submit] WhatsApp login verification routing failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Não foi possível confirmar o login agora.' })
+    }
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
