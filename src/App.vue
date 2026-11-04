@@ -1690,8 +1690,8 @@ async function sendResult() {
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
       <div v-if="viewMode === 'home' && isRootHome" class="customer-account-links">
-        <button type="button" @click="openCustomerLogin()">Login</button>
-        <span aria-hidden="true">|</span>
+        <button v-if="!customerSignedInEmail" type="button" @click="openCustomerLogin()">Login</button>
+        <span v-if="!customerSignedInEmail" aria-hidden="true">|</span>
         <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
         <template v-if="customerSignedInEmail"><span aria-hidden="true">|</span><button type="button" @click="openCustomerRequests">Minhas solicitações</button></template>
       </div>
