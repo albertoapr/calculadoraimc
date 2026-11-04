@@ -1407,23 +1407,6 @@ async function startCustomerWhatsAppLogin() {
   }
 }
 
-async function chooseCustomerWhatsAppLogin() {
-  customerLoginMethod.value = 'whatsapp'
-  customerLoginStatus.value = ''
-  customerLoginError.value = ''
-  await nextTick()
-  document.getElementById('customer-login-whatsapp')?.focus()
-}
-
-async function chooseCustomerGoogleLogin() {
-  customerLoginMethod.value = 'google'
-  customerLoginStatus.value = ''
-  customerLoginError.value = ''
-  await nextTick()
-  await renderGoogleButton('client')
-}
-
-
 function continueLoginIdentifier() {
   emailLoginError.value = ''
   customerLoginError.value = ''
@@ -1547,8 +1530,11 @@ async function pollEmailLogin() {
       emailLoginPending.value = false
       emailLoginPollTimer = undefined
       showCustomerLogin.value = false
-      goHome()
-      if (!trainer) await returnToRequestFormAfterLogin()
+      if (!trainer && requestLoginReturn.value) {
+        await returnToRequestFormAfterLogin()
+      } else {
+        goHome()
+      }
       return
     }
   } catch {
