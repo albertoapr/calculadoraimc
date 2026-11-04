@@ -1907,8 +1907,15 @@ async function sendResult() {
 
     <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
       <div v-if="viewMode === 'home' && isRootHome && !result" class="fitpeso-home-topbar">
-        <div class="fitpeso-home-brand" aria-label="FitPeso">
-          <span class="brand-fit">Fit</span><span class="brand-peso">Peso</span>
+        <div class="fitpeso-home-brand" aria-label="FitPeso — Rede de treinadores">
+          <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
+            <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
+          </svg>
+          <span class="brand-lockup">
+            <span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span>
+            <small class="brand-tagline">Rede de treinadores</small>
+          </span>
         </div>
         <nav class="customer-account-links" aria-label="Conta do usuário">
           <template v-if="trainerSignedInId || customerSignedInEmail">
