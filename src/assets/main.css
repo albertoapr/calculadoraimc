@@ -218,6 +218,26 @@ footer img { width: 24px; height: 24px; }
 .customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
 .customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 2px solid #a8c7ff; outline-offset: 3px; }
 .customer-signup-intro { margin-bottom: 20px; font-size: 15px; }
+
+/* Login progressivo: formulário legível, checkbox discreto e etapas bem separadas. */
+.login-screen .intro { max-width: 350px; margin-bottom: 20px; font-size: 15px; }
+.login-step-form { width: 100%; max-width: 440px; margin-inline: auto; }
+.login-profile-option { display: flex; align-items: center; justify-content: flex-start; gap: 10px; margin: 0; padding: 7px 2px; cursor: pointer; color: var(--ink); font-size: 14px; font-weight: 600; }
+.login-profile-option input[type='checkbox'] { appearance: auto; display: inline-block; flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; border-radius: 4px; accent-color: #28a67e; cursor: pointer; }
+.login-profile-option span { line-height: 1.4; }
+.login-google-alternative { display: grid; justify-items: center; gap: 12px; margin-top: 3px; color: var(--muted); font-size: 13px; }
+.login-google-alternative .google-button-container { display: flex; justify-content: center; width: 100%; }
+.login-second-step { display: grid; gap: 20px; max-width: 440px; margin-inline: auto; }
+.login-identity-summary { display: grid; gap: 4px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--blue) 5%, transparent); overflow-wrap: anywhere; }
+.login-identity-summary span { color: var(--muted); font-size: 12px; font-weight: 600; }
+.login-identity-summary strong { color: var(--ink); font-size: 15px; }
+.login-identity-summary button { justify-self: start; padding: 4px 0; border: 0; background: transparent; color: var(--blue-dark); font-size: 13px; font-weight: 700; cursor: pointer; }
+.login-step-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.login-email-waiting { display: grid; justify-items: center; gap: 13px; color: var(--ink); text-align: center; }
+.login-email-waiting h2 { font-size: 22px; }
+.login-email-waiting p { margin: 0; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.login-email-waiting strong { color: var(--ink); }
+
 .customer-signup-confirmation { display: grid; gap: 12px; }
 .customer-signup-confirmation > small { color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .secondary-button { min-height: 46px; padding: 11px 16px; border: 1px solid var(--blue); border-radius: 12px; color: var(--blue-dark); background: transparent; font-size: 15px; font-weight: 700; }
