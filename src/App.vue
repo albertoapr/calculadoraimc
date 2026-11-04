@@ -131,6 +131,7 @@ const trainerForm = reactive({
   slug: '',
   phone: '',
   email: '',
+  dateOfBirth: '',
   cities: [] as string[],
   instagram: '',
   cref: '',
@@ -159,6 +160,9 @@ const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
 const showTrainerLogin = ref(false)
 const trainerLoginWhatsApp = ref('')
+const trainerLoginBirthDate = ref('')
+const trainerLoginBirthDateText = ref('')
+const trainerLoginDatePicker = ref<HTMLInputElement | null>(null)
 const trainerLoginCode = ref('')
 const trainerLoginToken = ref('')
 const trainerLoginStatus = ref('')
@@ -675,6 +679,7 @@ async function sendTrainerSignup() {
   const slug = trainerForm.slug.trim().toLowerCase()
   const phone = normalizeBrazilianPhone(trainerForm.phone)
   const email = trainerForm.email.trim().toLowerCase()
+  const dateOfBirth = trainerForm.dateOfBirth
   const instagram = normalizeInstagramHandle(trainerForm.instagram)
   const cref = trainerForm.cref.trim()
   const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda']
@@ -682,6 +687,7 @@ async function sendTrainerSignup() {
   if (!name) validationError = 'Informe seu nome completo.'
   else if (sex !== 'masculino' && sex !== 'feminino') validationError = 'Selecione Masculino ou Feminino.'
   else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
+  else if (!isValidLoginBirthDate(dateOfBirth)) validationError = 'Informe uma data de nascimento válida.'
   else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
     validationError = 'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
   } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
@@ -705,7 +711,7 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, sex, slug, whatsapp: phone, dateOfBirth, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
     const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
@@ -1000,10 +1006,60 @@ function openTrainerLogin() {
   void nextTick(() => window.scrollTo(0, 0))
 }
 
+
+function isValidLoginBirthDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+  const parsed = new Date(date + 'T00:00:00.000Z')
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date &&
+    date >= '1900-01-01' && date <= new Date().toISOString().slice(0, 10)
+}
+
+function parseTrainerLoginBirthDate() {
+  const typed = trainerLoginBirthDateText.value.trim()
+  if (!typed) return trainerLoginBirthDate.value
+  const match = typed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return match ? match[3] + '-' + match[2] + '-' + match[1] : ''
+}
+
+function maskTrainerLoginBirthDate(event: Event) {
+  trainerLoginError.value = ''
+  const digits = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 8)
+  trainerLoginBirthDateText.value = digits.length > 4
+    ? digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4)
+    : digits.length > 2 ? digits.slice(0, 2) + '/' + digits.slice(2) : digits
+  trainerLoginBirthDate.value = ''
+}
+
+function selectTrainerLoginBirthDate(event: Event) {
+  trainerLoginError.value = ''
+  const value = (event.target as HTMLInputElement).value
+  trainerLoginBirthDate.value = value
+  if (value) {
+    const [year, month, day] = value.split('-')
+    trainerLoginBirthDateText.value = day + '/' + month + '/' + year
+  } else trainerLoginBirthDateText.value = ''
+}
+
+function openTrainerLoginDatePicker() {
+  const picker = trainerLoginDatePicker.value as (HTMLInputElement & { showPicker?: () => void }) | null
+  if (!picker) return
+  try {
+    if (picker.showPicker) picker.showPicker()
+    else picker.click()
+  } catch {
+    picker.click()
+  }
+}
+
 async function startTrainerWhatsAppLogin() {
   if (trainerLoginSubmitting.value) return
   const whatsapp = normalizeBrazilianPhone(trainerLoginWhatsApp.value)
   if (!whatsapp) { trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'; return }
+  const dateOfBirth = parseTrainerLoginBirthDate()
+  if (!isValidLoginBirthDate(dateOfBirth)) {
+    trainerLoginError.value = 'Informe uma data de nascimento válida.'
+    return
+  }
   if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
   trainerLoginSubmitting.value = true
   trainerLoginError.value = ''
@@ -1014,7 +1070,7 @@ async function startTrainerWhatsAppLogin() {
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/trainers/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ whatsapp, sessionToken: token }),
+      body: JSON.stringify({ whatsapp, dateOfBirth, sessionToken: token }),
     })
     const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
@@ -1024,7 +1080,7 @@ async function startTrainerWhatsAppLogin() {
     trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode)
     trainerLoginDialog.value = true
     trainerLoginStartedAt = Date.now()
-    trainerLoginStatus.value = 'Envie o código pelo WhatsApp para confirmar sua identidade.'
+    trainerLoginStatus.value = 'Toque no botão da janela para enviar a mensagem à Beta pelo WhatsApp. Depois, aguarde a confirmação automática.'
     trainerLoginPollTimer = window.setTimeout(() => void pollTrainerWhatsAppLogin(), 1000)
   } catch (error) {
     trainerLoginError.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login.'
@@ -1413,6 +1469,9 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
           <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
+        <label class="field field-wide" for="trainer-birth-date"><span class="field-label">Data de nascimento</span>
+          <input id="trainer-birth-date" v-model="trainerForm.dateOfBirth" name="trainerBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        </label>
         <label class="field field-wide" for="trainer-email"><span class="field-label">E-mail <span>opcional</span></span>
           <input id="trainer-email" v-model="trainerForm.email" name="trainerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
         </label>
@@ -1453,6 +1512,16 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-login-whatsapp">
           <span class="field-label">WhatsApp com DDD</span>
           <input id="trainer-login-whatsapp" v-model="trainerLoginWhatsApp" name="trainerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="(21) 99999-9999" @input="trainerLoginError = ''">
+        </label>
+        <label class="field field-wide" for="trainer-login-birth-date-text">
+          <span class="field-label">Data de nascimento</span>
+          <span class="date-input-with-picker">
+            <input id="trainer-login-birth-date-text" v-model="trainerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Data de nascimento do personal, dia mês e ano" @input="maskTrainerLoginBirthDate">
+            <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openTrainerLoginDatePicker">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            </button>
+            <input ref="trainerLoginDatePicker" class="date-picker-native" type="date" :value="trainerLoginBirthDate" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectTrainerLoginBirthDate">
+          </span>
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="trainerLoginSubmitting">{{ trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
       </form>
