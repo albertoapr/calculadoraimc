@@ -45,6 +45,8 @@ button { cursor: pointer; }
 .personal-trainer-brand { display: inline-flex; max-width: 100%; align-items: baseline; justify-content: center; flex-wrap: wrap; column-gap: .35em; row-gap: 2px; font-family: Manrope, sans-serif; font-size: clamp(19px, 5vw, 25px); font-weight: 800; line-height: 1.25; letter-spacing: -.025em; text-align: center; }
 .personal-trainer-first-name { color: #286b4e; overflow-wrap: anywhere; }
 .personal-trainer-role { color: #203e32; }
+/* No domínio do personal, o nome ocupa a chamada principal e herda seu tamanho. */
+.home-tagline .personal-trainer-home-title { width: 100%; font-size: inherit; line-height: inherit; letter-spacing: inherit; }
 html[data-theme='dark'] .personal-trainer-first-name { color: #55d6a3; }
 html[data-theme='dark'] .personal-trainer-role { color: #f1f5f3; }
 
