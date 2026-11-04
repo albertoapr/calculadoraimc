@@ -1011,18 +1011,6 @@ function changeLoginProfile() {
   trainerLoginCode.value = ''
 }
 
-function openTrainerLogin() {
-  showCustomerLogin.value = true
-  loginAsTrainer.value = true
-  customerLoginMethod.value = 'whatsapp'
-  changeLoginProfile()
-  trainerLoginError.value = ''
-  trainerLoginStatus.value = ''
-  trainerLoginDialog.value = false
-  void nextTick(() => window.scrollTo(0, 0))
-}
-
-
 function isValidLoginBirthDate(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
   const parsed = new Date(date + 'T00:00:00.000Z')
@@ -1485,7 +1473,7 @@ async function sendResult() {
         <hr class="personal-divider">
         <h1 id="customer-login-title">Login</h1>
         <p class="intro">Entre para carregar seus dados já cadastrados.</p>
-        <label class="field field-wide" for="login-as-trainer" style="display:flex;align-items:center;gap:0.6rem;justify-content:center;margin-top:1rem">
+        <label class="field field-wide" for="login-as-trainer" style="display:flex;align-items:center;gap:0.6rem;justify-content:center;margin-top:1rem;cursor:pointer">
           <input id="login-as-trainer" v-model="loginAsTrainer" type="checkbox" :disabled="requestLoginReturn" @change="changeLoginProfile">
           <span>Entrar como personal trainer</span>
         </label>
