@@ -170,6 +170,7 @@ const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
 const trainerRequestsStatus = ref('')
 let trainerLoginPollTimer: number | undefined
 let trainerLoginStartedAt = 0
+let sessionGeneration = 0
 const requestLoginReturn = ref(false)
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -478,6 +479,7 @@ window.addEventListener('hashchange', () => {
 })
 
 function logout() {
+  sessionGeneration += 1 // Invalida respostas de restauração de sessão ainda pendentes.
   // Remove todas as sessões locais, inclusive quando cliente e personal compartilham o WhatsApp.
   try {
     sessionStorage.removeItem('fitpeso-customer-session')
@@ -1343,20 +1345,35 @@ onMounted(() => {
   void loadTrainerRequest()
   try {
     const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
-    if (trainerToken) void loadTrainerSession(trainerToken).then(applyTrainerSession).catch(() => {
-      sessionStorage.removeItem('fitpeso-trainer-session')
-      trainerSignedInId.value = ''
-      trainerSignedInName.value = ''
-    })
+    if (trainerToken) {
+      const generation = sessionGeneration
+      void loadTrainerSession(trainerToken).then(profile => {
+        if (sessionGeneration === generation && sessionStorage.getItem('fitpeso-trainer-session') === trainerToken) {
+          applyTrainerSession(profile)
+        }
+      }).catch(() => {
+        if (sessionGeneration !== generation) return
+        sessionStorage.removeItem('fitpeso-trainer-session')
+        trainerSignedInId.value = ''
+        trainerSignedInName.value = ''
+      })
+    }
   } catch { /* armazenamento indisponível */ }
   try {
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
-    if (token) void loadCustomerProfile(token).then(applyCustomerProfile).catch(() => {
-      sessionStorage.removeItem('fitpeso-google-session')
-      sessionStorage.removeItem('fitpeso-customer-session')
-      customerSignedInEmail.value = ''
-      customerSignedInName.value = ''
-    })
+    if (token) {
+      const generation = sessionGeneration
+      void loadCustomerProfile(token).then(profile => {
+        const storedToken = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
+        if (sessionGeneration === generation && storedToken === token) applyCustomerProfile(profile)
+      }).catch(() => {
+        if (sessionGeneration !== generation) return
+        sessionStorage.removeItem('fitpeso-google-session')
+        sessionStorage.removeItem('fitpeso-customer-session')
+        customerSignedInEmail.value = ''
+        customerSignedInName.value = ''
+      })
+    }
   } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
 })
 
