@@ -150,7 +150,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
-    (sex === 'masculino' || sex === 'feminino') &&
+    (sex === 'masculino' || sex === 'feminino') && isValidBirthDate(data.dateOfBirth) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) &&
@@ -623,12 +623,25 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
 async function beginTrainerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
-  if (!whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) return response(400, { error: 'Informe um WhatsApp válido.' })
+  const dateOfBirth = data?.dateOfBirth
+  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe WhatsApp e data de nascimento válidos.' })
+  }
   const tableName = process.env.IMC_REQUESTS_TABLE
   if (!tableName) return response(503, { error: 'Serviço indisponível.' })
   try {
     const trainer = await findActiveTrainerByWhatsApp(whatsapp)
-    if (!trainer) return response(200, { started: false, error: 'Não foi possível localizar um cadastro ativo e confirmado para este WhatsApp.' })
+    if (!trainer) return response(200, { started: false, error: 'Não foi possível validar seu cadastro de personal. Confira os dados.' })
+    const trainerRecord = await dynamodb.send(new GetItemCommand({
+      TableName: process.env.TRAINERS_TABLE!, Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
+      ProjectionExpression: 'dateOfBirth', ConsistentRead: true,
+    }))
+    if (!trainerRecord.Item?.dateOfBirth?.S) return response(200, {
+      started: false, error: 'Seu cadastro ainda não possui data de nascimento. Solicite à Beta a atualização do cadastro para habilitar o login.',
+    })
+    if (trainerRecord.Item.dateOfBirth.S !== dateOfBirth) return response(200, {
+      started: false, error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento.',
+    })
     const code = randomBytes(16).toString('base64url')
     const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
     await dynamodb.send(new PutItemCommand({
@@ -859,6 +872,7 @@ async function registerTrainer(data: Record<string, unknown>) {
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
+  const dateOfBirth = String(data.dateOfBirth)
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const trainerId = randomBytes(16).toString('hex')
@@ -900,6 +914,7 @@ async function registerTrainer(data: Record<string, unknown>) {
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
+            dateOfBirth: { S: dateOfBirth },
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
             ...(cref ? { cref: { S: cref } } : {}),
