@@ -133,102 +133,126 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 const trainersResource = apiResource.addResource('trainers')
 trainersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 trainersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('verification-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('login-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('verify-login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 trainersResource.addResource('by-slug').addResource('{slug}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 trainersResource.addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 const requestsResource = apiResource.addResource('requests')
 requestsResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestsResource.addResource('trainer-view').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestsResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestsResource.addResource('valid').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestsResource.addResource('proposals').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestsResource.addResource('accepted-notifications').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 const requestIdResource = requestsResource.addResource('{requestId}')
 requestIdResource.addResource('processed').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestIdResource.addResource('accept').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 requestIdResource.addResource('acceptance-notified').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 trainersResource.addResource('eligible').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 customersResource.addResource('requests').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
   proxy: true,
   timeout: Duration.seconds(20),
+  allowTestInvoke: false,
 }))
 
 backend.addOutput({
