@@ -2,16 +2,18 @@
 
 :root {
   font-family: 'DM Sans', sans-serif;
-  color: #1b365d;
-  background: #f1f6fd;
+  color: #254538;
+  background: #e9eee7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --blue: #2563eb;
-  --blue-dark: #1d4ed8;
-  --ink: #163454;
-  --muted: #6b7f99;
-  --line: #dce6f2;
+  /* Identidade visual do tema claro: verde floresta e superfícies sem branco puro. */
+  --blue: #286b4e;
+  --blue-dark: #20543d;
+  --ink: #203e32;
+  --muted: #52695a;
+  --line: #c9d5c9;
+  --card-bg: #f2f4ee;
 }
 
 * { box-sizing: border-box; }
@@ -296,6 +298,76 @@ html[data-theme='dark'] .account-dropdown > summary { background: #1b2720; borde
 .theme-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #edf4ff; }
 .theme-switch button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
+
+/* Tema claro: baixo brilho, verde sóbrio e contraste preservado.
+   Estes ajustes nunca sobrescrevem o tema escuro. */
+html:not([data-theme='dark']) .page-shell {
+  background: radial-gradient(ellipse at 50% 0%, #e0e9dd 0%, #e9eee7 55%, #e5ece4 100%);
+}
+html:not([data-theme='dark']) .calculator {
+  border-color: #d6dfd3;
+  background: #f2f4ee;
+  box-shadow: 0 18px 48px rgba(31, 65, 43, .08);
+}
+html:not([data-theme='dark']) .brand-fit { color: #286b4e; }
+html:not([data-theme='dark']) .brand-peso { color: #263f33; }
+html:not([data-theme='dark']) .dumbbell-icon { fill: #d7e4d9; stroke: #286b4e; }
+html:not([data-theme='dark']) .personal-divider { border-top-color: #a0b6a6; }
+html:not([data-theme='dark']) .gender-tabs { background: #e2e9df; }
+html:not([data-theme='dark']) .gender-tab { color: #536d5b; }
+html:not([data-theme='dark']) .gender-tab.active { color: #fff; box-shadow: 0 2px 8px rgba(27, 84, 54, .18); }
+html:not([data-theme='dark']) .field,
+html:not([data-theme='dark']) .field-label,
+html:not([data-theme='dark']) .availability-group legend { color: #365343; }
+html:not([data-theme='dark']) .field-label > span,
+html:not([data-theme='dark']) .field input::placeholder { color: #667c6b; }
+html:not([data-theme='dark']) .field input,
+html:not([data-theme='dark']) .field select,
+html:not([data-theme='dark']) .field textarea,
+html:not([data-theme='dark']) .availability-option { border-color: var(--line); color: var(--ink); background: #eaf0e7; }
+html:not([data-theme='dark']) .field input:focus,
+html:not([data-theme='dark']) .field select:focus,
+html:not([data-theme='dark']) .field textarea:focus { border-color: #286b4e; box-shadow: 0 0 0 3px rgba(40, 107, 78, .16); }
+html:not([data-theme='dark']) .date-picker-button:focus-visible,
+html:not([data-theme='dark']) .back-button:focus-visible,
+html:not([data-theme='dark']) .primary-button:focus-visible,
+html:not([data-theme='dark']) .customer-account-links a:focus-visible,
+html:not([data-theme='dark']) .customer-account-links button:focus-visible,
+html:not([data-theme='dark']) .account-dropdown > summary:focus-visible { outline-color: #286b4e; }
+html:not([data-theme='dark']) .slider-adjust,
+html:not([data-theme='dark']) .back-button,
+html:not([data-theme='dark']) .trainer-contact-card { border-color: #bdd0bd; color: var(--blue-dark); background: #e5ece3; }
+html:not([data-theme='dark']) .slider-adjust:hover:not(:disabled),
+html:not([data-theme='dark']) .back-button:hover,
+html:not([data-theme='dark']) .trainer-contact-card:hover { border-color: #87ab90; background: #dbe7da; }
+html:not([data-theme='dark']) .field input.range-input::-webkit-slider-runnable-track { background: #c4d6c7; }
+html:not([data-theme='dark']) .field input.range-input::-moz-range-track { background: #c4d6c7; }
+html:not([data-theme='dark']) .body-fat-toggle,
+html:not([data-theme='dark']) .contact-opt-in,
+html:not([data-theme='dark']) .google-fill,
+html:not([data-theme='dark']) .body-fat-fields,
+html:not([data-theme='dark']) .request-customer-summary,
+html:not([data-theme='dark']) .result-card,
+html:not([data-theme='dark']) .bmi-summary { border-color: #cad9cb; color: #31523e; background: #e5ede3; }
+html:not([data-theme='dark']) .google-fill > p,
+html:not([data-theme='dark']) .google-fill > small,
+html:not([data-theme='dark']) .bmi-summary p { color: #47634f; }
+html:not([data-theme='dark']) .score { color: var(--blue); }
+html:not([data-theme='dark']) .silhouette-item.active { color: var(--blue-dark); background: #dce9d9; }
+html:not([data-theme='dark']) .trainer-request-details,
+html:not([data-theme='dark']) .customer-request-card,
+html:not([data-theme='dark']) .customer-proposal-card,
+html:not([data-theme='dark']) .success-dialog,
+html:not([data-theme='dark']) .account-dropdown-panel { border-color: #cbd8c9; background: #eff2ea; }
+html:not([data-theme='dark']) .google-login-link { background: #eef2eb; color: #254538; }
+html:not([data-theme='dark']) .google-login-link:hover { background: #e1eae0; }
+html:not([data-theme='dark']) .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #dbe8d9; }
+html:not([data-theme='dark']) .success-overlay { background: rgba(27, 53, 37, .48); }
+html:not([data-theme='dark']) .evaluation-overlay { background: rgba(27, 53, 37, .40); }
+html:not([data-theme='dark']) .evaluation-circle::before { background: #f2f4ee; }
+html:not([data-theme='dark']) .evaluation-circle { background: conic-gradient(var(--blue) var(--progress), #c7d9c9 var(--progress)); }
+html:not([data-theme='dark']) .account-dropdown > summary { background: #e4ece1; }
+html:not([data-theme='dark']) .primary-button { box-shadow: 0 3px 11px rgba(22, 75, 47, .12); }
 
 html[data-theme='dark'] {
   color-scheme: dark;
