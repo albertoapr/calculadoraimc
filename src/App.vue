@@ -146,6 +146,15 @@ const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
 const customerLoginStatus = ref('')
 const customerLoginError = ref('')
 const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
+const loginIdentifier = ref('')
+const loginStep = ref<1 | 2>(1)
+const loginIdentifierKind = ref<'whatsapp' | 'email'>('whatsapp')
+const emailLoginPending = ref(false)
+const emailLoginSubmitting = ref(false)
+const emailLoginError = ref('')
+const emailLoginSessionToken = ref('')
+let emailLoginPollTimer: number | undefined
+let emailLoginStartedAt = 0
 const customerLoginWhatsApp = ref('')
 const customerLoginBirthDate = ref('')
 const customerLoginBirthDateText = ref('')
@@ -502,6 +511,13 @@ function logout() {
   trainerSignedInName.value = ''
   loginAsTrainer.value = false
   customerLoginMethod.value = 'google'
+  loginStep.value = 1
+  loginIdentifier.value = ''
+  emailLoginPending.value = false
+  emailLoginError.value = ''
+  emailLoginSessionToken.value = ''
+  if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
+  emailLoginPollTimer = undefined
   customerLoginWhatsApp.value = ''
   customerLoginBirthDate.value = ''
   customerLoginBirthDateText.value = ''
@@ -541,6 +557,11 @@ function goHome() {
   showTrainerSignup.value = false
   showCustomerSignup.value = false
   showCustomerLogin.value = false
+  loginStep.value = 1
+  emailLoginPending.value = false
+  emailLoginError.value = ''
+  if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
+  emailLoginPollTimer = undefined
   if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
   trainerLoginPollTimer = undefined
   trainerLoginDialog.value = false
@@ -938,6 +959,10 @@ async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsa
   customerLoginError.value = ''
   googleProfileStatus.value = ''
   customerLoginMethod.value = method
+  loginStep.value = 1
+  loginIdentifier.value = ''
+  emailLoginPending.value = false
+  emailLoginError.value = ''
   if (fromRequest) showRequestForm.value = false
   showCustomerLogin.value = true
   await nextTick()
@@ -1150,6 +1175,11 @@ async function saveMyProfile() {
 }
 
 function changeLoginProfile() {
+  loginStep.value = 1
+  emailLoginPending.value = false
+  emailLoginError.value = ''
+  if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
+  emailLoginPollTimer = undefined
   // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
   customerLoginMethod.value = 'whatsapp'
   customerLoginError.value = ''
@@ -1391,6 +1421,146 @@ async function chooseCustomerGoogleLogin() {
   customerLoginError.value = ''
   await nextTick()
   await renderGoogleButton('client')
+}
+
+
+function continueLoginIdentifier() {
+  emailLoginError.value = ''
+  customerLoginError.value = ''
+  trainerLoginError.value = ''
+  const typed = loginIdentifier.value.trim()
+  if (typed.includes('@')) {
+    const email = typed.toLowerCase()
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailLoginError.value = 'Informe um endereço de e-mail válido.'
+      return
+    }
+    loginIdentifier.value = email
+    loginIdentifierKind.value = 'email'
+  } else {
+    const phone = normalizeBrazilianPhone(typed)
+    if (!phone) {
+      emailLoginError.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
+      return
+    }
+    loginIdentifierKind.value = 'whatsapp'
+    customerLoginWhatsApp.value = phone
+    loginIdentifier.value = phone
+  }
+  loginStep.value = 2
+  customerLoginBirthDate.value = ''
+  customerLoginBirthDateText.value = ''
+  void nextTick(() => document.getElementById('customer-login-birth-date-text')?.focus())
+}
+
+function returnToLoginIdentifier() {
+  loginStep.value = 1
+  emailLoginPending.value = false
+  emailLoginError.value = ''
+  customerLoginError.value = ''
+  trainerLoginError.value = ''
+  if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
+  emailLoginPollTimer = undefined
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = undefined
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginPollTimer = undefined
+  showCustomerLoginDialog.value = false
+  trainerLoginDialog.value = false
+  emailLoginSessionToken.value = ''
+  customerLoginCode.value = ''
+  trainerLoginCode.value = ''
+  void nextTick(() => {
+    document.getElementById('login-identifier')?.focus()
+    void renderGoogleButton('client')
+  })
+}
+
+async function submitIdentityLogin() {
+  if (loginIdentifierKind.value === 'email') {
+    await startEmailLogin()
+  } else if (loginAsTrainer.value) {
+    await startTrainerWhatsAppLogin()
+  } else {
+    await startCustomerWhatsAppLogin()
+  }
+}
+
+async function startEmailLogin() {
+  if (emailLoginSubmitting.value || emailLoginPending.value) return
+  emailLoginError.value = ''
+  const dateOfBirth = customerLoginBirthDateISO()
+  if (!isValidLoginBirthDate(dateOfBirth)) {
+    emailLoginError.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  emailLoginSubmitting.value = true
+  try {
+    const bytes = crypto.getRandomValues(new Uint8Array(32))
+    const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/customers/start-email-login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: loginIdentifier.value, dateOfBirth, sessionToken: token, asTrainer: loginAsTrainer.value }),
+    })
+    const body = await response.json() as { started?: boolean; error?: string }
+    if (!response.ok || body.started !== true) throw new Error(body.error || 'Não foi possível enviar a confirmação.')
+    emailLoginSessionToken.value = token
+    emailLoginPending.value = true
+    emailLoginStartedAt = Date.now()
+    scheduleEmailLoginPoll(1500)
+  } catch (error) {
+    emailLoginError.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login por e-mail.'
+  } finally {
+    emailLoginSubmitting.value = false
+  }
+}
+
+function scheduleEmailLoginPoll(delayMs = 3000) {
+  if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
+  emailLoginPollTimer = window.setTimeout(() => void pollEmailLogin(), delayMs)
+}
+
+async function pollEmailLogin() {
+  if (!showCustomerLogin.value || !emailLoginPending.value || !emailLoginSessionToken.value) return
+  const token = emailLoginSessionToken.value
+  const trainer = loginAsTrainer.value
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/customers/email-login-status', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ sessionToken: token, role: trainer ? 'trainer' : 'customer' }),
+    })
+    const body = await response.json() as { authenticated?: boolean; error?: string }
+    if (response.ok && body.authenticated === true) {
+      if (trainer) {
+        const profile = await loadTrainerSession(token)
+        sessionStorage.setItem('fitpeso-trainer-session', token)
+        applyTrainerSession(profile)
+      } else {
+        const profile = await loadCustomerProfile(token)
+        sessionStorage.setItem('fitpeso-customer-session', token)
+        sessionStorage.removeItem('fitpeso-google-session')
+        applyCustomerProfile(profile)
+      }
+      emailLoginPending.value = false
+      emailLoginPollTimer = undefined
+      showCustomerLogin.value = false
+      goHome()
+      if (!trainer) await returnToRequestFormAfterLogin()
+      return
+    }
+  } catch {
+    // Erros transitórios não interrompem a confirmação.
+  }
+  if (Date.now() - emailLoginStartedAt > 15 * 60 * 1000) {
+    emailLoginPending.value = false
+    emailLoginError.value = 'O link expirou. Volte e solicite outro acesso por e-mail.'
+    emailLoginPollTimer = undefined
+    return
+  }
+  scheduleEmailLoginPoll()
 }
 
 function customerLoginBirthDateISO() {
@@ -1635,50 +1805,75 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
-    <section v-else-if="showCustomerLogin" class="calculator customer-signup" aria-labelledby="customer-login-title">
+    <section v-else-if="showCustomerLogin" class="calculator customer-signup login-screen" aria-labelledby="customer-login-title">
       <header class="hero">
         <div class="brand" :aria-label="personalName">
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <hr class="personal-divider">
         <h1 id="customer-login-title">Login</h1>
-        <p class="intro">Entre para carregar seus dados já cadastrados.</p>
-        <label class="field field-wide" for="login-as-trainer" style="display:flex;align-items:center;gap:0.6rem;justify-content:center;margin-top:1rem;cursor:pointer">
+        <p class="intro">{{ loginStep === 1 ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.' : 'Confirme seus dados para continuar.' }}</p>
+      </header>
+
+      <form v-if="loginStep === 1" class="form login-step-form" @submit.prevent="continueLoginIdentifier">
+        <label class="field field-wide" for="login-identifier">
+          <span class="field-label">WhatsApp ou e-mail</span>
+          <input id="login-identifier" v-model="loginIdentifier" type="text" inputmode="email" autocomplete="username" maxlength="254" placeholder="(21) 99999-9999 ou seu@email.com" required @input="emailLoginError = ''">
+        </label>
+        <label class="login-profile-option field-wide" for="login-as-trainer">
           <input id="login-as-trainer" v-model="loginAsTrainer" type="checkbox" :disabled="requestLoginReturn" @change="changeLoginProfile">
           <span>Entrar como personal trainer</span>
         </label>
-      </header>
-      <p v-if="(loginAsTrainer ? trainerLoginError : customerLoginError) && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ loginAsTrainer ? trainerLoginError : customerLoginError }}</p>
-      <div v-if="customerLoginMethod === 'google' && !loginAsTrainer" class="google-fill field-wide">
-        <p>Acesse com sua conta Google</p>
-        <div ref="googleButtonContainer" class="google-button-container"></div>
-        <button class="secondary-button" type="button" @click="chooseCustomerWhatsAppLogin">Entrar com WhatsApp</button>
-      </div>
-      <form v-else class="form" @submit.prevent="loginAsTrainer ? startTrainerWhatsAppLogin() : startCustomerWhatsAppLogin()">
-        <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
-          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''; trainerLoginError = ''">
-        </label>
-        <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
-          <span class="date-input-with-picker">
-            <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia, mês e ano" @input="maskCustomerLoginBirthDate">
-            <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openCustomerLoginDatePicker">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>
-            </button>
-            <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
-          </span>
-        </label>
-        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting">{{ customerLoginSubmitting || trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
-        <button v-if="!loginAsTrainer" class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
+        <p v-if="emailLoginError" class="login-validation-error field-wide" role="alert">{{ emailLoginError }}</p>
+        <button class="primary-button field-wide" type="submit">Continuar</button>
+        <div v-if="!loginAsTrainer" class="login-google-alternative field-wide">
+          <span>ou</span>
+          <div ref="googleButtonContainer" class="google-button-container"></div>
+        </div>
       </form>
-      <small v-if="loginAsTrainer ? trainerLoginStatus : customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ loginAsTrainer ? trainerLoginStatus : customerLoginStatus }}</small>
-      <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
-      <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
+
+      <div v-else class="login-second-step">
+        <div class="login-identity-summary">
+          <span>{{ loginIdentifierKind === 'whatsapp' ? 'WhatsApp' : 'E-mail' }}</span>
+          <strong>{{ loginIdentifier }}</strong>
+          <button type="button" @click="returnToLoginIdentifier">Alterar</button>
+        </div>
+        <form v-if="!emailLoginPending" class="form login-step-form" @submit.prevent="submitIdentityLogin">
+          <label class="field field-wide" for="customer-login-birth-date-text">
+            <span class="field-label">Data de nascimento</span>
+            <span class="date-input-with-picker">
+              <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia mês e ano" required @input="maskCustomerLoginBirthDate">
+              <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openCustomerLoginDatePicker">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>
+              </button>
+              <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
+            </span>
+          </label>
+          <p v-if="loginIdentifierKind === 'whatsapp'" class="login-step-note field-wide">Após continuar, você enviará uma mensagem para a Beta pelo WhatsApp. A confirmação será automática.</p>
+          <p v-else class="login-step-note field-wide">Enviaremos um link de confirmação para seu e-mail. Sua conta só será acessada após confirmar o link.</p>
+          <p v-if="loginIdentifierKind === 'email' ? emailLoginError : (loginAsTrainer ? trainerLoginError : customerLoginError)" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ loginIdentifierKind === 'email' ? emailLoginError : (loginAsTrainer ? trainerLoginError : customerLoginError) }}</p>
+          <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting">
+            {{ customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting ? 'Preparando acesso…' : loginIdentifierKind === 'email' ? 'Enviar link para meu e-mail' : 'Confirmar pelo WhatsApp' }}
+          </button>
+          <button class="back-button field-wide" type="button" @click="returnToLoginIdentifier">Voltar</button>
+        </form>
+        <div v-else class="login-email-waiting" role="status" aria-live="polite">
+          <h2>Confira seu e-mail</h2>
+          <p>Enviamos um link de confirmação para <strong>{{ loginIdentifier }}</strong>.</p>
+          <p>Abra o link, confirme o acesso e volte para esta tela. A entrada será concluída automaticamente.</p>
+          <button class="secondary-button" type="button" @click="pollEmailLogin">Já confirmei meu e-mail</button>
+          <button class="back-button" type="button" @click="returnToLoginIdentifier">Voltar</button>
+        </div>
+      </div>
+
+      <button v-if="loginStep === 1" class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
+      <button class="back-button" type="button" @click="closeCustomerLogin">Voltar ao início</button>
       <div v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog" class="success-overlay" role="presentation">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="customer-login-confirm-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="customer-login-confirm-title">Confirme seu login</h2>
-          <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
-          <a v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" class="primary-button customer-verification-link" :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <p>Toque no botão e envie a mensagem com o código para a Beta no WhatsApp. Depois, volte para esta tela e aguarde a confirmação automática.</p>
+          <a v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" class="primary-button customer-verification-link" :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar mensagem para a Beta</a>
           <button class="secondary-button" type="button" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Verificar agora</button>
         </section>
       </div>
