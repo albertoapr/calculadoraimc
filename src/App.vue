@@ -1021,7 +1021,7 @@ async function startTrainerWhatsAppLogin() {
     trainerLoginWhatsApp.value = whatsapp
     trainerLoginCode.value = body.verificationCode
     trainerLoginToken.value = token
-    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login personal FitPeso ' + body.verificationCode)
+    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode)
     trainerLoginDialog.value = true
     trainerLoginStartedAt = Date.now()
     trainerLoginStatus.value = 'Envie o código pelo WhatsApp para confirmar sua identidade.'
@@ -1442,26 +1442,28 @@ async function sendResult() {
 
     <section v-else-if="showTrainerLogin" class="calculator customer-signup" aria-labelledby="trainer-login-title">
       <header class="hero">
-        <div class="brand">FitPeso</div>
+        <div class="brand" aria-label="FitPeso">
+          <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
+        </div>
         <hr class="personal-divider">
         <h1 id="trainer-login-title">Login de personal trainer</h1>
-        <p class="intro">Entre com o WhatsApp cadastrado e confirmado como profissional.</p>
+        <p class="intro">Entre para carregar seu cadastro e consultar suas solicitações recebidas.</p>
       </header>
       <form class="form" @submit.prevent="startTrainerWhatsAppLogin">
         <label class="field field-wide" for="trainer-login-whatsapp">
           <span class="field-label">WhatsApp com DDD</span>
-          <input id="trainer-login-whatsapp" v-model="trainerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="(21) 99999-9999">
+          <input id="trainer-login-whatsapp" v-model="trainerLoginWhatsApp" name="trainerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="(21) 99999-9999" @input="trainerLoginError = ''">
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="trainerLoginSubmitting">{{ trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
       </form>
-      <p v-if="trainerLoginError" class="login-validation-error" role="alert">{{ trainerLoginError }}</p>
-      <p v-if="trainerLoginStatus" class="status" role="status">{{ trainerLoginStatus }}</p>
+      <p v-if="trainerLoginError" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ trainerLoginError }}</p>
+      <small v-if="trainerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ trainerLoginStatus }}</small>
       <button class="back-button" type="button" @click="goHome">Voltar ao início</button>
       <div v-if="trainerLoginDialog" class="success-overlay" role="presentation">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="trainer-confirm-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="trainer-confirm-title">Confirme seu login</h2>
-          <p>Envie o código pelo WhatsApp para a FitPeso e retorne a esta tela. A confirmação será automática.</p>
+          <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
           <a class="primary-button customer-verification-link" :href="trainerLoginLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
           <button class="secondary-button" type="button" @click="pollTrainerWhatsAppLogin">Verificar agora</button>
         </section>
