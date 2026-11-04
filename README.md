@@ -31,6 +31,17 @@ O perfil público pode ser acessado pelo link legado `https://fitpeso.com.br/p/<
 
 Sem o trecho `/p/<trainerId>`, a calculadora usa o título padrão **Beta Personal Trainer**. A tela inicial oferece acesso direto à avaliação, ao formulário de solicitação de personal e ao download do contato da Beta. Cadastros de profissionais são gravados como pendentes na tabela e não abrem WhatsApp; o consentimento explícito para compartilhar o contato do cliente continua obrigatório ao enviar uma solicitação.
 
+
+## Login de personal trainer por WhatsApp
+
+O frontend oferece **Sou personal**, com login pelo WhatsApp registrado. O login exige cadastro ativo com WhatsApp previamente confirmado. Ao iniciar o fluxo, a API retorna um código de uso único válido por 15 minutos, vinculado a uma sessão aleatória gerada pelo navegador. O usuário envia o código pelo WhatsApp da Beta; depois de validado, a sessão dura até 12 horas no armazenamento da aba.
+
+**Integração obrigatória no atendente/automação do WhatsApp:** quando chegar uma mensagem no formato `Confirmar login personal FitPeso <codigo>`, a automação precisa extrair o código e obter o número do remetente **diretamente dos metadados confiáveis do provedor**. Ela deve chamar `POST /api/trainers/verify-login` com JSON `{"code":"<codigo>","whatsapp":"<numero do remetente>"}` e cabeçalho `X-Fitpeso-Verification-Secret` com o secret `TRAINER_WHATSAPP_VERIFY_SECRET`. Esse segredo deve existir somente no backend da integração; **nunca** pode ser enviado ao navegador. Não aceite o número informado no texto da mensagem como prova de titularidade. Não use o endpoint público `login-status` para confirmar códigos.
+
+O login utiliza `POST /api/trainers/login`, `POST /api/trainers/login-status` e `POST /api/trainers/profile`. O painel `GET /api/trainers/received-requests` exige `Authorization: Bearer <sessionToken>`, valida a identidade na Lambda e só retorna solicitações válidas que contenham o identificador do profissional em `selectedTrainerIds`. Cada item fornece um link de proposta assinado e com validade restrita. Os códigos/sessões são mantidos na tabela DynamoDB existente, sem novos GSIs, para evitar alterações incompatíveis de índice.
+
+A atualização do código e do API Gateway **não configura automaticamente** o webhook do serviço de WhatsApp: sem a chamada de confirmação pela automação, o usuário ficará na tela aguardando a validação. Após o deploy, teste o fluxo ponta a ponta com um cadastro de personal ativo.
+
 ## Dados e privacidade
 
 Nome, WhatsApp, cidade, idade, objetivo e disponibilidade são enviados à Beta após consentimento explícito. Peso, altura, sexo e IMC permanecem no cálculo local e não são incluídos no e-mail da solicitação.
