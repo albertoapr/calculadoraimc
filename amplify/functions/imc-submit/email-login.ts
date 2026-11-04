@@ -125,24 +125,19 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
 
 export async function emailLoginStatus(event: APIGatewayProxyEvent) {
   const data = parse(event)
-  if (!validCode(data?.code) || !validCode(data?.sessionToken)) return reply(200, { authenticated: false })
+  if (!validCode(data?.sessionToken) || (data?.role !== 'trainer' && data?.role !== 'customer')) {
+    return reply(200, { authenticated: false })
+  }
   const table = process.env.IMC_REQUESTS_TABLE
   if (!table) return reply(503, { error: 'Serviço indisponível.' })
   try {
-    const challenge = (await db.send(new GetItemCommand({
-      TableName: table, Key: { codeHash: { S: digest(data.code) } }, ConsistentRead: true,
-    }))).Item
-    if (challenge?.flow?.S !== 'fitpeso-email-login' || challenge.sessionTokenHash?.S !== digest(data.sessionToken)) {
-      return reply(200, { authenticated: false })
-    }
-    const expired = Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)
     const session = (await db.send(new GetItemCommand({
       TableName: table, Key: { codeHash: { S: digest(data.sessionToken) } }, ConsistentRead: true,
     }))).Item
-    const authenticated = !expired && Boolean(challenge.consumedAt?.N) &&
-      session?.flow?.S === (challenge.role?.S === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session') &&
-      Number(session.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000)
-    return reply(200, { authenticated, expired })
+    return reply(200, {
+      authenticated: session?.flow?.S === (data.role === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session') &&
+        Number(session.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000),
+    })
   } catch {
     return reply(503, { error: 'Não foi possível consultar o login.' })
   }
