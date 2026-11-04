@@ -591,7 +591,7 @@ async function findActiveTrainerByWhatsApp(whatsapp: string) {
 
 async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
   const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
-  const token = authorization.match(/^Bearer\\s+([A-Za-z0-9_-]{43})$/i)?.[1] ?? ''
+  const token = authorization.match(/^Bearer\s+([A-Za-z0-9_-]{43})$/i)?.[1] ?? ''
   const codesTable = process.env.IMC_REQUESTS_TABLE
   const trainersTable = process.env.TRAINERS_TABLE
   if (!token) return { error: response(401, { error: 'Entre como personal para continuar.' }) }
@@ -742,7 +742,7 @@ async function listTrainerReceivedRequests(event: Parameters<APIGatewayProxyHand
           const expiresAt = Number(item.validUntil?.N ?? 0)
           if (!id || !expiresAt) continue
           requests.push({
-            requestId: id, clientName: (item.clientName?.S ?? '').split(/\\s+/)[0],
+            requestId: id, clientName: (item.clientName?.S ?? '').split(/\s+/)[0],
             city: item.city?.S ?? '', objective: item.objective?.S ?? '',
             createdAt: item.createdAt?.S ?? '', validUntil: expiresAt,
             lifecycle: item.lifecycle?.S ?? '', token: createTrainerRequestToken(id, trainerId, expiresAt),
@@ -1099,7 +1099,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
   })
 }
 
