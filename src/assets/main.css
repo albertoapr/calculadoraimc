@@ -211,16 +211,29 @@ footer { width: min(100%, 560px); margin: 17px auto 0; color: #228342; text-alig
 footer a { color: inherit; text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
-.trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
-.trainer-signup-link:hover { text-decoration: underline; }
-.customer-account-links { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin: -10px 0 22px; padding-bottom: 12px; border-bottom: 1px solid var(--line); color: var(--blue-dark); font-size: 16px; font-weight: 700; line-height: 1.3; }
-.customer-account-links a, .customer-account-links button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: 0; border-radius: 10px; color: inherit; background: transparent; font: inherit; text-decoration: none; cursor: pointer; }
-.customer-account-links a:hover, .customer-account-links button:hover { background: color-mix(in srgb, var(--blue) 10%, transparent); }
-.customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-.customer-account-links .account-name-button { margin-right: auto; min-width: 0; font-weight: 800; }
-.customer-account-links .account-name-button svg { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.customer-account-links .account-name-button span { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.customer-account-links .account-logout-button { color: var(--muted); }
+/* Barra superior da página inicial: marca à esquerda, acesso à direita. */
+.fitpeso-home-topbar { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 8px; }
+.fitpeso-home-brand { display: inline-flex; flex: 0 0 auto; align-items: baseline; font-family: Manrope, sans-serif; font-size: clamp(23px, 5vw, 29px); font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
+.customer-account-links { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; margin: 0; color: var(--blue-dark); font-size: 16px; font-weight: 700; line-height: 1.25; }
+.customer-account-links > a, .customer-account-links > button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 4px; border: 0; border-radius: 8px; color: inherit; background: transparent; font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
+.customer-account-links a:focus-visible, .customer-account-links button:focus-visible, .account-dropdown > summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.account-nav-divider { padding: 0 3px; color: var(--muted); font-weight: 400; }
+.account-greeting { display: inline-flex; min-width: 0; align-items: center; gap: 5px; color: var(--ink); font-size: 16px; font-weight: 700; white-space: nowrap; }
+.account-greeting > span { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-greeting svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.account-dropdown { position: relative; flex: 0 0 auto; }
+.account-dropdown > summary { display: grid; width: 44px; height: 44px; align-items: center; justify-items: center; list-style: none; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: color-mix(in srgb, var(--blue) 5%, transparent); cursor: pointer; }
+.account-dropdown > summary::-webkit-details-marker { display: none; }
+.account-dropdown > summary svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.account-dropdown[open] > summary svg { transform: rotate(180deg); }
+.account-dropdown-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; display: grid; width: max-content; min-width: 205px; max-width: min(80vw, 270px); padding: 7px; border: 1px solid var(--line); border-radius: 13px; background: var(--card-bg, #fff); box-shadow: 0 12px 32px rgba(0, 0, 0, .17); }
+.account-dropdown-panel button { display: flex; align-items: center; width: 100%; min-height: 46px; padding: 10px 13px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
+.account-dropdown-panel button:hover { background: color-mix(in srgb, var(--blue) 9%, transparent); }
+.account-dropdown-panel button:last-child { border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; color: var(--muted); }
+html[data-theme='dark'] .account-dropdown-panel { background: #1b2720; }
+html[data-theme='dark'] .account-dropdown > summary { background: #1b2720; border-color: #3b4b40; }
+.home-tagline { font-size: clamp(22px, 5.5vw, 30px); }
 .customer-signup-intro { margin-bottom: 20px; font-size: 15px; }
 
 /* Login progressivo: formulário legível, checkbox discreto e etapas bem separadas. */
@@ -364,11 +377,14 @@ html[data-theme='dark'] .proposal-contact-links a { color: #f6ae61; }
 html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
 
 @media (max-width: 520px) {
-  .customer-account-links { justify-content: space-between; flex-wrap: nowrap; gap: 3px; margin: -8px -8px 20px; padding: 0 0 10px; font-size: 16px; }
-  .customer-account-links a, .customer-account-links button { flex: 0 1 auto; min-height: 48px; padding: 10px 6px; white-space: nowrap; }
-  .customer-account-links .account-name-button { margin-right: 0; }
-  .customer-account-links .account-name-button svg { width: 18px; height: 18px; }
-  .customer-account-links .account-name-button span { max-width: 9ch; }
+  .fitpeso-home-topbar { gap: 8px; margin-bottom: 2px; }
+  .fitpeso-home-brand { font-size: 25px; }
+  .customer-account-links { gap: 1px; font-size: 15px; }
+  .customer-account-links > a, .customer-account-links > button { min-height: 44px; padding-inline: 3px; }
+  .account-greeting { font-size: 15px; }
+  .account-greeting > span { max-width: 10ch; }
+  .account-dropdown > summary { width: 44px; height: 44px; }
+  .home-tagline { font-size: clamp(22px, 5.6vw, 27px); }
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }
   .intro { margin: 10px auto 23px; font-size: 17px; }
@@ -396,9 +412,11 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
 }
 
 @media (max-width: 370px) {
-  .customer-account-links { flex-wrap: wrap; justify-content: center; row-gap: 0; }
-  .customer-account-links .account-name-button { flex: 1 1 100%; justify-content: center; }
-  .customer-account-links .account-name-button span { max-width: 19ch; }
+  .fitpeso-home-brand { font-size: 22px; }
+  .customer-account-links { font-size: 14px; }
+  .account-greeting { font-size: 14px; }
+  .account-greeting > span { max-width: 8ch; }
+  .account-greeting svg { width: 16px; height: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .customer-account-links button, .customer-account-links a { scroll-behavior: auto; }
