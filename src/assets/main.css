@@ -213,10 +213,14 @@ footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
 .trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
 .trainer-signup-link:hover { text-decoration: underline; }
-.customer-account-links { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; color: var(--blue-dark); font-size: 13px; font-weight: 600; }
-.customer-account-links a, .customer-account-links button { padding: 0; border: 0; color: inherit; background: none; font: inherit; text-decoration: none; cursor: pointer; }
-.customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
-.customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 2px solid #a8c7ff; outline-offset: 3px; }
+.customer-account-links { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin: -10px 0 22px; padding-bottom: 12px; border-bottom: 1px solid var(--line); color: var(--blue-dark); font-size: 16px; font-weight: 700; line-height: 1.3; }
+.customer-account-links a, .customer-account-links button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; border: 0; border-radius: 10px; color: inherit; background: transparent; font: inherit; text-decoration: none; cursor: pointer; }
+.customer-account-links a:hover, .customer-account-links button:hover { background: color-mix(in srgb, var(--blue) 10%, transparent); }
+.customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.customer-account-links .account-name-button { margin-right: auto; min-width: 0; font-weight: 800; }
+.customer-account-links .account-name-button svg { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.customer-account-links .account-name-button span { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.customer-account-links .account-logout-button { color: var(--muted); }
 .customer-signup-intro { margin-bottom: 20px; font-size: 15px; }
 
 /* Login progressivo: formulário legível, checkbox discreto e etapas bem separadas. */
@@ -360,6 +364,11 @@ html[data-theme='dark'] .proposal-contact-links a { color: #f6ae61; }
 html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
 
 @media (max-width: 520px) {
+  .customer-account-links { justify-content: space-between; flex-wrap: nowrap; gap: 3px; margin: -8px -8px 20px; padding: 0 0 10px; font-size: 16px; }
+  .customer-account-links a, .customer-account-links button { flex: 0 1 auto; min-height: 48px; padding: 10px 6px; white-space: nowrap; }
+  .customer-account-links .account-name-button { margin-right: 0; }
+  .customer-account-links .account-name-button svg { width: 18px; height: 18px; }
+  .customer-account-links .account-name-button span { max-width: 9ch; }
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }
   .intro { margin: 10px auto 23px; font-size: 17px; }
@@ -384,4 +393,13 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
   .silhouette-note { font-size: 10px; }
   .status { font-size: 14px; }
   .disclaimer { font-size: 12px; }
+}
+
+@media (max-width: 370px) {
+  .customer-account-links { flex-wrap: wrap; justify-content: center; row-gap: 0; }
+  .customer-account-links .account-name-button { flex: 1 1 100%; justify-content: center; }
+  .customer-account-links .account-name-button span { max-width: 19ch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-account-links button, .customer-account-links a { scroll-behavior: auto; }
 }
