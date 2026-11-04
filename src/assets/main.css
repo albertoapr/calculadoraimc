@@ -213,7 +213,11 @@ footer a:hover { text-decoration: underline; }
 footer img { width: 24px; height: 24px; }
 /* Barra superior da página inicial: marca à esquerda, acesso à direita. */
 .fitpeso-home-topbar { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 8px; }
-.fitpeso-home-brand { display: inline-flex; flex: 0 0 auto; align-items: baseline; font-family: Manrope, sans-serif; font-size: clamp(23px, 5vw, 29px); font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
+.fitpeso-home-brand { display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 7px; font-family: Manrope, sans-serif; font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
+.fitpeso-home-brand .dumbbell-icon { width: 29px; height: 29px; }
+.fitpeso-home-brand .brand-lockup { align-items: flex-start; }
+.fitpeso-home-brand .brand-default { font-size: 27px; white-space: nowrap; }
+.fitpeso-home-brand .brand-tagline { font-size: 10px; white-space: nowrap; }
 .customer-account-links { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; margin: 0; color: var(--blue-dark); font-size: 16px; font-weight: 700; line-height: 1.25; }
 .customer-account-links > a, .customer-account-links > button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 4px; border: 0; border-radius: 8px; color: inherit; background: transparent; font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer; }
 .customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
@@ -378,7 +382,10 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
 
 @media (max-width: 520px) {
   .fitpeso-home-topbar { gap: 8px; margin-bottom: 2px; }
-  .fitpeso-home-brand { font-size: 25px; }
+  .fitpeso-home-brand { gap: 5px; }
+  .fitpeso-home-brand .dumbbell-icon { width: 23px; height: 23px; }
+  .fitpeso-home-brand .brand-default { font-size: 23px; }
+  .fitpeso-home-brand .brand-tagline { font-size: 9px; }
   .customer-account-links { gap: 1px; font-size: 15px; }
   .customer-account-links > a, .customer-account-links > button { min-height: 44px; padding-inline: 3px; }
   .account-greeting { font-size: 15px; }
@@ -412,7 +419,9 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
 }
 
 @media (max-width: 370px) {
-  .fitpeso-home-brand { font-size: 22px; }
+  .fitpeso-home-brand .dumbbell-icon { width: 20px; height: 20px; }
+  .fitpeso-home-brand .brand-default { font-size: 20px; }
+  .fitpeso-home-brand .brand-tagline { font-size: 8px; }
   .customer-account-links { font-size: 14px; }
   .account-greeting { font-size: 14px; }
   .account-greeting > span { max-width: 8ch; }
