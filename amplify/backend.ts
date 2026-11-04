@@ -129,131 +129,56 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
 })
 
 const apiResource = api.root.addResource('api')
+const apiLambdaInvokeRole = new iam.Role(apiStack, 'ApiGatewayInvokeImcSubmitRole', {
+  assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com').withConditions({
+    StringEquals: { 'aws:SourceAccount': Stack.of(api).account },
+    ArnLike: { 'aws:SourceArn': api.arnForExecuteApi('*', '*', '*') },
+  }),
+})
+apiLambdaInvokeRole.addToPolicy(new iam.PolicyStatement({
+  actions: ['lambda:InvokeFunction'],
+  resources: [backend.imcSubmit.resources.lambda.functionArn],
+}))
+
+const lambdaIntegration = () => new apigateway.AwsIntegration({
+  service: 'lambda',
+  path: `2015-03-31/functions/${backend.imcSubmit.resources.lambda.functionArn}/invocations`,
+  proxy: true,
+  options: {
+    credentialsRole: apiLambdaInvokeRole,
+    timeout: Duration.seconds(20),
+  },
+})
+
 const imcResource = apiResource.addResource('imc')
-imcResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-imcResource.addResource('verify').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
+imcResource.addMethod('POST', lambdaIntegration())
+imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const trainersResource = apiResource.addResource('trainers')
-trainersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-trainersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
+trainersResource.addResource('register').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('verify-whatsapp').addMethod('POST', lambdaIntegration())
 const customersResource = apiResource.addResource('customers')
-customersResource.addResource('profile').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('verification-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('login-status').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('verify-login').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-trainersResource.addResource('by-slug').addResource('{slug}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-trainersResource.addResource('{trainerId}').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
+customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
+customersResource.addResource('verification-status').addMethod('POST', lambdaIntegration())
+customersResource.addResource('login').addMethod('POST', lambdaIntegration())
+customersResource.addResource('login-status').addMethod('POST', lambdaIntegration())
+customersResource.addResource('verify-login').addMethod('POST', lambdaIntegration())
+customersResource.addResource('register').addMethod('POST', lambdaIntegration())
+customersResource.addResource('verify-whatsapp').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('by-slug').addResource('{slug}').addMethod('GET', lambdaIntegration())
+trainersResource.addResource('{trainerId}').addMethod('GET', lambdaIntegration())
 const requestsResource = apiResource.addResource('requests')
-requestsResource.addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestsResource.addResource('trainer-view').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestsResource.addResource('verify-whatsapp').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestsResource.addResource('valid').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestsResource.addResource('proposals').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestsResource.addResource('accepted-notifications').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
+requestsResource.addMethod('POST', lambdaIntegration())
+requestsResource.addResource('trainer-view').addMethod('GET', lambdaIntegration())
+requestsResource.addResource('verify-whatsapp').addMethod('POST', lambdaIntegration())
+requestsResource.addResource('valid').addMethod('GET', lambdaIntegration())
+requestsResource.addResource('proposals').addMethod('POST', lambdaIntegration())
+requestsResource.addResource('accepted-notifications').addMethod('GET', lambdaIntegration())
 const requestIdResource = requestsResource.addResource('{requestId}')
-requestIdResource.addResource('processed').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestIdResource.addResource('accept').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-requestIdResource.addResource('acceptance-notified').addMethod('POST', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-trainersResource.addResource('eligible').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
-customersResource.addResource('requests').addMethod('GET', new apigateway.LambdaIntegration(backend.imcSubmit.resources.lambda, {
-  proxy: true,
-  timeout: Duration.seconds(20),
-  allowTestInvoke: false,
-}))
+requestIdResource.addResource('processed').addMethod('POST', lambdaIntegration())
+requestIdResource.addResource('accept').addMethod('POST', lambdaIntegration())
+requestIdResource.addResource('acceptance-notified').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('eligible').addMethod('GET', lambdaIntegration())
+customersResource.addResource('requests').addMethod('GET', lambdaIntegration())
 
 backend.addOutput({
   custom: {
