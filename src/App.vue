@@ -88,6 +88,7 @@ type TrainerRequestDetails = {
 
 type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string }
 type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
+type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
 type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -97,7 +98,7 @@ const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !tr
 const personalName = ref('FitPeso')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -154,6 +155,21 @@ let customerLoginPollTimer: number | undefined
 let customerLoginPollStartedAt = 0
 const customerSignedInEmail = ref('')
 const customerSignedInName = ref('')
+const trainerSignedInName = ref('')
+const trainerSignedInId = ref('')
+const showTrainerLogin = ref(false)
+const trainerLoginWhatsApp = ref('')
+const trainerLoginCode = ref('')
+const trainerLoginToken = ref('')
+const trainerLoginStatus = ref('')
+const trainerLoginError = ref('')
+const trainerLoginLink = ref('')
+const trainerLoginDialog = ref(false)
+const trainerLoginSubmitting = ref(false)
+const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
+const trainerRequestsStatus = ref('')
+let trainerLoginPollTimer: number | undefined
+let trainerLoginStartedAt = 0
 const requestLoginReturn = ref(false)
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -345,6 +361,9 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
   customerSignedInEmail.value = profile.email
   customerSignedInName.value = profile.name
+  trainerSignedInName.value = ''
+  trainerSignedInId.value = ''
+  try { sessionStorage.removeItem('fitpeso-trainer-session') } catch { /* armazenamento indisponível */ }
 }
 
 async function loadCustomerProfile(token: string) {
@@ -462,6 +481,10 @@ function goHome() {
   showTrainerSignup.value = false
   showCustomerSignup.value = false
   showCustomerLogin.value = false
+  showTrainerLogin.value = false
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginPollTimer = undefined
+  trainerLoginDialog.value = false
   showRequestForm.value = false
   viewMode.value = 'home'
   requestSent.value = false
@@ -1130,6 +1153,14 @@ onMounted(() => {
   void loadTrainerProfile()
   void loadTrainerRequest()
   try {
+    const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
+    if (trainerToken) void loadTrainerSession(trainerToken).then(applyTrainerSession).catch(() => {
+      sessionStorage.removeItem('fitpeso-trainer-session')
+      trainerSignedInId.value = ''
+      trainerSignedInName.value = ''
+    })
+  } catch { /* armazenamento indisponível */ }
+  try {
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
     if (token) void loadCustomerProfile(token).then(applyCustomerProfile).catch(() => {
       sessionStorage.removeItem('fitpeso-google-session')
@@ -1283,6 +1314,34 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
+    <section v-else-if="showTrainerLogin" class="calculator customer-signup" aria-labelledby="trainer-login-title">
+      <header class="hero">
+        <div class="brand">FitPeso</div>
+        <hr class="personal-divider">
+        <h1 id="trainer-login-title">Login de personal trainer</h1>
+        <p class="intro">Entre com o WhatsApp cadastrado e confirmado como profissional.</p>
+      </header>
+      <form class="form" @submit.prevent="startTrainerWhatsAppLogin">
+        <label class="field field-wide" for="trainer-login-whatsapp">
+          <span class="field-label">WhatsApp com DDD</span>
+          <input id="trainer-login-whatsapp" v-model="trainerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="(21) 99999-9999">
+        </label>
+        <button class="primary-button field-wide" type="submit" :disabled="trainerLoginSubmitting">{{ trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
+      </form>
+      <p v-if="trainerLoginError" class="login-validation-error" role="alert">{{ trainerLoginError }}</p>
+      <p v-if="trainerLoginStatus" class="status" role="status">{{ trainerLoginStatus }}</p>
+      <button class="back-button" type="button" @click="goHome">Voltar ao início</button>
+      <div v-if="trainerLoginDialog" class="success-overlay" role="presentation">
+        <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="trainer-confirm-title">
+          <div class="success-mark" aria-hidden="true">✓</div>
+          <h2 id="trainer-confirm-title">Confirme seu login</h2>
+          <p>Envie o código pelo WhatsApp para a FitPeso e retorne a esta tela. A confirmação será automática.</p>
+          <a class="primary-button customer-verification-link" :href="trainerLoginLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <button class="secondary-button" type="button" @click="pollTrainerWhatsAppLogin">Verificar agora</button>
+        </section>
+      </div>
+    </section>
+
     <section v-else-if="showCustomerLogin" class="calculator customer-signup" aria-labelledby="customer-login-title">
       <header class="hero">
         <div class="brand" :aria-label="personalName">
@@ -1315,6 +1374,7 @@ async function sendResult() {
         <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
       </form>
       <small v-if="customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
+      <button class="secondary-button" type="button" @click="openTrainerLogin">Sou personal trainer</button>
       <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
       <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
       <div v-if="showCustomerLoginDialog" class="success-overlay" role="presentation">
@@ -1390,7 +1450,7 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -1416,6 +1476,19 @@ async function sendResult() {
           </form>
           <p v-else class="status">Você já enviou uma proposta para esta solicitação.</p>
         </div>
+      </section>
+
+      <section v-if="viewMode === 'trainer-requests'" class="customer-requests-view" aria-labelledby="page-title">
+        <p v-if="trainerRequestsStatus" class="status" role="status">{{ trainerRequestsStatus }}</p>
+        <button class="secondary-button" type="button" @click="openTrainerReceivedRequests">Atualizar solicitações</button>
+        <article v-for="request in trainerReceivedRequests" :key="request.requestId" class="customer-request-card">
+          <h2>{{ request.city }}<span v-if="request.objective"> · {{ request.objective }}</span></h2>
+          <p>Cliente: {{ request.clientName }}</p>
+          <p>Recebida em {{ new Date(request.createdAt).toLocaleString('pt-BR') }}</p>
+          <p>Válida até {{ new Date(request.validUntil * 1000).toLocaleString('pt-BR') }}</p>
+          <a class="secondary-button" :href="'/?token=' + encodeURIComponent(request.token)">Ver solicitação e enviar proposta</a>
+        </article>
+        <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
       <section v-if="viewMode === 'customer-requests'" class="customer-requests-view" aria-labelledby="page-title">
@@ -1693,7 +1766,12 @@ async function sendResult() {
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
       <div v-if="viewMode === 'home' && isRootHome" class="customer-account-links">
-        <template v-if="customerSignedInEmail">
+        <template v-if="trainerSignedInId">
+          <span class="customer-signed-in-name">Olá, {{ trainerSignedInName }}</span>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openTrainerReceivedRequests">Solicitações recebidas</button>
+        </template>
+        <template v-else-if="customerSignedInEmail">
           <span class="customer-signed-in-name">Olá, {{ customerSignedInName }}</span>
           <span aria-hidden="true">|</span>
           <button type="button" @click="openCustomerRequests">Minhas solicitações</button>
@@ -1702,6 +1780,8 @@ async function sendResult() {
           <button type="button" @click="openCustomerLogin()">Login</button>
           <span aria-hidden="true">|</span>
           <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openTrainerLogin">Sou personal</button>
         </template>
       </div>
     </section>
