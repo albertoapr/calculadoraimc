@@ -38,9 +38,9 @@ async function lookupEmail(email: string, dob: string, asTrainer: boolean): Prom
       const result = await db.send(new QueryCommand({
         TableName: process.env.TRAINERS_TABLE!,
         KeyConditionExpression: '#city = :city',
-        ExpressionAttributeNames: { '#city': 'city' },
+        ExpressionAttributeNames: { '#city': 'city', '#id': 'trainerId', '#email': 'email', '#dob': 'dateOfBirth', '#phone': 'whatsapp', '#active': 'active', '#verified': 'whatsappVerified' },
         ExpressionAttributeValues: { ':city': { S: city } },
-        ProjectionExpression: 'trainerId, email, dateOfBirth, whatsapp, active, whatsappVerified',
+        ProjectionExpression: '#id, #email, #dob, #phone, #active, #verified',
         ExclusiveStartKey: cursor,
       }))
       for (const item of result.Items ?? []) {
