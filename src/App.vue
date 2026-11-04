@@ -1725,11 +1725,9 @@ async function sendResult() {
   <main class="page-shell">
     <section v-if="showTrainerSignup" class="calculator" aria-labelledby="page-title">
       <header class="hero">
-        <div class="brand" :aria-label="personalName">
+        <div class="brand" aria-label="FitPeso — Rede de treinadores">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
-          <span v-if="personalName === 'FitPeso'" class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small v-if="isRootHome && viewMode === 'home' && !result" class="brand-tagline">Evoluindo com você</small></span>
-          <span v-else-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand"><span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span><span class="personal-trainer-role">Personal Trainer</span></span>
-          <span v-else>{{ personalName }}</span>
+          <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small class="brand-tagline">Rede de treinadores</small></span>
         </div>
         <hr class="personal-divider">
         <h1 id="page-title">Cadastro de personal</h1>
@@ -1796,7 +1794,7 @@ async function sendResult() {
 
     <section v-else-if="showCustomerLogin" class="calculator customer-signup login-screen" aria-labelledby="customer-login-title">
       <header class="hero">
-        <div class="brand" :aria-label="personalName">
+        <div class="brand" aria-label="FitPeso — Rede de treinadores">
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <hr class="personal-divider">
@@ -1945,7 +1943,7 @@ async function sendResult() {
         </nav>
       </div>
       <header class="hero">
-        <div v-if="!showHomeTopbar" class="brand" :aria-label="personalName">
+        <div v-if="!showHomeTopbar" class="brand" aria-label="FitPeso — Rede de treinadores">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
             <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
             <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
