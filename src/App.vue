@@ -153,6 +153,7 @@ const customerLoginSubmitting = ref(false)
 let customerLoginPollTimer: number | undefined
 let customerLoginPollStartedAt = 0
 const customerSignedInEmail = ref('')
+const customerSignedInName = ref('')
 const requestLoginReturn = ref(false)
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -343,6 +344,7 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
   customerSignedInEmail.value = profile.email
+  customerSignedInName.value = profile.name
 }
 
 async function loadCustomerProfile(token: string) {
@@ -1133,6 +1135,7 @@ onMounted(() => {
       sessionStorage.removeItem('fitpeso-google-session')
       sessionStorage.removeItem('fitpeso-customer-session')
       customerSignedInEmail.value = ''
+      customerSignedInName.value = ''
     })
   } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
 })
@@ -1690,10 +1693,16 @@ async function sendResult() {
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
       <div v-if="viewMode === 'home' && isRootHome" class="customer-account-links">
-        <button v-if="!customerSignedInEmail" type="button" @click="openCustomerLogin()">Login</button>
-        <span v-if="!customerSignedInEmail" aria-hidden="true">|</span>
-        <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
-        <template v-if="customerSignedInEmail"><span aria-hidden="true">|</span><button type="button" @click="openCustomerRequests">Minhas solicitações</button></template>
+        <template v-if="customerSignedInEmail">
+          <span class="customer-signed-in-name">Olá, {{ customerSignedInName }}</span>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openCustomerRequests">Minhas solicitações</button>
+        </template>
+        <template v-else>
+          <button type="button" @click="openCustomerLogin()">Login</button>
+          <span aria-hidden="true">|</span>
+          <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+        </template>
       </div>
     </section>
     <footer>
