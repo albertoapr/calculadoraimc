@@ -214,7 +214,7 @@ footer img { width: 24px; height: 24px; }
 /* Barra superior da página inicial: marca à esquerda, acesso à direita. */
 .fitpeso-home-topbar { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 8px; }
 .fitpeso-home-brand { display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 7px; font-family: Manrope, sans-serif; font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
-.fitpeso-home-brand .dumbbell-icon { width: 42px; height: 42px; transform: rotate(-90deg); transform-origin: center; }
+.fitpeso-home-brand .dumbbell-icon { width: 42px; height: 42px; transform: none; align-self: center; }
 .fitpeso-home-brand .brand-lockup { align-items: flex-start; }
 .fitpeso-home-brand .brand-default { font-size: 27px; white-space: nowrap; }
 .fitpeso-home-brand .brand-tagline { font-size: 10px; white-space: nowrap; }
