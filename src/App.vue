@@ -89,6 +89,8 @@ type TrainerRequestDetails = {
 type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string }
 type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
 type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
+type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string }
+type TrainerAccountProfile = { trainerId: string; name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; sex?: string; slug?: string }
 type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -98,7 +100,7 @@ const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !tr
 const personalName = ref('FitPeso')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -159,6 +161,11 @@ const customerSignedInEmail = ref('')
 const customerSignedInName = ref('')
 const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
+const editingProfile = reactive<EditableProfile>({ name: '', whatsapp: '', email: '', dateOfBirth: '', instagram: '', cref: '', slug: '' })
+const editingProfileType = ref<'customer' | 'trainer'>('customer')
+const editingProfileStatus = ref('')
+const editingProfileLoading = ref(false)
+const editingProfileSaving = ref(false)
 const trainerLoginCode = ref('')
 const trainerLoginToken = ref('')
 const trainerLoginStatus = ref('')
@@ -512,6 +519,16 @@ function logout() {
   customerRequestsStatus.value = ''
   trainerReceivedRequests.value = []
   trainerRequestsStatus.value = ''
+  editingProfileStatus.value = ''
+  editingProfileLoading.value = false
+  editingProfileSaving.value = false
+  editingProfile.name = ''
+  editingProfile.whatsapp = ''
+  editingProfile.email = ''
+  editingProfile.dateOfBirth = ''
+  editingProfile.instagram = ''
+  editingProfile.cref = ''
+  editingProfile.slug = ''
   customerForm.name = ''
   customerForm.whatsapp = ''
   customerForm.email = ''
@@ -1016,17 +1033,17 @@ async function acceptProposal(request: CustomerRequest, proposal: CustomerPropos
 }
 
 
-async function loadTrainerSession(token: string) {
+async function loadTrainerSession(token: string): Promise<TrainerAccountProfile> {
   const endpoint = await getRequestApiEndpoint()
   const response = await fetch(endpoint + '/api/trainers/profile', {
     method: 'POST', headers: { authorization: 'Bearer ' + token }, cache: 'no-store',
   })
-  const body = await response.json() as { authenticated?: boolean; profile?: { trainerId: string; name: string }; error?: string }
+  const body = await response.json() as { authenticated?: boolean; profile?: TrainerAccountProfile; error?: string }
   if (!response.ok || body.authenticated !== true || !body.profile?.trainerId) throw new Error(body.error || 'Sessão inválida.')
   return body.profile
 }
 
-function applyTrainerSession(profile: { trainerId: string; name: string }) {
+function applyTrainerSession(profile: TrainerAccountProfile) {
   trainerSignedInId.value = profile.trainerId
   trainerSignedInName.value = profile.name
   customerSignedInEmail.value = ''
@@ -1035,6 +1052,101 @@ function applyTrainerSession(profile: { trainerId: string; name: string }) {
     sessionStorage.removeItem('fitpeso-customer-session')
     sessionStorage.removeItem('fitpeso-google-session')
   } catch { /* armazenamento indisponível */ }
+}
+
+
+function applyProfileForEditing(profile: { name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; slug?: string }) {
+  editingProfile.name = profile.name ?? ''
+  editingProfile.whatsapp = profile.whatsapp ?? ''
+  editingProfile.email = profile.email ?? ''
+  editingProfile.dateOfBirth = profile.dateOfBirth ?? ''
+  editingProfile.instagram = profile.instagram ?? ''
+  editingProfile.cref = profile.cref ?? ''
+  editingProfile.slug = profile.slug ?? ''
+}
+
+async function openMyProfile() {
+  const trainer = Boolean(trainerSignedInId.value)
+  editingProfileType.value = trainer ? 'trainer' : 'customer'
+  editingProfileStatus.value = ''
+  editingProfileLoading.value = true
+  viewMode.value = 'my-profile'
+  await nextTick()
+  window.scrollTo(0, 0)
+  const generation = sessionGeneration
+  try {
+    const token = trainer
+      ? sessionStorage.getItem('fitpeso-trainer-session')
+      : sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
+    if (!token) throw new Error('Entre na sua conta para consultar o cadastro.')
+    const profile = trainer ? await loadTrainerSession(token) : await loadCustomerProfile(token)
+    if (sessionGeneration !== generation || viewMode.value !== 'my-profile') return
+    applyProfileForEditing(profile)
+    editingProfileStatus.value = ''
+  } catch (error) {
+    if (sessionGeneration === generation) {
+      editingProfileStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar seu cadastro.'
+    }
+  } finally {
+    if (sessionGeneration === generation) editingProfileLoading.value = false
+  }
+}
+
+async function saveMyProfile() {
+  if (editingProfileSaving.value || editingProfileLoading.value) return
+  const name = editingProfile.name.trim().replace(/\s+/g, ' ')
+  const birth = editingProfile.dateOfBirth
+  if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
+    editingProfileStatus.value = 'Informe um nome válido.'
+    return
+  }
+  if (!isValidLoginBirthDate(birth)) {
+    editingProfileStatus.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  const trainer = editingProfileType.value === 'trainer'
+  const cref = editingProfile.cref.trim().toUpperCase()
+  const instagram = editingProfile.instagram.trim()
+  if (trainer && cref && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) {
+    editingProfileStatus.value = 'Informe um CREF no formato 072573-G/RJ ou deixe em branco.'
+    return
+  }
+  if (trainer && instagram && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) {
+    editingProfileStatus.value = 'Informe o Instagram no formato @usuario.'
+    return
+  }
+  editingProfileSaving.value = true
+  editingProfileStatus.value = 'Salvando alterações…'
+  const generation = sessionGeneration
+  try {
+    const token = trainer
+      ? sessionStorage.getItem('fitpeso-trainer-session')
+      : sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
+    if (!token) throw new Error('Sua sessão expirou. Entre novamente.')
+    const endpoint = await getRequestApiEndpoint()
+    const resource = trainer ? 'trainers' : 'customers'
+    const response = await fetch(endpoint + '/api/' + resource + '/update-profile', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      cache: 'no-store',
+      body: JSON.stringify(trainer ? { name, dateOfBirth: birth, instagram, cref } : { name, dateOfBirth: birth }),
+    })
+    const body = await response.json() as {
+      authenticated?: boolean
+      profile?: TrainerAccountProfile & { dateOfBirth?: string; email?: string }
+      error?: string
+    }
+    if (!response.ok || !body.authenticated || !body.profile) throw new Error(body.error || 'Não foi possível salvar o cadastro.')
+    if (sessionGeneration !== generation || viewMode.value !== 'my-profile') return
+    applyProfileForEditing(body.profile)
+    if (trainer) applyTrainerSession(body.profile)
+    else applyCustomerProfile({ name: body.profile.name, whatsapp: body.profile.whatsapp, email: body.profile.email ?? '', dateOfBirth: body.profile.dateOfBirth })
+    editingProfileStatus.value = 'Cadastro atualizado com sucesso.'
+  } catch (error) {
+    if (sessionGeneration === generation) editingProfileStatus.value = error instanceof Error ? error.message : 'Não foi possível salvar o cadastro.'
+  } finally {
+    if (sessionGeneration === generation) editingProfileSaving.value = false
+  }
 }
 
 function changeLoginProfile() {
@@ -1634,10 +1746,44 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
+
+      <section v-if="viewMode === 'my-profile'" class="customer-signup" aria-labelledby="page-title">
+        <p class="intro">Consulte e atualize as informações do seu cadastro.</p>
+        <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
+        <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
+          <label class="field field-wide" for="profile-name"><span class="field-label">Nome completo</span>
+            <input id="profile-name" v-model="editingProfile.name" type="text" autocomplete="name" minlength="2" maxlength="80" required>
+          </label>
+          <label class="field field-wide" for="profile-whatsapp"><span class="field-label">WhatsApp confirmado</span>
+            <input id="profile-whatsapp" :value="editingProfile.whatsapp" type="tel" readonly aria-readonly="true">
+          </label>
+          <label class="field field-wide" for="profile-email"><span class="field-label">E-mail</span>
+            <input id="profile-email" :value="editingProfile.email" type="email" readonly aria-readonly="true">
+          </label>
+          <label class="field field-wide" for="profile-dob"><span class="field-label">Data de nascimento</span>
+            <input id="profile-dob" v-model="editingProfile.dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+          </label>
+          <template v-if="editingProfileType === 'trainer'">
+            <label class="field field-wide" for="profile-cref"><span class="field-label">Registro CREF <span>opcional</span></span>
+              <input id="profile-cref" v-model="editingProfile.cref" type="text" maxlength="20" autocapitalize="characters" placeholder="072573-G/RJ">
+            </label>
+            <label class="field field-wide" for="profile-instagram"><span class="field-label">Instagram <span>opcional</span></span>
+              <input id="profile-instagram" v-model="editingProfile.instagram" type="text" maxlength="31" placeholder="@usuario">
+            </label>
+            <label class="field field-wide" for="profile-slug"><span class="field-label">Endereço do perfil</span>
+              <input id="profile-slug" :value="editingProfile.slug" type="text" readonly aria-readonly="true">
+            </label>
+          </template>
+          <small class="field-wide">Para alterar WhatsApp, e-mail ou endereço do perfil profissional, é necessária uma nova verificação com a Beta.</small>
+          <button class="primary-button field-wide" type="submit" :disabled="editingProfileSaving">{{ editingProfileSaving ? 'Salvando…' : 'Salvar alterações' }}</button>
+        </form>
+        <p v-if="editingProfileStatus" class="status" role="status" aria-live="polite">{{ editingProfileStatus }}</p>
+        <button class="back-button" type="button" @click="goHome">Voltar ao início</button>
+      </section>
 
       <section v-if="viewMode === 'trainer-request'" class="trainer-request-view" aria-labelledby="page-title">
         <p v-if="trainerRequestStatus" class="status" role="status" aria-live="polite">{{ trainerRequestStatus }}</p>
@@ -1955,12 +2101,16 @@ async function sendResult() {
           <span aria-hidden="true">|</span>
           <button type="button" @click="openTrainerReceivedRequests">Solicitações recebidas</button>
           <span aria-hidden="true">|</span>
+          <button type="button" @click="openMyProfile">Meu cadastro</button>
+          <span aria-hidden="true">|</span>
           <button type="button" @click="logout">Sair</button>
         </template>
         <template v-else-if="customerSignedInEmail">
           <span class="customer-signed-in-name">Olá, {{ customerSignedInName }}</span>
           <span aria-hidden="true">|</span>
           <button type="button" @click="openCustomerRequests">Minhas solicitações</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openMyProfile">Meu cadastro</button>
           <span aria-hidden="true">|</span>
           <button type="button" @click="logout">Sair</button>
         </template>
