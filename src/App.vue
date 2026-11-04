@@ -1906,30 +1906,36 @@ async function sendResult() {
     </section>
 
     <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
-      <nav v-if="viewMode === 'home' && isRootHome" class="customer-account-links" aria-label="Menu da conta">
-        <template v-if="trainerSignedInId">
-          <button class="account-name-button" type="button" @click="openMyProfile" :aria-label="'Abrir meu cadastro: ' + trainerSignedInName" title="Consultar e editar meu cadastro">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-            <span>Olá, {{ trainerSignedInName.trim().split(/\s+/)[0] }}</span>
-          </button>
-          <button type="button" @click="openTrainerReceivedRequests">Solicitações</button>
-          <button class="account-logout-button" type="button" @click="logout">Sair</button>
-        </template>
-        <template v-else-if="customerSignedInEmail">
-          <button class="account-name-button" type="button" @click="openMyProfile" :aria-label="'Abrir meu cadastro: ' + customerSignedInName" title="Consultar e editar meu cadastro">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-            <span>Olá, {{ customerSignedInName.trim().split(/\s+/)[0] }}</span>
-          </button>
-          <button type="button" @click="openCustomerRequests">Solicitações</button>
-          <button class="account-logout-button" type="button" @click="logout">Sair</button>
-        </template>
-        <template v-else>
-          <button type="button" @click="openCustomerLogin()">Login</button>
-          <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
-        </template>
-      </nav>
+      <div v-if="viewMode === 'home' && isRootHome && !result" class="fitpeso-home-topbar">
+        <div class="fitpeso-home-brand" aria-label="FitPeso">
+          <span class="brand-fit">Fit</span><span class="brand-peso">Peso</span>
+        </div>
+        <nav class="customer-account-links" aria-label="Conta do usuário">
+          <template v-if="trainerSignedInId || customerSignedInEmail">
+            <span class="account-greeting">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+              <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
+            </span>
+            <details class="account-dropdown">
+              <summary aria-label="Abrir menu do usuário" title="Menu do usuário" aria-haspopup="menu">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </summary>
+              <div class="account-dropdown-panel">
+                <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
+                <button type="button" @click="openMyProfile">Meu cadastro</button>
+                <button type="button" @click="logout">Sair</button>
+              </div>
+            </details>
+          </template>
+          <template v-else>
+            <button type="button" @click="openCustomerLogin()">Fazer login</button>
+            <span class="account-nav-divider" aria-hidden="true">|</span>
+            <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+          </template>
+        </nav>
+      </div>
       <header class="hero">
-        <div class="brand" :aria-label="personalName">
+        <div v-if="!(viewMode === 'home' && isRootHome && !result)" class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
             <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
             <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
@@ -2292,12 +2298,6 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
         </section>
       </div>
-      <a
-        v-if="viewMode === 'home' && !trainerSignedInId"
-        class="trainer-signup-link"
-        href="#cadastro-personal"
-        @click="showTrainerSignup = true"
-      >Sou personal. Quero me cadastrar</a>
 
     </section>
     <footer>
