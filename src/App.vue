@@ -68,7 +68,7 @@ function getTrainerSlugFromHost() {
   const suffix = '.fitpeso.com.br'
   if (!hostname.endsWith(suffix)) return ''
   const slug = hostname.slice(0, -suffix.length)
-  if (slug.includes('.') || ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug)) return ''
+  if (slug.includes('.') || ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug)) return ''
   return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
 }
 
@@ -98,6 +98,7 @@ const trainerIdFromPath = getTrainerIdFromPath()
 const trainerSlugFromHost = getTrainerSlugFromHost()
 const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
 const personalName = ref('FitPeso')
+const personalBrandFirstName = computed(() => personalName.value.endsWith(' Personal Trainer') ? personalName.value.slice(0, -' Personal Trainer'.length) : '')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile'>(trainerRequestToken ? 'trainer-request' : 'home')
@@ -758,7 +759,7 @@ async function sendTrainerSignup() {
   const dateOfBirth = trainerForm.dateOfBirth
   const instagram = normalizeInstagramHandle(trainerForm.instagram)
   const cref = trainerForm.cref.trim()
-  const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda']
+  const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao']
   let validationError = ''
   if (!name) validationError = 'Informe seu nome completo.'
   else if (sex !== 'masculino' && sex !== 'feminino') validationError = 'Selecione Masculino ou Feminino.'
@@ -1726,6 +1727,7 @@ async function sendResult() {
         <div class="brand" :aria-label="personalName">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
           <span v-if="personalName === 'FitPeso'" class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small v-if="isRootHome && viewMode === 'home' && !result" class="brand-tagline">Evoluindo com você</small></span>
+          <span v-else-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand"><span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span><span class="personal-trainer-role">Personal Trainer</span></span>
           <span v-else>{{ personalName }}</span>
         </div>
         <hr class="personal-divider">
@@ -1948,6 +1950,7 @@ async function sendResult() {
             <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
           </svg>
           <span v-if="personalName === 'FitPeso'" class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small v-if="isRootHome && viewMode === 'home' && !result" class="brand-tagline">Rede de treinadores</small></span>
+          <span v-else-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand"><span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span><span class="personal-trainer-role">Personal Trainer</span></span>
           <span v-else>{{ personalName }}</span>
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
