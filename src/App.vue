@@ -477,6 +477,47 @@ window.addEventListener('hashchange', () => {
   showCustomerSignup.value = window.location.hash === '#cadastro-cliente'
 })
 
+function logout() {
+  // Remove todas as sessões locais, inclusive quando cliente e personal compartilham o WhatsApp.
+  try {
+    sessionStorage.removeItem('fitpeso-customer-session')
+    sessionStorage.removeItem('fitpeso-google-session')
+    sessionStorage.removeItem('fitpeso-trainer-session')
+  } catch {
+    // Ainda encerra a sessão em memória quando o armazenamento não estiver disponível.
+  }
+
+  customerSignedInEmail.value = ''
+  customerSignedInName.value = ''
+  trainerSignedInId.value = ''
+  trainerSignedInName.value = ''
+  loginAsTrainer.value = false
+  customerLoginMethod.value = 'google'
+  customerLoginWhatsApp.value = ''
+  customerLoginBirthDate.value = ''
+  customerLoginBirthDateText.value = ''
+  customerLoginCode.value = ''
+  customerLoginSessionToken.value = ''
+  customerLoginVerificationLink.value = ''
+  customerLoginStatus.value = ''
+  customerLoginError.value = ''
+  trainerLoginCode.value = ''
+  trainerLoginToken.value = ''
+  trainerLoginLink.value = ''
+  trainerLoginStatus.value = ''
+  trainerLoginError.value = ''
+  customerRequests.value = []
+  customerRequestsStatus.value = ''
+  trainerReceivedRequests.value = []
+  trainerRequestsStatus.value = ''
+  customerForm.name = ''
+  customerForm.whatsapp = ''
+  customerForm.email = ''
+  customerForm.dateOfBirth = ''
+  clearContactDetails()
+  goHome()
+}
+
 function goHome() {
   showTrainerSignup.value = false
   showCustomerSignup.value = false
@@ -1896,11 +1937,15 @@ async function sendResult() {
           <span class="customer-signed-in-name">Olá, {{ trainerSignedInName }}</span>
           <span aria-hidden="true">|</span>
           <button type="button" @click="openTrainerReceivedRequests">Solicitações recebidas</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="logout">Sair</button>
         </template>
         <template v-else-if="customerSignedInEmail">
           <span class="customer-signed-in-name">Olá, {{ customerSignedInName }}</span>
           <span aria-hidden="true">|</span>
           <button type="button" @click="openCustomerRequests">Minhas solicitações</button>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="logout">Sair</button>
         </template>
         <template v-else>
           <button type="button" @click="openCustomerLogin()">Login</button>
