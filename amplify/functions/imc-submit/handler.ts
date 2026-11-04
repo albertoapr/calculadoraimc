@@ -1,3 +1,4 @@
+import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -150,7 +151,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
-    (sex === 'masculino' || sex === 'feminino') &&
+    (sex === 'masculino' || sex === 'feminino') && isValidBirthDate(data.dateOfBirth) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) &&
@@ -581,6 +582,198 @@ async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
   }
 }
 
+
+async function findActiveTrainerByWhatsApp(whatsapp: string) {
+  const matches = (await Promise.all(['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+    .map(city => getActiveTrainersForCity(city)))).flat().filter(trainer => trainer.whatsapp === whatsapp)
+  const unique = [...new Map(matches.map(trainer => [trainer.trainerId, trainer])).values()]
+  return unique.length === 1 ? unique[0] : null
+}
+
+async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
+  const token = authorization.match(/^Bearer\s+([A-Za-z0-9_-]{43})$/i)?.[1] ?? ''
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!token) return { error: response(401, { error: 'Entre como personal para continuar.' }) }
+  if (!codesTable || !trainersTable) return { error: response(503, { error: 'Serviço indisponível.' }) }
+  try {
+    const session = await dynamodb.send(new GetItemCommand({
+      TableName: codesTable, Key: { codeHash: { S: hashCode(token) } }, ConsistentRead: true,
+    }))
+    const record = session.Item
+    const trainerId = record?.trainerId?.S ?? ''
+    const city = record?.city?.S ?? ''
+    const whatsapp = record?.whatsapp?.S ?? ''
+    if (record?.flow?.S !== 'fitpeso-trainer-login-session' || Number(record.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) ||
+        !trainerId || !city || !whatsapp) return { error: response(401, { error: 'Sessão expirada. Entre novamente.' }) }
+    const trainer = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable, Key: { city: { S: city }, trainerId: { S: trainerId } }, ConsistentRead: true,
+    }))
+    const item = trainer.Item
+    if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) {
+      return { error: response(401, { error: 'Cadastro do personal indisponível.' }) }
+    }
+    return { profile: { trainerId, name: item.name?.S ?? '', whatsapp } }
+  } catch (error) {
+    console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
+  }
+}
+
+async function beginTrainerLogin(data: Record<string, unknown> | null) {
+  const whatsapp = normalizePhone(data?.whatsapp)
+  const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
+  const dateOfBirth = data?.dateOfBirth
+  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe WhatsApp e data de nascimento válidos.' })
+  }
+  const tableName = process.env.IMC_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço indisponível.' })
+  try {
+    const trainer = await findActiveTrainerByWhatsApp(whatsapp)
+    if (!trainer) return response(200, { started: false, error: 'Não foi possível validar seu cadastro de personal. Confira os dados.' })
+    const trainerRecord = await dynamodb.send(new GetItemCommand({
+      TableName: process.env.TRAINERS_TABLE!, Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
+      ProjectionExpression: 'dateOfBirth', ConsistentRead: true,
+    }))
+    if (!trainerRecord.Item?.dateOfBirth?.S) return response(200, {
+      started: false, error: 'Seu cadastro ainda não possui data de nascimento. Solicite à Beta a atualização do cadastro para habilitar o login.',
+    })
+    if (trainerRecord.Item.dateOfBirth.S !== dateOfBirth) return response(200, {
+      started: false, error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento.',
+    })
+    const code = randomBytes(16).toString('base64url')
+    const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
+    await dynamodb.send(new PutItemCommand({
+      TableName: tableName,
+      Item: { codeHash: { S: hashCode(code) }, flow: { S: 'fitpeso-trainer-login' },
+        whatsapp: { S: whatsapp }, trainerId: { S: trainer.trainerId }, city: { S: trainer.city },
+        sessionTokenHash: { S: hashCode(sessionToken) }, expiresAt: { N: String(expiresAt) } },
+      ConditionExpression: 'attribute_not_exists(codeHash)',
+    }))
+    return response(200, { started: true, verificationCode: code, expiresAt })
+  } catch (error) {
+    console.error('[imc-submit] Trainer login initialization failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível iniciar o login agora.' })
+  }
+}
+
+async function verifyTrainerLogin(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const tableName = process.env.IMC_REQUESTS_TABLE
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!tableName || !trainersTable) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const lookup = await dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+    }))
+    const challenge = lookup.Item
+    if (challenge?.flow?.S !== 'fitpeso-trainer-login' || challenge.whatsapp?.S !== whatsapp ||
+        Number(challenge.expiresAt?.N ?? 0) <= now) return response(200, { verified: false })
+    const sessionHash = challenge.sessionTokenHash?.S ?? ''
+    if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
+    if (challenge.consumedAt?.N) {
+      const stored = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))
+      return response(200, { verified: stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now })
+    }
+    const trainer = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable, Key: { city: { S: challenge.city?.S ?? '' }, trainerId: { S: challenge.trainerId?.S ?? '' } },
+      ConsistentRead: true,
+    }))
+    if (trainer.Item?.active?.BOOL !== true || trainer.Item.whatsappVerified?.BOOL !== true || trainer.Item.whatsapp?.S !== whatsapp) {
+      return response(200, { verified: false })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: { TableName: tableName, Key: { codeHash: { S: hashCode(code) } },
+        UpdateExpression: 'SET consumedAt = :now',
+        ConditionExpression: '#flow = :flow AND whatsapp = :whatsapp AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-trainer-login' }, ':whatsapp': { S: whatsapp }, ':now': { N: String(now) } } } },
+      { Put: { TableName: tableName, Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-trainer-login-session' },
+        whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
+        expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+    ] }))
+    return response(200, { verified: true })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(200, { verified: false })
+    console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível confirmar o login agora.' })
+  }
+}
+
+async function getTrainerLoginStatus(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code.trim() : ''
+  const whatsapp = normalizePhone(data?.whatsapp)
+  const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) return response(200, { authenticated: false })
+  const tableName = process.env.IMC_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço indisponível.' })
+  try {
+    const challenge = (await dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+    }))).Item
+    if (challenge?.flow?.S !== 'fitpeso-trainer-login' || challenge.whatsapp?.S !== whatsapp ||
+        challenge.sessionTokenHash?.S !== hashCode(sessionToken)) return response(200, { authenticated: false })
+    if (Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)) return response(200, { authenticated: false, expired: true })
+    const session = (await dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { codeHash: { S: hashCode(sessionToken) } }, ConsistentRead: true,
+    }))).Item
+    return response(200, { authenticated: session?.flow?.S === 'fitpeso-trainer-login-session' &&
+      session.whatsapp?.S === whatsapp && Number(session.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000) })
+  } catch (error) {
+    console.error('[imc-submit] Trainer login status failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar o login agora.' })
+  }
+}
+
+async function listTrainerReceivedRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await getTrainerSession(event)
+  if (auth.error) return auth.error
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const trainerId = auth.profile!.trainerId
+  try {
+    const requests: Array<Record<string, unknown>> = []
+    for (const status of ['VALIDATED', 'PROCESSED']) {
+      let lastKey: Record<string, any> | undefined
+      let pages = 0
+      do {
+        const result = await dynamodb.send(new QueryCommand({
+          TableName: tableName, IndexName: 'RequestsByStatus',
+          KeyConditionExpression: '#status = :status AND validUntil > :now',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: { ':status': { S: status }, ':now': { N: String(now) } },
+          ScanIndexForward: false, Limit: 100, ExclusiveStartKey: lastKey,
+        }))
+        for (const item of result.Items ?? []) {
+          if (!item.selectedTrainerIds?.SS?.includes(trainerId)) continue
+          const id = item.requestId?.S ?? ''
+          const expiresAt = Number(item.validUntil?.N ?? 0)
+          if (!id || !expiresAt) continue
+          requests.push({
+            requestId: id, clientName: (item.clientName?.S ?? '').split(/\s+/)[0],
+            city: item.city?.S ?? '', objective: item.objective?.S ?? '',
+            createdAt: item.createdAt?.S ?? '', validUntil: expiresAt,
+            lifecycle: item.lifecycle?.S ?? '', token: createTrainerRequestToken(id, trainerId, expiresAt),
+          })
+        }
+        lastKey = result.LastEvaluatedKey
+        pages += 1
+      } while (lastKey && pages < 10)
+    }
+    requests.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    return response(200, { requests: requests.slice(0, 30) })
+  } catch (error) {
+    console.error('[imc-submit] Trainer requests lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível carregar suas solicitações recebidas.' })
+  }
+}
+
 class TrainerSlugUnavailableError extends Error {}
 
 function createTrainerCode(trainerId: string, whatsapp: string, cities: string[], slug: string) {
@@ -680,6 +873,7 @@ async function registerTrainer(data: Record<string, unknown>) {
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
+  const dateOfBirth = String(data.dateOfBirth)
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const trainerId = randomBytes(16).toString('hex')
@@ -721,6 +915,7 @@ async function registerTrainer(data: Record<string, unknown>) {
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
+            dateOfBirth: { S: dateOfBirth },
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
             ...(cref ? { cref: { S: cref } } : {}),
@@ -920,7 +1115,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
   })
 }
 
@@ -1578,6 +1773,22 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  // Progressive signup is isolated: the existing registration/login remains unchanged.
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/verify-phone')) return verifyPhoneSignupFromBeta(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login-status')) return getTrainerLoginStatus(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/verify-login')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return verifyTrainerLogin(parseBody(event))
+  }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/received-requests')) return listTrainerReceivedRequests(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
+    const auth = await getTrainerSession(event)
+    return auth.error ?? response(200, { authenticated: true, profile: auth.profile! })
+  }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
     return beginCustomerLogin(parseBody(event))
   }
@@ -1587,7 +1798,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verify-login')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
-    return verifyCustomerLogin(parseBody(event))
+    const loginData = parseBody(event)
+    const code = typeof loginData?.code === 'string' ? loginData.code.trim() : ''
+    if (!/^[A-Za-z0-9_-]{22}$/.test(code)) return response(200, { verified: false })
+    const codesTable = process.env.IMC_REQUESTS_TABLE
+    if (!codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    try {
+      const challenge = await dynamodb.send(new GetItemCommand({
+        TableName: codesTable, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+      }))
+      if (challenge.Item?.flow?.S === 'fitpeso-trainer-login') return verifyTrainerLogin(loginData)
+      if (challenge.Item?.flow?.S === 'fitpeso-customer-login') return verifyCustomerLogin(loginData)
+      return response(200, { verified: false })
+    } catch (error) {
+      console.error('[imc-submit] WhatsApp login verification routing failed', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+      return response(503, { error: 'Não foi possível confirmar o login agora.' })
+    }
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {

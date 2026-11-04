@@ -88,6 +88,7 @@ type TrainerRequestDetails = {
 
 type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string }
 type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
+type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
 type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -97,7 +98,7 @@ const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !tr
 const personalName = ref('FitPeso')
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -115,6 +116,7 @@ const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
 const showCustomerLogin = ref(false)
+const loginAsTrainer = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
 const customerEmailGoogleFilled = ref(false)
 const customerStatus = ref('')
@@ -130,6 +132,7 @@ const trainerForm = reactive({
   slug: '',
   phone: '',
   email: '',
+  dateOfBirth: '',
   cities: [] as string[],
   instagram: '',
   cref: '',
@@ -153,6 +156,20 @@ const customerLoginSubmitting = ref(false)
 let customerLoginPollTimer: number | undefined
 let customerLoginPollStartedAt = 0
 const customerSignedInEmail = ref('')
+const customerSignedInName = ref('')
+const trainerSignedInName = ref('')
+const trainerSignedInId = ref('')
+const trainerLoginCode = ref('')
+const trainerLoginToken = ref('')
+const trainerLoginStatus = ref('')
+const trainerLoginError = ref('')
+const trainerLoginLink = ref('')
+const trainerLoginDialog = ref(false)
+const trainerLoginSubmitting = ref(false)
+const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
+const trainerRequestsStatus = ref('')
+let trainerLoginPollTimer: number | undefined
+let trainerLoginStartedAt = 0
 const requestLoginReturn = ref(false)
 const trainingDayOptions = [
   { label: 'Seg', value: 'Segunda-feira' },
@@ -343,6 +360,10 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
   customerSignedInEmail.value = profile.email
+  customerSignedInName.value = profile.name
+  trainerSignedInName.value = ''
+  trainerSignedInId.value = ''
+  try { sessionStorage.removeItem('fitpeso-trainer-session') } catch { /* armazenamento indisponível */ }
 }
 
 async function loadCustomerProfile(token: string) {
@@ -460,6 +481,9 @@ function goHome() {
   showTrainerSignup.value = false
   showCustomerSignup.value = false
   showCustomerLogin.value = false
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginPollTimer = undefined
+  trainerLoginDialog.value = false
   showRequestForm.value = false
   viewMode.value = 'home'
   requestSent.value = false
@@ -650,6 +674,7 @@ async function sendTrainerSignup() {
   const slug = trainerForm.slug.trim().toLowerCase()
   const phone = normalizeBrazilianPhone(trainerForm.phone)
   const email = trainerForm.email.trim().toLowerCase()
+  const dateOfBirth = trainerForm.dateOfBirth
   const instagram = normalizeInstagramHandle(trainerForm.instagram)
   const cref = trainerForm.cref.trim()
   const reservedSlugs = ['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda']
@@ -657,6 +682,7 @@ async function sendTrainerSignup() {
   if (!name) validationError = 'Informe seu nome completo.'
   else if (sex !== 'masculino' && sex !== 'feminino') validationError = 'Selecione Masculino ou Feminino.'
   else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
+  else if (!isValidLoginBirthDate(dateOfBirth)) validationError = 'Informe uma data de nascimento válida.'
   else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
     validationError = 'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
   } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
@@ -680,7 +706,7 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, sex, slug, whatsapp: phone, dateOfBirth, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
     const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
@@ -846,6 +872,8 @@ async function openRequestForm() {
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
   requestLoginReturn.value = fromRequest
+  loginAsTrainer.value = false
+  changeLoginProfile()
   customerLoginStatus.value = ''
   customerLoginError.value = ''
   googleProfileStatus.value = ''
@@ -942,6 +970,151 @@ async function acceptProposal(request: CustomerRequest, proposal: CustomerPropos
     await openCustomerRequests()
     status.value = `Proposta de ${proposal.name} aceita. O profissional será avisado.`
   } catch (error) { status.value = error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.' }
+}
+
+
+async function loadTrainerSession(token: string) {
+  const endpoint = await getRequestApiEndpoint()
+  const response = await fetch(endpoint + '/api/trainers/profile', {
+    method: 'POST', headers: { authorization: 'Bearer ' + token }, cache: 'no-store',
+  })
+  const body = await response.json() as { authenticated?: boolean; profile?: { trainerId: string; name: string }; error?: string }
+  if (!response.ok || body.authenticated !== true || !body.profile?.trainerId) throw new Error(body.error || 'Sessão inválida.')
+  return body.profile
+}
+
+function applyTrainerSession(profile: { trainerId: string; name: string }) {
+  trainerSignedInId.value = profile.trainerId
+  trainerSignedInName.value = profile.name
+  customerSignedInEmail.value = ''
+  customerSignedInName.value = ''
+  try {
+    sessionStorage.removeItem('fitpeso-customer-session')
+    sessionStorage.removeItem('fitpeso-google-session')
+  } catch { /* armazenamento indisponível */ }
+}
+
+function changeLoginProfile() {
+  // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
+  customerLoginMethod.value = 'whatsapp'
+  customerLoginError.value = ''
+  customerLoginStatus.value = ''
+  trainerLoginError.value = ''
+  trainerLoginStatus.value = ''
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = undefined
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginPollTimer = undefined
+  showCustomerLoginDialog.value = false
+  trainerLoginDialog.value = false
+  customerLoginCode.value = ''
+  trainerLoginCode.value = ''
+}
+
+function isValidLoginBirthDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+  const parsed = new Date(date + 'T00:00:00.000Z')
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date &&
+    date >= '1900-01-01' && date <= new Date().toISOString().slice(0, 10)
+}
+
+async function startTrainerWhatsAppLogin() {
+  if (trainerLoginSubmitting.value) return
+  const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
+  if (!whatsapp) { trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'; return }
+  const dateOfBirth = customerLoginBirthDateISO()
+  if (!isValidLoginBirthDate(dateOfBirth)) {
+    trainerLoginError.value = 'Informe uma data de nascimento válida.'
+    return
+  }
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginSubmitting.value = true
+  trainerLoginError.value = ''
+  trainerLoginStatus.value = 'Preparando acesso…'
+  try {
+    const bytes = crypto.getRandomValues(new Uint8Array(32))
+    const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ whatsapp, dateOfBirth, sessionToken: token }),
+    })
+    const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
+    if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
+    trainerLoginCode.value = body.verificationCode
+    trainerLoginToken.value = token
+    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode)
+    trainerLoginDialog.value = true
+    trainerLoginStartedAt = Date.now()
+    trainerLoginStatus.value = 'Toque no botão da janela para enviar a mensagem à Beta pelo WhatsApp. Depois, aguarde a confirmação automática.'
+    trainerLoginPollTimer = window.setTimeout(() => void pollTrainerWhatsAppLogin(), 1000)
+  } catch (error) {
+    trainerLoginError.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login.'
+    trainerLoginStatus.value = ''
+  } finally {
+    trainerLoginSubmitting.value = false
+  }
+}
+
+async function pollTrainerWhatsAppLogin() {
+  if (!showCustomerLogin.value || !loginAsTrainer.value || !trainerLoginCode.value || !trainerLoginToken.value) return
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/login-status', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ whatsapp: customerLoginWhatsApp.value, code: trainerLoginCode.value, sessionToken: trainerLoginToken.value }),
+    })
+    const body = await response.json() as { authenticated?: boolean; expired?: boolean; error?: string }
+    if (response.ok && body.authenticated) {
+      const profile = await loadTrainerSession(trainerLoginToken.value)
+      sessionStorage.setItem('fitpeso-trainer-session', trainerLoginToken.value)
+      applyTrainerSession(profile)
+      trainerLoginDialog.value = false
+      showCustomerLogin.value = false
+      if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+      trainerLoginPollTimer = undefined
+      trainerLoginCode.value = ''
+      goHome()
+      return
+    }
+    if (body.expired) {
+      trainerLoginError.value = 'O código expirou. Inicie o login novamente.'
+      trainerLoginDialog.value = false
+      trainerLoginCode.value = ''
+      return
+    }
+  } catch {
+    // Uma falha de rede transitória não interrompe a confirmação.
+  }
+  if (Date.now() - trainerLoginStartedAt >= 15 * 60 * 1000) {
+    trainerLoginError.value = 'O código expirou. Inicie o login novamente.'
+    trainerLoginDialog.value = false
+    trainerLoginCode.value = ''
+    return
+  }
+  trainerLoginPollTimer = window.setTimeout(() => void pollTrainerWhatsAppLogin(), 3000)
+}
+
+async function openTrainerReceivedRequests() {
+  viewMode.value = 'trainer-requests'
+  trainerRequestsStatus.value = 'Carregando solicitações recebidas…'
+  trainerReceivedRequests.value = []
+  await nextTick()
+  window.scrollTo(0, 0)
+  try {
+    const token = sessionStorage.getItem('fitpeso-trainer-session') ?? ''
+    if (!token) throw new Error('Entre como personal para consultar suas solicitações.')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/received-requests', {
+      headers: { authorization: 'Bearer ' + token }, cache: 'no-store',
+    })
+    const body = await response.json() as { requests?: TrainerReceivedRequest[]; error?: string }
+    if (!response.ok || !Array.isArray(body.requests)) throw new Error(body.error || 'Não foi possível carregar as solicitações.')
+    trainerReceivedRequests.value = body.requests
+    trainerRequestsStatus.value = body.requests.length ? '' : 'Nenhuma solicitação recebida no momento.'
+  } catch (error) {
+    trainerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível consultar as solicitações.'
+  }
 }
 
 function scheduleCustomerLoginPoll(delayMs = 3_000) {
@@ -1128,11 +1301,20 @@ onMounted(() => {
   void loadTrainerProfile()
   void loadTrainerRequest()
   try {
+    const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
+    if (trainerToken) void loadTrainerSession(trainerToken).then(applyTrainerSession).catch(() => {
+      sessionStorage.removeItem('fitpeso-trainer-session')
+      trainerSignedInId.value = ''
+      trainerSignedInName.value = ''
+    })
+  } catch { /* armazenamento indisponível */ }
+  try {
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session')
     if (token) void loadCustomerProfile(token).then(applyCustomerProfile).catch(() => {
       sessionStorage.removeItem('fitpeso-google-session')
       sessionStorage.removeItem('fitpeso-customer-session')
       customerSignedInEmail.value = ''
+      customerSignedInName.value = ''
     })
   } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
 })
@@ -1253,6 +1435,9 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
           <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
+        <label class="field field-wide" for="trainer-birth-date"><span class="field-label">Data de nascimento</span>
+          <input id="trainer-birth-date" v-model="trainerForm.dateOfBirth" name="trainerBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        </label>
         <label class="field field-wide" for="trainer-email"><span class="field-label">E-mail <span>opcional</span></span>
           <input id="trainer-email" v-model="trainerForm.email" name="trainerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
         </label>
@@ -1288,16 +1473,20 @@ async function sendResult() {
         <hr class="personal-divider">
         <h1 id="customer-login-title">Login</h1>
         <p class="intro">Entre para carregar seus dados já cadastrados.</p>
+        <label class="field field-wide" for="login-as-trainer" style="display:flex;align-items:center;gap:0.6rem;justify-content:center;margin-top:1rem;cursor:pointer">
+          <input id="login-as-trainer" v-model="loginAsTrainer" type="checkbox" :disabled="requestLoginReturn" @change="changeLoginProfile">
+          <span>Entrar como personal trainer</span>
+        </label>
       </header>
-      <p v-if="customerLoginError && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ customerLoginError }}</p>
-      <div v-if="customerLoginMethod === 'google'" class="google-fill field-wide">
+      <p v-if="(loginAsTrainer ? trainerLoginError : customerLoginError) && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ loginAsTrainer ? trainerLoginError : customerLoginError }}</p>
+      <div v-if="customerLoginMethod === 'google' && !loginAsTrainer" class="google-fill field-wide">
         <p>Acesse com sua conta Google</p>
         <div ref="googleButtonContainer" class="google-button-container"></div>
         <button class="secondary-button" type="button" @click="chooseCustomerWhatsAppLogin">Entrar com WhatsApp</button>
       </div>
-      <form v-else class="form" @submit.prevent="startCustomerWhatsAppLogin">
+      <form v-else class="form" @submit.prevent="loginAsTrainer ? startTrainerWhatsAppLogin() : startCustomerWhatsAppLogin()">
         <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
-          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''">
+          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''; trainerLoginError = ''">
         </label>
         <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
           <span class="date-input-with-picker">
@@ -1308,19 +1497,19 @@ async function sendResult() {
             <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
           </span>
         </label>
-        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting">{{ customerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
-        <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
+        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting">{{ customerLoginSubmitting || trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
+        <button v-if="!loginAsTrainer" class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
       </form>
-      <small v-if="customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
+      <small v-if="loginAsTrainer ? trainerLoginStatus : customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ loginAsTrainer ? trainerLoginStatus : customerLoginStatus }}</small>
       <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
       <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
-      <div v-if="showCustomerLoginDialog" class="success-overlay" role="presentation">
+      <div v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog" class="success-overlay" role="presentation">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="customer-login-confirm-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="customer-login-confirm-title">Confirme seu login</h2>
           <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
-          <a v-if="customerLoginVerificationLink" class="primary-button customer-verification-link" :href="customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
-          <button class="secondary-button" type="button" @click="pollCustomerLogin">Verificar agora</button>
+          <a v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" class="primary-button customer-verification-link" :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <button class="secondary-button" type="button" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Verificar agora</button>
         </section>
       </div>
     </section>
@@ -1387,7 +1576,7 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -1413,6 +1602,19 @@ async function sendResult() {
           </form>
           <p v-else class="status">Você já enviou uma proposta para esta solicitação.</p>
         </div>
+      </section>
+
+      <section v-if="viewMode === 'trainer-requests'" class="customer-requests-view" aria-labelledby="page-title">
+        <p v-if="trainerRequestsStatus" class="status" role="status">{{ trainerRequestsStatus }}</p>
+        <button class="secondary-button" type="button" @click="openTrainerReceivedRequests">Atualizar solicitações</button>
+        <article v-for="request in trainerReceivedRequests" :key="request.requestId" class="customer-request-card">
+          <h2>{{ request.city }}<span v-if="request.objective"> · {{ request.objective }}</span></h2>
+          <p>Cliente: {{ request.clientName }}</p>
+          <p>Recebida em {{ new Date(request.createdAt).toLocaleString('pt-BR') }}</p>
+          <p>Válida até {{ new Date(request.validUntil * 1000).toLocaleString('pt-BR') }}</p>
+          <a class="secondary-button" :href="'/?token=' + encodeURIComponent(request.token)">Ver solicitação e enviar proposta</a>
+        </article>
+        <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
       <section v-if="viewMode === 'customer-requests'" class="customer-requests-view" aria-labelledby="page-title">
@@ -1690,10 +1892,21 @@ async function sendResult() {
         @click="showTrainerSignup = true"
       >Sou personal. Quero me cadastrar</a>
       <div v-if="viewMode === 'home' && isRootHome" class="customer-account-links">
-        <button type="button" @click="openCustomerLogin()">Login</button>
-        <span aria-hidden="true">|</span>
-        <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
-        <template v-if="customerSignedInEmail"><span aria-hidden="true">|</span><button type="button" @click="openCustomerRequests">Minhas solicitações</button></template>
+        <template v-if="trainerSignedInId">
+          <span class="customer-signed-in-name">Olá, {{ trainerSignedInName }}</span>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openTrainerReceivedRequests">Solicitações recebidas</button>
+        </template>
+        <template v-else-if="customerSignedInEmail">
+          <span class="customer-signed-in-name">Olá, {{ customerSignedInName }}</span>
+          <span aria-hidden="true">|</span>
+          <button type="button" @click="openCustomerRequests">Minhas solicitações</button>
+        </template>
+        <template v-else>
+          <button type="button" @click="openCustomerLogin()">Login</button>
+          <span aria-hidden="true">|</span>
+          <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+        </template>
       </div>
     </section>
     <footer>
