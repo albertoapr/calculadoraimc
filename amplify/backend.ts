@@ -130,10 +130,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
 
 const apiResource = api.root.addResource('api')
 const apiLambdaInvokeRole = new iam.Role(apiStack, 'ApiGatewayInvokeImcSubmitRole', {
-  assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com').withConditions({
-    StringEquals: { 'aws:SourceAccount': Stack.of(api).account },
-    ArnLike: { 'aws:SourceArn': api.arnForExecuteApi() },
-  }),
+  assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com'),
 })
 apiLambdaInvokeRole.addToPolicy(new iam.PolicyStatement({
   actions: ['lambda:InvokeFunction'],
