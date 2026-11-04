@@ -969,6 +969,132 @@ async function acceptProposal(request: CustomerRequest, proposal: CustomerPropos
   } catch (error) { status.value = error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.' }
 }
 
+
+async function loadTrainerSession(token: string) {
+  const endpoint = await getRequestApiEndpoint()
+  const response = await fetch(endpoint + '/api/trainers/profile', {
+    method: 'POST', headers: { authorization: 'Bearer ' + token }, cache: 'no-store',
+  })
+  const body = await response.json() as { authenticated?: boolean; profile?: { trainerId: string; name: string }; error?: string }
+  if (!response.ok || body.authenticated !== true || !body.profile?.trainerId) throw new Error(body.error || 'Sessão inválida.')
+  return body.profile
+}
+
+function applyTrainerSession(profile: { trainerId: string; name: string }) {
+  trainerSignedInId.value = profile.trainerId
+  trainerSignedInName.value = profile.name
+  customerSignedInEmail.value = ''
+  customerSignedInName.value = ''
+  try {
+    sessionStorage.removeItem('fitpeso-customer-session')
+    sessionStorage.removeItem('fitpeso-google-session')
+  } catch { /* armazenamento indisponível */ }
+}
+
+function openTrainerLogin() {
+  showCustomerLogin.value = false
+  showTrainerLogin.value = true
+  trainerLoginError.value = ''
+  trainerLoginStatus.value = ''
+  trainerLoginDialog.value = false
+  void nextTick(() => window.scrollTo(0, 0))
+}
+
+async function startTrainerWhatsAppLogin() {
+  if (trainerLoginSubmitting.value) return
+  const whatsapp = normalizeBrazilianPhone(trainerLoginWhatsApp.value)
+  if (!whatsapp) { trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'; return }
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginSubmitting.value = true
+  trainerLoginError.value = ''
+  trainerLoginStatus.value = 'Preparando acesso…'
+  try {
+    const bytes = crypto.getRandomValues(new Uint8Array(32))
+    const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ whatsapp, sessionToken: token }),
+    })
+    const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
+    if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
+    trainerLoginWhatsApp.value = whatsapp
+    trainerLoginCode.value = body.verificationCode
+    trainerLoginToken.value = token
+    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login personal FitPeso ' + body.verificationCode)
+    trainerLoginDialog.value = true
+    trainerLoginStartedAt = Date.now()
+    trainerLoginStatus.value = 'Envie o código pelo WhatsApp para confirmar sua identidade.'
+    trainerLoginPollTimer = window.setTimeout(() => void pollTrainerWhatsAppLogin(), 1000)
+  } catch (error) {
+    trainerLoginError.value = error instanceof Error ? error.message : 'Não foi possível iniciar o login.'
+    trainerLoginStatus.value = ''
+  } finally {
+    trainerLoginSubmitting.value = false
+  }
+}
+
+async function pollTrainerWhatsAppLogin() {
+  if (!showTrainerLogin.value || !trainerLoginCode.value || !trainerLoginToken.value) return
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/login-status', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ whatsapp: trainerLoginWhatsApp.value, code: trainerLoginCode.value, sessionToken: trainerLoginToken.value }),
+    })
+    const body = await response.json() as { authenticated?: boolean; expired?: boolean; error?: string }
+    if (response.ok && body.authenticated) {
+      const profile = await loadTrainerSession(trainerLoginToken.value)
+      sessionStorage.setItem('fitpeso-trainer-session', trainerLoginToken.value)
+      applyTrainerSession(profile)
+      trainerLoginDialog.value = false
+      showTrainerLogin.value = false
+      if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+      trainerLoginPollTimer = undefined
+      trainerLoginCode.value = ''
+      goHome()
+      return
+    }
+    if (body.expired) {
+      trainerLoginError.value = 'O código expirou. Inicie o login novamente.'
+      trainerLoginDialog.value = false
+      trainerLoginCode.value = ''
+      return
+    }
+  } catch {
+    // Uma falha de rede transitória não interrompe a confirmação.
+  }
+  if (Date.now() - trainerLoginStartedAt >= 15 * 60 * 1000) {
+    trainerLoginError.value = 'O código expirou. Inicie o login novamente.'
+    trainerLoginDialog.value = false
+    trainerLoginCode.value = ''
+    return
+  }
+  trainerLoginPollTimer = window.setTimeout(() => void pollTrainerWhatsAppLogin(), 3000)
+}
+
+async function openTrainerReceivedRequests() {
+  viewMode.value = 'trainer-requests'
+  trainerRequestsStatus.value = 'Carregando solicitações recebidas…'
+  trainerReceivedRequests.value = []
+  await nextTick()
+  window.scrollTo(0, 0)
+  try {
+    const token = sessionStorage.getItem('fitpeso-trainer-session') ?? ''
+    if (!token) throw new Error('Entre como personal para consultar suas solicitações.')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/received-requests', {
+      headers: { authorization: 'Bearer ' + token }, cache: 'no-store',
+    })
+    const body = await response.json() as { requests?: TrainerReceivedRequest[]; error?: string }
+    if (!response.ok || !Array.isArray(body.requests)) throw new Error(body.error || 'Não foi possível carregar as solicitações.')
+    trainerReceivedRequests.value = body.requests
+    trainerRequestsStatus.value = body.requests.length ? '' : 'Nenhuma solicitação recebida no momento.'
+  } catch (error) {
+    trainerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível consultar as solicitações.'
+  }
+}
+
 function scheduleCustomerLoginPoll(delayMs = 3_000) {
   if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
   customerLoginPollTimer = window.setTimeout(() => void pollCustomerLogin(), delayMs)
