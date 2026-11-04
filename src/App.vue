@@ -116,6 +116,7 @@ const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
 const showCustomerLogin = ref(false)
+const loginAsTrainer = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
 const customerEmailGoogleFilled = ref(false)
 const customerStatus = ref('')
@@ -158,11 +159,6 @@ const customerSignedInEmail = ref('')
 const customerSignedInName = ref('')
 const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
-const showTrainerLogin = ref(false)
-const trainerLoginWhatsApp = ref('')
-const trainerLoginBirthDate = ref('')
-const trainerLoginBirthDateText = ref('')
-const trainerLoginDatePicker = ref<HTMLInputElement | null>(null)
 const trainerLoginCode = ref('')
 const trainerLoginToken = ref('')
 const trainerLoginStatus = ref('')
@@ -485,7 +481,6 @@ function goHome() {
   showTrainerSignup.value = false
   showCustomerSignup.value = false
   showCustomerLogin.value = false
-  showTrainerLogin.value = false
   if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
   trainerLoginPollTimer = undefined
   trainerLoginDialog.value = false
@@ -877,6 +872,8 @@ async function openRequestForm() {
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
   requestLoginReturn.value = fromRequest
+  loginAsTrainer.value = false
+  changeLoginProfile()
   customerLoginStatus.value = ''
   customerLoginError.value = ''
   googleProfileStatus.value = ''
@@ -997,9 +994,28 @@ function applyTrainerSession(profile: { trainerId: string; name: string }) {
   } catch { /* armazenamento indisponível */ }
 }
 
+function changeLoginProfile() {
+  // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
+  customerLoginMethod.value = 'whatsapp'
+  customerLoginError.value = ''
+  customerLoginStatus.value = ''
+  trainerLoginError.value = ''
+  trainerLoginStatus.value = ''
+  if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
+  customerLoginPollTimer = undefined
+  if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
+  trainerLoginPollTimer = undefined
+  showCustomerLoginDialog.value = false
+  trainerLoginDialog.value = false
+  customerLoginCode.value = ''
+  trainerLoginCode.value = ''
+}
+
 function openTrainerLogin() {
-  showCustomerLogin.value = false
-  showTrainerLogin.value = true
+  showCustomerLogin.value = true
+  loginAsTrainer.value = true
+  customerLoginMethod.value = 'whatsapp'
+  changeLoginProfile()
   trainerLoginError.value = ''
   trainerLoginStatus.value = ''
   trainerLoginDialog.value = false
@@ -1014,48 +1030,11 @@ function isValidLoginBirthDate(date: string) {
     date >= '1900-01-01' && date <= new Date().toISOString().slice(0, 10)
 }
 
-function parseTrainerLoginBirthDate() {
-  const typed = trainerLoginBirthDateText.value.trim()
-  if (!typed) return trainerLoginBirthDate.value
-  const match = typed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return match ? match[3] + '-' + match[2] + '-' + match[1] : ''
-}
-
-function maskTrainerLoginBirthDate(event: Event) {
-  trainerLoginError.value = ''
-  const digits = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 8)
-  trainerLoginBirthDateText.value = digits.length > 4
-    ? digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4)
-    : digits.length > 2 ? digits.slice(0, 2) + '/' + digits.slice(2) : digits
-  trainerLoginBirthDate.value = ''
-}
-
-function selectTrainerLoginBirthDate(event: Event) {
-  trainerLoginError.value = ''
-  const value = (event.target as HTMLInputElement).value
-  trainerLoginBirthDate.value = value
-  if (value) {
-    const [year, month, day] = value.split('-')
-    trainerLoginBirthDateText.value = day + '/' + month + '/' + year
-  } else trainerLoginBirthDateText.value = ''
-}
-
-function openTrainerLoginDatePicker() {
-  const picker = trainerLoginDatePicker.value as (HTMLInputElement & { showPicker?: () => void }) | null
-  if (!picker) return
-  try {
-    if (picker.showPicker) picker.showPicker()
-    else picker.click()
-  } catch {
-    picker.click()
-  }
-}
-
 async function startTrainerWhatsAppLogin() {
   if (trainerLoginSubmitting.value) return
-  const whatsapp = normalizeBrazilianPhone(trainerLoginWhatsApp.value)
+  const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
   if (!whatsapp) { trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'; return }
-  const dateOfBirth = parseTrainerLoginBirthDate()
+  const dateOfBirth = customerLoginBirthDateISO()
   if (!isValidLoginBirthDate(dateOfBirth)) {
     trainerLoginError.value = 'Informe uma data de nascimento válida.'
     return
@@ -1074,7 +1053,6 @@ async function startTrainerWhatsAppLogin() {
     })
     const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
-    trainerLoginWhatsApp.value = whatsapp
     trainerLoginCode.value = body.verificationCode
     trainerLoginToken.value = token
     trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode)
@@ -1091,12 +1069,12 @@ async function startTrainerWhatsAppLogin() {
 }
 
 async function pollTrainerWhatsAppLogin() {
-  if (!showTrainerLogin.value || !trainerLoginCode.value || !trainerLoginToken.value) return
+  if (!showCustomerLogin.value || !loginAsTrainer.value || !trainerLoginCode.value || !trainerLoginToken.value) return
   try {
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/trainers/login-status', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ whatsapp: trainerLoginWhatsApp.value, code: trainerLoginCode.value, sessionToken: trainerLoginToken.value }),
+      body: JSON.stringify({ whatsapp: customerLoginWhatsApp.value, code: trainerLoginCode.value, sessionToken: trainerLoginToken.value }),
     })
     const body = await response.json() as { authenticated?: boolean; expired?: boolean; error?: string }
     if (response.ok && body.authenticated) {
@@ -1104,7 +1082,7 @@ async function pollTrainerWhatsAppLogin() {
       sessionStorage.setItem('fitpeso-trainer-session', trainerLoginToken.value)
       applyTrainerSession(profile)
       trainerLoginDialog.value = false
-      showTrainerLogin.value = false
+      showCustomerLogin.value = false
       if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
       trainerLoginPollTimer = undefined
       trainerLoginCode.value = ''
@@ -1499,46 +1477,6 @@ async function sendResult() {
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     </section>
 
-    <section v-else-if="showTrainerLogin" class="calculator customer-signup" aria-labelledby="trainer-login-title">
-      <header class="hero">
-        <div class="brand" aria-label="FitPeso">
-          <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
-        </div>
-        <hr class="personal-divider">
-        <h1 id="trainer-login-title">Login de personal trainer</h1>
-        <p class="intro">Entre para carregar seu cadastro e consultar suas solicitações recebidas.</p>
-      </header>
-      <form class="form" @submit.prevent="startTrainerWhatsAppLogin">
-        <label class="field field-wide" for="trainer-login-whatsapp">
-          <span class="field-label">WhatsApp com DDD</span>
-          <input id="trainer-login-whatsapp" v-model="trainerLoginWhatsApp" name="trainerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required placeholder="(21) 99999-9999" @input="trainerLoginError = ''">
-        </label>
-        <label class="field field-wide" for="trainer-login-birth-date-text">
-          <span class="field-label">Data de nascimento</span>
-          <span class="date-input-with-picker">
-            <input id="trainer-login-birth-date-text" v-model="trainerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Data de nascimento do personal, dia mês e ano" @input="maskTrainerLoginBirthDate">
-            <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openTrainerLoginDatePicker">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
-            </button>
-            <input ref="trainerLoginDatePicker" class="date-picker-native" type="date" :value="trainerLoginBirthDate" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectTrainerLoginBirthDate">
-          </span>
-        </label>
-        <button class="primary-button field-wide" type="submit" :disabled="trainerLoginSubmitting">{{ trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
-      </form>
-      <p v-if="trainerLoginError" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ trainerLoginError }}</p>
-      <small v-if="trainerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ trainerLoginStatus }}</small>
-      <button class="back-button" type="button" @click="goHome">Voltar ao início</button>
-      <div v-if="trainerLoginDialog" class="success-overlay" role="presentation">
-        <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="trainer-confirm-title">
-          <div class="success-mark" aria-hidden="true">✓</div>
-          <h2 id="trainer-confirm-title">Confirme seu login</h2>
-          <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
-          <a class="primary-button customer-verification-link" :href="trainerLoginLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
-          <button class="secondary-button" type="button" @click="pollTrainerWhatsAppLogin">Verificar agora</button>
-        </section>
-      </div>
-    </section>
-
     <section v-else-if="showCustomerLogin" class="calculator customer-signup" aria-labelledby="customer-login-title">
       <header class="hero">
         <div class="brand" :aria-label="personalName">
@@ -1547,16 +1485,20 @@ async function sendResult() {
         <hr class="personal-divider">
         <h1 id="customer-login-title">Login</h1>
         <p class="intro">Entre para carregar seus dados já cadastrados.</p>
+        <label class="field field-wide" for="login-as-trainer" style="display:flex;align-items:center;gap:0.6rem;justify-content:center;margin-top:1rem">
+          <input id="login-as-trainer" v-model="loginAsTrainer" type="checkbox" :disabled="requestLoginReturn" @change="changeLoginProfile">
+          <span>Entrar como personal trainer</span>
+        </label>
       </header>
-      <p v-if="customerLoginError && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ customerLoginError }}</p>
-      <div v-if="customerLoginMethod === 'google'" class="google-fill field-wide">
+      <p v-if="(loginAsTrainer ? trainerLoginError : customerLoginError) && customerLoginMethod === 'whatsapp'" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ loginAsTrainer ? trainerLoginError : customerLoginError }}</p>
+      <div v-if="customerLoginMethod === 'google' && !loginAsTrainer" class="google-fill field-wide">
         <p>Acesse com sua conta Google</p>
         <div ref="googleButtonContainer" class="google-button-container"></div>
         <button class="secondary-button" type="button" @click="chooseCustomerWhatsAppLogin">Entrar com WhatsApp</button>
       </div>
-      <form v-else class="form" @submit.prevent="startCustomerWhatsAppLogin">
+      <form v-else class="form" @submit.prevent="loginAsTrainer ? startTrainerWhatsAppLogin() : startCustomerWhatsAppLogin()">
         <label class="field field-wide" for="customer-login-whatsapp"><span class="field-label">WhatsApp com DDD</span>
-          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''">
+          <input id="customer-login-whatsapp" v-model="customerLoginWhatsApp" name="customerLoginWhatsApp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required @input="customerLoginError = ''; trainerLoginError = ''">
         </label>
         <label class="field field-wide" for="customer-login-birth-date-text"><span class="field-label">Data de nascimento</span>
           <span class="date-input-with-picker">
@@ -1567,20 +1509,19 @@ async function sendResult() {
             <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
           </span>
         </label>
-        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting">{{ customerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
-        <button class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
+        <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting">{{ customerLoginSubmitting || trainerLoginSubmitting ? 'Preparando login…' : 'Continuar com WhatsApp' }}</button>
+        <button v-if="!loginAsTrainer" class="back-button field-wide" type="button" @click="chooseCustomerGoogleLogin">Voltar para login com Google</button>
       </form>
-      <small v-if="customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ customerLoginStatus }}</small>
-      <button class="secondary-button" type="button" @click="openTrainerLogin">Sou personal trainer</button>
+      <small v-if="loginAsTrainer ? trainerLoginStatus : customerLoginStatus" class="field-wide" role="status" aria-live="polite">{{ loginAsTrainer ? trainerLoginStatus : customerLoginStatus }}</small>
       <button class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
       <button class="back-button" type="button" @click="closeCustomerLogin">Voltar</button>
-      <div v-if="showCustomerLoginDialog" class="success-overlay" role="presentation">
+      <div v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog" class="success-overlay" role="presentation">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="customer-login-confirm-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="customer-login-confirm-title">Confirme seu login</h2>
           <p>Toque no botão e envie a mensagem com o código para a FitPeso no WhatsApp. Depois, volte para esta tela e aguarde: o acesso será confirmado automaticamente.</p>
-          <a v-if="customerLoginVerificationLink" class="primary-button customer-verification-link" :href="customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
-          <button class="secondary-button" type="button" @click="pollCustomerLogin">Verificar agora</button>
+          <a v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" class="primary-button customer-verification-link" :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink" target="_blank" rel="noopener noreferrer">Enviar código pelo WhatsApp</a>
+          <button class="secondary-button" type="button" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Verificar agora</button>
         </section>
       </div>
     </section>
@@ -1977,8 +1918,6 @@ async function sendResult() {
           <button type="button" @click="openCustomerLogin()">Login</button>
           <span aria-hidden="true">|</span>
           <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
-          <span aria-hidden="true">|</span>
-          <button type="button" @click="openTrainerLogin">Sou personal</button>
         </template>
       </div>
     </section>
