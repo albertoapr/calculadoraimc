@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
+import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, TransactionCanceledException, type AttributeValue } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 
@@ -86,7 +86,7 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
     if (!identity) return reply(400, { error: 'Não foi possível validar esses dados. Confira e-mail, nascimento e o tipo de cadastro.' })
     const code = randomBytes(32).toString('base64url')
     const expiresAt = now + 15 * 60
-    const record: Record<string, { S?: string; N?: string }> = {
+    const record: Record<string, AttributeValue> = {
       codeHash: { S: digest(code) }, flow: { S: 'fitpeso-email-login' },
       email: { S: email }, whatsapp: { S: identity.whatsapp },
       sessionTokenHash: { S: digest(sessionToken) },
@@ -165,7 +165,7 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
     if (challenge?.flow?.S === 'fitpeso-email-login' && Number(challenge.expiresAt?.N ?? 0) > now &&
         !challenge.consumedAt?.N && challenge.sessionTokenHash?.S &&
         challenge.whatsapp?.S && challenge.email?.S) {
-      const record: Record<string, { S?: string; N?: string }> = {
+      const record: Record<string, AttributeValue> = {
         codeHash: { S: challenge.sessionTokenHash.S },
         flow: { S: challenge.role?.S === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session' },
         whatsapp: { S: challenge.whatsapp.S },
