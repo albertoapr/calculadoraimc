@@ -1583,6 +1583,7 @@ async function sendResult() {
           </select>
         </label>
         <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="searchEligibleTrainers">{{ checkingTrainers ? 'Buscando…' : 'Buscar profissionais' }}</button>
+        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </template>
 
         <template v-else-if="requestStep === 2">
