@@ -613,10 +613,110 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) {
       return { error: response(401, { error: 'Cadastro do personal indisponível.' }) }
     }
-    return { profile: { trainerId, name: item.name?.S ?? '', whatsapp } }
+    return { profile: {
+      trainerId,
+      name: item.name?.S ?? '',
+      whatsapp,
+      email: item.email?.S ?? '',
+      dateOfBirth: item.dateOfBirth?.S ?? '',
+      instagram: item.instagram?.S ?? '',
+      cref: item.cref?.S ?? '',
+      sex: item.sex?.S ?? '',
+      slug: item.slug?.S ?? '',
+    } }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
+  }
+}
+
+
+function validProfileName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().replace(/\s+/g, ' ').length >= 2 &&
+    value.trim().replace(/\s+/g, ' ').length <= 80 &&
+    /^[\p{L}\p{M} .'-]+$/u.test(value.trim().replace(/\s+/g, ' '))
+}
+
+async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const data = parseBody(event)
+  if (!data || !validProfileName(data.name) || !isValidBirthDate(data.dateOfBirth) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth'].includes(key))) {
+    return response(400, { error: 'Informe nome e data de nascimento válidos. E-mail e WhatsApp exigem nova verificação.' })
+  }
+  const tableName = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
+  const whatsapp = auth.profile!.whatsapp
+  try {
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: tableName,
+      Key: { whatsapp: { S: whatsapp } },
+      UpdateExpression: 'SET #name = :name, #dob = :dob, updatedAt = :updated',
+      ConditionExpression: '#status = :active AND whatsappVerified = :verified',
+      ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':name': { S: data.name.trim().replace(/\s+/g, ' ') },
+        ':dob': { S: data.dateOfBirth as string },
+        ':updated': { S: new Date().toISOString() },
+        ':active': { S: 'ACTIVE' }, ':verified': { BOOL: true },
+      },
+    }))
+    // Return an authoritative profile, including unchanged identity fields.
+    return getCustomerProfile(event)
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'Cadastro não está ativo. Entre novamente.' })
+    console.error('[imc-submit] Customer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar seu cadastro.' })
+  }
+}
+
+async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await getTrainerSession(event)
+  if (auth.error) return auth.error
+  const data = parseBody(event)
+  const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
+  const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
+  if (!data || !validProfileName(data.name) || !isValidBirthDate(data.dateOfBirth) ||
+      (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
+      (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram'].includes(key))) {
+    return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
+  }
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
+  try {
+    // A professional may have up to two city records. Update both as one operation.
+    const lookup = await dynamodb.send(new QueryCommand({
+      TableName: tableName, IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: auth.profile!.trainerId } },
+    }))
+    const rows = lookup.Items ?? []
+    const cities = [...new Set(rows.map(row => row.city?.S ?? '').filter(Boolean))]
+    if (cities.length < 1 || cities.length > 2) return response(409, { error: 'Não foi possível confirmar as cidades do cadastro.' })
+    const time = new Date().toISOString()
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+      Update: {
+        TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
+        UpdateExpression: 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
+        ExpressionAttributeValues: {
+          ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
+          ':dob': { S: data.dateOfBirth as string },
+          ':instagram': { S: instagram }, ':cref': { S: cref }, ':updated': { S: time },
+          ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
+        },
+      },
+    })) }))
+    const refreshed = await getTrainerSession(event)
+    return refreshed.error ?? response(200, { authenticated: true, profile: refreshed.profile! })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou indisponível. Atualize a página e tente novamente.' })
+    console.error('[imc-submit] Trainer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o perfil do personal.' })
   }
 }
 
@@ -1772,6 +1872,8 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login-status')) return getTrainerLoginStatus(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/verify-login')) {
