@@ -3,7 +3,6 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import rootHomePersonalImage from './assets/root-home-personal.jpg'
-import foxMark from './assets/fox-mark.svg'
 
 type Sex = 'feminino' | 'masculino' | 'outro'
 type GoogleCredentialResponse = { credential: string }
@@ -1702,14 +1701,6 @@ async function sendResult() {
 <template>
   <main class="page-shell">
     <section v-if="showTrainerSignup" class="calculator" aria-labelledby="page-title">
-      <div class="theme-switch theme-switch-in-box" role="group" aria-label="Aparência do aplicativo">
-        <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
-        </button>
-        <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
-        </button>
-      </div>
       <header class="hero">
         <div class="brand" aria-label="FitPeso — Rede de treinadores">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
@@ -1776,10 +1767,8 @@ async function sendResult() {
         <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
-    </section>
-
-    <section v-else-if="showCustomerLogin" class="calculator customer-signup login-screen" aria-labelledby="customer-login-title">
-      <div class="theme-switch theme-switch-in-box" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" aria-label="Preferências e contato">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
@@ -1787,6 +1776,12 @@ async function sendResult() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
       </div>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <span class="box-footer-spacer" aria-hidden="true"></span>
+      </div>
+    </section>
+
+    <section v-else-if="showCustomerLogin" class="calculator customer-signup login-screen" aria-labelledby="customer-login-title">
       <header class="hero">
         <div class="brand" aria-label="FitPeso — Rede de treinadores">
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
@@ -1848,10 +1843,8 @@ async function sendResult() {
           <button class="secondary-button" type="button" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Verificar agora</button>
         </section>
       </div>
-    </section>
-
-    <section v-else-if="showCustomerSignup" class="calculator customer-signup" aria-labelledby="customer-signup-title">
-      <div class="theme-switch theme-switch-in-box" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" aria-label="Preferências e contato">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
@@ -1859,6 +1852,12 @@ async function sendResult() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
       </div>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <span class="box-footer-spacer" aria-hidden="true"></span>
+      </div>
+    </section>
+
+    <section v-else-if="showCustomerSignup" class="calculator customer-signup" aria-labelledby="customer-signup-title">
       <header class="hero">
         <div class="brand" aria-label="FitPeso">
           <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" /><path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" /></svg>
@@ -1897,10 +1896,8 @@ async function sendResult() {
       </div>
       <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
       <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
-    </section>
-
-    <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
-      <div class="theme-switch theme-switch-in-box" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" aria-label="Preferências e contato">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
@@ -1908,6 +1905,12 @@ async function sendResult() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
       </div>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <span class="box-footer-spacer" aria-hidden="true"></span>
+      </div>
+    </section>
+
+    <section v-else class="calculator" :aria-labelledby="viewMode === 'home' && !result ? undefined : viewMode === 'contact' ? 'contact-form-title' : 'page-title'" :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined">
       <div v-if="showHomeTopbar" class="fitpeso-home-topbar">
         <div class="fitpeso-home-brand" aria-label="FitPeso — Rede de treinadores">
           <div class="fitpeso-home-brand-main">
@@ -2315,13 +2318,19 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
         </section>
       </div>
+      <div class="box-footer" aria-label="Preferências e contato">
+      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+        <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+        </button>
+        <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
+        </button>
+      </div>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <span class="box-footer-spacer" aria-hidden="true"></span>
+      </div>
 
     </section>
-    <footer>
-      <div class="footer-bar">
-        <div class="footer-brand"><img :src="foxMark" alt=""><a href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20sou%20personal.%20Me%20interessei%20pelo%20fitpeso%2C%20como%20funciona%20%3F" target="_blank" rel="noopener noreferrer">Beta</a></div>
-
-      </div>
-    </footer>
   </main>
 </template>
