@@ -171,7 +171,7 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
-  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
+  return (name === '' || (name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name))) && Boolean(whatsapp) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth))
 }
@@ -261,7 +261,8 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
 
     const verifiedAt = new Date(now * 1000).toISOString()
     // Nome declarado à Beta por um remetente que concluiu a verificação do número; não é titularidade certificada.
-    const acceptedName = getBetaDisplayName(data) || customer?.name?.S || ''
+    const acceptedName = getBetaDisplayName(data) || getBetaDisplayName({ name: customer?.name?.S })
+    if (!acceptedName) return response(422, { verified: false, error: 'A Beta precisa enviar um nome válido junto com o WhatsApp e o código para concluir o cadastro.' })
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
@@ -335,7 +336,7 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
       const customer = await dynamodb.send(new GetItemCommand({
         TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
       }))
-      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
+      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
     }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
@@ -551,7 +552,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -1950,7 +1951,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
     const registration = parseBody(event)
-    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira nome e WhatsApp. E-mail e nascimento são opcionais.' })
+    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o WhatsApp e os dados informados. O nome será obtido na confirmação com a Beta.' })
     try {
       const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
       return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })
