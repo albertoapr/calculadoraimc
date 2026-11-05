@@ -8,7 +8,8 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
-    "type-check": "vue-tsc --build --force"
+    "type-check": "vue-tsc --build --force",
+    "test:whatsapp": "node --test tests/whatsapp-login.test.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.933.0",

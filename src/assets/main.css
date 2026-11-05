@@ -529,3 +529,17 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
 @media (prefers-reduced-motion: reduce) {
   .customer-account-links button, .customer-account-links a { scroll-behavior: auto; }
 }
+
+
+/* WhatsApp confirmation: the bar measures waiting time, not authentication. */
+.whatsapp-progress { margin: 1rem 0; }
+.whatsapp-progress-track { height: .6rem; overflow: hidden; border-radius: 1rem; background: color-mix(in srgb, currentColor 15%, transparent); }
+.whatsapp-progress-track span { display: block; height: 100%; border-radius: inherit; background: currentColor; transition: width .1s linear; }
+.whatsapp-progress small { display: block; margin-top: .5rem; }
+.whatsapp-wait-icon { font-size: 2.5rem; animation: whatsapp-wait-spin 1.5s linear infinite; }
+.whatsapp-wait-icon.is-confirmed { animation: none; }
+@keyframes whatsapp-wait-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .whatsapp-wait-icon { animation: none; }
+  .whatsapp-progress-track span { transition: none; }
+}
