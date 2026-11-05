@@ -22,6 +22,7 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 
 .page-shell {
+  position: relative;
   min-height: 100vh;
   padding: 44px 20px 24px;
   background: radial-gradient(ellipse at 50% 0%, #dceafd 0, #f1f6fd 46%, #f8faff 100%);
@@ -303,6 +304,9 @@ html[data-theme='dark'] .account-dropdown > summary { background: #1b2720; borde
 .request-form-title { font-size: 19px; text-align: center; }
 
 .theme-switch { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: 6px; margin: 0; }
+.theme-switch-top { position: absolute; top: 12px; right: 12px; z-index: 20; }
+.theme-switch-top button { width: 44px; min-height: 44px; }
+html[data-theme='dark'] .theme-switch button.active { border-color: #f6ae61; color: #f6ae61; background: #2b342c; }
 .theme-switch button { display: grid; width: 36px; min-height: 36px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
 .theme-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #edf4ff; }
