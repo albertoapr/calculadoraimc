@@ -1246,7 +1246,7 @@ async function startTrainerWhatsAppLogin() {
     if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
     trainerLoginCode.value = body.verificationCode
     trainerLoginToken.value = token
-    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode)
+    trainerLoginLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent('Confirmar login FitPeso ' + body.verificationCode + '\nWhatsApp: ' + whatsapp)
     trainerLoginDialog.value = true
     trainerLoginStartedAt = Date.now()
     trainerLoginStatus.value = 'Toque no botão da janela para enviar a mensagem à Beta pelo WhatsApp. Depois, aguarde a confirmação automática.'
@@ -1407,7 +1407,7 @@ async function startCustomerWhatsAppLogin() {
     customerLoginWhatsApp.value = whatsapp
     customerLoginCode.value = body.verificationCode
     customerLoginSessionToken.value = sessionToken
-    customerLoginVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(`Confirmar login FitPeso ${body.verificationCode}`)}`
+    customerLoginVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(`Confirmar login FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}`)}`
     customerLoginPollStartedAt = Date.now()
     customerLoginStatus.value = 'Envie o código pelo WhatsApp. Depois, mantenha esta tela aberta: o login será confirmado automaticamente.'
     showCustomerLoginDialog.value = true
@@ -1956,7 +1956,7 @@ async function sendResult() {
             <input id="profile-email" :value="editingProfile.email" type="email" readonly aria-readonly="true">
           </label>
           <label class="field field-wide" for="profile-dob"><span class="field-label">Data de nascimento</span>
-            <input id="profile-dob" v-model="editingProfile.dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+            <input id="profile-dob" v-model="editingProfile.dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" :required="editingProfileType === 'trainer'">
           </label>
           <template v-if="editingProfileType === 'trainer'">
             <label class="field field-wide" for="profile-cref"><span class="field-label">Registro CREF <span>opcional</span></span>
