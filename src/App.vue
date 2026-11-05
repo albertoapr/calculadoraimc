@@ -659,6 +659,7 @@ async function continueSignupContact() {
       return
     }
     customerForm.whatsapp = phone
+    customerForm.name = ''
     customerForm.email = ''
     // O nome vem da confirmação realizada pela Beta.
     await sendCustomerSignup()
@@ -1847,7 +1848,7 @@ async function sendResult() {
         <label class="field field-wide" for="signup-contact"><span class="field-label">WhatsApp ou e-mail</span>
           <input id="signup-contact" v-model="signupContact" name="signupContact" autocomplete="username" type="text" maxlength="254" placeholder="(21) 99999-9999 ou seu@email.com" required>
         </label>
-        <button class="primary-button field-wide" type="submit">Continuar</button>
+        <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? "Preparando confirmação…" : "Continuar" }}</button>
       </form>
       <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
         <p class="field-wide intro">Para continuar pelo e-mail, informe seu nome e WhatsApp. O número será confirmado com a Beta. A data de nascimento será solicitada apenas quando pedir atendimento.</p>
