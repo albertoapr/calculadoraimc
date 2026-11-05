@@ -1417,11 +1417,19 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const item = codeResult.Item
     if (item?.flow?.S !== 'trainer-whatsapp' || item.whatsapp?.S !== whatsapp) return response(200, { verified: false })
     const slug = item.slug?.S ?? ''
-    if (item.consumedAt?.N) return response(200, { verified: true, slug })
-    if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
     const trainerId = item.trainerId?.S
     const cities = item.cities?.SS ?? []
     if (!trainerId || cities.length < 1 || cities.length > 2) return response(200, { verified: false })
+    const trainerRecord = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable,
+      Key: { city: { S: cities[0] }, trainerId: { S: trainerId } },
+      ProjectionExpression: '#name, whatsapp',
+      ExpressionAttributeNames: { '#name': 'name' },
+      ConsistentRead: true,
+    }))
+    const confirmedName = trainerRecord.Item?.whatsapp?.S === whatsapp ? trainerRecord.Item.name?.S ?? '' : ''
+    if (item.consumedAt?.N) return response(200, { verified: true, slug, whatsapp, name: confirmedName })
+    if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
 
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
@@ -1460,7 +1468,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
         })),
       ],
     }))
-    return response(200, { verified: true, slug })
+    return response(200, { verified: true, slug, whatsapp, name: confirmedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
       return response(200, { verified: false })
