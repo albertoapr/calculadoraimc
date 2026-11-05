@@ -35,7 +35,7 @@ As mensagens de login começam com `Confirmar login FitPeso <codigo>`. A Beta de
 - `POST /api/customers/verify-login` — roteia o código de login do cliente ou personal e retorna o nome registrado da conta autenticada;
 - ou `POST /api/trainers/verify-login` para um login exclusivo de personal.
 
-As rotas requerem o mesmo cabeçalho secreto e continuam vinculando o código ao número de origem da mensagem. O nome cadastrado não deve ser sobrescrito silenciosamente a cada login: o nome de exibição recebido pelo provedor pode ser diferente do nome declarado na conta.
+As rotas requerem o mesmo cabeçalho secreto e continuam vinculando o código ao número de origem da mensagem. Nas confirmações de login bem-sucedidas, a resposta traz `verified`, `whatsapp` e `name` (nome cadastrado), além de `whatsappDisplayName` quando a Beta envia um nome de exibição válido. **O nome cadastrado não é sobrescrito durante o login**: o nome de exibição do provedor pode ser diferente do nome declarado na conta.
 
 ## Cadastro de personal
 
