@@ -1905,9 +1905,7 @@ async function sendResult() {
             </details>
           </template>
           <template v-else>
-            <button type="button" @click="openCustomerLogin()">Fazer login</button>
-            <span class="account-nav-divider" aria-hidden="true">|</span>
-            <a href="#cadastro-cliente" @click="showCustomerSignup = true">Cadastre-se</a>
+            <button type="button" @click="openCustomerLogin()">Entrar</button>
           </template>
         </nav>
       </div>
