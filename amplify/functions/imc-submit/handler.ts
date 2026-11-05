@@ -166,12 +166,9 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
-  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
-  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00.000Z`) : null
-  const validDate = Boolean(parsedDate && !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === dateOfBirth &&
-    dateOfBirth >= '1900-01-01' && dateOfBirth <= new Date().toISOString().slice(0, 10))
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
-    email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && validDate
+    (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
+    (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth))
 }
 
 async function registerCustomer(data: Record<string, unknown>) {
@@ -181,7 +178,7 @@ async function registerCustomer(data: Record<string, unknown>) {
   const whatsapp = normalizePhone(data.whatsapp)
   const name = String(data.name).trim().replace(/\s+/g, ' ')
   const email = String(data.email).trim().toLowerCase()
-  const dateOfBirth = String(data.dateOfBirth)
+  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
     Key: { whatsapp: { S: whatsapp } },
@@ -203,7 +200,7 @@ async function registerCustomer(data: Record<string, unknown>) {
             whatsapp: { S: whatsapp },
             name: { S: name },
             email: { S: email },
-            dateOfBirth: { S: dateOfBirth },
+            ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             status: { S: 'PENDING_VERIFICATION' },
             whatsappVerified: { BOOL: false },
             createdAt: { S: new Date(now * 1000).toISOString() },
@@ -254,10 +251,13 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
       ConsistentRead: true,
     }))
     const customer = customerResult.Item
-    if (customer?.whatsappVerified?.BOOL === true && challenge.consumedAt?.N) return response(200, { verified: true, alreadyVerified: true })
+    if (customer?.whatsappVerified?.BOOL === true && challenge.consumedAt?.N) return response(200, { verified: true, alreadyVerified: true, name: customer.name?.S ?? '' })
     if (Number(challenge.expiresAt?.N ?? 0) <= now || customer?.status?.S !== 'PENDING_VERIFICATION') return response(200, { verified: false })
 
     const verifiedAt = new Date(now * 1000).toISOString()
+    // Nome declarado à Beta por um remetente que concluiu a verificação do número; não é titularidade certificada.
+    const betaName = typeof data?.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+    const acceptedName = betaName.length >= 2 && betaName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(betaName) ? betaName : customer?.name?.S ?? ''
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
@@ -278,10 +278,11 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
           Update: {
             TableName: customersTable,
             Key: { whatsapp: { S: whatsapp } },
-            UpdateExpression: 'SET #status = :active, whatsappVerified = :true, verifiedAt = :verifiedAt',
+            UpdateExpression: 'SET #status = :active, whatsappVerified = :true, verifiedAt = :verifiedAt, #name = :name',
             ConditionExpression: '#status = :pending AND whatsappVerified = :false',
-            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeNames: { '#status': 'status', '#name': 'name' },
             ExpressionAttributeValues: {
+              ':name': { S: acceptedName },
               ':active': { S: 'ACTIVE' },
               ':pending': { S: 'PENDING_VERIFICATION' },
               ':true': { BOOL: true },
@@ -292,7 +293,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         },
       ],
     }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, name: acceptedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
       const customerResult = await dynamodb.send(new GetItemCommand({
@@ -300,7 +301,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         Key: { whatsapp: { S: whatsapp } },
         ConsistentRead: true,
       }))
-      if (customerResult.Item?.whatsappVerified?.BOOL === true) return response(200, { verified: true, alreadyVerified: true })
+      if (customerResult.Item?.whatsappVerified?.BOOL === true) return response(200, { verified: true, alreadyVerified: true, name: customerResult.Item.name?.S ?? '' })
       return response(200, { verified: false })
     }
     console.error('[imc-submit] Customer WhatsApp verification failed', {
@@ -326,7 +327,12 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
     if (challenge?.flow?.S !== 'fitpeso-customer-whatsapp' || challenge.whatsapp?.S !== whatsapp) {
       return response(200, { verified: false })
     }
-    if (challenge.consumedAt?.N) return response(200, { verified: true })
+    if (challenge.consumedAt?.N) {
+      const customer = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
+      }))
+      return response(200, { verified: true, name: customer.Item?.name?.S ?? '' })
+    }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
     console.error('[imc-submit] Customer verification status lookup failed', {
@@ -449,10 +455,9 @@ function isValidBirthDate(value: unknown) {
 
 async function beginCustomerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
-  const dateOfBirth = data?.dateOfBirth
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
-  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
-    return response(400, { error: 'Informe um WhatsApp e uma data de nascimento válidos.' })
+  if (!whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe um WhatsApp válido.' })
   }
   const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
   const codesTable = process.env.IMC_REQUESTS_TABLE
@@ -461,16 +466,15 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
     const customer = await dynamodb.send(new GetItemCommand({
       TableName: customersTable,
       Key: { whatsapp: { S: whatsapp } },
-      ProjectionExpression: '#status, #verified, #dob',
-      ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified', '#dob': 'dateOfBirth' },
+      ProjectionExpression: '#status, #verified',
+      ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified' },
       ConsistentRead: true,
     }))
-    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true &&
-      customer.Item.dateOfBirth?.S === dateOfBirth
+    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
     if (!eligible) {
       return response(200, {
         started: false,
-        error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento ou faça seu cadastro.',
+        error: 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
       })
     }
     const code = randomBytes(16).toString('base64url')
@@ -724,25 +728,14 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
 async function beginTrainerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
-  const dateOfBirth = data?.dateOfBirth
-  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
-    return response(400, { error: 'Informe WhatsApp e data de nascimento válidos.' })
+  if (!whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe um WhatsApp válido.' })
   }
   const tableName = process.env.IMC_REQUESTS_TABLE
   if (!tableName) return response(503, { error: 'Serviço indisponível.' })
   try {
     const trainer = await findActiveTrainerByWhatsApp(whatsapp)
     if (!trainer) return response(200, { started: false, error: 'Não foi possível validar seu cadastro de personal. Confira os dados.' })
-    const trainerRecord = await dynamodb.send(new GetItemCommand({
-      TableName: process.env.TRAINERS_TABLE!, Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
-      ProjectionExpression: 'dateOfBirth', ConsistentRead: true,
-    }))
-    if (!trainerRecord.Item?.dateOfBirth?.S) return response(200, {
-      started: false, error: 'Seu cadastro ainda não possui data de nascimento. Solicite à Beta a atualização do cadastro para habilitar o login.',
-    })
-    if (trainerRecord.Item.dateOfBirth.S !== dateOfBirth) return response(200, {
-      started: false, error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento.',
-    })
     const code = randomBytes(16).toString('base64url')
     const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
     await dynamodb.send(new PutItemCommand({
@@ -1015,7 +1008,7 @@ async function registerTrainer(data: Record<string, unknown>) {
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
-            dateOfBirth: { S: dateOfBirth },
+            ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
             ...(cref ? { cref: { S: cref } } : {}),
@@ -1944,7 +1937,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
     const registration = parseBody(event)
-    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira nome, WhatsApp, e-mail e data de nascimento.' })
+    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira nome e WhatsApp. E-mail e nascimento são opcionais.' })
     try {
       const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
       return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })
