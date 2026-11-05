@@ -37,6 +37,11 @@ function parseBody(event: Parameters<APIGatewayProxyHandler>[0]) {
   try { return JSON.parse(body) as Record<string, unknown> } catch { return null }
 }
 
+function getBetaDisplayName(data: Record<string, unknown> | null): string {
+  const name = typeof data?.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) ? name : ''
+}
+
 function isValidRequest(data: Record<string, unknown> | null) {
   if (!data || data.consent !== true) return false
   const name = typeof data.clientName === 'string' ? data.clientName.trim().replace(/\s+/g, ' ') : ''
@@ -256,8 +261,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
 
     const verifiedAt = new Date(now * 1000).toISOString()
     // Nome declarado à Beta por um remetente que concluiu a verificação do número; não é titularidade certificada.
-    const betaName = typeof data?.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
-    const acceptedName = betaName.length >= 2 && betaName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(betaName) ? betaName : customer?.name?.S ?? ''
+    const acceptedName = getBetaDisplayName(data) || customer?.name?.S || ''
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
@@ -331,7 +335,7 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
       const customer = await dynamodb.send(new GetItemCommand({
         TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
       }))
-      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
     }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
@@ -547,7 +551,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -790,7 +794,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
     ] }))
-    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '' })
+    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
   } catch (error) {
     if (error instanceof TransactionCanceledException) return response(200, { verified: false })
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
