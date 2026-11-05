@@ -122,6 +122,9 @@ const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
 const showCustomerLogin = ref(false)
 const loginAsTrainer = ref(false)
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
+const signupContact = ref('')
+const signupStep = ref<1 | 2>(1)
+const requestBirthDate = ref('')
 const customerEmailGoogleFilled = ref(false)
 const customerStatus = ref('')
 const customerVerificationLink = ref('')
@@ -375,6 +378,7 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.whatsapp = profile.whatsapp
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
+  requestBirthDate.value = profile.dateOfBirth ?? ''
   customerSignedInEmail.value = profile.email
   customerSignedInName.value = profile.name
   trainerSignedInName.value = ''
@@ -546,6 +550,9 @@ function logout() {
   customerForm.whatsapp = ''
   customerForm.email = ''
   customerForm.dateOfBirth = ''
+  signupStep.value = 1
+  signupContact.value = ''
+  requestBirthDate.value = ''
   clearContactDetails()
   goHome()
 }
@@ -617,9 +624,10 @@ async function pollCustomerVerification() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ code: customerVerificationCode.value, whatsapp: customerForm.whatsapp }),
     })
-    const body = await response.json() as { verified?: boolean; expired?: boolean; error?: string }
+    const body = await response.json() as { verified?: boolean; expired?: boolean; name?: string; error?: string }
     if (response.ok && body.verified === true) {
       customerVerificationComplete.value = true
+      if (body.name?.trim()) customerForm.name = body.name.trim()
       customerStatus.value = 'WhatsApp confirmado e cadastro ativo. Você não precisa salvar o contato da Beta para receber esta confirmação.'
       return
     }
@@ -639,6 +647,28 @@ async function pollCustomerVerification() {
   scheduleCustomerVerificationPoll()
 }
 
+function continueSignupContact() {
+  customerStatus.value = ''
+  const contact = signupContact.value.trim()
+  if (contact.includes('@')) {
+    const email = contact.toLowerCase()
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      customerStatus.value = 'Informe um e-mail válido.'
+      return
+    }
+    customerForm.email = email
+  } else {
+    const phone = normalizeBrazilianPhone(contact)
+    if (!phone) {
+      customerStatus.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
+      return
+    }
+    customerForm.whatsapp = phone
+  }
+  signupStep.value = 2
+  void nextTick(() => document.getElementById('customer-name')?.focus())
+}
+
 async function sendCustomerSignup() {
   if (customerSubmitting.value) return
   customerStatus.value = ''
@@ -650,7 +680,6 @@ async function sendCustomerSignup() {
   const name = customerForm.name.trim().replace(/\s+/g, ' ')
   const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
   const email = customerForm.email.trim().toLowerCase()
-  const dateOfBirth = customerForm.dateOfBirth
   if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
     customerStatus.value = 'Informe um nome válido.'
     return
@@ -659,12 +688,8 @@ async function sendCustomerSignup() {
     customerStatus.value = 'Informe um WhatsApp válido com DDD.'
     return
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+  if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) {
     customerStatus.value = 'Informe um e-mail válido.'
-    return
-  }
-  if (!dateOfBirth || dateOfBirth > new Date().toISOString().slice(0, 10) || dateOfBirth < '1900-01-01') {
-    customerStatus.value = 'Informe uma data de nascimento válida.'
     return
   }
 
@@ -675,13 +700,13 @@ async function sendCustomerSignup() {
     const response = await fetch(`${endpoint}/api/customers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, whatsapp, email, dateOfBirth }),
+      body: JSON.stringify({ name, whatsapp, email }),
     })
     const body = await response.json() as { registered?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || body.registered !== true || !body.verificationCode) {
       throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
     }
-    const message = `Confirmar cadastro FitPeso ${body.verificationCode}`
+    const message = `Confirmar cadastro FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}\nNome: ${name}`
     customerVerificationCode.value = body.verificationCode
     customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
     customerStatus.value = 'Cadastro recebido. Toque no botão, envie a mensagem pelo WhatsApp e volte a esta tela. Ela mostrará a confirmação automaticamente; não precisa salvar o contato da Beta.'
@@ -1798,25 +1823,26 @@ async function sendResult() {
         <hr class="personal-divider">
         <h1 id="customer-signup-title">Cadastro de cliente</h1>
       </header>
-      <form v-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
-        <div class="google-fill field-wide">
-          <p>Preencher nome e e-mail</p>
-          <div ref="googleButtonContainer" class="google-button-container"></div>
-          <small v-if="googleProfileStatus" role="status" aria-live="polite">{{ googleProfileStatus }}</small>
-        </div>
-        <label class="field field-wide" for="customer-name"><span class="field-label">Nome</span>
-          <input id="customer-name" v-model="customerForm.name" name="customerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Seu nome completo" required>
+      <form v-if="!customerVerificationLink && signupStep === 1" class="form login-step-form" @submit.prevent="continueSignupContact">
+        <p class="field-wide intro">Comece com seu WhatsApp ou e-mail. Sem senha e sem informar a data de nascimento.</p>
+        <label class="field field-wide" for="signup-contact"><span class="field-label">WhatsApp ou e-mail</span>
+          <input id="signup-contact" v-model="signupContact" name="signupContact" autocomplete="username" type="text" maxlength="254" placeholder="(21) 99999-9999 ou seu@email.com" required>
+        </label>
+        <button class="primary-button field-wide" type="submit">Continuar</button>
+      </form>
+      <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
+        <p class="field-wide intro">Falta pouco! Precisamos do seu nome e de um WhatsApp para confirmar o cadastro com a Beta.</p>
+        <label class="field field-wide" for="customer-name"><span class="field-label">Seu nome</span>
+          <input id="customer-name" v-model="customerForm.name" name="customerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Como podemos chamar você?" required>
         </label>
         <label class="field field-wide" for="customer-whatsapp"><span class="field-label">WhatsApp com DDD</span>
           <input id="customer-whatsapp" v-model="customerForm.whatsapp" name="customerWhatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
-        <label class="field field-wide" for="customer-email"><span class="field-label">E-mail</span>
-          <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com" :readonly="customerEmailGoogleFilled" required>
+        <label class="field field-wide" for="customer-email"><span class="field-label">E-mail <span>opcional</span></span>
+          <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
         </label>
-        <label class="field field-wide" for="customer-date-of-birth"><span class="field-label">Data de nascimento</span>
-          <input id="customer-date-of-birth" v-model="customerForm.dateOfBirth" name="dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
-        </label>
-        <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? 'Salvando cadastro…' : 'Criar cadastro' }}</button>
+        <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? 'Preparando confirmação…' : 'Confirmar WhatsApp' }}</button>
+        <button class="back-button field-wide" type="button" @click="signupStep = 1">Voltar</button>
       </form>
       <div v-else class="customer-signup-confirmation">
         <p class="status" role="status" aria-live="polite">{{ customerStatus }}</p>
