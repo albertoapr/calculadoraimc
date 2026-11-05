@@ -151,7 +151,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
-    (sex === 'masculino' || sex === 'feminino') && isValidBirthDate(data.dateOfBirth) &&
+    (sex === 'masculino' || sex === 'feminino') && (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
@@ -682,7 +682,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const data = parseBody(event)
   const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
-  if (!data || !validProfileName(data.name) || !isValidBirthDate(data.dateOfBirth) ||
+  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram'].includes(key))) {
@@ -705,12 +705,12 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
-          ':dob': { S: data.dateOfBirth as string },
+          ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
           ':instagram': { S: instagram }, ':cref': { S: cref }, ':updated': { S: time },
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
@@ -966,7 +966,7 @@ async function registerTrainer(data: Record<string, unknown>) {
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
-  const dateOfBirth = String(data.dateOfBirth)
+  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const trainerId = randomBytes(16).toString('hex')
