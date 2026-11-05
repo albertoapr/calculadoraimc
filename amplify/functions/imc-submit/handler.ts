@@ -199,7 +199,7 @@ async function registerCustomer(data: Record<string, unknown>) {
           Item: {
             whatsapp: { S: whatsapp },
             name: { S: name },
-            email: { S: email },
+            ...(email ? { email: { S: email } } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             status: { S: 'PENDING_VERIFICATION' },
             whatsappVerified: { BOOL: false },
@@ -547,7 +547,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, name: customer.Item?.name?.S ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -1493,6 +1493,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
   const customer = auth.profile!
+  if (customer.age === undefined) return response(400, { error: 'Informe sua data de nascimento na revisão do pedido antes de solicitar atendimento.' })
   const requestData: Record<string, unknown> = {
     ...data,
     clientName: customer.name,
