@@ -222,6 +222,22 @@ const form = reactive({
 })
 
 const result = ref<ImcResult | null>(null)
+
+// Cada tela lógica começa no topo, inclusive ao voltar ou alternar cadastros.
+// Não interfere na rolagem durante a interação com a mesma tela.
+const currentScreen = computed(() => [
+  viewMode.value,
+  showTrainerSignup.value,
+  showCustomerSignup.value,
+  showCustomerLogin.value,
+  Boolean(result.value),
+].join(':'))
+
+watch(currentScreen, async () => {
+  await nextTick()
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+}, { flush: 'post' })
+
 const evaluating = ref(false)
 const evaluationProgress = ref(0)
 const status = ref('')
@@ -969,7 +985,7 @@ async function openRequestForm() {
   selectedTrainerIds.value = []
   viewMode.value = 'contact'
   await nextTick()
-  document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  window.scrollTo(0, 0)
 }
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
@@ -998,9 +1014,7 @@ async function returnToRequestFormAfterLogin() {
   requestStep.value = 4
   showCustomerLogin.value = false
   await nextTick()
-  window.requestAnimationFrame(() => {
-    document.getElementById('contact-fields')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
+  window.scrollTo(0, 0)
 }
 
 async function searchEligibleTrainers() {
@@ -1569,6 +1583,8 @@ function openCustomerSignupFromLogin() {
 }
 
 onMounted(() => {
+  if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
+  window.scrollTo(0, 0)
   if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
   void loadTrainerProfile()
   void loadTrainerRequest()
