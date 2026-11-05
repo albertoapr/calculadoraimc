@@ -782,7 +782,7 @@ async function sendTrainerSignup() {
   if (!name) validationError = 'Informe seu nome completo.'
   else if (sex !== 'masculino' && sex !== 'feminino') validationError = 'Selecione Masculino ou Feminino.'
   else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
-  else if (!isValidLoginBirthDate(dateOfBirth)) validationError = 'Informe uma data de nascimento válida.'
+  else if (dateOfBirth && !isValidLoginBirthDate(dateOfBirth)) validationError = 'Informe uma data de nascimento válida ou deixe em branco.'
   else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
     validationError = 'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
   } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
@@ -806,14 +806,14 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, sex, slug, whatsapp: phone, dateOfBirth, ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(dateOfBirth ? { dateOfBirth } : {}), ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
     })
     const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
       throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
     }
     if (!body.verificationCode) throw new Error('Cadastro recebido, mas não foi possível gerar o código de confirmação. Tente novamente.')
-    const message = `Confirmar personal Fitpeso ${body.verificationCode}`
+    const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
     trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
     trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://${body.slug || slug}.fitpeso.com.br.`
   } catch (error) {
@@ -1737,8 +1737,8 @@ async function sendResult() {
         <label class="field field-wide" for="trainer-phone"><span class="field-label">Telefone</span>
           <input id="trainer-phone" v-model="trainerForm.phone" name="trainerPhone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required>
         </label>
-        <label class="field field-wide" for="trainer-birth-date"><span class="field-label">Data de nascimento</span>
-          <input id="trainer-birth-date" v-model="trainerForm.dateOfBirth" name="trainerBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+        <label class="field field-wide" for="trainer-birth-date"><span class="field-label">Data de nascimento <span>opcional</span></span>
+          <input id="trainer-birth-date" v-model="trainerForm.dateOfBirth" name="trainerBirthDate" type="date" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)">
         </label>
         <label class="field field-wide" for="trainer-email"><span class="field-label">E-mail <span>opcional</span></span>
           <input id="trainer-email" v-model="trainerForm.email" name="trainerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
