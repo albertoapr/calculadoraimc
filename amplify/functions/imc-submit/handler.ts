@@ -293,7 +293,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         },
       ],
     }))
-    return response(200, { verified: true, name: acceptedName })
+    return response(200, { verified: true, whatsapp, name: acceptedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
       const customerResult = await dynamodb.send(new GetItemCommand({
@@ -331,7 +331,7 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
       const customer = await dynamodb.send(new GetItemCommand({
         TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
       }))
-      return response(200, { verified: true, name: customer.Item?.name?.S ?? '' })
+      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
     }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
@@ -547,7 +547,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return response(200, { verified: true, name: customer.Item?.name?.S ?? '' })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -646,9 +646,9 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
   const data = parseBody(event)
-  if (!data || !validProfileName(data.name) || !isValidBirthDate(data.dateOfBirth) ||
+  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       Object.keys(data).some(key => !['name', 'dateOfBirth'].includes(key))) {
-    return response(400, { error: 'Informe nome e data de nascimento válidos. E-mail e WhatsApp exigem nova verificação.' })
+    return response(400, { error: 'Informe um nome válido. A data de nascimento é opcional até solicitar atendimento.' })
   }
   const tableName = process.env.FITPESO_CUSTOMERS_TABLE
   if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
@@ -657,12 +657,12 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
     await dynamodb.send(new UpdateItemCommand({
       TableName: tableName,
       Key: { whatsapp: { S: whatsapp } },
-      UpdateExpression: 'SET #name = :name, #dob = :dob, updatedAt = :updated',
+      UpdateExpression: data.dateOfBirth ? 'SET #name = :name, #dob = :dob, updatedAt = :updated' : 'SET #name = :name, updatedAt = :updated',
       ConditionExpression: '#status = :active AND whatsappVerified = :verified',
       ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#status': 'status' },
       ExpressionAttributeValues: {
-        ':name': { S: data.name.trim().replace(/\s+/g, ' ') },
-        ':dob': { S: data.dateOfBirth as string },
+        ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
+        ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
         ':updated': { S: new Date().toISOString() },
         ':active': { S: 'ACTIVE' }, ':verified': { BOOL: true },
       },
@@ -790,7 +790,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
     ] }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) return response(200, { verified: false })
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
