@@ -1767,16 +1767,17 @@ async function sendResult() {
         <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
-      <div class="box-footer" aria-label="Preferências e contato">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" role="group" aria-label="Aparência e contato">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
         <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
-      </div>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+          <svg class="box-whatsapp-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 11.6a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.3-4.5A8.5 8.5 0 1 1 20.5 11.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5c-.3-.5-.7-.5-1-.2-.5.4-.7 1-.6 1.7.3 2.2 3 4.9 5.3 5.3.7.1 1.4-.1 1.8-.6.3-.4.3-.7-.2-1l-1.5-.7c-.3-.1-.5 0-.7.2l-.4.5a6.6 6.6 0 0 1-3.2-3.2l.5-.4c.2-.2.3-.4.2-.7L9 8.5Z" fill="currentColor"/></svg>
+          <span>Fale conosco</span>
+        </a>
         <span class="box-footer-spacer" aria-hidden="true"></span>
       </div>
     </section>
@@ -1843,16 +1844,17 @@ async function sendResult() {
           <button class="secondary-button" type="button" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Verificar agora</button>
         </section>
       </div>
-      <div class="box-footer" aria-label="Preferências e contato">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" role="group" aria-label="Aparência e contato">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
         <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
-      </div>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+          <svg class="box-whatsapp-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 11.6a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.3-4.5A8.5 8.5 0 1 1 20.5 11.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5c-.3-.5-.7-.5-1-.2-.5.4-.7 1-.6 1.7.3 2.2 3 4.9 5.3 5.3.7.1 1.4-.1 1.8-.6.3-.4.3-.7-.2-1l-1.5-.7c-.3-.1-.5 0-.7.2l-.4.5a6.6 6.6 0 0 1-3.2-3.2l.5-.4c.2-.2.3-.4.2-.7L9 8.5Z" fill="currentColor"/></svg>
+          <span>Fale conosco</span>
+        </a>
         <span class="box-footer-spacer" aria-hidden="true"></span>
       </div>
     </section>
@@ -1896,16 +1898,17 @@ async function sendResult() {
       </div>
       <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
       <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
-      <div class="box-footer" aria-label="Preferências e contato">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" role="group" aria-label="Aparência e contato">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
         <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
-      </div>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+          <svg class="box-whatsapp-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 11.6a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.3-4.5A8.5 8.5 0 1 1 20.5 11.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5c-.3-.5-.7-.5-1-.2-.5.4-.7 1-.6 1.7.3 2.2 3 4.9 5.3 5.3.7.1 1.4-.1 1.8-.6.3-.4.3-.7-.2-1l-1.5-.7c-.3-.1-.5 0-.7.2l-.4.5a6.6 6.6 0 0 1-3.2-3.2l.5-.4c.2-.2.3-.4.2-.7L9 8.5Z" fill="currentColor"/></svg>
+          <span>Fale conosco</span>
+        </a>
         <span class="box-footer-spacer" aria-hidden="true"></span>
       </div>
     </section>
@@ -2318,16 +2321,17 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
         </section>
       </div>
-      <div class="box-footer" aria-label="Preferências e contato">
-      <div class="theme-switch" role="group" aria-label="Aparência do aplicativo">
+      <div class="box-footer" role="group" aria-label="Aparência e contato">
         <button type="button" class="theme-icon-button" aria-label="Tema claro" title="Claro" :class="{ active: theme === 'light' }" :aria-pressed="theme === 'light'" @click="theme = 'light'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         </button>
         <button type="button" class="theme-icon-button" aria-label="Tema escuro" title="Escuro" :class="{ active: theme === 'dark' }" :aria-pressed="theme === 'dark'" @click="theme = 'dark'">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z"/></svg>
         </button>
-      </div>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">Fale conosco</a>
+        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+          <svg class="box-whatsapp-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 11.6a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.3-4.5A8.5 8.5 0 1 1 20.5 11.6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5c-.3-.5-.7-.5-1-.2-.5.4-.7 1-.6 1.7.3 2.2 3 4.9 5.3 5.3.7.1 1.4-.1 1.8-.6.3-.4.3-.7-.2-1l-1.5-.7c-.3-.1-.5 0-.7.2l-.4.5a6.6 6.6 0 0 1-3.2-3.2l.5-.4c.2-.2.3-.4.2-.7L9 8.5Z" fill="currentColor"/></svg>
+          <span>Fale conosco</span>
+        </a>
         <span class="box-footer-spacer" aria-hidden="true"></span>
       </div>
 
