@@ -2078,13 +2078,13 @@ async function sendResult() {
 
       <div v-if="viewMode === 'home' && !result" class="home-actions">
         <div class="home-action">
-          <button class="secondary-button" type="button" @click="openRequestForm">
+          <button class="primary-button" type="button" @click="openRequestForm">
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
             <span class="home-action-copy"><strong>Receber atendimento</strong><small>Receba propostas acessíveis</small></span>
           </button>
         </div>
         <div class="home-action">
-          <button class="primary-button" type="button" @click="viewMode = 'assessment'">
+          <button class="secondary-button" type="button" @click="viewMode = 'assessment'">
             <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 6.5h6M9 10.5h2m2 0h2m-6 4h2m2 0h2m-6 4h2"/></svg>
             <span class="home-action-copy"><strong>Avaliação online</strong><small class="home-action-time">Menos de 2 min</small></span>
           </button>
