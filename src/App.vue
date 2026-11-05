@@ -2018,7 +2018,7 @@ async function sendResult() {
             <small>{{ whatsappProgress }}% do período de espera · Não precisa atualizar a página.</small>
           </div>
           <p v-if="whatsappNetworkError" role="status">Não foi possível consultar agora. Tentaremos novamente automaticamente.</p>
-          <button :class="whatsappProgress >= 100 ? 'primary-button' : 'secondary-button'" type="button" :disabled="whatsappChecking || whatsappConfirmed" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Código já enviado</button>
+          <button v-if="whatsappProgress >= 100 && !whatsappConfirmed" class="primary-button" type="button" :disabled="whatsappChecking" @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()">Código já enviado</button>
           <button class="back-button" type="button" @click="returnToLoginIdentifier">Cancelar</button>
         </section>
       </div>
