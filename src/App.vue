@@ -158,9 +158,6 @@ const emailLoginSessionToken = ref('')
 let emailLoginPollTimer: number | undefined
 let emailLoginStartedAt = 0
 const customerLoginWhatsApp = ref('')
-const customerLoginBirthDate = ref('')
-const customerLoginBirthDateText = ref('')
-const customerLoginDatePicker = ref<HTMLInputElement | null>(null)
 const customerLoginCode = ref('')
 const customerLoginSessionToken = ref('')
 const customerLoginVerificationLink = ref('')
@@ -521,8 +518,6 @@ function logout() {
   if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
   emailLoginPollTimer = undefined
   customerLoginWhatsApp.value = ''
-  customerLoginBirthDate.value = ''
-  customerLoginBirthDateText.value = ''
   customerLoginCode.value = ''
   customerLoginSessionToken.value = ''
   customerLoginVerificationLink.value = ''
@@ -1022,7 +1017,7 @@ function reviewRequest() {
 }
 
 async function confirmServiceRequest() {
-  if (!customerSignedInEmail.value) {
+  if (!customerSignedInName.value) {
     await openCustomerLogin(true, 'whatsapp')
     return
   }
@@ -1209,11 +1204,6 @@ async function startTrainerWhatsAppLogin() {
   if (trainerLoginSubmitting.value) return
   const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
   if (!whatsapp) { trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'; return }
-  const dateOfBirth = customerLoginBirthDateISO()
-  if (!isValidLoginBirthDate(dateOfBirth)) {
-    trainerLoginError.value = 'Informe uma data de nascimento válida.'
-    return
-  }
   if (trainerLoginPollTimer !== undefined) window.clearTimeout(trainerLoginPollTimer)
   trainerLoginSubmitting.value = true
   trainerLoginError.value = ''
@@ -1224,7 +1214,7 @@ async function startTrainerWhatsAppLogin() {
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/trainers/login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ whatsapp, dateOfBirth, sessionToken: token }),
+      body: JSON.stringify({ whatsapp, sessionToken: token }),
     })
     const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || !body.started || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login.')
@@ -1335,7 +1325,7 @@ async function pollCustomerLogin() {
       return
     }
     if (response.ok && body.confirmed && !body.authenticated) {
-      customerLoginError.value = 'Não foi possível confirmar o login com esses dados. Confira o WhatsApp e a data de nascimento e tente novamente.'
+      customerLoginError.value = 'Não foi possível confirmar o login. Confira o WhatsApp e tente novamente.'
       customerLoginStatus.value = ''
       showCustomerLoginDialog.value = false
       customerLoginCode.value = ''
@@ -1370,13 +1360,8 @@ async function startCustomerWhatsAppLogin() {
   customerLoginStatus.value = ''
   customerLoginError.value = ''
   const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
-  const dateOfBirth = customerLoginBirthDateISO()
   if (!whatsapp) {
     customerLoginError.value = 'Informe um WhatsApp válido com DDD.'
-    return
-  }
-  if (!dateOfBirth || dateOfBirth < '1900-01-01' || dateOfBirth > new Date().toISOString().slice(0, 10)) {
-    customerLoginError.value = 'Informe uma data de nascimento válida.'
     return
   }
   if (customerLoginPollTimer !== undefined) window.clearTimeout(customerLoginPollTimer)
@@ -1389,7 +1374,7 @@ async function startCustomerWhatsAppLogin() {
     const response = await fetch(`${endpoint}/api/customers/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ whatsapp, dateOfBirth, sessionToken }),
+      body: JSON.stringify({ whatsapp, sessionToken }),
     })
     const body = await response.json() as { started?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || body.started !== true || !body.verificationCode) throw new Error(body.error || 'Não foi possível iniciar o login agora.')
@@ -1433,9 +1418,7 @@ function continueLoginIdentifier() {
     loginIdentifier.value = phone
   }
   loginStep.value = 2
-  customerLoginBirthDate.value = ''
-  customerLoginBirthDateText.value = ''
-  void nextTick(() => document.getElementById('customer-login-birth-date-text')?.focus())
+  void nextTick(() => document.getElementById('login-confirm-action')?.focus())
 }
 
 function returnToLoginIdentifier() {
@@ -1474,11 +1457,6 @@ async function submitIdentityLogin() {
 async function startEmailLogin() {
   if (emailLoginSubmitting.value || emailLoginPending.value) return
   emailLoginError.value = ''
-  const dateOfBirth = customerLoginBirthDateISO()
-  if (!isValidLoginBirthDate(dateOfBirth)) {
-    emailLoginError.value = 'Informe uma data de nascimento válida.'
-    return
-  }
   emailLoginSubmitting.value = true
   try {
     const bytes = crypto.getRandomValues(new Uint8Array(32))
@@ -1486,7 +1464,7 @@ async function startEmailLogin() {
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/customers/start-email-login', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: loginIdentifier.value, dateOfBirth, sessionToken: token, asTrainer: loginAsTrainer.value }),
+      body: JSON.stringify({ email: loginIdentifier.value, sessionToken: token, asTrainer: loginAsTrainer.value }),
     })
     const body = await response.json() as { started?: boolean; error?: string }
     if (!response.ok || body.started !== true) throw new Error(body.error || 'Não foi possível enviar a confirmação.')
@@ -1549,51 +1527,6 @@ async function pollEmailLogin() {
     return
   }
   scheduleEmailLoginPoll()
-}
-
-function customerLoginBirthDateISO() {
-  const typedDate = customerLoginBirthDateText.value.trim()
-  let isoDate = customerLoginBirthDate.value
-  if (typedDate) {
-    const match = typedDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-    if (!match) return ''
-    isoDate = `${match[3]}-${match[2]}-${match[1]}`
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return ''
-  const parsed = new Date(`${isoDate}T00:00:00.000Z`)
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== isoDate) return ''
-  return isoDate
-}
-
-function maskCustomerLoginBirthDate(event: Event) {
-  customerLoginError.value = ''
-  const input = event.target as HTMLInputElement
-  const digits = input.value.replace(/\D/g, '').slice(0, 8)
-  customerLoginBirthDateText.value = digits.length > 4
-    ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-    : digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
-  customerLoginBirthDate.value = ''
-}
-
-function selectCustomerLoginBirthDate(event: Event) {
-  customerLoginError.value = ''
-  const value = (event.target as HTMLInputElement).value
-  customerLoginBirthDate.value = value
-  if (value) {
-    const [year, month, day] = value.split('-')
-    customerLoginBirthDateText.value = `${day}/${month}/${year}`
-  } else customerLoginBirthDateText.value = ''
-}
-
-function openCustomerLoginDatePicker() {
-  const picker = customerLoginDatePicker.value as (HTMLInputElement & { showPicker?: () => void }) | null
-  if (!picker) return
-  try {
-    if (picker.showPicker) picker.showPicker()
-    else picker.click()
-  } catch {
-    picker.click()
-  }
 }
 
 function closeCustomerLogin() {
@@ -1799,7 +1732,7 @@ async function sendResult() {
         </div>
         <hr class="personal-divider">
         <h1 id="customer-login-title">Login</h1>
-        <p class="intro">{{ loginStep === 1 ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.' : 'Confirme seus dados para continuar.' }}</p>
+        <p class="intro">{{ loginStep === 1 ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.' : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.' }}</p>
       </header>
 
       <form v-if="loginStep === 1" class="form login-step-form" @submit.prevent="continueLoginIdentifier">
@@ -1826,20 +1759,10 @@ async function sendResult() {
           <button type="button" @click="returnToLoginIdentifier">Alterar</button>
         </div>
         <form v-if="!emailLoginPending" class="form login-step-form" @submit.prevent="submitIdentityLogin">
-          <label class="field field-wide" for="customer-login-birth-date-text">
-            <span class="field-label">Data de nascimento</span>
-            <span class="date-input-with-picker">
-              <input id="customer-login-birth-date-text" v-model="customerLoginBirthDateText" name="customerLoginBirthDateText" type="text" inputmode="numeric" autocomplete="bday" maxlength="10" placeholder="DD/MM/AAAA" aria-label="Digite a data de nascimento no formato dia mês e ano" required @input="maskCustomerLoginBirthDate">
-              <button class="date-picker-button" type="button" aria-label="Abrir calendário" title="Abrir calendário" @click="openCustomerLoginDatePicker">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>
-              </button>
-              <input ref="customerLoginDatePicker" class="date-picker-native" type="date" :value="customerLoginBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" aria-hidden="true" tabindex="-1" @change="selectCustomerLoginBirthDate">
-            </span>
-          </label>
           <p v-if="loginIdentifierKind === 'whatsapp'" class="login-step-note field-wide">Após continuar, você enviará uma mensagem para a Beta pelo WhatsApp. A confirmação será automática.</p>
           <p v-else class="login-step-note field-wide">Enviaremos um link de confirmação para seu e-mail. Sua conta só será acessada após confirmar o link.</p>
           <p v-if="loginIdentifierKind === 'email' ? emailLoginError : (loginAsTrainer ? trainerLoginError : customerLoginError)" class="login-validation-error field-wide" role="alert" aria-live="assertive">{{ loginIdentifierKind === 'email' ? emailLoginError : (loginAsTrainer ? trainerLoginError : customerLoginError) }}</p>
-          <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting">
+          <button id="login-confirm-action" class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting">
             {{ customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting ? 'Preparando acesso…' : loginIdentifierKind === 'email' ? 'Enviar link para meu e-mail' : 'Confirmar pelo WhatsApp' }}
           </button>
           <button class="back-button field-wide" type="button" @click="returnToLoginIdentifier">Voltar</button>
@@ -1919,7 +1842,7 @@ async function sendResult() {
           <small class="brand-tagline">Rede de treinadores</small>
         </div>
         <nav class="customer-account-links" aria-label="Conta do usuário">
-          <template v-if="trainerSignedInId || customerSignedInEmail">
+          <template v-if="trainerSignedInId || customerSignedInName">
             <span class="account-greeting">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
               <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
@@ -2291,7 +2214,7 @@ async function sendResult() {
           <h3 class="field-wide">Revise antes de enviar</h3>
           <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
-          <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInEmail ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
+          <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
           <button class="back-button field-wide" type="button" @click="requestStep = 3">Voltar e editar</button>
         </template>
       </form>
