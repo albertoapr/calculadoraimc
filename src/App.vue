@@ -1203,12 +1203,13 @@ async function saveMyProfile() {
   }
 }
 
-// The progress measures a ten-second waiting window, never authentication success.
+// The progress measures a fifteen-second waiting window, never authentication success.
 type PendingWhatsAppLogin = {
   role: 'customer' | 'trainer'; whatsapp: string; code: string; token: string
   expiresAt: number; progressStartedAt: number; awaitingReturn: boolean
 }
 const pendingWhatsAppKey = 'fitpeso-pending-whatsapp-login'
+const whatsappProgressDurationMs = 15_000
 const pendingWhatsAppLogin = ref<PendingWhatsAppLogin | null>(null)
 const whatsappClock = ref(Date.now())
 const whatsappChecking = ref(false)
@@ -1216,8 +1217,8 @@ const whatsappConfirmed = ref(false)
 const whatsappNetworkError = ref(false)
 const whatsappProgressStartedAt = computed(() => pendingWhatsAppLogin.value?.progressStartedAt ?? 0)
 const whatsappProgress = computed(() => whatsappConfirmed.value ? 100 : whatsappProgressStartedAt.value
-  ? Math.min(100, Math.max(0, Math.floor((whatsappClock.value - whatsappProgressStartedAt.value) / 100))) : 0)
-const whatsappSecondsRemaining = computed(() => Math.max(0, Math.ceil((10_000 - (whatsappClock.value - whatsappProgressStartedAt.value)) / 1000)))
+  ? Math.min(100, Math.max(0, Math.floor(((whatsappClock.value - whatsappProgressStartedAt.value) / whatsappProgressDurationMs) * 100))) : 0)
+const whatsappSecondsRemaining = computed(() => Math.max(0, Math.ceil((whatsappProgressDurationMs - (whatsappClock.value - whatsappProgressStartedAt.value)) / 1000)))
 let whatsappCheckTimer: number | undefined
 let whatsappClockTimer: number | undefined
 let whatsappRequest: AbortController | undefined

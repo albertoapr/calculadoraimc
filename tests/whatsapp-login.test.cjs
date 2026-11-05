@@ -53,14 +53,14 @@ function harness() {
 const key='fitpeso-pending-whatsapp-login'
 function begin(h,role='customer') {h.api.saveNewWhatsAppAttempt(role,'+5521999999999','A'.repeat(22),'B'.repeat(43))}
 
-for(const role of ['customer','trainer']) test(`${role}: return starts timer; reload preserves it; 100% does not authenticate`,async()=>{
+for(const role of ['customer','trainer']) test(`${role}: return starts 15-second timer; reload preserves it; 100% does not authenticate`,async()=>{
   const h=harness();begin(h,role)
   h.api.markWhatsAppOpened();assert.equal(h.api.whatsappProgressStartedAt.value,0)
   h.api.onWhatsAppBlur();h.api.onWhatsAppReturn();await h.flush()
   const started=h.api.whatsappProgressStartedAt.value;assert.ok(started)
-  await h.advance(4000);assert.equal(h.api.whatsappProgress.value,40);assert.equal(h.api.whatsappSecondsRemaining.value,6)
+  await h.advance(5000);assert.equal(h.api.whatsappProgress.value,33);assert.equal(h.api.whatsappSecondsRemaining.value,10)
   h.api.restoreWhatsAppAttempt();await h.flush();assert.equal(h.api.whatsappProgressStartedAt.value,started)
-  await h.advance(6000);assert.equal(h.api.whatsappProgress.value,100);assert.equal(h.applied,false)
+  await h.advance(10000);assert.equal(h.api.whatsappProgress.value,100);assert.equal(h.applied,false)
   h.reply={authenticated:true};await h.api.checkPendingWhatsAppLogin()
   assert.equal(h.applied,true);assert.equal(h.storage.has(key),false);assert.ok(h.storage.has(`fitpeso-${role}-session`))
 })
@@ -86,6 +86,6 @@ test('expiration removes pending credentials and prevents authentication',async(
 })
 test('a new WhatsApp visit starts a new window, duplicate return events do not',async()=>{
   const h=harness();begin(h);h.api.markWhatsAppOpened();h.api.onWhatsAppBlur();h.api.onWhatsAppReturn();await h.flush()
-  await h.advance(5000);h.api.onWhatsAppReturn();assert.equal(h.api.whatsappProgress.value,50)
+  await h.advance(5000);h.api.onWhatsAppReturn();assert.equal(h.api.whatsappProgress.value,33)
   h.api.markWhatsAppOpened();h.api.onWhatsAppBlur();h.api.onWhatsAppReturn();assert.equal(h.api.whatsappProgress.value,0)
 })
