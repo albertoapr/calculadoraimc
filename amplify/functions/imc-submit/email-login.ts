@@ -7,18 +7,13 @@ const db = new DynamoDBClient({})
 const digest = (value: string) => createHash('sha256').update(value).digest('hex')
 const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, Authorization', 'access-control-allow-methods': 'GET,POST,OPTIONS' }
 const reply = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers, body: JSON.stringify(body) })
-const birthValid = (v: unknown): v is string => {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false
-  const d = new Date(v + 'T00:00:00Z')
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v && v >= '1900-01-01' && v <= new Date().toISOString().slice(0, 10)
-}
 const validCode = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{43}$/.test(v)
 function parse(event: APIGatewayProxyEvent): Record<string, unknown> | null {
   if (typeof event.body !== 'string' || Buffer.byteLength(event.body, 'utf8') > 8192) return null
   try { return JSON.parse(event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body) } catch { return null }
 }
 type Identity = { whatsapp: string; trainerId?: string; city?: string }
-async function lookupEmail(email: string, dob: string, asTrainer: boolean): Promise<Identity | null> {
+async function lookupEmail(email: string, asTrainer: boolean): Promise<Identity | null> {
   if (!asTrainer) {
     const result = await db.send(new QueryCommand({
       TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
@@ -28,7 +23,7 @@ async function lookupEmail(email: string, dob: string, asTrainer: boolean): Prom
       ExpressionAttributeValues: { ':email': { S: email } },
     }))
     const matching = (result.Items ?? []).filter(item =>
-      item.dateOfBirth?.S === dob && item.status?.S === 'ACTIVE' && item.whatsappVerified?.BOOL === true && Boolean(item.whatsapp?.S))
+      item.status?.S === 'ACTIVE' && item.whatsappVerified?.BOOL === true && Boolean(item.whatsapp?.S))
     return matching.length === 1 ? { whatsapp: matching[0].whatsapp.S! } : null
   }
   const matches: Identity[] = []
@@ -38,13 +33,13 @@ async function lookupEmail(email: string, dob: string, asTrainer: boolean): Prom
       const result = await db.send(new QueryCommand({
         TableName: process.env.TRAINERS_TABLE!,
         KeyConditionExpression: '#city = :city',
-        ExpressionAttributeNames: { '#city': 'city', '#id': 'trainerId', '#email': 'email', '#dob': 'dateOfBirth', '#phone': 'whatsapp', '#active': 'active', '#verified': 'whatsappVerified' },
+        ExpressionAttributeNames: { '#city': 'city', '#id': 'trainerId', '#email': 'email', '#phone': 'whatsapp', '#active': 'active', '#verified': 'whatsappVerified' },
         ExpressionAttributeValues: { ':city': { S: city } },
-        ProjectionExpression: '#id, #email, #dob, #phone, #active, #verified',
+        ProjectionExpression: '#id, #email, #phone, #active, #verified',
         ExclusiveStartKey: cursor,
       }))
       for (const item of result.Items ?? []) {
-        if (item.email?.S?.toLowerCase() === email && item.dateOfBirth?.S === dob &&
+        if (item.email?.S?.toLowerCase() === email &&
             item.active?.BOOL === true && item.whatsappVerified?.BOOL === true &&
             item.trainerId?.S && item.whatsapp?.S) {
           matches.push({ trainerId: item.trainerId.S, whatsapp: item.whatsapp.S, city })
@@ -60,11 +55,10 @@ async function lookupEmail(email: string, dob: string, asTrainer: boolean): Prom
 export async function beginEmailLogin(event: APIGatewayProxyEvent) {
   const data = parse(event)
   const email = typeof data?.email === 'string' ? data.email.trim().toLowerCase() : ''
-  const dob = data?.dateOfBirth
   const sessionToken = data?.sessionToken
   const asTrainer = data?.asTrainer === true
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
-      !birthValid(dob) || !validCode(sessionToken)) return reply(400, { error: 'Informe e-mail e nascimento válidos.' })
+      !validCode(sessionToken)) return reply(400, { error: 'Informe um e-mail válido.' })
   if (!process.env.IMC_REQUESTS_TABLE || !process.env.FITPESO_CUSTOMERS_TABLE || !process.env.TRAINERS_TABLE ||
       !process.env.GMAIL_USER || !process.env.GMAIL_PASSWORD) return reply(503, { error: 'Confirmação por e-mail indisponível.' })
   try {
@@ -82,7 +76,7 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
       if (error instanceof ConditionalCheckFailedException) return reply(429, { error: 'Aguarde um minuto antes de solicitar outro link.' })
       throw error
     }
-    const identity = await lookupEmail(email, dob, asTrainer)
+    const identity = await lookupEmail(email, asTrainer)
     if (!identity) return reply(400, { error: 'Não foi possível validar esses dados. Confira e-mail, nascimento e o tipo de cadastro.' })
     const code = randomBytes(32).toString('base64url')
     const expiresAt = now + 15 * 60
