@@ -378,7 +378,7 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.whatsapp = profile.whatsapp
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
-  requestBirthDate.value = profile.dateOfBirth ?? ''
+  if (profile.dateOfBirth) requestBirthDate.value = profile.dateOfBirth
   customerSignedInEmail.value = profile.email
   customerSignedInName.value = profile.name
   trainerSignedInName.value = ''
@@ -1042,6 +1042,7 @@ function reviewRequest() {
 }
 
 async function confirmServiceRequest() {
+  if (!isValidLoginBirthDate(requestBirthDate.value)) { status.value = 'Informe sua data de nascimento antes de continuar.'; return }
   if (!customerSignedInName.value) {
     await openCustomerLogin(true, 'whatsapp')
     return
@@ -1644,6 +1645,10 @@ async function sendResult() {
     status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
     return
   }
+  if (!isValidLoginBirthDate(requestBirthDate.value)) {
+    status.value = 'Informe sua data de nascimento para solicitar atendimento.'
+    return
+  }
   const trainingDays = form.provideAvailability ? form.trainingDays : []
   const trainingShifts = form.provideAvailability ? form.trainingShifts : []
 
@@ -1651,6 +1656,21 @@ async function sendResult() {
   status.value = 'Enviando sua solicitação para a Beta…'
 
   try {
+    // O nascimento só é coletado quando o aluno solicita atendimento.
+    // Atualização autenticada antes do pedido: o backend calcula a idade a partir desse dado.
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    if (!token) throw new Error('Entre na sua conta para solicitar atendimento.')
+    if (customerForm.dateOfBirth !== requestBirthDate.value) {
+      const endpoint = await getRequestApiEndpoint()
+      const saved = await fetch(endpoint + '/api/customers/update-profile', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name: customerSignedInName.value, dateOfBirth: requestBirthDate.value }),
+      })
+      const savedBody = await saved.json() as { profile?: { name: string; whatsapp: string; email: string; dateOfBirth?: string }; error?: string }
+      if (!saved.ok || !savedBody.profile) throw new Error(savedBody.error || 'Não foi possível salvar a data de nascimento.')
+      applyCustomerProfile(savedBody.profile)
+    }
     await createFitpesoRequest({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
@@ -2238,6 +2258,11 @@ async function sendResult() {
 
         <template v-else>
           <h3 class="field-wide">Revise antes de enviar</h3>
+          <label class="field field-wide" for="request-birth-date">
+            <span class="field-label">Data de nascimento</span>
+            <input id="request-birth-date" v-model="requestBirthDate" type="date" name="requestBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
+            <small class="body-fat-help">Solicitada somente agora, para completar o pedido de atendimento.</small>
+          </label>
           <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
