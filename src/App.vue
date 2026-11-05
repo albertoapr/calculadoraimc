@@ -168,7 +168,6 @@ const showCustomerLoginDialog = ref(false)
 const customerLoginSubmitting = ref(false)
 let customerLoginPollTimer: number | undefined
 let customerLoginPollStartedAt = 0
-const customerSignedInEmail = ref('')
 const customerSignedInName = ref('')
 const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
@@ -379,7 +378,6 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
   if (profile.dateOfBirth) requestBirthDate.value = profile.dateOfBirth
-  customerSignedInEmail.value = profile.email
   customerSignedInName.value = profile.name
   trainerSignedInName.value = ''
   trainerSignedInId.value = ''
@@ -508,7 +506,6 @@ function logout() {
     // Ainda encerra a sessão em memória quando o armazenamento não estiver disponível.
   }
 
-  customerSignedInEmail.value = ''
   customerSignedInName.value = ''
   trainerSignedInId.value = ''
   trainerSignedInName.value = ''
@@ -1094,7 +1091,6 @@ async function loadTrainerSession(token: string): Promise<TrainerAccountProfile>
 function applyTrainerSession(profile: TrainerAccountProfile) {
   trainerSignedInId.value = profile.trainerId
   trainerSignedInName.value = profile.name
-  customerSignedInEmail.value = ''
   customerSignedInName.value = ''
   try {
     sessionStorage.removeItem('fitpeso-customer-session')
@@ -1563,6 +1559,8 @@ function closeCustomerLogin() {
 }
 
 function openCustomerSignupFromLogin() {
+  signupStep.value = 1
+  signupContact.value = loginIdentifier.value.trim()
   showCustomerLogin.value = false
   showCustomerSignup.value = true
   history.replaceState(null, '', `${window.location.pathname}#cadastro-cliente`)
@@ -1599,8 +1597,7 @@ onMounted(() => {
         if (sessionGeneration !== generation) return
         sessionStorage.removeItem('fitpeso-google-session')
         sessionStorage.removeItem('fitpeso-customer-session')
-        customerSignedInEmail.value = ''
-        customerSignedInName.value = ''
+              customerSignedInName.value = ''
       })
     }
   } catch { /* Sessão temporária indisponível; ainda é possível entrar novamente. */ }
