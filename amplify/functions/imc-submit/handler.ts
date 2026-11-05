@@ -181,8 +181,8 @@ async function registerCustomer(data: Record<string, unknown>) {
   const codesTable = process.env.IMC_REQUESTS_TABLE
   if (!customersTable || !codesTable) throw new Error('Customer registration is not configured')
   const whatsapp = normalizePhone(data.whatsapp)
-  const name = String(data.name).trim().replace(/\s+/g, ' ')
-  const email = String(data.email).trim().toLowerCase()
+  const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
