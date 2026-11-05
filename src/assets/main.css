@@ -218,21 +218,22 @@ h2 { font-size: 21px; line-height: 1.4; }
 .login-validation-error { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; background: #fef2f2; font-size: 13px; font-weight: 600; line-height: 1.45; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
 /* Rodapé interno: temas à esquerda e contato centralizado na mesma linha. */
-/* Todos os controles pertencem à mesma div, sem encostar nas bordas do box. */
-.box-footer { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr); align-items: center; column-gap: 6px; width: 100%; margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); }
-.box-footer .theme-icon-button { display: grid; width: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
-.box-footer .theme-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-.box-footer .theme-icon-button.active { border-color: var(--blue); color: var(--blue-dark); background: #dbe8d9; }
-.box-footer .theme-icon-button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-.box-contact-link { justify-self: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 4px; color: var(--blue-dark); font-size: 14px; font-weight: 700; text-decoration: none; text-align: center; white-space: nowrap; }
+/* Rodapé interno: link centralizado no box e dois botões idênticos à direita. */
+.box-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 8px; width: 100%; margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); }
+.box-footer-balancer { grid-column: 1; }
+.box-theme-actions { grid-column: 3; display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.box-footer .box-theme-actions .theme-icon-button { box-sizing: border-box; display: grid; flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; max-height: 44px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
+.box-footer .box-theme-actions .theme-icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.box-footer .box-theme-actions .theme-icon-button.active { border: 2px solid var(--blue); color: #fff; background: var(--blue); box-shadow: 0 0 0 2px rgba(40, 107, 78, .18); }
+.box-footer .box-theme-actions .theme-icon-button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.box-contact-link { grid-column: 2; grid-row: 1; justify-self: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 4px; color: var(--blue-dark); font-size: 14px; font-weight: 700; text-decoration: none; text-align: center; white-space: nowrap; }
 .box-contact-link:hover { text-decoration: underline; }
 .box-contact-link:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 6px; }
-.box-whatsapp-icon { width: 20px; height: 20px; flex: 0 0 auto; }
-.box-footer-spacer { display: none; }
+.box-contact-icon { width: 20px; height: 20px; flex: 0 0 auto; }
 html[data-theme='dark'] .box-contact-link { color: #7ed39b; }
-html[data-theme='dark'] .box-footer .theme-icon-button { border-color: #3b4b40; color: #c3cdc5; }
-html[data-theme='dark'] .box-footer .theme-icon-button.active { border-color: #f2a04b; color: #182019; background: #f2a04b; }
-@media (max-width: 520px) { .box-footer { grid-template-columns: 40px 40px minmax(0, 1fr); column-gap: 4px; margin-top: 22px; padding-top: 10px; } .box-footer .theme-icon-button { width: 40px; } .box-contact-link { font-size: 13px; gap: 4px; } .box-whatsapp-icon { width: 18px; height: 18px; } }
+html[data-theme='dark'] .box-footer .box-theme-actions .theme-icon-button { border-color: #3b4b40; color: #c3cdc5; background: transparent; }
+html[data-theme='dark'] .box-footer .box-theme-actions .theme-icon-button.active { border: 2px solid #f2a04b; color: #182019; background: #f2a04b; box-shadow: 0 0 0 2px rgba(242, 160, 75, .22); }
+@media (max-width: 390px) { .box-footer { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; margin-top: 22px; padding-top: 10px; } .box-footer-balancer { display: none; } .box-theme-actions { grid-column: 2; grid-row: 1; } .box-contact-link { grid-column: 1 / -1; grid-row: 2; } }
 /* Barra superior da página inicial: marca à esquerda, acesso à direita. */
 .fitpeso-home-topbar { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 8px; }
 .fitpeso-home-brand { display: inline-flex; flex: 0 1 auto; min-width: 0; flex-direction: column; align-items: stretch; gap: 2px; font-family: Manrope, sans-serif; font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
@@ -457,7 +458,7 @@ html[data-theme='dark'] .body-fat-reference-unavailable { color: #a6b2a9; }
 html[data-theme='dark'] .silhouette-item { color: #a6b2a9; }
 html[data-theme='dark'] .silhouette-item.active { border-color: #f2a04b; color: #ffbd7d; background: #27352c; }
 html[data-theme='dark'] .status { color: #d9e6db; background: #26372b; }
-html[data-theme='dark'] .box-contact-link { color: #7ed39b; }
+
 html[data-theme='dark'] .trainer-signup-link { color: #f6ae61; }
 html[data-theme='dark'] .theme-switch button { border-color: #3b4b40; color: #c3cdc5; }
 html[data-theme='dark'] .theme-switch button.active { border-color: #f2a04b; color: #182019; background: #f2a04b; }
