@@ -2083,11 +2083,8 @@ async function sendResult() {
             <span class="home-action-copy"><strong>Receber atendimento</strong><small>Receba propostas acessíveis</small></span>
           </button>
         </div>
-        <div class="home-action">
-          <button class="secondary-button" type="button" @click="viewMode = 'assessment'">
-            <svg class="home-action-icon scale-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M9 6.5h6M9 10.5h2m2 0h2m-6 4h2m2 0h2m-6 4h2"/></svg>
-            <span class="home-action-copy"><strong>Avaliação online</strong><small class="home-action-time">Menos de 2 min</small></span>
-          </button>
+        <div class="home-action home-assessment-link">
+          <a href="#avaliacao" @click.prevent="viewMode = 'assessment'">Avaliação on-line grátis</a>
         </div>
       </div>
 
