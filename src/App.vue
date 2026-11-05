@@ -125,7 +125,6 @@ const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: 
 const signupContact = ref('')
 const signupStep = ref<1 | 2>(1)
 const requestBirthDate = ref('')
-const customerEmailGoogleFilled = ref(false)
 const customerStatus = ref('')
 const customerVerificationLink = ref('')
 const customerVerificationCode = ref('')
@@ -447,7 +446,6 @@ async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (profile.name) target.name = profile.name.trim()
     if (profile.email) {
       target.email = profile.email.trim().toLowerCase()
-      if (googleProfileTarget.value === 'customer') customerEmailGoogleFilled.value = true
     }
   } catch {
     googleProfileStatus.value = 'Não consegui ler os dados da conta Google. Tente novamente ou preencha manualmente.'
