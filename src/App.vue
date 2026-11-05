@@ -1148,8 +1148,8 @@ async function saveMyProfile() {
     editingProfileStatus.value = 'Informe um nome válido.'
     return
   }
-  if (!isValidLoginBirthDate(birth)) {
-    editingProfileStatus.value = 'Informe uma data de nascimento válida.'
+  if (birth && !isValidLoginBirthDate(birth)) {
+    editingProfileStatus.value = 'Informe uma data de nascimento válida ou deixe em branco até solicitar atendimento.'
     return
   }
   const trainer = editingProfileType.value === 'trainer'
@@ -1177,7 +1177,7 @@ async function saveMyProfile() {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
       cache: 'no-store',
-      body: JSON.stringify(trainer ? { name, dateOfBirth: birth, instagram, cref } : { name, dateOfBirth: birth }),
+      body: JSON.stringify(trainer ? { name, dateOfBirth: birth, instagram, cref } : { name, ...(birth ? { dateOfBirth: birth } : {}) }),
     })
     const body = await response.json() as {
       authenticated?: boolean
