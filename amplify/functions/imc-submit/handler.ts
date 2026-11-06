@@ -1739,7 +1739,7 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
       await dynamodb.send(new UpdateItemCommand({
         TableName: tableName, Key: { requestId: { S: requestId } },
         UpdateExpression: 'SET #status = :inactive, lifecycle = :inactive, previousStatus = :previous, updatedAt = :updated',
-        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :open AND #status = :previous AND proposalCount = :zero',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :open AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
           ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
@@ -1755,7 +1755,7 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
       await dynamodb.send(new UpdateItemCommand({
         TableName: tableName, Key: { requestId: { S: requestId } },
         UpdateExpression: 'SET #status = :previous, lifecycle = :open, updatedAt = :updated REMOVE previousStatus',
-        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND proposalCount = :zero',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
           ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: auth.profile!.whatsapp },
