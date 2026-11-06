@@ -849,7 +849,7 @@ async function listTrainerReceivedRequests(event: Parameters<APIGatewayProxyHand
           ScanIndexForward: false, Limit: 100, ExclusiveStartKey: lastKey,
         }))
         for (const item of result.Items ?? []) {
-          if (!item.selectedTrainerIds?.SS?.includes(trainerId)) continue
+          if (!item.selectedTrainerIds?.SS?.includes(trainerId) || item.lifecycle?.S !== 'OPEN') continue
           const id = item.requestId?.S ?? ''
           const expiresAt = Number(item.validUntil?.N ?? 0)
           if (!id || !expiresAt) continue
@@ -1269,6 +1269,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
     const trainerCache = new Map<string, ReturnType<typeof getActiveTrainersForCity>>()
     const requests = await Promise.all((result.Items ?? []).map(async item => {
       const request = deserializeFitpesoRequest(item)
+      if (item.lifecycle?.S !== 'OPEN') return null
       if (!trainerCache.has(request.city)) trainerCache.set(request.city, getActiveTrainersForCity(request.city))
       const trainers = await trainerCache.get(request.city)!
       const selectedTrainerIds = item.selectedTrainerIds?.SS as string[] | undefined
@@ -1288,7 +1289,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         })),
       }
     }))
-    return response(200, { requests, ...(nextCursor ? { nextCursor } : {}) })
+    return response(200, { requests: requests.filter(request => request !== null), ...(nextCursor ? { nextCursor } : {}) })
   } catch (error) {
     console.error('[imc-submit] Valid Fitpeso request lookup failed', {
       errorClass: error instanceof Error ? error.name : typeof error,
@@ -1330,7 +1331,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const item = requestResult.Item
     const validUntil = Number(item?.validUntil?.N ?? 0)
     if (item && validUntil <= now) return response(410, { expired: true })
-    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') ||
+    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') || item.lifecycle?.S !== 'OPEN' ||
         (item.selectedTrainerIds?.SS && !item.selectedTrainerIds.SS.includes(claims.tid))) return invalid()
 
     const trainerResult = await dynamodb.send(new GetItemCommand({
@@ -1705,6 +1706,71 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
   }
 }
 
+async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestId = event.pathParameters?.requestId?.trim() ?? ''
+  const action = data?.action
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !['deactivate', 'reactivate'].includes(String(action))) {
+    return response(400, { error: 'Solicitação ou ação inválida.' })
+  }
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  if (!tableName || !proposalsTable) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const nowIso = new Date(now * 1000).toISOString()
+  try {
+    const existing = await dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { requestId: { S: requestId } }, ConsistentRead: true,
+    }))
+    const item = existing.Item
+    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (Number(item.validUntil?.N ?? 0) <= now) return response(409, { error: 'O prazo de validade da solicitação terminou.' })
+    if (action === 'deactivate') {
+      if (item.lifecycle?.S !== 'OPEN' || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') ||
+          Number(item.proposalCount?.N ?? 0) !== 0) {
+        return response(409, { error: 'Apenas solicitações ativas sem propostas podem ser inativadas.' })
+      }
+      const proposals = await dynamodb.send(new QueryCommand({
+        TableName: proposalsTable, KeyConditionExpression: 'requestId = :id',
+        ExpressionAttributeValues: { ':id': { S: requestId } }, Limit: 1, ConsistentRead: true,
+      }))
+      if (proposals.Items?.length) return response(409, { error: 'Esta solicitação já recebeu propostas.' })
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: tableName, Key: { requestId: { S: requestId } },
+        UpdateExpression: 'SET #status = :inactive, lifecycle = :inactive, previousStatus = :previous, updatedAt = :updated',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :open AND #status = :previous AND proposalCount = :zero',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
+        },
+      }))
+    } else {
+      if (item.lifecycle?.S !== 'INACTIVE' || item.status?.S !== 'INACTIVE' ||
+          !['VALIDATED', 'PROCESSED'].includes(item.previousStatus?.S ?? '') ||
+          Number(item.proposalCount?.N ?? 0) !== 0) {
+        return response(409, { error: 'Esta solicitação não pode ser reativada.' })
+      }
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: tableName, Key: { requestId: { S: requestId } },
+        UpdateExpression: 'SET #status = :previous, lifecycle = :open, updatedAt = :updated REMOVE previousStatus',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND proposalCount = :zero',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
+        },
+      }))
+    }
+    return response(200, { updated: true, lifecycle: action === 'deactivate' ? 'INACTIVE' : 'OPEN' })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'A solicitação mudou. Atualize a lista e tente novamente.' })
+    console.error('[imc-submit] Request visibility update failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível atualizar a solicitação.' })
+  }
+}
+
 async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
@@ -1933,6 +1999,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/eligible')) return listEligibleTrainers(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/customers/requests')) return listCustomerRequests(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposals')) return submitTrainerProposal(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/visibility')) return changeCustomerRequestVisibility(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/accept')) return acceptTrainerProposal(event, parseBody(event))
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/accepted-notifications')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })

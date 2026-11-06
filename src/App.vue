@@ -115,6 +115,7 @@ const selectedTrainerIds = ref<string[]>([])
 const checkingTrainers = ref(false)
 const customerRequests = ref<CustomerRequest[]>([])
 const customerRequestsStatus = ref('')
+const changingRequestId = ref('')
 const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
@@ -1072,6 +1073,32 @@ async function openCustomerRequests() {
     customerRequests.value = body.requests
     customerRequestsStatus.value = body.requests.length ? '' : 'Você ainda não tem solicitações.'
   } catch (error) { customerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar suas solicitações.' }
+}
+
+async function changeRequestVisibility(request: CustomerRequest, action: 'deactivate' | 'reactivate') {
+  if (changingRequestId.value || request.requestExpired || request.validUntil * 1000 <= Date.now()) return
+  if (action === 'deactivate' && (request.lifecycle !== 'OPEN' || request.proposalCount !== 0 || request.proposals.length !== 0)) return
+  if (action === 'reactivate' && request.lifecycle !== 'INACTIVE') return
+  if (!window.confirm(action === 'deactivate'
+    ? 'Inativar esta solicitação? Ela ficará indisponível aos personais até você reativá-la, dentro da validade original.'
+    : 'Reativar esta solicitação? Ela voltará a receber propostas até a validade original.')) return
+  changingRequestId.value = request.requestId
+  customerRequestsStatus.value = ''
+  try {
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    if (!token) throw new Error('Sua sessão expirou. Entre novamente.')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(`${endpoint}/api/requests/${encodeURIComponent(request.requestId)}/visibility`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action }),
+    })
+    const body = await response.json() as { updated?: boolean; error?: string }
+    if (!response.ok || !body.updated) throw new Error(body.error || 'Não foi possível atualizar a solicitação.')
+    await openCustomerRequests()
+    customerRequestsStatus.value = action === 'deactivate' ? 'Solicitação inativada. Você pode reativá-la até o vencimento.' : 'Solicitação reativada.'
+  } catch (error) {
+    customerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.'
+  } finally { changingRequestId.value = '' }
 }
 
 async function acceptProposal(request: CustomerRequest, proposal: CustomerProposal) {
@@ -2235,10 +2262,12 @@ async function sendResult() {
         <button class="secondary-button" type="button" @click="openCustomerRequests">Atualizar propostas</button>
         <article v-for="request in customerRequests" :key="request.requestId" class="customer-request-card">
           <h2>{{ request.city }}<span v-if="request.objective"> · {{ request.objective }}</span></h2>
-          <p>Status: {{ request.lifecycle === 'ACCEPTED' ? 'Atendimento iniciado' : request.requestExpired ? 'Solicitação expirada' : request.lifecycle === 'CLOSED' ? 'Solicitação fechada; propostas válidas ainda podem ser escolhidas' : 'Recebendo propostas' }}</p>
+          <p>Status: {{ request.lifecycle === 'ACCEPTED' ? 'Atendimento iniciado' : request.requestExpired ? 'Solicitação expirada' : request.lifecycle === 'CLOSED' ? 'Solicitação fechada; propostas válidas ainda podem ser escolhidas' : request.lifecycle === 'INACTIVE' ? 'Inativa temporariamente' : 'Recebendo propostas' }}</p>
           <p v-if="request.acceptedAt">Atendimento iniciado em {{ new Date(request.acceptedAt).toLocaleString('pt-BR') }}.</p>
           <p>{{ request.proposalCount }} de até 5 propostas · válida até {{ new Date(request.validUntil * 1000).toLocaleDateString('pt-BR') }}</p>
-          <p v-if="!request.proposals.length">Ainda não há propostas. Confira novamente mais tarde.</p>
+          <p v-if="!request.proposals.length">{{ request.lifecycle === 'INACTIVE' ? 'Solicitação pausada. Nenhum personal poderá enviar propostas até a reativação.' : 'Ainda não há propostas. Confira novamente mais tarde.' }}</p>
+          <button v-if="!request.requestExpired && request.validUntil * 1000 > Date.now() && request.lifecycle === 'OPEN' && request.proposalCount === 0 && request.proposals.length === 0" class="secondary-button" type="button" :disabled="Boolean(changingRequestId)" @click="changeRequestVisibility(request, 'deactivate')">Inativar solicitação</button>
+          <button v-if="!request.requestExpired && request.validUntil * 1000 > Date.now() && request.lifecycle === 'INACTIVE'" class="secondary-button" type="button" :disabled="Boolean(changingRequestId)" @click="changeRequestVisibility(request, 'reactivate')">Reativar solicitação</button>
           <div v-for="proposal in request.proposals" :key="proposal.trainerId" class="customer-proposal-card">
             <h3>{{ proposal.name }}</h3>
             <p><strong>Valor:</strong> {{ proposal.monthlyPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</p>
