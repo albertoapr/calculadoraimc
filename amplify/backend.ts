@@ -185,6 +185,7 @@ requestsResource.addResource('accepted-notifications').addMethod('GET', lambdaIn
 const requestIdResource = requestsResource.addResource('{requestId}')
 requestIdResource.addResource('processed').addMethod('POST', lambdaIntegration())
 requestIdResource.addResource('accept').addMethod('POST', lambdaIntegration())
+requestIdResource.addResource('visibility').addMethod('POST', lambdaIntegration())
 requestIdResource.addResource('acceptance-notified').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('eligible').addMethod('GET', lambdaIntegration())
 customersResource.addResource('requests').addMethod('GET', lambdaIntegration())
