@@ -116,6 +116,8 @@ const checkingTrainers = ref(false)
 const customerRequests = ref<CustomerRequest[]>([])
 const customerRequestsStatus = ref('')
 const changingRequestId = ref('')
+const requestActionDialog = ref<{ request: CustomerRequest; action: 'deactivate' | 'reactivate' } | null>(null)
+const requestActionError = ref('')
 const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
@@ -1079,9 +1081,14 @@ async function changeRequestVisibility(request: CustomerRequest, action: 'deacti
   if (changingRequestId.value || request.requestExpired || request.validUntil * 1000 <= Date.now()) return
   if (action === 'deactivate' && (request.lifecycle !== 'OPEN' || request.proposalCount !== 0 || request.proposals.length !== 0)) return
   if (action === 'reactivate' && request.lifecycle !== 'INACTIVE') return
-  if (!window.confirm(action === 'deactivate'
-    ? 'Inativar esta solicitação? Ela ficará indisponível aos personais até você reativá-la, dentro da validade original.'
-    : 'Reativar esta solicitação? Ela voltará a receber propostas até a validade original.')) return
+  requestActionError.value = ''
+  requestActionDialog.value = { request, action }
+}
+
+async function confirmRequestVisibilityChange() {
+  const pending = requestActionDialog.value
+  if (!pending || changingRequestId.value) return
+  const { request, action } = pending
   changingRequestId.value = request.requestId
   customerRequestsStatus.value = ''
   try {
@@ -1094,10 +1101,11 @@ async function changeRequestVisibility(request: CustomerRequest, action: 'deacti
     })
     const body = await response.json() as { updated?: boolean; error?: string }
     if (!response.ok || !body.updated) throw new Error(body.error || 'Não foi possível atualizar a solicitação.')
+    requestActionDialog.value = null
     await openCustomerRequests()
     customerRequestsStatus.value = action === 'deactivate' ? 'Solicitação inativada. Você pode reativá-la até o vencimento.' : 'Solicitação reativada.'
   } catch (error) {
-    customerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.'
+    requestActionError.value = error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.'
   } finally { changingRequestId.value = '' }
 }
 
@@ -2257,6 +2265,18 @@ async function sendResult() {
         <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
+      <div v-if="requestActionDialog" class="request-action-overlay" @click.self="!changingRequestId && (requestActionDialog = null)" @keydown.esc="!changingRequestId && (requestActionDialog = null)">
+        <section class="request-action-dialog" role="dialog" aria-modal="true" aria-labelledby="request-action-title" aria-describedby="request-action-description">
+          <h2 id="request-action-title">{{ requestActionDialog.action === 'deactivate' ? 'Inativar solicitação?' : 'Reativar solicitação?' }}</h2>
+          <p id="request-action-description">{{ requestActionDialog.action === 'deactivate' ? 'Os profissionais deixarão de receber esta solicitação. Você poderá reativá-la até o fim da validade.' : 'Sua solicitação voltará a ficar disponível aos profissionais selecionados.' }}</p>
+          <p class="request-action-expiry">Validade original: {{ new Date(requestActionDialog.request.validUntil * 1000).toLocaleDateString('pt-BR') }}</p>
+          <p v-if="requestActionError" class="request-action-error" role="alert">{{ requestActionError }}</p>
+          <div class="request-action-buttons">
+            <button type="button" class="secondary-button" :disabled="Boolean(changingRequestId)" @click="requestActionDialog = null">Cancelar</button>
+            <button type="button" class="primary-button" :disabled="Boolean(changingRequestId)" @click="confirmRequestVisibilityChange">{{ changingRequestId ? 'Aguarde…' : requestActionDialog.action === 'deactivate' ? 'Sim, inativar' : 'Sim, reativar' }}</button>
+          </div>
+        </section>
+      </div>
       <section v-if="viewMode === 'customer-requests'" class="customer-requests-view" aria-labelledby="page-title">
         <p v-if="customerRequestsStatus" class="status" role="status">{{ customerRequestsStatus }}</p>
         <button class="secondary-button" type="button" @click="openCustomerRequests">Atualizar propostas</button>
