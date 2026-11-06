@@ -1040,6 +1040,34 @@ function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandl
   return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer)
 }
 
+async function releaseStaleRequestLock(locksTable: string, requestsTable: string, whatsapp: string, now: number) {
+  const lock = await dynamodb.send(new GetItemCommand({
+    TableName: locksTable, Key: { clientPhone: { S: whatsapp } }, ConsistentRead: true,
+  }))
+  const lockedId = lock.Item?.requestId?.S
+  if (!lockedId || Number(lock.Item?.validUntil?.N ?? 0) <= now) return
+  const locked = await dynamodb.send(new GetItemCommand({
+    TableName: requestsTable, Key: { requestId: { S: lockedId } }, ConsistentRead: true,
+  }))
+  const item = locked.Item
+  const stale = !item || item.clientPhone?.S !== whatsapp ||
+    item.lifecycle?.S === 'INACTIVE' || item.status?.S === 'INACTIVE' ||
+    item.lifecycle?.S === 'CLOSED' || item.lifecycle?.S === 'ACCEPTED' ||
+    Number(item.validUntil?.N ?? 0) <= now
+  if (!stale) return
+  try {
+    await dynamodb.send(new DeleteItemCommand({
+      TableName: locksTable, Key: { clientPhone: { S: whatsapp } },
+      ConditionExpression: 'requestId = :id AND validUntil = :until',
+      ExpressionAttributeValues: {
+        ':id': { S: lockedId }, ':until': { N: lock.Item!.validUntil!.N! },
+      },
+    }))
+  } catch (error) {
+    if (!(error instanceof ConditionalCheckFailedException)) throw error
+  }
+}
+
 async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
   const code = typeof data?.code === 'string' ? data.code.trim() : ''
   const whatsapp = normalizePhone(data?.whatsapp)
@@ -1074,22 +1102,7 @@ async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
     }
     if (request.status?.S !== 'PENDING_VERIFICATION' || verificationExpiresAt <= now) return response(200, { verified: false })
 
-    // Legacy locks may still reference requests that were already inactivated.
-    const lock = await dynamodb.send(new GetItemCommand({ TableName: locksTable, Key: { clientPhone: { S: whatsapp } }, ConsistentRead: true }))
-    const lockedId = lock.Item?.requestId?.S
-    if (lockedId && lockedId !== requestId && Number(lock.Item?.validUntil?.N ?? 0) > now) {
-      const locked = await dynamodb.send(new GetItemCommand({ TableName: requestsTable, Key: { requestId: { S: lockedId } }, ConsistentRead: true }))
-      if (locked.Item?.clientPhone?.S === whatsapp && (locked.Item.lifecycle?.S === 'INACTIVE' || locked.Item.status?.S === 'INACTIVE')) {
-        try {
-          await dynamodb.send(new DeleteItemCommand({
-            TableName: locksTable, Key: { clientPhone: { S: whatsapp } },
-            ConditionExpression: 'requestId = :id', ExpressionAttributeValues: { ':id': { S: lockedId } },
-          }))
-        } catch (error) {
-          if (!(error instanceof ConditionalCheckFailedException)) throw error
-        }
-      }
-    }
+    await releaseStaleRequestLock(locksTable, requestsTable, whatsapp, now)
     const validUntil = now + 7 * 24 * 60 * 60
     const nowIso = new Date(now * 1000).toISOString()
     await dynamodb.send(new TransactWriteItemsCommand({
@@ -1555,10 +1568,10 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     return response(409, { error: 'A lista de profissionais mudou. Confira os critérios e selecione novamente.' })
   }
   const now = Math.floor(Date.now() / 1000)
+  await releaseStaleRequestLock(locksTable, requestsTable, clientPhone, now)
   const existingLock = await dynamodb.send(new GetItemCommand({
     TableName: locksTable,
     Key: { clientPhone: { S: clientPhone } },
-    ProjectionExpression: 'validUntil',
     ConsistentRead: true,
   }))
   if (Number(existingLock.Item?.validUntil?.N ?? 0) > now) return response(409, { error: 'Já existe uma solicitação válida para este WhatsApp. Aguarde o retorno da equipe.' })
