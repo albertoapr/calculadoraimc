@@ -4,6 +4,7 @@ import {
   ConditionalCheckFailedException,
   DynamoDBClient,
   GetItemCommand,
+  DeleteItemCommand,
   PutItemCommand,
   QueryCommand,
   TransactionCanceledException,
@@ -1073,6 +1074,22 @@ async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
     }
     if (request.status?.S !== 'PENDING_VERIFICATION' || verificationExpiresAt <= now) return response(200, { verified: false })
 
+    // Legacy locks may still reference requests that were already inactivated.
+    const lock = await dynamodb.send(new GetItemCommand({ TableName: locksTable, Key: { clientPhone: { S: whatsapp } }, ConsistentRead: true }))
+    const lockedId = lock.Item?.requestId?.S
+    if (lockedId && lockedId !== requestId && Number(lock.Item?.validUntil?.N ?? 0) > now) {
+      const locked = await dynamodb.send(new GetItemCommand({ TableName: requestsTable, Key: { requestId: { S: lockedId } }, ConsistentRead: true }))
+      if (locked.Item?.clientPhone?.S === whatsapp && (locked.Item.lifecycle?.S === 'INACTIVE' || locked.Item.status?.S === 'INACTIVE')) {
+        try {
+          await dynamodb.send(new DeleteItemCommand({
+            TableName: locksTable, Key: { clientPhone: { S: whatsapp } },
+            ConditionExpression: 'requestId = :id', ExpressionAttributeValues: { ':id': { S: lockedId } },
+          }))
+        } catch (error) {
+          if (!(error instanceof ConditionalCheckFailedException)) throw error
+        }
+      }
+    }
     const validUntil = now + 7 * 24 * 60 * 60
     const nowIso = new Date(now * 1000).toISOString()
     await dynamodb.send(new TransactWriteItemsCommand({
@@ -1716,7 +1733,8 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
   }
   const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
   const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
-  if (!tableName || !proposalsTable) return response(503, { error: 'Serviço indisponível.' })
+  const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
+  if (!tableName || !proposalsTable || !locksTable) return response(503, { error: 'Serviço indisponível.' })
   const now = Math.floor(Date.now() / 1000)
   const nowIso = new Date(now * 1000).toISOString()
   try {
@@ -1736,7 +1754,8 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
         ExpressionAttributeValues: { ':id': { S: requestId } }, Limit: 1, ConsistentRead: true,
       }))
       if (proposals.Items?.length) return response(409, { error: 'Esta solicitação já recebeu propostas.' })
-      await dynamodb.send(new UpdateItemCommand({
+      await dynamodb.send(new TransactWriteItemsCommand({
+        TransactItems: [{ Update: {
         TableName: tableName, Key: { requestId: { S: requestId } },
         UpdateExpression: 'SET #status = :inactive, lifecycle = :inactive, previousStatus = :previous, updatedAt = :updated',
         ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND (attribute_not_exists(lifecycle) OR lifecycle = :open) AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
@@ -1745,6 +1764,11 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
           ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
           ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
         },
+        } }, { Delete: {
+          TableName: locksTable, Key: { clientPhone: { S: auth.profile!.whatsapp } },
+          ConditionExpression: 'attribute_not_exists(requestId) OR requestId = :id',
+          ExpressionAttributeValues: { ':id': { S: requestId } },
+        } }],
       }))
     } else {
       if (item.lifecycle?.S !== 'INACTIVE' || item.status?.S !== 'INACTIVE' ||
@@ -1752,7 +1776,8 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
           Number(item.proposalCount?.N ?? 0) !== 0) {
         return response(409, { error: 'Esta solicitação não pode ser reativada.' })
       }
-      await dynamodb.send(new UpdateItemCommand({
+      await dynamodb.send(new TransactWriteItemsCommand({
+        TransactItems: [{ Update: {
         TableName: tableName, Key: { requestId: { S: requestId } },
         UpdateExpression: 'SET #status = :previous, lifecycle = :open, updatedAt = :updated REMOVE previousStatus',
         ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
@@ -1761,11 +1786,17 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
           ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: auth.profile!.whatsapp },
           ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
         },
+        } }, { Put: {
+          TableName: locksTable,
+          Item: { clientPhone: { S: auth.profile!.whatsapp }, requestId: { S: requestId }, validUntil: { N: item.validUntil!.N! }, expiresAt: { N: item.validUntil!.N! } },
+          ConditionExpression: 'attribute_not_exists(clientPhone) OR validUntil <= :now',
+          ExpressionAttributeValues: { ':now': { N: String(now) } },
+        } }],
       }))
     }
     return response(200, { updated: true, lifecycle: action === 'deactivate' ? 'INACTIVE' : 'OPEN' })
   } catch (error) {
-    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'A solicitação mudou. Atualize a lista e tente novamente.' })
+    if (error instanceof ConditionalCheckFailedException || (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed'))) return response(409, { error: 'A solicitação mudou ou existe outra solicitação ativa. Atualize a lista e tente novamente.' })
     console.error('[imc-submit] Request visibility update failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível atualizar a solicitação.' })
   }
