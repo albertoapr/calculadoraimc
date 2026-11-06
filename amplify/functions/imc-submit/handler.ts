@@ -1727,7 +1727,7 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
     if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
     if (Number(item.validUntil?.N ?? 0) <= now) return response(409, { error: 'O prazo de validade da solicitação terminou.' })
     if (action === 'deactivate') {
-      if (item.lifecycle?.S !== 'OPEN' || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') ||
+      if ((item.lifecycle?.S ?? 'OPEN') !== 'OPEN' ||
           Number(item.proposalCount?.N ?? 0) !== 0) {
         return response(409, { error: 'Apenas solicitações ativas sem propostas podem ser inativadas.' })
       }
@@ -1739,7 +1739,7 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
       await dynamodb.send(new UpdateItemCommand({
         TableName: tableName, Key: { requestId: { S: requestId } },
         UpdateExpression: 'SET #status = :inactive, lifecycle = :inactive, previousStatus = :previous, updatedAt = :updated',
-        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :open AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND (attribute_not_exists(lifecycle) OR lifecycle = :open) AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
           ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
