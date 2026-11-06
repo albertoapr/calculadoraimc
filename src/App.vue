@@ -1072,8 +1072,12 @@ async function openCustomerRequests() {
     const response = await fetch(`${endpoint}/api/customers/requests`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' })
     const body = await response.json() as { requests?: CustomerRequest[]; error?: string }
     if (!response.ok || !Array.isArray(body.requests)) throw new Error(body.error || 'Não foi possível carregar suas solicitações.')
-    customerRequests.value = body.requests
-    customerRequestsStatus.value = body.requests.length ? '' : 'Você ainda não tem solicitações.'
+    customerRequests.value = body.requests.filter(request =>
+      !request.requestExpired &&
+      request.validUntil * 1000 > Date.now() &&
+      request.lifecycle === 'OPEN'
+    )
+    customerRequestsStatus.value = customerRequests.value.length ? '' : 'Você não possui solicitações ativas.'
   } catch (error) { customerRequestsStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar suas solicitações.' }
 }
 
