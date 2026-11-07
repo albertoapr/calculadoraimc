@@ -972,17 +972,82 @@ async function submitTrainerProposal() {
   finally { trainerProposalSubmitting.value = false }
 }
 
+const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'] as const
+const detectingRequestCity = ref(false)
+const requestCityLocationMessage = ref('')
+let requestCityLookupId = 0
+
+function matchSupportedRequestCity(value: string): string {
+  const normalized = value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase()
+  return supportedRequestCities.find(city =>
+    city.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase() === normalized
+  ) ?? ''
+}
+
+async function detectRequestCity() {
+  if (!navigator.geolocation) {
+    requestCityLocationMessage.value = 'Selecione sua cidade na lista.'
+    return
+  }
+  const lookupId = ++requestCityLookupId
+  detectingRequestCity.value = true
+  requestCityLocationMessage.value = 'Identificando sua cidade…'
+  navigator.geolocation.getCurrentPosition(async position => {
+    try {
+      // Reverse geocoding is used only to obtain the municipality; coordinates are not stored.
+      const params = new URLSearchParams({
+        latitude: String(position.coords.latitude),
+        longitude: String(position.coords.longitude),
+        localityLanguage: 'pt',
+      })
+      const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?${params}`, {
+        signal: AbortSignal.timeout(8000),
+      })
+      if (!response.ok) throw new Error('Geocoding unavailable')
+      const location = await response.json() as {
+        city?: string
+        locality?: string
+        localityInfo?: { administrative?: Array<{ name?: string; adminLevel?: number }> }
+      }
+      if (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value !== 1) return
+      const candidates = [
+        location.city ?? '',
+        location.locality ?? '',
+        ...(location.localityInfo?.administrative ?? []).map(item => item.name ?? ''),
+      ]
+      const city = candidates.map(matchSupportedRequestCity).find(Boolean) ?? ''
+      if (city) {
+        if (!form.city) form.city = city
+        requestCityLocationMessage.value = 'Cidade sugerida pela localização. Você pode alterá-la.'
+      } else {
+        requestCityLocationMessage.value = 'Sua cidade não está entre as atendidas. Selecione uma cidade da lista.'
+      }
+    } catch {
+      if (lookupId === requestCityLookupId) requestCityLocationMessage.value = 'Não foi possível identificar sua cidade. Selecione na lista.'
+    } finally {
+      if (lookupId === requestCityLookupId) detectingRequestCity.value = false
+    }
+  }, () => {
+    if (lookupId !== requestCityLookupId) return
+    detectingRequestCity.value = false
+    requestCityLocationMessage.value = 'Localização indisponível. Selecione sua cidade na lista.'
+  }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 })
+}
+
 async function openRequestForm() {
   status.value = ''
   showRequestForm.value = true
   requestStep.value = 1
+  ++requestCityLookupId
   form.city = ''
+  requestCityLocationMessage.value = ''
   form.trainerGenderPreference = 'indiferente'
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
   viewMode.value = 'contact'
   await nextTick()
   window.scrollTo(0, 0)
+  void detectRequestCity()
 }
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
@@ -2441,6 +2506,7 @@ async function sendResult() {
             <option value="Nova Iguaçu">Nova Iguaçu</option>
             <option value="Rio de Janeiro">Rio de Janeiro</option>
           </select>
+          <small v-if="requestCityLocationMessage" role="status">{{ requestCityLocationMessage }}</small>
         </label>
         <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
           <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
