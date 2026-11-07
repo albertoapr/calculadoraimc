@@ -2562,14 +2562,6 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         <p class="field-wide intro">Informe os detalhes do atendimento que procura.</p>
-        <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
-          <input id="city" v-model="form.city" name="city" type="text" list="request-city-suggestions" autocomplete="off" placeholder="Digite pelo menos 3 letras da cidade" required>
-          <datalist id="request-city-suggestions">
-            <option v-for="city in requestCitySuggestions" :key="city" :value="city"></option>
-          </datalist>
-          <small v-if="form.city.length >= 3 && !requestCitySuggestions.length && !matchSupportedRequestCity(form.city)">Nenhuma cidade atendida encontrada.</small>
-          <small v-if="requestCityLocationMessage" role="status">{{ requestCityLocationMessage }}</small>
-        </label>
         <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
           <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
             <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
