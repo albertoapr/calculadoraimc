@@ -204,7 +204,6 @@ const form = reactive({
   calculateBodyFat: false,
   bodyFatAge: '',
   shareContactConsent: false,
-  provideAvailability: false,
   sessionsPerWeek: '',
   name: '',
   phone: '',
@@ -1161,6 +1160,11 @@ async function searchEligibleTrainers() {
 }
 
 async function continueToTrainerSelection() {
+  status.value = ''
+  const sessions = Number(form.sessionsPerWeek)
+  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 7) { status.value = 'Selecione de 1 a 7 sessões por semana.'; return }
+  if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
+  if (!form.trainingShifts.length) { status.value = 'Selecione pelo menos um turno.'; return }
   await searchEligibleTrainers()
 }
 
@@ -1977,8 +1981,12 @@ async function sendResult() {
     status.value = 'Informe sua data de nascimento para solicitar atendimento.'
     return
   }
-  const trainingDays = form.provideAvailability ? form.trainingDays : []
-  const trainingShifts = form.provideAvailability ? form.trainingShifts : []
+  if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 7 || !form.trainingDays.length || !form.trainingShifts.length) {
+    status.value = 'Informe as sessões por semana, pelo menos um dia e um turno.'
+    return
+  }
+  const trainingDays = form.trainingDays
+  const trainingShifts = form.trainingShifts
 
   submittingRequest.value = true
   status.value = 'Enviando sua solicitação para a Beta…'
@@ -2010,7 +2018,7 @@ async function sendResult() {
       attendsGym: form.attendsGym,
       ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName.trim() } : {}),
       objective: form.objective,
-      ...(form.provideAvailability && form.sessionsPerWeek ? { sessionsPerWeek: Number(form.sessionsPerWeek) } : {}),
+      ...(form.sessionsPerWeek ? { sessionsPerWeek: Number(form.sessionsPerWeek) } : {}),
       trainingDays,
       trainingShifts,
       selectedTrainerIds: selectedTrainerIds.value,
@@ -2565,26 +2573,20 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         
-        <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
-          <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
-          <svg class="home-action-icon availability-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-          <span>Informar disponibilidade para treino</span>
-        </label>
-
-        <label v-if="form.provideAvailability" class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de sessões por semana</span>
+        <label  class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de sessões por semana</span>
           <select id="sessions-per-week" v-model="form.sessionsPerWeek" name="sessionsPerWeek" required>
             <option value="">Selecione a quantidade</option>
             <option v-for="number in 7" :key="number" :value="String(number)">{{ number }} {{ number === 1 ? 'sessão' : 'sessões' }}</option>
           </select>
         </label>
 
-        <div v-if="form.provideAvailability && Number(form.sessionsPerWeek) >= 1 && Number(form.sessionsPerWeek) <= 7" class="field-wide" role="status" aria-live="polite" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
+        <div v-if="Number(form.sessionsPerWeek) >= 1 && Number(form.sessionsPerWeek) <= 7" class="field-wide" role="status" aria-live="polite" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
           <strong>Mensalidade estimada{{ form.city ? ' em ' + form.city : '' }}</strong>
           <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
           <small>Estimativa considerando 4 semanas por mês e aulas de 1 hora, entre R$ 40 e R$ 100 por sessão. Valores de referência, não preços confirmados dos profissionais.</small>
         </div>
 
-        <details v-if="form.provideAvailability" class="availability-group field-wide" style="position:relative">
+        <details  class="availability-group field-wide" style="position:relative">
           <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
             Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
           </summary>
@@ -2596,7 +2598,7 @@ async function sendResult() {
           </div>
         </details>
 
-        <details v-if="form.provideAvailability" class="availability-group field-wide" style="position:relative">
+        <details  class="availability-group field-wide" style="position:relative">
           <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
             Turno <small>({{ form.trainingShifts.length }} selecionado(s))</small>
           </summary>
