@@ -2584,53 +2584,29 @@ async function sendResult() {
           <small>Estimativa considerando 4 semanas por mês e aulas de 1 hora, entre R$ 40 e R$ 100 por sessão. Valores de referência, não preços confirmados dos profissionais.</small>
         </div>
 
-        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
-          <legend>Disponibilidade para treinar — dias da semana</legend>
-          <div class="availability-options">
+        <details v-if="form.provideAvailability" class="availability-group field-wide" style="position:relative">
+          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
+            Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
+          </summary>
+          <div class="availability-options" style="padding:12px 8px">
             <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
               <input v-model="form.trainingDays" type="checkbox" name="trainingDays" :value="day.value">
               <span>{{ day.label }}</span>
             </label>
           </div>
-        </fieldset>
+        </details>
 
-        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
-          <legend>Turno</legend>
-          <div class="availability-options">
+        <details v-if="form.provideAvailability" class="availability-group field-wide" style="position:relative">
+          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
+            Turno <small>({{ form.trainingShifts.length }} selecionado(s))</small>
+          </summary>
+          <div class="availability-options" style="padding:12px 8px">
             <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
               <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
               <span>{{ shift }}</span>
             </label>
           </div>
-        </fieldset>
-
-        <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
-          <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
-            <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
-          </select>
-        </label>
-        <label class="field field-wide" for="objective"><span class="field-label">Objetivo <span>opcional</span></span>
-          <select id="objective" v-model="form.objective" name="objective">
-            <option value="">Selecione seu objetivo</option>
-            <option value="Emagrecimento">Emagrecimento</option>
-            <option value="Musculação">Musculação</option>
-            <option value="Outros">Outros</option>
-          </select>
-        </label>
-
-        <label class="field field-wide" for="desired-duration"><span class="field-label">Duração do atendimento (em meses)</span>
-          <select id="desired-duration" v-model="form.desiredDuration" name="desiredDuration" required>
-            <option v-for="month in 6" :key="month" :value="`${month} ${month === 1 ? 'mês' : 'meses'}`">{{ month }} {{ month === 1 ? 'mês' : 'meses' }}</option>
-          </select>
-        </label>
-
-        <label class="contact-opt-in field-wide availability-toggle" for="attends-gym">
-          <input id="attends-gym" v-model="form.attendsGym" name="attendsGym" type="checkbox">
-          <span>Frequento academia</span>
-        </label>
-        <label v-if="form.attendsGym" class="field field-wide" for="gym-name"><span class="field-label">Qual? <span>opcional</span></span>
-          <input id="gym-name" v-model="form.gymName" name="gymName" type="text" maxlength="50" placeholder="Nome da academia">
-        </label>
+        </details>
 
         <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
         <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
