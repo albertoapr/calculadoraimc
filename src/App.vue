@@ -214,7 +214,7 @@ const form = reactive({
   age: '',
   city: '',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
-  desiredDuration: '',
+  desiredDuration: '1 mês',
   attendsGym: false,
   gymName: '',
   trainingDays: [] as string[],
@@ -2618,9 +2618,8 @@ async function sendResult() {
           </select>
         </label>
 
-        <label class="field field-wide" for="desired-duration"><span class="field-label">Duração do atendimento (em meses) <span>opcional</span></span>
-          <select id="desired-duration" v-model="form.desiredDuration" name="desiredDuration">
-            <option value="">Selecione a duração</option>
+        <label class="field field-wide" for="desired-duration"><span class="field-label">Duração do atendimento (em meses)</span>
+          <select id="desired-duration" v-model="form.desiredDuration" name="desiredDuration" required>
             <option v-for="month in 6" :key="month" :value="`${month} ${month === 1 ? 'mês' : 'meses'}`">{{ month }} {{ month === 1 ? 'mês' : 'meses' }}</option>
           </select>
         </label>
