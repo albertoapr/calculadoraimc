@@ -204,7 +204,7 @@ const form = reactive({
   calculateBodyFat: false,
   bodyFatAge: '',
   shareContactConsent: false,
-  sessionsPerWeek: '',
+  sessionsPerWeek: '1',
   name: '',
   phone: '',
   email: '',
@@ -216,8 +216,8 @@ const form = reactive({
   desiredDuration: '1 mês',
   attendsGym: false,
   gymName: '',
-  trainingDays: [] as string[],
-  trainingShifts: [] as string[],
+  trainingDays: ['Segunda-feira'] as string[],
+  trainingShifts: ['Noite'] as string[],
 })
 
 const result = ref<ImcResult | null>(null)
@@ -370,9 +370,9 @@ function clearContactDetails() {
   form.objective = 'Emagrecimento'
   form.age = ''
   form.city = ''
-  form.sessionsPerWeek = ''
-  form.trainingDays = []
-  form.trainingShifts = []
+  form.sessionsPerWeek = '1'
+  form.trainingDays = ['Segunda-feira']
+  form.trainingShifts = ['Noite']
   googleProfileStatus.value = ''
 }
 
@@ -1095,6 +1095,10 @@ async function openRequestForm() {
   form.city = homeCity.value
   requestCityLocationMessage.value = ''
   form.trainerGenderPreference = 'indiferente'
+  form.sessionsPerWeek = '1'
+  form.trainingDays = ['Segunda-feira']
+  form.trainingShifts = ['Noite']
+  form.desiredDuration = '1 mês'
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
   viewMode.value = 'contact'
@@ -2615,7 +2619,23 @@ async function sendResult() {
         </template>
 
         <template v-else-if="requestStep === 3">
-          <p class="field-wide">Escolha quem receberá sua solicitação. Você pode selecionar até 20 profissionais.</p>
+          <h3 class="field-wide">Resumo do atendimento</h3>
+          <dl class="request-customer-summary field-wide">
+            <div><dt>Cidade</dt><dd>{{ form.city }}</dd></div>
+            <div><dt>Gênero do personal</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div>
+            <div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div>
+            <div><dt>Duração</dt><dd>{{ form.desiredDuration }}</dd></div>
+            <div><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div>
+            <div><dt>Dias disponíveis</dt><dd>{{ form.trainingDays.join(', ') }}</dd></div>
+            <div><dt>Turnos</dt><dd>{{ form.trainingShifts.join(', ') }}</dd></div>
+            <div><dt>Academia</dt><dd>{{ form.attendsGym ? (form.gymName.trim() || 'Sim') : 'Não' }}</dd></div>
+          </dl>
+          <div class="field-wide" role="status" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
+            <strong>Mensalidade estimada em {{ form.city }}</strong>
+            <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
+            <small>Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por hora/aula. Os profissionais podem apresentar valores diferentes.</small>
+          </div>
+          <p class="field-wide"><strong>{{ eligibleTrainers.length }} {{ eligibleTrainers.length === 1 ? 'personal disponível' : 'personais disponíveis' }}</strong> em {{ form.city }} para o gênero selecionado. Escolha até 20 profissionais para receber sua solicitação.</p>
           <label v-for="trainer in eligibleTrainers" :key="trainer.trainerId" class="contact-opt-in field-wide availability-toggle">
             <input v-model="selectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20">
             <span><strong>{{ trainer.name }}</strong><small v-if="trainer.instagram"> · Instagram: @{{ trainer.instagram.replace(/^@/, '') }}</small></span>
@@ -2631,7 +2651,7 @@ async function sendResult() {
             <input id="request-birth-date" v-model="requestBirthDate" type="date" name="requestBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
             <small class="body-fat-help">Solicitada somente agora, para completar o pedido de atendimento.</small>
           </label>
-          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.provideAvailability && form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
+          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
