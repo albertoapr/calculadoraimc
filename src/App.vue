@@ -98,7 +98,7 @@ const trainerSlugFromHost = getTrainerSlugFromHost()
 const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
 const personalName = ref('FitPeso')
 const personalBrandFirstName = computed(() => personalName.value.endsWith(' Personal Trainer') ? personalName.value.slice(0, -' Personal Trainer'.length) : '')
-const showHomeTopbar = computed(() => viewMode.value === 'home' && !result.value && (isRootHome || Boolean(trainerSlugFromHost)))
+const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile'>(trainerRequestToken ? 'trainer-request' : 'home')
@@ -2287,7 +2287,7 @@ async function sendResult() {
             <button type="button" @click="openCustomerLogin()">Entrar</button>
           </template>
         </nav>
-        <label v-if="viewMode === 'home'" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
+        <label v-if="viewMode === 'home' || (viewMode === 'contact' && showRequestForm)" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
           <select id="home-city" :value="homeCity" aria-label="Alterar cidade" @change="selectHomeCity" style="max-width:165px;font:inherit;color:inherit;background:transparent;border:0;cursor:pointer">
             <option value="" disabled>Escolha sua cidade</option>
