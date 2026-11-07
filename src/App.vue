@@ -977,6 +977,16 @@ const detectingRequestCity = ref(false)
 const requestCityLocationMessage = ref('')
 let requestCityLookupId = 0
 
+function normalizeRequestCity(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+}
+
+const requestCitySuggestions = computed(() => {
+  const query = normalizeRequestCity(form.city)
+  if (query.length < 3) return []
+  return supportedRequestCities.filter(city => normalizeRequestCity(city).includes(query))
+})
+
 function matchSupportedRequestCity(value: string): string {
   const normalized = value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase()
   return supportedRequestCities.find(city =>
@@ -1082,7 +1092,9 @@ async function returnToRequestFormAfterLogin() {
 async function searchEligibleTrainers() {
   status.value = ''
   selectedTrainerIds.value = []
-  if (!form.city) { status.value = 'Selecione sua cidade para buscar profissionais.'; return }
+  const selectedCity = matchSupportedRequestCity(form.city)
+  if (!selectedCity) { status.value = 'Selecione uma cidade atendida nas sugestões para buscar profissionais.'; return }
+  form.city = selectedCity
   if (checkingTrainers.value) return
   checkingTrainers.value = true
   status.value = 'Consultando profissionais ativos…'
@@ -1908,7 +1920,7 @@ async function sendResult() {
   const ageInput = String(form.age).trim()
   const age = ageInput ? Number(ageInput) : undefined
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
-  const validCity = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city)
+  const validCity = Boolean(matchSupportedRequestCity(city))
   const validAge = age === undefined || (Number.isInteger(age) && age >= 1 && age <= 120)
   const normalizedPhoneDigits = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
   const validPhone = /^55[1-9]{2}9?\d{8}$/.test(normalizedPhoneDigits)
@@ -2499,13 +2511,11 @@ async function sendResult() {
         <template v-if="requestStep === 1">
         <p class="field-wide intro">Primeiro, vamos conferir se há profissionais que atendem na sua cidade.</p>
         <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
-          <select id="city" v-model="form.city" name="city" autocomplete="address-level2" required>
-            <option value="" disabled>Selecione sua cidade</option>
-            <option value="Mesquita">Mesquita</option>
-            <option value="Nilópolis">Nilópolis</option>
-            <option value="Nova Iguaçu">Nova Iguaçu</option>
-            <option value="Rio de Janeiro">Rio de Janeiro</option>
-          </select>
+          <input id="city" v-model="form.city" name="city" type="text" list="request-city-suggestions" autocomplete="off" placeholder="Digite pelo menos 3 letras da cidade" required>
+          <datalist id="request-city-suggestions">
+            <option v-for="city in requestCitySuggestions" :key="city" :value="city"></option>
+          </datalist>
+          <small v-if="form.city.length >= 3 && !requestCitySuggestions.length && !matchSupportedRequestCity(form.city)">Nenhuma cidade atendida encontrada.</small>
           <small v-if="requestCityLocationMessage" role="status">{{ requestCityLocationMessage }}</small>
         </label>
         <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
