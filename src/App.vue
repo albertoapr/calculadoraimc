@@ -2618,13 +2618,10 @@ async function sendResult() {
           </select>
         </label>
 
-        <label class="field field-wide" for="desired-duration"><span class="field-label">Por quanto tempo você deseja o acompanhamento? <span>opcional</span></span>
+        <label class="field field-wide" for="desired-duration"><span class="field-label">Duração do atendimento (em meses) <span>opcional</span></span>
           <select id="desired-duration" v-model="form.desiredDuration" name="desiredDuration">
-            <option value="">Selecione uma duração</option>
-            <option value="1 mês">1 mês</option>
-            <option value="2 meses">2 meses</option>
-            <option value="3 meses">3 meses</option>
-            <option value="Mais de 3 meses">Mais de 3 meses</option>
+            <option value="">Selecione a duração</option>
+            <option v-for="month in 6" :key="month" :value="`${month} ${month === 1 ? 'mês' : 'meses'}`">{{ month }} {{ month === 1 ? 'mês' : 'meses' }}</option>
           </select>
         </label>
 
