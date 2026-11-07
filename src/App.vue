@@ -1058,7 +1058,7 @@ async function detectRequestCity(cityDetectionScope: 'request' | 'home' = 'reque
         locality?: string
         localityInfo?: { administrative?: Array<{ name?: string; adminLevel?: number }> }
       }
-      if (cityDetectionScope === 'request' && (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value !== 1)) return
+      if (cityDetectionScope === 'request' && (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value !== 2)) return
       const candidates = [
         location.city ?? '',
         location.locality ?? '',
@@ -1089,7 +1089,7 @@ async function detectRequestCity(cityDetectionScope: 'request' | 'home' = 'reque
 async function openRequestForm() {
   status.value = ''
   showRequestForm.value = true
-  requestStep.value = 1
+  requestStep.value = 2
   ++requestCityLookupId
   form.city = homeCity.value
   requestCityLocationMessage.value = ''
@@ -1099,7 +1099,7 @@ async function openRequestForm() {
   viewMode.value = 'contact'
   await nextTick()
   window.scrollTo(0, 0)
-  void detectRequestCity()
+  if (!homeCity.value) void detectRequestCity()
 }
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
@@ -1152,15 +1152,14 @@ async function searchEligibleTrainers() {
       return
     }
     status.value = ''
-    requestStep.value = 2
+    requestStep.value = 3
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível consultar os profissionais agora.'
   } finally { checkingTrainers.value = false }
 }
 
-function continueToTrainerSelection() {
-  requestStep.value = 3
-  status.value = ''
+async function continueToTrainerSelection() {
+  await searchEligibleTrainers()
 }
 
 function reviewRequest() {
@@ -2561,8 +2560,8 @@ async function sendResult() {
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
-        <template v-if="requestStep === 1">
-        <p class="field-wide intro">Primeiro, vamos conferir se há profissionais que atendem na sua cidade.</p>
+        <template v-if="requestStep === 2">
+        <p class="field-wide intro">Informe os detalhes do atendimento que procura.</p>
         <label class="field field-wide" for="city"><span class="field-label">Cidade</span>
           <input id="city" v-model="form.city" name="city" type="text" list="request-city-suggestions" autocomplete="off" placeholder="Digite pelo menos 3 letras da cidade" required>
           <datalist id="request-city-suggestions">
@@ -2576,12 +2575,6 @@ async function sendResult() {
             <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
           </select>
         </label>
-        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="searchEligibleTrainers">{{ checkingTrainers ? 'Buscando…' : 'Buscar profissionais' }}</button>
-        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
-        </template>
-
-        <template v-else-if="requestStep === 2">
-        <p class="field-wide">Encontramos {{ eligibleTrainers.length }} profissional(is) em {{ form.city }}. Conte um pouco sobre o atendimento que procura.</p>
         <label class="field field-wide" for="objective"><span class="field-label">Objetivo <span>opcional</span></span>
           <select id="objective" v-model="form.objective" name="objective">
             <option value="">Selecione seu objetivo</option>
@@ -2635,8 +2628,8 @@ async function sendResult() {
           </div>
         </fieldset>
 
-        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">Escolher profissionais</button>
-        <button class="back-button field-wide" type="button" @click="requestStep = 1">Voltar</button>
+        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
+        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </template>
 
         <template v-else-if="requestStep === 3">
