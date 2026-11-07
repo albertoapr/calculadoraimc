@@ -982,17 +982,44 @@ const homeTrainerCount = ref<number | null>(null)
 const homeTrainerCountLoading = ref(false)
 let homeCityCountLookupId = 0
 
+const HOME_TRAINER_COUNT_TTL_MS = 24 * 60 * 60 * 1000
+const homeTrainerCountRequests = new Map<string, Promise<number>>()
+
 async function loadHomeTrainerCount(city: string) {
   const lookupId = ++homeCityCountLookupId
+  const cacheKey = `fitpeso:trainer-count:v1:${city}`
+  try {
+    const stored = localStorage.getItem(cacheKey)
+    if (stored) {
+      const cached = JSON.parse(stored) as { count?: number; expiresAt?: number }
+      if (Number.isInteger(cached.count) && Number(cached.count) >= 0 && Number(cached.expiresAt) > Date.now()) {
+        homeTrainerCount.value = Number(cached.count)
+        homeTrainerCountLoading.value = false
+        return
+      }
+    }
+  } catch { /* Storage may be unavailable; fall back to the API. */ }
+
   homeTrainerCount.value = null
   homeTrainerCountLoading.value = true
   try {
-    const endpoint = await getRequestApiEndpoint()
-    const query = new URLSearchParams({ city, gender: 'indiferente' })
-    const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`, { cache: 'no-store' })
-    const body = await response.json() as { trainers?: EligibleTrainer[] }
-    if (!response.ok || !Array.isArray(body.trainers)) throw new Error('Unavailable')
-    if (lookupId === homeCityCountLookupId) homeTrainerCount.value = body.trainers.length
+    let pending = homeTrainerCountRequests.get(city)
+    if (!pending) {
+      pending = (async () => {
+        const endpoint = await getRequestApiEndpoint()
+        const query = new URLSearchParams({ city, gender: 'indiferente' })
+        const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`)
+        const body = await response.json() as { count?: number; trainers?: EligibleTrainer[] }
+        if (!response.ok) throw new Error('Unavailable')
+        const count = Number.isInteger(body.count) ? Number(body.count) : Array.isArray(body.trainers) ? body.trainers.length : NaN
+        if (!Number.isInteger(count) || count < 0) throw new Error('Invalid count')
+        try { localStorage.setItem(cacheKey, JSON.stringify({ count, expiresAt: Date.now() + HOME_TRAINER_COUNT_TTL_MS })) } catch { /* Optional cache */ }
+        return count
+      })().finally(() => homeTrainerCountRequests.delete(city))
+      homeTrainerCountRequests.set(city, pending)
+    }
+    const count = await pending
+    if (lookupId === homeCityCountLookupId) homeTrainerCount.value = count
   } catch {
     if (lookupId === homeCityCountLookupId) homeTrainerCount.value = null
   } finally {
