@@ -976,6 +976,7 @@ const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio d
 const detectingRequestCity = ref(false)
 const requestCityLocationMessage = ref('')
 const homeCity = ref('')
+const homeCityManuallySelected = ref(false)
 const homeTrainerCount = ref<number | null>(null)
 const homeTrainerCountLoading = ref(false)
 let homeCityCountLookupId = 0
@@ -999,7 +1000,16 @@ async function loadHomeTrainerCount(city: string) {
 }
 
 function updateHomeCity(city: string) {
+  if (homeCityManuallySelected.value) return
   if (homeCity.value === city) return
+  homeCity.value = city
+  void loadHomeTrainerCount(city)
+}
+
+function selectHomeCity(event: Event) {
+  const city = (event.target as HTMLSelectElement).value
+  if (!supportedRequestCities.some(item => item === city)) return
+  homeCityManuallySelected.value = true
   homeCity.value = city
   void loadHomeTrainerCount(city)
 }
@@ -2256,6 +2266,7 @@ async function sendResult() {
           </div>
           <small class="brand-tagline">Rede de treinadores</small>
         </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0">
         <nav class="customer-account-links" aria-label="Conta do usuário">
           <template v-if="trainerSignedInId || customerSignedInName">
             <span class="account-greeting">
@@ -2277,9 +2288,13 @@ async function sendResult() {
             <button type="button" @click="openCustomerLogin()">Entrar</button>
           </template>
         </nav>
-        <div v-if="homeCity && viewMode === 'home'" class="home-location-label" aria-label="Sua cidade">
+        <label v-if="viewMode === 'home'" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
-          <span>{{ homeCity }}</span>
+          <select id="home-city" :value="homeCity" aria-label="Alterar cidade" @change="selectHomeCity" style="max-width:165px;font:inherit;color:inherit;background:transparent;border:0;cursor:pointer">
+            <option value="" disabled>Escolha sua cidade</option>
+            <option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option>
+          </select>
+        </label>
         </div>
       </div>
       <header class="hero">
