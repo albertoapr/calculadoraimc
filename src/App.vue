@@ -975,6 +975,35 @@ async function submitTrainerProposal() {
 const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'] as const
 const detectingRequestCity = ref(false)
 const requestCityLocationMessage = ref('')
+const homeCity = ref('')
+const homeTrainerCount = ref<number | null>(null)
+const homeTrainerCountLoading = ref(false)
+let homeCityCountLookupId = 0
+
+async function loadHomeTrainerCount(city: string) {
+  const lookupId = ++homeCityCountLookupId
+  homeTrainerCount.value = null
+  homeTrainerCountLoading.value = true
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const query = new URLSearchParams({ city, gender: 'indiferente' })
+    const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`, { cache: 'no-store' })
+    const body = await response.json() as { trainers?: EligibleTrainer[] }
+    if (!response.ok || !Array.isArray(body.trainers)) throw new Error('Unavailable')
+    if (lookupId === homeCityCountLookupId) homeTrainerCount.value = body.trainers.length
+  } catch {
+    if (lookupId === homeCityCountLookupId) homeTrainerCount.value = null
+  } finally {
+    if (lookupId === homeCityCountLookupId) homeTrainerCountLoading.value = false
+  }
+}
+
+function updateHomeCity(city: string) {
+  if (homeCity.value === city) return
+  homeCity.value = city
+  void loadHomeTrainerCount(city)
+}
+
 let requestCityLookupId = 0
 
 function normalizeRequestCity(value: string): string {
@@ -994,14 +1023,14 @@ function matchSupportedRequestCity(value: string): string {
   ) ?? ''
 }
 
-async function detectRequestCity() {
+async function detectRequestCity(cityDetectionScope: 'request' | 'home' = 'request') {
   if (!navigator.geolocation) {
     requestCityLocationMessage.value = 'Selecione sua cidade na lista.'
     return
   }
   const lookupId = ++requestCityLookupId
-  detectingRequestCity.value = true
-  requestCityLocationMessage.value = 'Identificando sua cidade…'
+  if (cityDetectionScope === 'request') detectingRequestCity.value = true
+  if (cityDetectionScope === 'request') requestCityLocationMessage.value = 'Identificando sua cidade…'
   navigator.geolocation.getCurrentPosition(async position => {
     try {
       // Reverse geocoding is used only to obtain the municipality; coordinates are not stored.
@@ -1019,7 +1048,7 @@ async function detectRequestCity() {
         locality?: string
         localityInfo?: { administrative?: Array<{ name?: string; adminLevel?: number }> }
       }
-      if (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value !== 1) return
+      if (cityDetectionScope === 'request' && (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value !== 1)) return
       const candidates = [
         location.city ?? '',
         location.locality ?? '',
@@ -1027,20 +1056,23 @@ async function detectRequestCity() {
       ]
       const city = candidates.map(matchSupportedRequestCity).find(Boolean) ?? ''
       if (city) {
-        if (!form.city) form.city = city
-        requestCityLocationMessage.value = 'Cidade sugerida pela localização. Você pode alterá-la.'
-      } else {
+        updateHomeCity(city)
+        if (cityDetectionScope === 'request') {
+          if (!form.city) form.city = city
+          requestCityLocationMessage.value = 'Cidade sugerida pela localização. Você pode alterá-la.'
+        }
+      } else if (cityDetectionScope === 'request') {
         requestCityLocationMessage.value = 'Sua cidade não está entre as atendidas. Selecione uma cidade da lista.'
       }
     } catch {
-      if (lookupId === requestCityLookupId) requestCityLocationMessage.value = 'Não foi possível identificar sua cidade. Selecione na lista.'
+      if (cityDetectionScope === 'request' && lookupId === requestCityLookupId) requestCityLocationMessage.value = 'Não foi possível identificar sua cidade. Selecione na lista.'
     } finally {
-      if (lookupId === requestCityLookupId) detectingRequestCity.value = false
+      if (cityDetectionScope === 'request' && lookupId === requestCityLookupId) detectingRequestCity.value = false
     }
   }, () => {
-    if (lookupId !== requestCityLookupId) return
-    detectingRequestCity.value = false
-    requestCityLocationMessage.value = 'Localização indisponível. Selecione sua cidade na lista.'
+    if (cityDetectionScope === 'request' && lookupId !== requestCityLookupId) return
+    if (cityDetectionScope === 'request') detectingRequestCity.value = false
+    if (cityDetectionScope === 'request') requestCityLocationMessage.value = 'Localização indisponível. Selecione sua cidade na lista.'
   }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 })
 }
 
@@ -1049,7 +1081,7 @@ async function openRequestForm() {
   showRequestForm.value = true
   requestStep.value = 1
   ++requestCityLookupId
-  form.city = ''
+  form.city = homeCity.value
   requestCityLocationMessage.value = ''
   form.trainerGenderPreference = 'indiferente'
   eligibleTrainers.value = []
@@ -1853,6 +1885,7 @@ onMounted(() => {
   if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
   void loadTrainerProfile()
   void loadTrainerRequest()
+  if (isRootHome) void detectRequestCity('home')
   try {
     const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
     if (trainerToken) {
@@ -2244,6 +2277,10 @@ async function sendResult() {
             <button type="button" @click="openCustomerLogin()">Entrar</button>
           </template>
         </nav>
+        <div v-if="homeCity && viewMode === 'home'" class="home-location-label" aria-label="Sua cidade">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          <span>{{ homeCity }}</span>
+        </div>
       </div>
       <header class="hero">
         <div v-if="!showHomeTopbar" class="brand" aria-label="FitPeso — Rede de treinadores">
@@ -2388,6 +2425,7 @@ async function sendResult() {
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
             <span class="home-action-copy"><strong>Receber atendimento</strong><small>Receba propostas acessíveis</small></span>
           </button>
+          <p v-if="homeCity" class="home-trainer-count" role="status">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Personais indisponíveis no momento' : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }}</p>
         </div>
         <div class="home-action home-assessment-link">
           <a href="#avaliacao" @click.prevent="viewMode = 'assessment'">Avaliação on-line grátis</a>
