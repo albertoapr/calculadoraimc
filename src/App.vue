@@ -2013,7 +2013,7 @@ async function sendResult() {
         </label>
         <p v-if="emailLoginError" class="login-validation-error field-wide" role="alert">{{ emailLoginError }}</p>
         <button class="primary-button field-wide" type="submit">Continuar</button>
-        <div v-if="!loginAsTrainer" class="login-google-alternative field-wide">
+        <div class="login-google-alternative field-wide">
           <span>ou</span>
           <div ref="googleButtonContainer" class="google-button-container"></div>
         </div>
