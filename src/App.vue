@@ -2561,7 +2561,7 @@ async function sendResult() {
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
-        <p class="field-wide intro">Informe os detalhes do atendimento que procura.</p>
+        
         <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
           <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
             <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
