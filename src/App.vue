@@ -1117,7 +1117,6 @@ async function searchEligibleTrainers() {
 }
 
 function continueToTrainerSelection() {
-  if (!form.shareContactConsent) { status.value = 'Autorize o compartilhamento dos dados para continuar.'; return }
   requestStep.value = 3
   status.value = ''
 }
@@ -1134,6 +1133,7 @@ async function confirmServiceRequest() {
     await openCustomerLogin(true, 'whatsapp')
     return
   }
+  form.shareContactConsent = true
   await sendResult()
 }
 
@@ -2582,10 +2582,6 @@ async function sendResult() {
           </div>
         </fieldset>
 
-        <label class="contact-opt-in field-wide availability-toggle" for="share-contact-consent">
-          <input id="share-contact-consent" v-model="form.shareContactConsent" name="shareContactConsent" type="checkbox" required>
-          <span>Autorizo o envio desta solicitação aos profissionais que eu selecionar.</span>
-        </label>
         <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">Escolher profissionais</button>
         <button class="back-button field-wide" type="button" @click="requestStep = 1">Voltar</button>
         </template>
@@ -2609,6 +2605,7 @@ async function sendResult() {
           </label>
           <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
+          <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
           <button class="back-button field-wide" type="button" @click="requestStep = 3">Voltar e editar</button>
         </template>
