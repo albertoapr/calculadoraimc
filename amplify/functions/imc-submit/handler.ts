@@ -52,7 +52,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
-  const desiredDurations = ['1 mês', '2 meses', '3 meses', 'Mais de 3 meses']
+  const desiredDurations = ['1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
@@ -70,9 +70,9 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
     (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
-    (data.sessionsPerWeek === undefined || (Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7)) &&
-    Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
-    Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
+    (Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7) &&
+    Array.isArray(trainingDays) && trainingDays.length > 0 && trainingDays.every(day => days.includes(String(day))) &&
+    Array.isArray(trainingShifts) && trainingShifts.length > 0 && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
 
 function normalizePhone(value: unknown) {
