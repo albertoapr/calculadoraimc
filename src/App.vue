@@ -2578,6 +2578,12 @@ async function sendResult() {
           </select>
         </label>
 
+        <div v-if="form.provideAvailability && Number(form.sessionsPerWeek) >= 1 && Number(form.sessionsPerWeek) <= 7" class="field-wide" role="status" aria-live="polite" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
+          <strong>Mensalidade estimada{{ form.city ? ' em ' + form.city : '' }}</strong>
+          <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
+          <small>Estimativa considerando 4 semanas por mês e aulas de 1 hora, entre R$ 40 e R$ 100 por sessão. Valores de referência, não preços confirmados dos profissionais.</small>
+        </div>
+
         <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
           <legend>Disponibilidade para treinar — dias da semana</legend>
           <div class="availability-options">
