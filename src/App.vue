@@ -205,6 +205,7 @@ const form = reactive({
   bodyFatAge: '',
   shareContactConsent: false,
   provideAvailability: false,
+  sessionsPerWeek: '',
   name: '',
   phone: '',
   email: '',
@@ -370,6 +371,7 @@ function clearContactDetails() {
   form.objective = 'Emagrecimento'
   form.age = ''
   form.city = ''
+  form.sessionsPerWeek = ''
   form.trainingDays = []
   form.trainingShifts = []
   googleProfileStatus.value = ''
@@ -2008,6 +2010,7 @@ async function sendResult() {
       attendsGym: form.attendsGym,
       ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName.trim() } : {}),
       objective: form.objective,
+      ...(form.provideAvailability && form.sessionsPerWeek ? { sessionsPerWeek: Number(form.sessionsPerWeek) } : {}),
       trainingDays,
       trainingShifts,
       selectedTrainerIds: selectedTrainerIds.value,
@@ -2562,6 +2565,39 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         
+        <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
+          <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
+          <svg class="home-action-icon availability-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
+          <span>Informar disponibilidade para treino</span>
+        </label>
+
+        <label v-if="form.provideAvailability" class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de sessões por semana</span>
+          <select id="sessions-per-week" v-model="form.sessionsPerWeek" name="sessionsPerWeek" required>
+            <option value="">Selecione a quantidade</option>
+            <option v-for="number in 7" :key="number" :value="String(number)">{{ number }} {{ number === 1 ? 'sessão' : 'sessões' }}</option>
+          </select>
+        </label>
+
+        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
+          <legend>Disponibilidade para treinar — dias da semana</legend>
+          <div class="availability-options">
+            <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
+              <input v-model="form.trainingDays" type="checkbox" name="trainingDays" :value="day.value">
+              <span>{{ day.label }}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
+          <legend>Turno</legend>
+          <div class="availability-options">
+            <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
+              <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
+              <span>{{ shift }}</span>
+            </label>
+          </div>
+        </fieldset>
+
         <label class="field field-wide" for="trainer-gender-preference"><span class="field-label">Gênero do personal</span>
           <select id="trainer-gender-preference" v-model="form.trainerGenderPreference" name="trainerGenderPreference" required>
             <option value="indiferente">Indiferente</option><option value="feminino">Mulher</option><option value="masculino">Homem</option>
@@ -2594,32 +2630,6 @@ async function sendResult() {
           <input id="gym-name" v-model="form.gymName" name="gymName" type="text" maxlength="50" placeholder="Nome da academia">
         </label>
 
-        <label class="contact-opt-in field-wide availability-toggle" for="provide-availability">
-          <input id="provide-availability" v-model="form.provideAvailability" name="provideAvailability" type="checkbox">
-          <svg class="home-action-icon availability-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-          <span>Informar disponibilidade para treino</span>
-        </label>
-
-        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
-          <legend>Disponibilidade para treinar — dias da semana</legend>
-          <div class="availability-options">
-            <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
-              <input v-model="form.trainingDays" type="checkbox" name="trainingDays" :value="day.value">
-              <span>{{ day.label }}</span>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset v-if="form.provideAvailability" class="availability-group field-wide">
-          <legend>Turno</legend>
-          <div class="availability-options">
-            <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
-              <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
-              <span>{{ shift }}</span>
-            </label>
-          </div>
-        </fieldset>
-
         <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
         <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </template>
@@ -2641,7 +2651,7 @@ async function sendResult() {
             <input id="request-birth-date" v-model="requestBirthDate" type="date" name="requestBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
             <small class="body-fat-help">Solicitada somente agora, para completar o pedido de atendimento.</small>
           </label>
-          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
+          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.provideAvailability && form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
