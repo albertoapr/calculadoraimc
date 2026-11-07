@@ -70,6 +70,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
     (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
+    (data.sessionsPerWeek === undefined || (Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7)) &&
     Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
     Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
@@ -1192,6 +1193,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
     attendsGym: item.attendsGym?.BOOL ?? false,
     ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
+    ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     createdAt: item.createdAt?.S ?? '',
@@ -1389,6 +1391,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
       attendsGym: item.attendsGym?.BOOL ?? false,
       ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
+      ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       validUntil,
@@ -1599,6 +1602,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
     ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
+    ...(Number.isInteger(requestData.sessionsPerWeek) && requestData.sessionsPerWeek >= 1 && requestData.sessionsPerWeek <= 7 ? { sessionsPerWeek: { N: String(requestData.sessionsPerWeek) } } : {}),
     ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
   }
