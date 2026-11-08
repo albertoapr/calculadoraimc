@@ -1179,10 +1179,6 @@ async function searchEligibleTrainers() {
     const body = await response.json() as { trainers?: EligibleTrainer[]; error?: string }
     if (!response.ok || !Array.isArray(body.trainers)) throw new Error(body.error || 'Não foi possível consultar os profissionais.')
     eligibleTrainers.value = body.trainers
-    if (!eligibleTrainers.value.length) {
-      status.value = 'Não encontramos profissionais ativos para esses critérios. Altere a cidade ou a preferência de gênero e tente novamente.'
-      return
-    }
     status.value = ''
     requestStep.value = 3
   } catch (error) {
@@ -2643,6 +2639,15 @@ async function sendResult() {
         </template>
 
         <template v-else-if="requestStep === 3">
+          <label class="field field-wide" for="trainer-gender-filter">
+            <span class="field-label">Gênero do personal</span>
+            <select id="trainer-gender-filter" v-model="form.trainerGenderPreference" :disabled="checkingTrainers" @change="searchEligibleTrainers">
+              <option value="indiferente">Indiferente</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+            </select>
+          </label>
+          <p v-if="checkingTrainers" class="field-wide" role="status">Atualizando lista de profissionais…</p>
           <h3 class="field-wide">Resumo do atendimento</h3>
           <dl class="request-customer-summary field-wide">
             <div><dt>Cidade</dt><dd>{{ form.city }}</dd></div>
@@ -2655,11 +2660,12 @@ async function sendResult() {
             <div><dt>Academia</dt><dd>{{ form.attendsGym ? (form.gymName.trim() || 'Sim') : 'Não' }}</dd></div>
           </dl>
           <p class="field-wide"><strong>{{ eligibleTrainers.length }} {{ eligibleTrainers.length === 1 ? 'personal disponível' : 'personais disponíveis' }}</strong> em {{ form.city }} para o gênero selecionado. Escolha até 20 profissionais para receber sua solicitação.</p>
+          <p v-if="!checkingTrainers && !eligibleTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado para essa preferência. Escolha outro gênero para atualizar a lista.</p>
           <label v-for="trainer in eligibleTrainers" :key="trainer.trainerId" class="contact-opt-in field-wide availability-toggle">
             <input v-model="selectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20">
             <span><strong>{{ trainer.name }}</strong><small v-if="trainer.instagram"> · Instagram: @{{ trainer.instagram.replace(/^@/, '') }}</small></span>
           </label>
-          <button class="primary-button field-wide" type="button" @click="reviewRequest">Revisar solicitação</button>
+          <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Revisar solicitação</button>
           <button class="back-button field-wide" type="button" @click="requestStep = 2">Voltar</button>
         </template>
 
