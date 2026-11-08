@@ -2605,12 +2605,6 @@ async function sendResult() {
           </select>
         </label>
 
-        <div v-if="Number(form.sessionsPerWeek) >= 1 && Number(form.sessionsPerWeek) <= 7" class="field-wide" role="status" aria-live="polite" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
-          <strong>Mensalidade estimada{{ form.city ? ' em ' + form.city : '' }}</strong>
-          <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
-          <small>Estimativa considerando 4 semanas por mês e aulas de 1 hora, entre R$ 40 e R$ 100 por sessão. Valores de referência, não preços confirmados dos profissionais.</small>
-        </div>
-
         <details  class="availability-group field-wide" style="position:relative">
           <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
             Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
@@ -2651,11 +2645,6 @@ async function sendResult() {
             <div><dt>Turnos</dt><dd>{{ form.trainingShifts.join(', ') }}</dd></div>
             <div><dt>Academia</dt><dd>{{ form.attendsGym ? (form.gymName.trim() || 'Sim') : 'Não' }}</dd></div>
           </dl>
-          <div class="field-wide" role="status" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
-            <strong>Mensalidade estimada em {{ form.city }}</strong>
-            <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
-            <small>Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por hora/aula. Os profissionais podem apresentar valores diferentes.</small>
-          </div>
           <p class="field-wide"><strong>{{ eligibleTrainers.length }} {{ eligibleTrainers.length === 1 ? 'personal disponível' : 'personais disponíveis' }}</strong> em {{ form.city }} para o gênero selecionado. Escolha até 20 profissionais para receber sua solicitação.</p>
           <label v-for="trainer in eligibleTrainers" :key="trainer.trainerId" class="contact-opt-in field-wide availability-toggle">
             <input v-model="selectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20">
@@ -2668,6 +2657,11 @@ async function sendResult() {
         <template v-else>
           <h3 class="field-wide">Revise antes de enviar</h3>
           <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
+          <div class="field-wide" role="status" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
+            <strong>Mensalidade estimada em {{ form.city }}</strong>
+            <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
+            <small>Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por hora/aula. Os profissionais podem apresentar valores diferentes.</small>
+          </div>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
