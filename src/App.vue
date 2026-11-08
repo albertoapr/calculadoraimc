@@ -391,7 +391,7 @@ function applyCustomerProfile(profile: { name: string; whatsapp: string; email: 
   customerForm.whatsapp = profile.whatsapp
   customerForm.email = profile.email
   customerForm.dateOfBirth = profile.dateOfBirth ?? ''
-  if (profile.dateOfBirth) requestBirthDate.value = profile.dateOfBirth
+  requestBirthDate.value = profile.dateOfBirth ?? ''
   customerSignedInName.value = profile.name
   trainerSignedInName.value = ''
   trainerSignedInId.value = ''
@@ -1206,9 +1206,13 @@ function reviewRequest() {
 }
 
 async function confirmServiceRequest() {
-  if (!isValidLoginBirthDate(requestBirthDate.value)) { status.value = 'Informe sua data de nascimento antes de continuar.'; return }
   if (!customerSignedInName.value) {
     await openCustomerLogin(true, 'whatsapp')
+    return
+  }
+  if (!isValidLoginBirthDate(customerForm.dateOfBirth)) {
+    await openMyProfile()
+    editingProfileStatus.value = 'Para enviar a solicitação, você precisa completar seu cadastro. Informe sua data de nascimento e salve as alterações.'
     return
   }
   form.shareContactConsent = true
@@ -1390,6 +1394,12 @@ async function saveMyProfile() {
     if (trainer) applyTrainerSession(body.profile)
     else applyCustomerProfile({ name: body.profile.name, whatsapp: body.profile.whatsapp, email: body.profile.email ?? '', dateOfBirth: body.profile.dateOfBirth })
     editingProfileStatus.value = 'Cadastro atualizado com sucesso.'
+    if (!trainer && requestStep.value === 4 && showRequestForm.value && isValidLoginBirthDate(customerForm.dateOfBirth)) {
+      viewMode.value = 'contact'
+      status.value = 'Cadastro completo. Agora você pode confirmar sua solicitação.'
+      await nextTick()
+      window.scrollTo(0, 0)
+    }
   } catch (error) {
     if (sessionGeneration === generation) editingProfileStatus.value = error instanceof Error ? error.message : 'Não foi possível salvar o cadastro.'
   } finally {
@@ -2008,8 +2018,8 @@ async function sendResult() {
     status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
     return
   }
-  if (!isValidLoginBirthDate(requestBirthDate.value)) {
-    status.value = 'Informe sua data de nascimento para solicitar atendimento.'
+  if (!isValidLoginBirthDate(customerForm.dateOfBirth)) {
+    status.value = 'Complete seu cadastro antes de solicitar atendimento.'
     return
   }
   if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 7 || !form.trainingDays.length || !form.trainingShifts.length) {
@@ -2023,21 +2033,8 @@ async function sendResult() {
   status.value = 'Enviando sua solicitação para a Beta…'
 
   try {
-    // O nascimento só é coletado quando o aluno solicita atendimento.
-    // Atualização autenticada antes do pedido: o backend calcula a idade a partir desse dado.
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
     if (!token) throw new Error('Entre na sua conta para solicitar atendimento.')
-    if (customerForm.dateOfBirth !== requestBirthDate.value) {
-      const endpoint = await getRequestApiEndpoint()
-      const saved = await fetch(endpoint + '/api/customers/update-profile', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-        body: JSON.stringify({ name: customerSignedInName.value, dateOfBirth: requestBirthDate.value }),
-      })
-      const savedBody = await saved.json() as { profile?: { name: string; whatsapp: string; email: string; dateOfBirth?: string }; error?: string }
-      if (!saved.ok || !savedBody.profile) throw new Error(savedBody.error || 'Não foi possível salvar a data de nascimento.')
-      applyCustomerProfile(savedBody.profile)
-    }
     await createFitpesoRequest({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
@@ -2670,11 +2667,6 @@ async function sendResult() {
 
         <template v-else>
           <h3 class="field-wide">Revise antes de enviar</h3>
-          <label class="field field-wide" for="request-birth-date">
-            <span class="field-label">Data de nascimento</span>
-            <input id="request-birth-date" v-model="requestBirthDate" type="date" name="requestBirthDate" autocomplete="bday" min="1900-01-01" :max="new Date().toISOString().slice(0, 10)" required>
-            <small class="body-fat-help">Solicitada somente agora, para completar o pedido de atendimento.</small>
-          </label>
           <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
