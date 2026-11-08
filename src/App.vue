@@ -568,6 +568,24 @@ function logout() {
   goHome()
 }
 
+function goBackFromTitle() {
+  if (showCustomerLogin.value) {
+    if (loginStep.value !== 1 || emailLoginPending.value) returnToLoginIdentifier()
+    else closeCustomerLogin()
+    return
+  }
+  if (showCustomerSignup.value) { closeCustomerSignup(); return }
+  if (showTrainerSignup.value) { closeTrainerSignup(); return }
+  if (viewMode.value === 'contact' && showRequestForm.value) {
+    if (requestStep.value === 4) requestStep.value = 3
+    else if (requestStep.value === 3) requestStep.value = 2
+    else goHome()
+  } else {
+    goHome()
+  }
+  void nextTick(() => window.scrollTo(0, 0))
+}
+
 function goHome() {
   clearPendingWhatsAppLogin()
   showTrainerSignup.value = false
@@ -2069,7 +2087,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small class="brand-tagline">Rede de treinadores</small></span>
         </div>
         <hr class="personal-divider">
-        <h1 id="page-title">Cadastro de personal</h1>
+        <h1 id="page-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> Cadastro de personal</h1>
         <p class="intro">Preencha seus dados para receber solicitações de usuários. Confirme o WhatsApp informado para ativar seu perfil.</p>
       </header>
 
@@ -2151,7 +2169,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <hr class="personal-divider">
-        <h1 id="customer-login-title">Login</h1>
+        <h1 id="customer-login-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> Login</h1>
         <p class="intro">{{ loginStep === 1 ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.' : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.' }}</p>
       </header>
 
@@ -2185,19 +2203,16 @@ async function sendResult() {
           <button id="login-confirm-action" class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting">
             {{ customerLoginSubmitting || trainerLoginSubmitting || emailLoginSubmitting ? 'Preparando acesso…' : loginIdentifierKind === 'email' ? 'Enviar link para meu e-mail' : 'Confirmar pelo WhatsApp' }}
           </button>
-          <button class="back-button field-wide" type="button" @click="returnToLoginIdentifier">Voltar</button>
         </form>
         <div v-else class="login-email-waiting" role="status" aria-live="polite">
           <h2>Confira seu e-mail</h2>
           <p>Enviamos um link de confirmação para <strong>{{ loginIdentifier }}</strong>.</p>
           <p>Abra o link, confirme o acesso e volte para esta tela. A entrada será concluída automaticamente.</p>
           <button class="secondary-button" type="button" @click="pollEmailLogin">Já confirmei meu e-mail</button>
-          <button class="back-button" type="button" @click="returnToLoginIdentifier">Voltar</button>
         </div>
       </div>
 
       <button v-if="loginStep === 1" class="back-button" type="button" @click="openCustomerSignupFromLogin">Criar cadastro</button>
-      <button class="back-button" type="button" @click="closeCustomerLogin">Voltar ao início</button>
       <div v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog" class="success-overlay" role="presentation">
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="customer-login-confirm-title">
           <div class="whatsapp-wait-icon" :class="{ 'is-confirmed': whatsappConfirmed }" aria-hidden="true">{{ whatsappConfirmed ? '✓' : '↻' }}</div>
@@ -2237,7 +2252,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span><small class="brand-tagline">Evoluindo com você</small></span>
         </div>
         <hr class="personal-divider">
-        <h1 id="customer-signup-title">Cadastro de cliente</h1>
+        <h1 id="customer-signup-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> Cadastro de cliente</h1>
       </header>
       <form v-if="!customerVerificationLink && signupStep === 1" class="form login-step-form" @submit.prevent="continueSignupContact">
         <p class="field-wide intro">Informe apenas seu WhatsApp ou e-mail. Pelo WhatsApp, a Beta confirma seu número e informa seu nome automaticamente.</p>
@@ -2258,7 +2273,6 @@ async function sendResult() {
           <input id="customer-email" v-model="customerForm.email" name="customerEmail" type="email" autocomplete="email" maxlength="254" placeholder="voce@exemplo.com">
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? 'Preparando confirmação…' : 'Confirmar WhatsApp' }}</button>
-        <button class="back-button field-wide" type="button" @click="signupStep = 1">Voltar</button>
       </form>
       <div v-else class="customer-signup-confirmation">
         <p class="status" role="status" aria-live="polite">{{ customerStatus }}</p>
@@ -2338,7 +2352,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
-        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title">Solicitar atendimento</h2>
+        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : requestStep === 3 ? 'Escolher profissionais' : 'Confirmar atendimento' }}</h2>
         <h1 v-if="viewMode === 'home' && !result" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
             <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
@@ -2349,6 +2363,7 @@ async function sendResult() {
         <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
         <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">Apoio profissional faz a diferença</p>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
+          <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button>
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
             <rect x="12" y="9" width="16" height="8" rx="2" />
@@ -2390,7 +2405,6 @@ async function sendResult() {
           <button class="primary-button field-wide" type="submit" :disabled="editingProfileSaving">{{ editingProfileSaving ? 'Salvando…' : 'Salvar alterações' }}</button>
         </form>
         <p v-if="editingProfileStatus" class="status" role="status" aria-live="polite">{{ editingProfileStatus }}</p>
-        <button class="back-button" type="button" @click="goHome">Voltar ao início</button>
       </section>
 
       <section v-if="viewMode === 'trainer-request'" class="trainer-request-view" aria-labelledby="page-title">
@@ -2523,7 +2537,6 @@ async function sendResult() {
         </div>
 
         <button class="primary-button field-wide" type="submit">Avaliar <span aria-hidden="true">→</span></button>
-        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </div>
       </form>
 
@@ -2635,7 +2648,6 @@ async function sendResult() {
         </fieldset>
 
         <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
-        <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
         </template>
 
         <template v-else-if="requestStep === 3">
@@ -2666,7 +2678,6 @@ async function sendResult() {
             <span><strong>{{ trainer.name }}</strong><small v-if="trainer.instagram"> · Instagram: @{{ trainer.instagram.replace(/^@/, '') }}</small></span>
           </label>
           <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Revisar solicitação</button>
-          <button class="back-button field-wide" type="button" @click="requestStep = 2">Voltar</button>
         </template>
 
         <template v-else>
@@ -2680,7 +2691,6 @@ async function sendResult() {
           <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
           <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
-          <button class="back-button field-wide" type="button" @click="requestStep = 3">Voltar e editar</button>
         </template>
       </form>
 
@@ -2717,3 +2727,22 @@ async function sendResult() {
     </section>
   </main>
 </template>
+
+<style scoped>
+.title-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0 0.45em 0 0;
+  min-width: 1.5em;
+  min-height: 1.5em;
+}
+.title-back-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+</style>
