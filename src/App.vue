@@ -2136,9 +2136,8 @@ async function sendResult() {
         <a v-if="trainerVerificationLink" class="primary-button field-wide" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a>
       </form>
       <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
-      <div class="box-footer" role="group" aria-label="Aparência e contato">
-        <span class="box-footer-balancer" aria-hidden="true"></span>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+      <div class="box-footer" role="group" aria-label="Aparência e contato" style="display:flex;justify-content:space-between;align-items:center">
+                <a class="box-contact-link" style="margin-right:auto;margin-left:0;justify-self:start" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
           <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5h3l1.3 4.1-2 1.7a15.1 15.1 0 0 0 5.8 5.8l1.7-2 4.1 1.3v3a2 2 0 0 1-2.2 2C10.8 18.9 5.1 13.2 4.6 5.7a2 2 0 0 1 2-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
           <span>Fale conosco</span>
         </a>
@@ -2222,9 +2221,8 @@ async function sendResult() {
           <button class="back-button" type="button" @click="returnToLoginIdentifier">Cancelar</button>
         </section>
       </div>
-      <div class="box-footer" role="group" aria-label="Aparência e contato">
-        <span class="box-footer-balancer" aria-hidden="true"></span>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+      <div class="box-footer" role="group" aria-label="Aparência e contato" style="display:flex;justify-content:space-between;align-items:center">
+                <a class="box-contact-link" style="margin-right:auto;margin-left:0;justify-self:start" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
           <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5h3l1.3 4.1-2 1.7a15.1 15.1 0 0 0 5.8 5.8l1.7-2 4.1 1.3v3a2 2 0 0 1-2.2 2C10.8 18.9 5.1 13.2 4.6 5.7a2 2 0 0 1 2-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
           <span>Fale conosco</span>
         </a>
@@ -2278,9 +2276,8 @@ async function sendResult() {
       </div>
       <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
       <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
-      <div class="box-footer" role="group" aria-label="Aparência e contato">
-        <span class="box-footer-balancer" aria-hidden="true"></span>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+      <div class="box-footer" role="group" aria-label="Aparência e contato" style="display:flex;justify-content:space-between;align-items:center">
+                <a class="box-contact-link" style="margin-right:auto;margin-left:0;justify-self:start" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
           <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5h3l1.3 4.1-2 1.7a15.1 15.1 0 0 0 5.8 5.8l1.7-2 4.1 1.3v3a2 2 0 0 1-2.2 2C10.8 18.9 5.1 13.2 4.6 5.7a2 2 0 0 1 2-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
           <span>Fale conosco</span>
         </a>
@@ -2701,9 +2698,8 @@ async function sendResult() {
           <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
         </section>
       </div>
-      <div class="box-footer" role="group" aria-label="Aparência e contato">
-        <span class="box-footer-balancer" aria-hidden="true"></span>
-        <a class="box-contact-link" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
+      <div class="box-footer" role="group" aria-label="Aparência e contato" style="display:flex;justify-content:space-between;align-items:center">
+                <a class="box-contact-link" style="margin-right:auto;margin-left:0;justify-self:start" href="https://wa.me/5521987741518?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer">
           <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.6 3.5h3l1.3 4.1-2 1.7a15.1 15.1 0 0 0 5.8 5.8l1.7-2 4.1 1.3v3a2 2 0 0 1-2.2 2C10.8 18.9 5.1 13.2 4.6 5.7a2 2 0 0 1 2-2.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
           <span>Fale conosco</span>
         </a>
