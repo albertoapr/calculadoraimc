@@ -2605,7 +2605,15 @@ async function sendResult() {
           </select>
         </label>
 
-        <details  class="availability-group field-wide" style="position:relative">
+        <label class="field field-wide" for="request-gym-name">
+          <span class="field-label">Academia <small>(opcional)</small></span>
+          <input id="request-gym-name" v-model="form.gymName" type="text" name="gymName" maxlength="50" placeholder="Nome da academia, se houver" @input="form.attendsGym = Boolean(form.gymName.trim())">
+        </label>
+
+        <fieldset class="field-wide" style="min-width:0;border:1px solid currentColor;border-radius:12px;padding:14px;display:grid;gap:12px">
+          <legend style="padding:0 8px;font-weight:600">Sua disponibilidade pra treinar</legend>
+          <p style="margin:0">Quais dias da semana e turnos você tem disponíveis?</p>
+        <details  class="availability-group" style="position:relative">
           <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
             Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
           </summary>
@@ -2617,7 +2625,7 @@ async function sendResult() {
           </div>
         </details>
 
-        <details  class="availability-group field-wide" style="position:relative">
+        <details  class="availability-group" style="position:relative">
           <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
             Turno <small>({{ form.trainingShifts.length }} selecionado(s))</small>
           </summary>
@@ -2628,6 +2636,8 @@ async function sendResult() {
             </label>
           </div>
         </details>
+
+        </fieldset>
 
         <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
         <button class="back-button field-wide" type="button" @click="goHome">Voltar</button>
