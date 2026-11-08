@@ -216,6 +216,7 @@ const form = reactive({
   desiredDuration: '1 mês',
   attendsGym: false,
   gymName: '',
+
   trainingDays: ['Segunda-feira'] as string[],
   trainingShifts: ['Noite'] as string[],
 })
@@ -1204,10 +1205,15 @@ async function searchEligibleTrainers() {
   } finally { checkingTrainers.value = false }
 }
 
+const otherGymName = ref('')
+
 async function continueToTrainerSelection() {
   status.value = ''
   const sessions = Number(form.sessionsPerWeek)
   if (!Number.isInteger(sessions) || sessions < 1 || sessions > 7) { status.value = 'Selecione de 1 a 7 aulas por semana.'; return }
+  if (!form.gymName) { status.value = 'Selecione uma academia.'; return }
+  if (form.gymName === 'Outros' && !otherGymName.value.trim()) { status.value = 'Informe o lugar onde pretende treinar.'; return }
+  form.attendsGym = true
   if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
   if (!form.trainingShifts.length) { status.value = 'Selecione pelo menos um turno.'; return }
   await searchEligibleTrainers()
@@ -2058,7 +2064,7 @@ async function sendResult() {
       trainerGenderPreference: form.trainerGenderPreference,
       ...(form.desiredDuration ? { desiredDuration: form.desiredDuration } : {}),
       attendsGym: form.attendsGym,
-      ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName.trim() } : {}),
+      ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName === 'Outros' ? otherGymName.value.trim() : form.gymName.trim() } : {}),
       objective: form.objective,
       ...(form.sessionsPerWeek ? { sessionsPerWeek: Number(form.sessionsPerWeek) } : {}),
       trainingDays,
@@ -2615,8 +2621,19 @@ async function sendResult() {
         </label>
 
         <label class="field field-wide" for="request-gym-name">
-          <span class="field-label">Academia <small>(opcional)</small></span>
-          <input id="request-gym-name" v-model="form.gymName" type="text" name="gymName" maxlength="50" placeholder="Nome da academia, se houver" @input="form.attendsGym = Boolean(form.gymName.trim())">
+          <span class="field-label">Academia</span>
+          <select id="request-gym-name" v-model="form.gymName" name="gymName" required @change="form.attendsGym = Boolean(form.gymName)">
+            <option value="" disabled>Selecione a academia</option>
+            <option value="AquaticCenter">AquaticCenter</option>
+            <option value="SmartFit">SmartFit</option>
+            <option value="LifeFit">LifeFit</option>
+            <option value="BodyTech">BodyTech</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </label>
+        <label v-if="form.gymName === 'Outros'" class="field field-wide" for="request-other-gym">
+          <span class="field-label">Informe o lugar</span>
+          <input id="request-other-gym" v-model.trim="otherGymName" type="text" name="otherGymName" maxlength="100" placeholder="Nome do local onde pretende treinar" required>
         </label>
 
         <fieldset class="field-wide" style="min-width:0;border:1px solid currentColor;border-radius:12px;padding:14px;display:grid;gap:12px">
@@ -2669,7 +2686,7 @@ async function sendResult() {
             <div><dt>Aulas por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div>
             <div><dt>Dias disponíveis</dt><dd>{{ form.trainingDays.join(', ') }}</dd></div>
             <div><dt>Turnos</dt><dd>{{ form.trainingShifts.join(', ') }}</dd></div>
-            <div><dt>Academia</dt><dd>{{ form.attendsGym ? (form.gymName.trim() || 'Sim') : 'Não' }}</dd></div>
+            <div><dt>Academia</dt><dd>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</dd></div>
           </dl>
           <p class="field-wide"><strong>{{ eligibleTrainers.length }} {{ eligibleTrainers.length === 1 ? 'personal disponível' : 'personais disponíveis' }}</strong> em {{ form.city }} para o gênero selecionado. Escolha até 20 profissionais para receber sua solicitação.</p>
           <p v-if="!checkingTrainers && !eligibleTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado para essa preferência. Escolha outro gênero para atualizar a lista.</p>
