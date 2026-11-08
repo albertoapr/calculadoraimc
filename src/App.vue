@@ -1207,7 +1207,7 @@ async function searchEligibleTrainers() {
 async function continueToTrainerSelection() {
   status.value = ''
   const sessions = Number(form.sessionsPerWeek)
-  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 7) { status.value = 'Selecione de 1 a 7 sessões por semana.'; return }
+  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 7) { status.value = 'Selecione de 1 a 7 aulas por semana.'; return }
   if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
   if (!form.trainingShifts.length) { status.value = 'Selecione pelo menos um turno.'; return }
   await searchEligibleTrainers()
@@ -2037,7 +2037,7 @@ async function sendResult() {
     return
   }
   if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 7 || !form.trainingDays.length || !form.trainingShifts.length) {
-    status.value = 'Informe as sessões por semana, pelo menos um dia e um turno.'
+    status.value = 'Informe as aulas por semana, pelo menos um dia e um turno.'
     return
   }
   const trainingDays = form.trainingDays
@@ -2607,10 +2607,10 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         
-        <label  class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de sessões por semana</span>
+        <label  class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de aulas por semana</span>
           <select id="sessions-per-week" v-model="form.sessionsPerWeek" name="sessionsPerWeek" required>
             <option value="">Selecione a quantidade</option>
-            <option v-for="number in 7" :key="number" :value="String(number)">{{ number }} {{ number === 1 ? 'sessão' : 'sessões' }}</option>
+            <option v-for="number in 7" :key="number" :value="String(number)">{{ number }} {{ number === 1 ? 'aula' : 'aulas' }}</option>
           </select>
         </label>
 
@@ -2666,7 +2666,7 @@ async function sendResult() {
             <div><dt>Gênero do personal</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div>
             <div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div>
             <div><dt>Duração</dt><dd>{{ form.desiredDuration }}</dd></div>
-            <div><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div>
+            <div><dt>Aulas por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div>
             <div><dt>Dias disponíveis</dt><dd>{{ form.trainingDays.join(', ') }}</dd></div>
             <div><dt>Turnos</dt><dd>{{ form.trainingShifts.join(', ') }}</dd></div>
             <div><dt>Academia</dt><dd>{{ form.attendsGym ? (form.gymName.trim() || 'Sim') : 'Não' }}</dd></div>
@@ -2682,7 +2682,7 @@ async function sendResult() {
 
         <template v-else>
           <h3 class="field-wide">Revise antes de enviar</h3>
-          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Sessões por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
+          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Aulas por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
           <div class="field-wide" role="status" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
             <strong>Mensalidade estimada em {{ form.city }}</strong>
             <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
