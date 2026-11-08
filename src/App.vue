@@ -2612,9 +2612,8 @@ async function sendResult() {
 
         <fieldset class="field-wide" style="min-width:0;border:1px solid currentColor;border-radius:12px;padding:14px;display:grid;gap:12px">
           <legend style="padding:0 8px;font-weight:600">Sua disponibilidade pra treinar</legend>
-          <p style="margin:0">Quais dias da semana e turnos você tem disponíveis?</p>
         <details  class="availability-group" style="position:relative">
-          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
+          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:none;appearance:none">
             Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
           </summary>
           <div class="availability-options" style="padding:12px 8px">
@@ -2626,7 +2625,7 @@ async function sendResult() {
         </details>
 
         <details  class="availability-group" style="position:relative">
-          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:auto">
+          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:none;appearance:none">
             Turno <small>({{ form.trainingShifts.length }} selecionado(s))</small>
           </summary>
           <div class="availability-options" style="padding:12px 8px">
