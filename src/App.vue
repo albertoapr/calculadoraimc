@@ -124,6 +124,30 @@ const profileOtherAcademy = ref('')
 const publicTrainers = ref<EligibleTrainer[]>([])
 const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
+const homeAcademy = ref('')
+const homeSelectedTrainerIds = ref<string[]>([])
+const pendingHomeTrainerIds = ref<string[]>([])
+const homeGymOptions = computed(() => {
+  const names = new Set(academyOptions.filter(name => name !== 'Outros'))
+  publicTrainers.value.forEach(trainer => {
+    ;[...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].forEach(name => {
+      if (name.trim()) names.add(name.trim())
+    })
+  })
+  return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+})
+const homeFilteredTrainers = computed(() => publicTrainers.value.filter(trainer =>
+  !homeAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.toLocaleLowerCase('pt-BR') === homeAcademy.value.toLocaleLowerCase('pt-BR'))
+))
+function searchHomeTrainers() {
+  if (!homeCity.value) return
+  publicTrainerCity.value = homeCity.value
+  void loadPublicTrainers()
+}
+function requestProposalFromHome() {
+  pendingHomeTrainerIds.value = [...homeSelectedTrainerIds.value]
+  void openRequestForm()
+}
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
@@ -1121,6 +1145,11 @@ function selectHomeCity(event: Event) {
   void loadHomeTrainerCount(city)
 }
 
+watch(homeCity, city => {
+  homeSelectedTrainerIds.value = []
+  if (city && isRootHome) searchHomeTrainers()
+})
+
 let requestCityLookupId = 0
 
 function normalizeRequestCity(value: string): string {
@@ -1207,6 +1236,7 @@ async function openRequestForm() {
   form.desiredDuration = '1 mês'
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
+  if (homeAcademy.value) form.gymName = homeAcademy.value
   viewMode.value = 'contact'
   await nextTick()
   window.scrollTo(0, 0)
@@ -1258,6 +1288,8 @@ async function searchEligibleTrainers() {
     const body = await response.json() as { trainers?: EligibleTrainer[]; error?: string }
     if (!response.ok || !Array.isArray(body.trainers)) throw new Error(body.error || 'Não foi possível consultar os profissionais.')
     eligibleTrainers.value = body.trainers
+    selectedTrainerIds.value = pendingHomeTrainerIds.value.filter(id => body.trainers!.some(t => t.trainerId === id)).slice(0, 20)
+    pendingHomeTrainerIds.value = []
     status.value = ''
     requestStep.value = 3
   } catch (error) {
@@ -2577,17 +2609,43 @@ async function sendResult() {
           </tbody></table></div><p v-if="!publicFilteredTrainers.length">Nenhum profissional encontrado.</p>
         </template>
       </section>
-      <div v-if="viewMode === 'home' && !result" class="home-actions">
-        <div class="home-action">
-          <button class="primary-button" type="button" @click="openRequestForm">
-            <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-            <span class="home-action-copy"><strong>Contratar Personal Trainer</strong><small>Receba propostas acessíveis</small></span>
-          </button>
-          <p v-if="homeCity" class="home-trainer-count" role="status"><button class="public-trainers-link" type="button" @click="openPublicTrainers">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Consultar personais em ' + homeCity : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }} →</button></p>
+      <section v-if="viewMode === 'home' && !result && isRootHome" class="home-trainer-directory" aria-label="Profissionais da sua cidade">
+        <div class="home-trainer-controls">
+          <label class="home-academy-select">
+            <span class="sr-only">Academia</span>
+            <select v-model="homeAcademy" aria-label="Filtrar por academia">
+              <option value="">Todas as academias</option>
+              <option v-for="academy in homeGymOptions" :key="academy" :value="academy">{{ academy }}</option>
+            </select>
+          </label>
+          <button class="secondary-button home-search-button" type="button" :disabled="!homeCity || publicTrainersLoading" @click="searchHomeTrainers">Buscar Personal</button>
+          <button class="primary-button home-proposal-button" type="button" @click="requestProposalFromHome">Solicitar Proposta</button>
         </div>
-        <div class="home-action home-assessment-link">
-          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
-        </div>
+        <p v-if="!homeCity" class="home-list-message">Selecione sua cidade para encontrar profissionais.</p>
+        <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
+        <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
+        <template v-else>
+          <p class="home-list-heading">{{ homeFilteredTrainers.length }} {{ homeFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ homeCity }}</p>
+          <div class="home-trainer-list">
+            <label v-for="trainer in homeFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
+              <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
+              <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
+              <span class="home-trainer-info">
+                <strong>{{ trainerDisplayName(trainer.name) }}</strong>
+                <small>CREF {{ trainer.cref || 'não informado' }}</small>
+                <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" @click.stop>Instagram</a>
+                <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">Academias: {{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
+              </span>
+            </label>
+          </div>
+          <p v-if="!homeFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
+        </template>
+      </section>
+      <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
+        <div class="home-action"><button class="primary-button" type="button" @click="openRequestForm">Solicitar Proposta</button></div>
+      </div>
+      <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-action home-assessment-link">
+        <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
       </div>
 
       <form v-if="viewMode === 'assessment' && !result" class="form" @submit.prevent="calculateImc">
@@ -2844,6 +2902,19 @@ async function sendResult() {
 </template>
 
 <style scoped>
+.home-trainer-directory { display:grid; gap:16px; margin:22px 0; }
+.home-trainer-controls { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:stretch; }
+.home-trainer-controls button,.home-academy-select select { min-width:0; width:100%; min-height:48px; font:inherit; }
+.home-academy-select select { color:inherit; background:var(--input-bg, transparent); border:1px solid currentColor; border-radius:12px; padding:10px; }
+.home-trainer-list { display:grid; gap:10px; }
+.home-trainer-card { display:flex; gap:14px; align-items:center; border:1px solid var(--border-color, #86978f); border-radius:16px; padding:14px; cursor:pointer; }
+.home-trainer-card input { flex:none; width:22px; height:22px; accent-color:#08763a; }
+.home-trainer-avatar { display:grid; flex:none; place-items:center; width:58px; height:58px; border-radius:12px; background:#d9efe0; color:#075f32; font-weight:750; }
+.home-trainer-info { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.home-trainer-info strong { font-size:1.05rem; }
+.home-trainer-info a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+.home-list-heading,.home-list-message { margin:0; }
+@media(max-width:700px) { .home-trainer-controls { grid-template-columns:1fr 1fr; } .home-academy-select { grid-column:1 / -1; } .home-trainer-controls button { padding:10px 6px; font-size:.9rem; } }
 .trainer-instagram-icon { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px; }
 
 .trainer-filters { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
