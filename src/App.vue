@@ -2382,8 +2382,10 @@ async function sendResult() {
           </span>
           <span v-else>Treine com um personal</span>
         </h1>
-        <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
-        <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
+        <div v-if="viewMode === 'home' && !result && isRootHome" class="root-home-photo">
+          <img class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
+          <p class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
+        </div>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button>
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -2510,7 +2512,7 @@ async function sendResult() {
           <p v-if="homeCity" class="home-trainer-count" role="status">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Personais indisponíveis no momento' : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }}</p>
         </div>
         <div class="home-action home-assessment-link">
-          <a href="#avaliacao" @click.prevent="viewMode = 'assessment'">Avaliação online grátis</a>
+          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
         </div>
       </div>
 
