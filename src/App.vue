@@ -2644,7 +2644,7 @@ async function sendResult() {
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action"><button class="primary-button" type="button" @click="openRequestForm">Solicitar Proposta</button></div>
       </div>
-      <div v-if="viewMode === 'home' && !result" class="home-action home-assessment-link">
+      <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-action home-assessment-link">
         <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
       </div>
 
