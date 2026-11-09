@@ -85,7 +85,7 @@ type TrainerRequestDetails = {
   proposalAlreadySent?: boolean
 }
 
-type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string }
+type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string; cref?: string; sex?: string; gender?: string; gymName?: string; academy?: string }
 type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
 type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
 type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string }
@@ -113,6 +113,28 @@ const requestStep = ref(1)
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
 const checkingTrainers = ref(false)
+const trainerNameFilter = ref('')
+const trainerGymFilter = ref('')
+const trainerSexFilter = ref('todos')
+const trainerGymOptions = computed(() => [...new Set(eligibleTrainers.value.map(t => t.gymName || t.academy || '').filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+const filteredTrainers = computed(() => eligibleTrainers.value.filter(t => {
+  const nameMatches = t.name.toLocaleLowerCase('pt-BR').includes(trainerNameFilter.value.trim().toLocaleLowerCase('pt-BR'))
+  const gymMatches = !trainerGymFilter.value || (t.gymName || t.academy || '') === trainerGymFilter.value
+  const sexMatches = trainerSexFilter.value === 'todos' || (t.sex || t.gender || '').toLocaleLowerCase('pt-BR') === trainerSexFilter.value
+  return nameMatches && gymMatches && sexMatches
+}))
+const allVisibleTrainersSelected = computed(() => filteredTrainers.value.length > 0 && filteredTrainers.value.every(t => selectedTrainerIds.value.includes(t.trainerId)))
+function toggleAllVisibleTrainers(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  const visibleIds = filteredTrainers.value.map(t => t.trainerId)
+  if (!checked) { selectedTrainerIds.value = selectedTrainerIds.value.filter(id => !visibleIds.includes(id)); return }
+  selectedTrainerIds.value = [...new Set([...selectedTrainerIds.value, ...visibleIds])].slice(0, 20)
+}
+function trainerInstagramUrl(instagram: string) {
+  const handle = instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?instagram\.com\//i, '').split(/[/?#]/)[0]
+  return /^[-._a-zA-Z0-9]+$/.test(handle) ? `https://www.instagram.com/${handle}/` : ''
+}
+
 const customerRequests = ref<CustomerRequest[]>([])
 const customerRequestsStatus = ref('')
 const changingRequestId = ref('')
@@ -2678,33 +2700,33 @@ async function sendResult() {
         </template>
 
         <template v-else-if="requestStep === 3">
-          <label class="field field-wide" for="trainer-gender-filter">
-            <span class="field-label">Gênero do personal</span>
-            <select id="trainer-gender-filter" v-model="form.trainerGenderPreference" :disabled="checkingTrainers" @change="searchEligibleTrainers">
-              <option value="indiferente">Indiferente</option>
-              <option value="feminino">Feminino</option>
-              <option value="masculino">Masculino</option>
-            </select>
-          </label>
-          <p v-if="checkingTrainers" class="field-wide" role="status">Atualizando lista de profissionais…</p>
-          <h3 class="field-wide">Resumo do atendimento</h3>
-          <dl class="request-customer-summary field-wide">
-            <div><dt>Cidade</dt><dd>{{ form.city }}</dd></div>
-            <div><dt>Gênero do personal</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div>
-            <div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div>
-            <div><dt>Duração</dt><dd>{{ form.desiredDuration }}</dd></div>
-            <div><dt>Aulas por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div>
-            <div><dt>Dias disponíveis</dt><dd>{{ form.trainingDays.join(', ') }}</dd></div>
-            <div><dt>Turnos</dt><dd>{{ form.trainingShifts.join(', ') }}</dd></div>
-            <div><dt>Academia</dt><dd>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</dd></div>
-          </dl>
-          <p class="field-wide"><strong>{{ eligibleTrainers.length }} {{ eligibleTrainers.length === 1 ? 'personal disponível' : 'personais disponíveis' }}</strong> em {{ form.city }} para o gênero selecionado. Escolha até 20 profissionais para receber sua solicitação.</p>
-          <p v-if="!checkingTrainers && !eligibleTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado para essa preferência. Escolha outro gênero para atualizar a lista.</p>
-          <label v-for="trainer in eligibleTrainers" :key="trainer.trainerId" class="contact-opt-in field-wide availability-toggle">
-            <input v-model="selectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20">
-            <span><strong>{{ trainer.name }}</strong><small v-if="trainer.instagram"> · Instagram: @{{ trainer.instagram.replace(/^@/, '') }}</small></span>
-          </label>
-          <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Revisar solicitação</button>
+          <div class="trainer-filters field-wide">
+            <label class="field"><span class="field-label">Academia</span><select v-model="trainerGymFilter"><option value="">Todas</option><option v-for="gym in trainerGymOptions" :key="gym" :value="gym">{{ gym }}</option></select></label>
+            <label class="field"><span class="field-label">Nome do profissional</span><input v-model="trainerNameFilter" type="search" placeholder="Buscar por nome..."></label>
+            <label class="field"><span class="field-label">Sexo</span><select v-model="trainerSexFilter"><option value="todos">Todos</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
+          </div>
+          <p v-if="checkingTrainers" class="field-wide" role="status">Carregando profissionais…</p>
+          <div class="field-wide trainer-results-bar">
+            <label class="trainer-select-all"><input type="checkbox" :checked="allVisibleTrainersSelected" :disabled="!filteredTrainers.length" @change="toggleAllVisibleTrainers"> Selecionar todos</label>
+            <span>{{ filteredTrainers.length }} {{ filteredTrainers.length === 1 ? 'profissional encontrado' : 'profissionais encontrados' }}</span>
+          </div>
+          <div class="field-wide trainer-table-scroll">
+            <table class="trainer-selection-table">
+              <thead><tr><th scope="col">✓</th><th scope="col">Profissional</th><th scope="col">CREF</th><th scope="col">Academia</th><th scope="col">Instagram</th></tr></thead>
+              <tbody>
+                <tr v-for="trainer in filteredTrainers" :key="trainer.trainerId">
+                  <td><input v-model="selectedTrainerIds" type="checkbox" :aria-label="`Selecionar ${trainer.name}`" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20"></td>
+                  <td><strong>{{ trainer.name }}</strong></td>
+                  <td>{{ trainer.cref || '—' }}</td>
+                  <td>{{ trainer.gymName || trainer.academy || '—' }}</td>
+                  <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="`Instagram de ${trainer.name} (abre em nova aba)`">@{{ trainer.instagram.replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?instagram\.com\//i, '').replace(/\/$/, '') }} ↗</a><span v-else>—</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="!checkingTrainers && !filteredTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado para os filtros selecionados.</p>
+          <p class="field-wide trainer-selection-count">{{ selectedTrainerIds.length }} de 20 profissionais selecionados</p>
+          <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Continuar →</button>
         </template>
 
         <template v-else>
@@ -2756,6 +2778,19 @@ async function sendResult() {
 </template>
 
 <style scoped>
+.trainer-filters { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
+.trainer-filters .field { min-width:0; }
+.trainer-results-bar { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px; }
+.trainer-select-all { display:flex;align-items:center;gap:10px;cursor:pointer; }
+.trainer-select-all input,.trainer-selection-table input { width:20px;height:20px;accent-color:#efa449; }
+.trainer-table-scroll { overflow-x:auto;max-width:100%; }
+.trainer-selection-table { width:100%;border-collapse:collapse;text-align:left;min-width:560px; }
+.trainer-selection-table th,.trainer-selection-table td { padding:12px 10px;border-bottom:1px solid currentColor; }
+.trainer-selection-table th { font-weight:700; }
+.trainer-selection-table a { color:inherit;text-decoration:underline; }
+.trainer-selection-count { margin:0;opacity:.8; }
+@media(max-width:620px){.trainer-filters{grid-template-columns:1fr;}}
+
 .request-card { min-width:0; border:1px solid var(--border-color, #658575); border-radius:18px; padding:18px; display:grid; gap:14px; }
 .request-card h3 { margin:0; font-size:1.2rem; }
 .request-question { margin:0; font-weight:650; }
