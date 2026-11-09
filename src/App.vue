@@ -2583,7 +2583,6 @@ async function sendResult() {
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
             <span class="home-action-copy"><strong>Buscar Personal</strong><small>Receba propostas acessíveis</small></span>
           </button>
-          <p v-if="homeCity" class="home-trainer-count" role="status"><button class="public-trainers-link" type="button" @click="openPublicTrainers">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Consultar personais em ' + homeCity : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }} →</button></p>
         </div>
         <div class="home-action home-assessment-link">
           <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
