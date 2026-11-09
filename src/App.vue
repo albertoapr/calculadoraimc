@@ -170,10 +170,6 @@ async function loadPublicTrainers() {
     if (id === publicLookupId) publicTrainersError.value = 'Não foi possível consultar os profissionais.'
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
 }
-watch(homeCity, city => {
-  homeSelectedTrainerIds.value = []
-  if (city && isRootHome) searchHomeTrainers()
-})
 function openPublicTrainers() {
   publicTrainerCity.value = homeCity.value || supportedRequestCities[0]
   publicTrainerName.value = ''
@@ -1148,6 +1144,11 @@ function selectHomeCity(event: Event) {
   homeCity.value = city
   void loadHomeTrainerCount(city)
 }
+
+watch(homeCity, city => {
+  homeSelectedTrainerIds.value = []
+  if (city && isRootHome) searchHomeTrainers()
+})
 
 let requestCityLookupId = 0
 
