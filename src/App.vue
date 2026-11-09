@@ -85,11 +85,11 @@ type TrainerRequestDetails = {
   proposalAlreadySent?: boolean
 }
 
-type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string; cref?: string; sex?: string; gender?: string; gymName?: string; academy?: string }
+type EligibleTrainer = { trainerId: string; name: string; slug: string; instagram?: string; cref?: string; sex?: string; gender?: string; academias?: string[]; gymName?: string; academy?: string }
 type CustomerProposal = { trainerId: string; name: string; whatsapp: string; instagram?: string; monthlyPrice: number; message: string; status: string; validUntil: number; expired: boolean }
 type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
-type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string }
-type TrainerAccountProfile = { trainerId: string; name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; sex?: string; slug?: string }
+type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string; academias: string[] }
+type TrainerAccountProfile = { trainerId: string; name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; sex?: string; slug?: string; academias?: string[] }
 type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -101,7 +101,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -110,6 +110,56 @@ const trainerRequestStatus = ref(trainerRequestToken ? 'Carregando solicitação
 const showRequestForm = ref(false)
 const requestSent = ref(false)
 const requestStep = ref(1)
+const academyOptions = ['AquaticCenter', 'SmartFit', 'LifeFit', 'BodyTech', 'Outros']
+function addAcademy(list: string[], choice: string, other: string) {
+  const name = (choice === 'Outros' ? other : choice).trim().replace(/\s+/g, ' ')
+  if (!name || name.length > 60 || list.length >= 5 || list.some(x => x.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'))) return false
+  list.push(name)
+  return true
+}
+const signupAcademyChoice = ref('')
+const signupOtherAcademy = ref('')
+const profileAcademyChoice = ref('')
+const profileOtherAcademy = ref('')
+const publicTrainers = ref<EligibleTrainer[]>([])
+const publicTrainerCity = ref('')
+const publicTrainerName = ref('')
+const publicTrainerGym = ref('')
+const publicTrainersLoading = ref(false)
+const publicTrainersError = ref('')
+let publicLookupId = 0
+const publicGymOptions = computed(() => [...new Set(publicTrainers.value.flatMap(t => t.academias ?? []))].sort((x,y) => x.localeCompare(y,'pt-BR')))
+const publicFilteredTrainers = computed(() => publicTrainers.value.filter(t =>
+  trainerDisplayName(t.name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(publicTrainerName.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()) &&
+  (!publicTrainerGym.value || (t.academias ?? []).includes(publicTrainerGym.value))
+))
+async function loadPublicTrainers() {
+  const id = ++publicLookupId
+  publicTrainersLoading.value = true
+  publicTrainersError.value = ''
+  publicTrainers.value = []
+  publicTrainerGym.value = ''
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/trainers/eligible?' + new URLSearchParams({city: publicTrainerCity.value, gender: 'indiferente'}))
+    if (!response.ok) throw new Error('Erro')
+    const body = await response.json() as { trainers?: EligibleTrainer[] }
+    if (!Array.isArray(body.trainers)) throw new Error('Erro')
+    if (id === publicLookupId) publicTrainers.value = body.trainers
+  } catch {
+    if (id === publicLookupId) publicTrainersError.value = 'Não foi possível consultar os profissionais.'
+  } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
+}
+function openPublicTrainers() {
+  publicTrainerCity.value = homeCity.value || supportedRequestCities[0]
+  publicTrainerName.value = ''
+  viewMode.value = 'public-trainers'
+  void loadPublicTrainers()
+}
+function changePublicCity(event: Event) {
+  publicTrainerCity.value = (event.target as HTMLSelectElement).value
+  void loadPublicTrainers()
+}
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
 const checkingTrainers = ref(false)
@@ -161,6 +211,7 @@ const trainerForm = reactive({
   cities: [] as string[],
   instagram: '',
   cref: '',
+  academias: [] as string[],
 })
 const trainerStatus = ref('')
 const trainerVerificationLink = ref('')
@@ -187,7 +238,7 @@ const customerLoginSubmitting = ref(false)
 const customerSignedInName = ref('')
 const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
-const editingProfile = reactive<EditableProfile>({ name: '', whatsapp: '', email: '', dateOfBirth: '', instagram: '', cref: '', slug: '' })
+const editingProfile = reactive<EditableProfile>({ name: '', whatsapp: '', email: '', dateOfBirth: '', instagram: '', cref: '', slug: '', academias: [] })
 const editingProfileType = ref<'customer' | 'trainer'>('customer')
 const editingProfileStatus = ref('')
 const editingProfileLoading = ref(false)
@@ -574,6 +625,7 @@ function logout() {
   editingProfile.instagram = ''
   editingProfile.cref = ''
   editingProfile.slug = ''
+  editingProfile.academias = []
   customerForm.name = ''
   customerForm.whatsapp = ''
   customerForm.email = ''
@@ -857,7 +909,7 @@ async function sendTrainerSignup() {
     const response = await fetch(`${endpoint}/api/trainers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(dateOfBirth ? { dateOfBirth } : {}), ...(email ? { email } : {}), cities: trainerForm.cities, instagram, ...(cref ? { cref } : {}) }),
+      body: JSON.stringify({ name, sex, slug, whatsapp: phone, ...(dateOfBirth ? { dateOfBirth } : {}), ...(email ? { email } : {}), cities: trainerForm.cities, academias: trainerForm.academias, instagram, ...(cref ? { cref } : {}) }),
     })
     const body = await response.json() as { registered?: boolean; error?: string; slug?: string; verificationCode?: string }
     if (!response.ok || body.registered !== true) {
@@ -1343,7 +1395,7 @@ function applyTrainerSession(profile: TrainerAccountProfile) {
 }
 
 
-function applyProfileForEditing(profile: { name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; slug?: string }) {
+function applyProfileForEditing(profile: { name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; slug?: string; academias?: string[] }) {
   editingProfile.name = profile.name ?? ''
   editingProfile.whatsapp = profile.whatsapp ?? ''
   editingProfile.email = profile.email ?? ''
@@ -1351,6 +1403,7 @@ function applyProfileForEditing(profile: { name: string; whatsapp: string; email
   editingProfile.instagram = profile.instagram ?? ''
   editingProfile.cref = profile.cref ?? ''
   editingProfile.slug = profile.slug ?? ''
+  editingProfile.academias = [...(profile.academias ?? [])]
 }
 
 async function openMyProfile() {
@@ -1417,7 +1470,7 @@ async function saveMyProfile() {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
       cache: 'no-store',
-      body: JSON.stringify(trainer ? { name, dateOfBirth: birth, instagram, cref } : { name, ...(birth ? { dateOfBirth: birth } : {}) }),
+      body: JSON.stringify(trainer ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias } : { name, ...(birth ? { dateOfBirth: birth } : {}) }),
     })
     const body = await response.json() as {
       authenticated?: boolean
@@ -2157,6 +2210,13 @@ async function sendResult() {
           </div>
         </fieldset>
         <label class="field field-wide" for="trainer-instagram"><span class="field-label">Perfil do Instagram</span>
+<fieldset class="availability-group field-wide"><legend>Academias onde atende (até 5)</legend>
+  <div class="public-academy-add"><select v-model="signupAcademyChoice" aria-label="Selecionar academia"><option value="">Selecione uma academia</option><option v-for="option in academyOptions" :key="option" :value="option">{{ option }}</option></select>
+  <input v-if="signupAcademyChoice === 'Outros'" v-model="signupOtherAcademy" type="text" maxlength="60" placeholder="Nome da academia" aria-label="Nome da academia">
+  <button type="button" class="secondary-button" :disabled="trainerForm.academias.length >= 5 || !signupAcademyChoice || (signupAcademyChoice === 'Outros' && !signupOtherAcademy.trim())" @click="addAcademy(trainerForm.academias, signupAcademyChoice, signupOtherAcademy); signupAcademyChoice = ''; signupOtherAcademy = ''">Adicionar</button></div>
+  <div v-for="(gym, index) in trainerForm.academias" :key="gym" class="public-academy-item"><span>{{ gym }}</span><button type="button" :aria-label="'Remover ' + gym" @click="trainerForm.academias.splice(index,1)">Remover</button></div>
+  <small>{{ trainerForm.academias.length }}/5 academias</small>
+</fieldset>
           <input id="trainer-instagram" v-model="trainerForm.instagram" name="instagram" type="text" autocomplete="url" maxlength="100" placeholder="@seuperfil ou instagram.com/seuperfil" required>
         </label>
         <label class="field field-wide" for="trainer-cref"><span class="field-label">Registro do conselho de Educação Física <span>opcional</span></span>
@@ -2422,6 +2482,13 @@ async function sendResult() {
               <input id="profile-instagram" v-model="editingProfile.instagram" type="text" maxlength="31" placeholder="@usuario">
             </label>
             <label class="field field-wide" for="profile-slug"><span class="field-label">Endereço do perfil</span>
+<fieldset class="availability-group field-wide"><legend>Academias onde atende (até 5)</legend>
+  <div class="public-academy-add"><select v-model="profileAcademyChoice" aria-label="Selecionar academia"><option value="">Selecione uma academia</option><option v-for="option in academyOptions" :key="option" :value="option">{{ option }}</option></select>
+  <input v-if="profileAcademyChoice === 'Outros'" v-model="profileOtherAcademy" type="text" maxlength="60" placeholder="Nome da academia" aria-label="Nome da academia">
+  <button type="button" class="secondary-button" :disabled="editingProfile.academias.length >= 5 || !profileAcademyChoice || (profileAcademyChoice === 'Outros' && !profileOtherAcademy.trim())" @click="addAcademy(editingProfile.academias, profileAcademyChoice, profileOtherAcademy); profileAcademyChoice = ''; profileOtherAcademy = ''">Adicionar</button></div>
+  <div v-for="(gym, index) in editingProfile.academias" :key="gym" class="public-academy-item"><span>{{ gym }}</span><button type="button" :aria-label="'Remover ' + gym" @click="editingProfile.academias.splice(index,1)">Remover</button></div>
+  <small>{{ editingProfile.academias.length }}/5 academias</small>
+</fieldset>
               <input id="profile-slug" :value="editingProfile.slug" type="text" readonly aria-readonly="true">
             </label>
           </template>
@@ -2503,13 +2570,31 @@ async function sendResult() {
         <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
+      <section v-if="viewMode === 'public-trainers'" class="public-directory" aria-label="Lista pública de profissionais">
+        <h2><button type="button" class="public-back" @click="goHome" aria-label="Voltar">‹</button> Personal Trainers</h2>
+        <div class="public-directory-filters">
+          <label class="field"><span class="field-label">Cidade</span><select :value="publicTrainerCity" @change="changePublicCity"><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
+          <label class="field"><span class="field-label">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome"></label>
+          <label class="field"><span class="field-label">Academia</span><select v-model="publicTrainerGym"><option value="">Todas</option><option v-for="gym in publicGymOptions" :key="gym" :value="gym">{{ gym }}</option></select></label>
+        </div>
+        <p v-if="publicTrainersLoading" role="status">Carregando profissionais…</p>
+        <p v-else-if="publicTrainersError" role="alert">{{ publicTrainersError }} <button type="button" @click="loadPublicTrainers">Tentar novamente</button></p>
+        <template v-else>
+          <p role="status">{{ publicFilteredTrainers.length }} profissionais encontrados</p>
+          <div class="trainer-table-scroll"><table class="trainer-selection-table"><thead><tr><th>Profissional</th><th>Instagram</th><th>Academias</th><th>CREF</th></tr></thead><tbody>
+          <tr v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId"><td><strong>{{ trainerDisplayName(trainer.name) }}</strong></td>
+          <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" class="trainer-instagram-icon" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg></a><span v-else>—</span></td>
+          <td>{{ trainer.academias?.join(', ') || '—' }}</td><td>{{ trainer.cref || '—' }}</td></tr>
+          </tbody></table></div><p v-if="!publicFilteredTrainers.length">Nenhum profissional encontrado.</p>
+        </template>
+      </section>
       <div v-if="viewMode === 'home' && !result" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openRequestForm">
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
             <span class="home-action-copy"><strong>Contratar Personal Trainer</strong><small>Receba propostas acessíveis</small></span>
           </button>
-          <p v-if="homeCity" class="home-trainer-count" role="status">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Personais indisponíveis no momento' : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }}</p>
+          <p v-if="homeCity" class="home-trainer-count" role="status"><button class="public-trainers-link" type="button" @click="openPublicTrainers">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Consultar personais em ' + homeCity : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }} →</button></p>
         </div>
         <div class="home-action home-assessment-link">
           <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
@@ -2818,4 +2903,8 @@ async function sendResult() {
   min-height: 1.5em;
 }
 .title-back-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+</style>
+
+<style scoped>
+.public-directory{width:100%;padding:12px 0 24px}.public-directory h2{display:flex;align-items:center;gap:12px}.public-back{border:0;background:transparent;color:inherit;font-size:2rem;cursor:pointer}.public-directory-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
 </style>
