@@ -147,6 +147,11 @@ async function getPublicTrainerBySlug(slug: string) {
   return trainerId ? getPublicTrainerById(trainerId) : null
 }
 
+function validAcademias(value: unknown) {
+  return Array.isArray(value) && value.length <= 5 && value.every(x => typeof x === 'string' && x.trim() === x && x.length >= 2 && x.length <= 60) &&
+    new Set(value.map((x: string) => x.toLocaleLowerCase('pt-BR'))).size === value.length
+}
+
 function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
@@ -164,6 +169,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
     /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
+    (data.academias === undefined || validAcademias(data.academias)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
     new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
 }
@@ -633,6 +639,7 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       dateOfBirth: item.dateOfBirth?.S ?? '',
       instagram: item.instagram?.S ?? '',
       cref: item.cref?.S ?? '',
+      academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
       sex: item.sex?.S ?? '',
       slug: item.slug?.S ?? '',
     } }
@@ -689,10 +696,12 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const data = parseBody(event)
   const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
+  const academias = data?.academias ?? []
   if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram'].includes(key))) {
+      !validAcademias(academias) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias'].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -712,13 +721,13 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
-          ':instagram': { S: instagram }, ':cref': { S: cref }, ':updated': { S: time },
+          ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
@@ -899,6 +908,7 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const cities = data.cities as string[]
+  const academias = (data.academias ?? []) as string[]
   const slugResult = await dynamodb.send(new GetItemCommand({
     TableName: slugTableName,
     Key: { slug: { S: slug } },
@@ -1018,6 +1028,7 @@ async function registerTrainer(data: Record<string, unknown>) {
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
+            academias: { L: academias.map(name => ({ S: name })) },
             ...(cref ? { cref: { S: cref } } : {}),
             active: { BOOL: false },
             whatsappVerified: { BOOL: false },
@@ -1220,7 +1231,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -1230,6 +1241,8 @@ async function getActiveTrainersForCity(city: string) {
         '#slug': 'slug',
         '#instagram': 'instagram',
         '#sex': 'sex',
+        '#cref': 'cref',
+        '#academias': 'academias',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -1245,7 +1258,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -1265,6 +1278,8 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         name: trainer.name,
         slug: trainer.slug,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
+        cref: trainer.cref,
+        academias: trainer.academias,
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
     return response(200, { trainers: eligible, count: eligible.length })
