@@ -2510,7 +2510,7 @@ async function sendResult() {
           <p v-if="homeCity" class="home-trainer-count" role="status">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Personais indisponíveis no momento' : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }}</p>
         </div>
         <div class="home-action home-assessment-link">
-          <a href="#avaliacao" @click.prevent="viewMode = 'assessment'">Avaliação on-line grátis</a>
+          <a href="#avaliacao" @click.prevent="viewMode = 'assessment'">Avaliação online grátis</a>
         </div>
       </div>
 
