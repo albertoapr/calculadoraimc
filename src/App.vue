@@ -98,7 +98,7 @@ const trainerSlugFromHost = getTrainerSlugFromHost()
 const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
 const personalName = ref('FitPeso')
 const personalBrandFirstName = computed(() => personalName.value.endsWith(' Personal Trainer') ? personalName.value.slice(0, -' Personal Trainer'.length) : '')
-const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
+const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
@@ -124,21 +124,17 @@ const profileOtherAcademy = ref('')
 const publicTrainers = ref<EligibleTrainer[]>([])
 const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
-const publicTrainerGym = ref('')
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
-const publicGymOptions = computed(() => [...new Set(publicTrainers.value.flatMap(t => t.academias ?? []))].sort((x,y) => x.localeCompare(y,'pt-BR')))
 const publicFilteredTrainers = computed(() => publicTrainers.value.filter(t =>
-  trainerDisplayName(t.name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(publicTrainerName.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()) &&
-  (!publicTrainerGym.value || (t.academias ?? []).includes(publicTrainerGym.value))
+  t.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(publicTrainerName.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
 ))
 async function loadPublicTrainers() {
   const id = ++publicLookupId
   publicTrainersLoading.value = true
   publicTrainersError.value = ''
   publicTrainers.value = []
-  publicTrainerGym.value = ''
   try {
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/trainers/eligible?' + new URLSearchParams({city: publicTrainerCity.value, gender: 'indiferente'}))
@@ -156,10 +152,6 @@ function openPublicTrainers() {
   viewMode.value = 'public-trainers'
   void loadPublicTrainers()
 }
-function changePublicCity(event: Event) {
-  publicTrainerCity.value = (event.target as HTMLSelectElement).value
-  void loadPublicTrainers()
-}
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
 const checkingTrainers = ref(false)
@@ -172,7 +164,7 @@ function toggleAllVisibleTrainers(event: Event) {
   selectedTrainerIds.value = [...new Set([...selectedTrainerIds.value, ...visibleIds])].slice(0, 20)
 }
 function trainerDisplayName(name: string) {
-  const parts = name.trim().split(/\\s+/).filter(Boolean)
+  const parts = name.trim().split(/\s+/).filter(Boolean)
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || '')
 }
 function trainerInstagramUrl(instagram: string) {
@@ -2448,12 +2440,12 @@ async function sendResult() {
         </div>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button>
-          <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
+          <svg v-if="viewMode !== 'public-trainers'" class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
             <rect x="6" y="4" width="28" height="32" rx="6" />
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -2570,21 +2562,18 @@ async function sendResult() {
         <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
-      <section v-if="viewMode === 'public-trainers'" class="public-directory" aria-label="Lista pública de profissionais">
-        <h2><button type="button" class="public-back" @click="goHome" aria-label="Voltar">‹</button> Personal Trainers</h2>
+      <section v-if="viewMode === 'public-trainers'" class="public-directory" aria-labelledby="page-title">
         <div class="public-directory-filters">
-          <label class="field"><span class="field-label">Cidade</span><select :value="publicTrainerCity" @change="changePublicCity"><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
           <label class="field"><span class="field-label">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome"></label>
-          <label class="field"><span class="field-label">Academia</span><select v-model="publicTrainerGym"><option value="">Todas</option><option v-for="gym in publicGymOptions" :key="gym" :value="gym">{{ gym }}</option></select></label>
         </div>
         <p v-if="publicTrainersLoading" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" role="alert">{{ publicTrainersError }} <button type="button" @click="loadPublicTrainers">Tentar novamente</button></p>
         <template v-else>
-          <p role="status">{{ publicFilteredTrainers.length }} profissionais encontrados</p>
-          <div class="trainer-table-scroll"><table class="trainer-selection-table"><thead><tr><th>Profissional</th><th>Instagram</th><th>Academias</th><th>CREF</th></tr></thead><tbody>
+          <p role="status">{{ publicFilteredTrainers.length }} profissionais encontrados em {{ publicTrainerCity }}</p>
+          <div class="trainer-table-scroll"><table class="trainer-selection-table"><thead><tr><th>Profissional</th><th>Instagram</th><th>CREF</th></tr></thead><tbody>
           <tr v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId"><td><strong>{{ trainerDisplayName(trainer.name) }}</strong></td>
           <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" class="trainer-instagram-icon" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg></a><span v-else>—</span></td>
-          <td>{{ trainer.academias?.join(', ') || '—' }}</td><td>{{ trainer.cref || '—' }}</td></tr>
+          <td>{{ trainer.cref || '—' }}</td></tr>
           </tbody></table></div><p v-if="!publicFilteredTrainers.length">Nenhum profissional encontrado.</p>
         </template>
       </section>
@@ -2867,6 +2856,11 @@ async function sendResult() {
 .trainer-selection-table th,.trainer-selection-table td { padding:12px 10px;border-bottom:1px solid currentColor; }
 .trainer-selection-table th { font-weight:700; }
 .trainer-selection-table a { color:inherit;text-decoration:underline; }
+.public-directory .trainer-selection-table { min-width:0; }
+.public-directory .trainer-selection-table td:first-child { overflow-wrap:anywhere; }
+@media(max-width:620px){
+  .public-directory .trainer-selection-table th,.public-directory .trainer-selection-table td { padding:12px 4px;font-size:14px; }
+}
 .trainer-selection-count { margin:0;opacity:.8; }
 @media(max-width:620px){.trainer-filters{grid-template-columns:1fr;}}
 
@@ -2906,5 +2900,5 @@ async function sendResult() {
 </style>
 
 <style scoped>
-.public-directory{width:100%;padding:12px 0 24px}.public-directory h2{display:flex;align-items:center;gap:12px}.public-back{border:0;background:transparent;color:inherit;font-size:2rem;cursor:pointer}.public-directory-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
+.public-directory{width:100%;padding:12px 0 24px}.public-directory-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
 </style>
