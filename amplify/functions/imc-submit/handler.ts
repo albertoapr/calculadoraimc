@@ -986,6 +986,7 @@ async function registerTrainer(data: Record<string, unknown>) {
   const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
+  const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
