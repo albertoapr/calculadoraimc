@@ -113,22 +113,17 @@ const requestStep = ref(1)
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
 const checkingTrainers = ref(false)
-const trainerNameFilter = ref('')
-const trainerGymFilter = ref('')
-const trainerSexFilter = ref('todos')
-const trainerGymOptions = computed(() => [...new Set(eligibleTrainers.value.map(t => t.gymName || t.academy || '').filter(Boolean))].sort((a, b) => a.localeCompare(b)))
-const filteredTrainers = computed(() => eligibleTrainers.value.filter(t => {
-  const nameMatches = t.name.toLocaleLowerCase('pt-BR').includes(trainerNameFilter.value.trim().toLocaleLowerCase('pt-BR'))
-  const gymMatches = !trainerGymFilter.value || (t.gymName || t.academy || '') === trainerGymFilter.value
-  const sexMatches = trainerSexFilter.value === 'todos' || (t.sex || t.gender || '').toLocaleLowerCase('pt-BR') === trainerSexFilter.value
-  return nameMatches && gymMatches && sexMatches
-}))
+const filteredTrainers = computed(() => eligibleTrainers.value)
 const allVisibleTrainersSelected = computed(() => filteredTrainers.value.length > 0 && filteredTrainers.value.every(t => selectedTrainerIds.value.includes(t.trainerId)))
 function toggleAllVisibleTrainers(event: Event) {
   const checked = (event.target as HTMLInputElement).checked
   const visibleIds = filteredTrainers.value.map(t => t.trainerId)
   if (!checked) { selectedTrainerIds.value = selectedTrainerIds.value.filter(id => !visibleIds.includes(id)); return }
   selectedTrainerIds.value = [...new Set([...selectedTrainerIds.value, ...visibleIds])].slice(0, 20)
+}
+function trainerDisplayName(name: string) {
+  const parts = name.trim().split(/\\s+/).filter(Boolean)
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || '')
 }
 function trainerInstagramUrl(instagram: string) {
   const handle = instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?instagram\.com\//i, '').split(/[/?#]/)[0]
@@ -2700,11 +2695,6 @@ async function sendResult() {
         </template>
 
         <template v-else-if="requestStep === 3">
-          <div class="trainer-filters field-wide">
-            <label class="field"><span class="field-label">Academia</span><select v-model="trainerGymFilter"><option value="">Todas</option><option v-for="gym in trainerGymOptions" :key="gym" :value="gym">{{ gym }}</option></select></label>
-            <label class="field"><span class="field-label">Nome do profissional</span><input v-model="trainerNameFilter" type="search" placeholder="Buscar por nome..."></label>
-            <label class="field"><span class="field-label">Sexo</span><select v-model="trainerSexFilter"><option value="todos">Todos</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
-          </div>
           <p v-if="checkingTrainers" class="field-wide" role="status">Carregando profissionais…</p>
           <div class="field-wide trainer-results-bar">
             <label class="trainer-select-all"><input type="checkbox" :checked="allVisibleTrainersSelected" :disabled="!filteredTrainers.length" @change="toggleAllVisibleTrainers"> Selecionar todos</label>
@@ -2712,19 +2702,19 @@ async function sendResult() {
           </div>
           <div class="field-wide trainer-table-scroll">
             <table class="trainer-selection-table">
-              <thead><tr><th scope="col">✓</th><th scope="col">Profissional</th><th scope="col">CREF</th><th scope="col">Academia</th><th scope="col">Instagram</th></tr></thead>
+              <thead><tr><th scope="col">✓</th><th scope="col">Profissional</th><th scope="col">Instagram</th><th scope="col">Academia</th><th scope="col">CREF</th></tr></thead>
               <tbody>
                 <tr v-for="trainer in filteredTrainers" :key="trainer.trainerId">
                   <td><input v-model="selectedTrainerIds" type="checkbox" :aria-label="`Selecionar ${trainer.name}`" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20"></td>
-                  <td><strong>{{ trainer.name }}</strong></td>
-                  <td>{{ trainer.cref || '—' }}</td>
+                  <td><strong>{{ trainerDisplayName(trainer.name) }}</strong></td>
+                  <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" class="trainer-instagram-icon" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="`Instagram de ${trainer.name} (abre em nova aba)`" title="Abrir Instagram"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg></a><span v-else>—</span></td>
                   <td>{{ trainer.gymName || trainer.academy || '—' }}</td>
-                  <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="`Instagram de ${trainer.name} (abre em nova aba)`">@{{ trainer.instagram.replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?instagram\.com\//i, '').replace(/\/$/, '') }} ↗</a><span v-else>—</span></td>
+                  <td>{{ trainer.cref || '—' }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p v-if="!checkingTrainers && !filteredTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado para os filtros selecionados.</p>
+          <p v-if="!checkingTrainers && !filteredTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado.</p>
           <p class="field-wide trainer-selection-count">{{ selectedTrainerIds.length }} de 20 profissionais selecionados</p>
           <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Continuar →</button>
         </template>
@@ -2778,6 +2768,8 @@ async function sendResult() {
 </template>
 
 <style scoped>
+.trainer-instagram-icon { display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px; }
+
 .trainer-filters { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
 .trainer-filters .field { min-width:0; }
 .trainer-results-bar { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px; }
