@@ -2375,7 +2375,7 @@ async function sendResult() {
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr class="personal-divider">
         <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : requestStep === 3 ? 'Escolher profissionais' : 'Confirmar atendimento' }}</h2>
-        <h1 v-if="viewMode === 'home' && !result" class="home-tagline">
+        <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
             <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
             <span class="personal-trainer-role">Personal Trainer</span>
@@ -2383,7 +2383,7 @@ async function sendResult() {
           <span v-else>Treine com um personal</span>
         </h1>
         <img v-if="viewMode === 'home' && !result && isRootHome" class="root-home-personal-image" :src="rootHomePersonalImage" width="1069" height="594" alt="Personal trainer orientando uma aluna durante um exercício" decoding="async" fetchpriority="high">
-        <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">Apoio profissional faz a diferença</p>
+        <p v-if="viewMode === 'home' && !result && isRootHome" class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
         <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title">
           <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button>
           <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
@@ -2505,7 +2505,7 @@ async function sendResult() {
         <div class="home-action">
           <button class="primary-button" type="button" @click="openRequestForm">
             <svg class="home-action-icon support-button-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M7.5 2.5v4M16.5 2.5v4M3 9h18"/><circle cx="15.5" cy="15.5" r="3.2"/><path d="M15.5 13.7v2l1.4.9"/></svg>
-            <span class="home-action-copy"><strong>Receber atendimento</strong><small>Receba propostas acessíveis</small></span>
+            <span class="home-action-copy"><strong>Contratar Personal Trainer</strong><small>Receba propostas acessíveis</small></span>
           </button>
           <p v-if="homeCity" class="home-trainer-count" role="status">{{ homeTrainerCountLoading ? 'Consultando personais…' : homeTrainerCount === null ? 'Personais indisponíveis no momento' : `${homeTrainerCount} ${homeTrainerCount === 1 ? 'personal' : 'personais'} em ${homeCity}` }}</p>
         </div>
