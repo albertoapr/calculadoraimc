@@ -193,7 +193,6 @@ const trainingDayOptions = [
   { label: 'Qui', value: 'Quinta-feira' },
   { label: 'Sex', value: 'Sexta-feira' },
   { label: 'Sáb', value: 'Sábado' },
-  { label: 'Dom', value: 'Domingo' },
 ]
 const trainingShiftOptions = ['Manhã', 'Tarde', 'Noite']
 
@@ -2613,58 +2612,69 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         
-        <label  class="field field-wide" for="sessions-per-week"><span class="field-label">Quantidade de aulas por semana</span>
-          <select id="sessions-per-week" v-model="form.sessionsPerWeek" name="sessionsPerWeek" required>
-            <option value="">Selecione a quantidade</option>
-            <option v-for="number in 7" :key="number" :value="String(number)">{{ number }} {{ number === 1 ? 'aula' : 'aulas' }}</option>
-          </select>
-        </label>
+        <section class="request-card field-wide" aria-labelledby="request-training-heading">
+          <h3 id="request-training-heading">🏋️ Seu treino</h3>
+          <p class="request-question">Quantas aulas por semana você deseja?</p>
+          <div class="request-choice-row" role="group" aria-label="Quantidade de aulas por semana">
+            <label v-for="number in 7" :key="number" class="request-choice">
+              <input v-model="form.sessionsPerWeek" type="radio" name="sessionsPerWeek" :value="String(number)">
+              <span>{{ number }}</span>
+            </label>
+          </div>
+          <label class="field" for="request-gym-name">
+            <span class="field-label">Onde você deseja treinar?</span>
+            <select id="request-gym-name" v-model="form.gymName" name="gymName" required @change="form.attendsGym = Boolean(form.gymName)">
+              <option value="" disabled>Selecione a academia</option>
+              <option v-for="gym in ['AquaticCenter', 'SmartFit', 'LifeFit', 'BodyTech', 'Outros']" :key="gym" :value="gym">{{ gym }}</option>
+            </select>
+          </label>
+          <label v-if="form.gymName === 'Outros'" class="field" for="request-other-gym">
+            <span class="field-label">Informe o lugar</span>
+            <input id="request-other-gym" v-model.trim="otherGymName" type="text" maxlength="100" required placeholder="Nome do local onde pretende treinar">
+          </label>
+        </section>
 
-        <label class="field field-wide" for="request-gym-name">
-          <span class="field-label">Academia</span>
-          <select id="request-gym-name" v-model="form.gymName" name="gymName" required @change="form.attendsGym = Boolean(form.gymName)">
-            <option value="" disabled>Selecione a academia</option>
-            <option value="AquaticCenter">AquaticCenter</option>
-            <option value="SmartFit">SmartFit</option>
-            <option value="LifeFit">LifeFit</option>
-            <option value="BodyTech">BodyTech</option>
-            <option value="Outros">Outros</option>
-          </select>
-        </label>
-        <label v-if="form.gymName === 'Outros'" class="field field-wide" for="request-other-gym">
-          <span class="field-label">Informe o lugar</span>
-          <input id="request-other-gym" v-model.trim="otherGymName" type="text" name="otherGymName" maxlength="100" placeholder="Nome do local onde pretende treinar" required>
-        </label>
-
-        <fieldset class="field-wide" style="min-width:0;border:1px solid currentColor;border-radius:12px;padding:14px;display:grid;gap:12px">
-          <legend style="padding:0 8px;font-weight:600">Sua disponibilidade pra treinar</legend>
-        <details  class="availability-group" style="position:relative">
-          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:none;appearance:none">
-            Dias da semana <small>({{ form.trainingDays.length }} selecionado(s))</small>
-          </summary>
-          <div class="availability-options" style="padding:12px 8px">
-            <label v-for="day in trainingDayOptions" :key="day.value" class="availability-option">
+        <section class="request-card field-wide" aria-labelledby="request-availability-heading">
+          <h3 id="request-availability-heading">▦ Sua disponibilidade</h3>
+          <p class="request-question">Em quais dias você pode treinar?</p>
+          <div class="request-choice-row" role="group" aria-label="Dias disponíveis">
+            <label v-for="day in trainingDayOptions" :key="day.value" class="request-choice">
               <input v-model="form.trainingDays" type="checkbox" name="trainingDays" :value="day.value">
               <span>{{ day.label }}</span>
             </label>
           </div>
-        </details>
-
-        <details  class="availability-group" style="position:relative">
-          <summary style="cursor:pointer;padding:12px 14px;border:1px solid currentColor;border-radius:8px;list-style:none;appearance:none">
-            Turno <small>({{ form.trainingShifts.length }} selecionado(s))</small>
-          </summary>
-          <div class="availability-options" style="padding:12px 8px">
-            <label v-for="shift in trainingShiftOptions" :key="shift" class="availability-option">
+          <p class="request-question">Em quais turnos você pode treinar?</p>
+          <p class="request-hint">Selecione um ou mais turnos</p>
+          <div class="request-shift-row" role="group" aria-label="Turnos disponíveis">
+            <label v-for="shift in trainingShiftOptions" :key="shift" class="request-choice request-shift">
               <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
-              <span>{{ shift }}</span>
+              <span>{{ shift }} <small>{{ shift === 'Manhã' ? '6h às 12h' : shift === 'Tarde' ? '12h às 18h' : '18h às 22h' }}</small></span>
             </label>
           </div>
-        </details>
+        </section>
 
-        </fieldset>
+        <section class="request-card field-wide" aria-labelledby="request-gender-heading">
+          <h3 id="request-gender-heading">♙ Preferência do personal</h3>
+          <p class="request-question">Você tem preferência pelo gênero do personal?</p>
+          <div class="request-gender-row" role="group" aria-label="Preferência de gênero">
+            <label v-for="option in [{ value: 'indiferente', label: 'Sem preferência' }, { value: 'masculino', label: 'Masculino' }, { value: 'feminino', label: 'Feminino' }]" :key="option.value" class="request-choice request-gender">
+              <input v-model="form.trainerGenderPreference" type="radio" name="trainerGenderPreference" :value="option.value">
+              <span>{{ option.label }}</span>
+            </label>
+          </div>
+        </section>
 
-        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais' }}</button>
+        <section class="request-card field-wide" aria-labelledby="request-duration-heading">
+          <h3 id="request-duration-heading">⌛ Duração do atendimento</h3>
+          <label class="field" for="request-duration">
+            <span class="field-label">Por quanto tempo você deseja o acompanhamento?</span>
+            <select id="request-duration" v-model="form.desiredDuration" required>
+              <option v-for="months in 6" :key="months" :value="`${months} ${months === 1 ? 'mês' : 'meses'}`">{{ months }} {{ months === 1 ? 'mês' : 'meses' }}</option>
+            </select>
+          </label>
+        </section>
+
+        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais →' }}</button>
         </template>
 
         <template v-else-if="requestStep === 3">
@@ -2746,6 +2756,23 @@ async function sendResult() {
 </template>
 
 <style scoped>
+.request-card { min-width:0; border:1px solid var(--border-color, #658575); border-radius:18px; padding:18px; display:grid; gap:14px; }
+.request-card h3 { margin:0; font-size:1.2rem; }
+.request-question { margin:0; font-weight:650; }
+.request-hint { margin:-10px 0 0; opacity:.75; font-size:.88rem; }
+.request-choice-row,.request-shift-row,.request-gender-row { display:flex; flex-wrap:wrap; gap:9px; }
+.request-choice { position:relative; cursor:pointer; min-width:44px; min-height:44px; display:inline-flex; flex:1 1 auto; }
+.request-choice input { position:absolute; opacity:0; width:1px; height:1px; }
+.request-choice span { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; padding:9px 12px; border:1px solid currentColor; border-radius:11px; font-weight:650; text-align:center; }
+.request-choice input:checked + span { background:#f3a446; color:#17251d; border-color:#f3a446; }
+.request-choice input:focus-visible + span { outline:3px solid #f3a446; outline-offset:3px; }
+.request-shift { flex:1 1 110px; }
+.request-shift span { flex-direction:column; gap:2px; }
+.request-shift small { font-size:.75rem; font-weight:400; }
+.request-gender { flex:1 1 125px; }
+.request-card .field { min-width:0; }
+@media(max-width:390px) { .request-card { padding:12px; } .request-choice-row { gap:5px; } .request-choice:not(.request-shift):not(.request-gender) span { padding:8px; } }
+
 .title-back-button {
   display: inline-flex;
   align-items: center;
