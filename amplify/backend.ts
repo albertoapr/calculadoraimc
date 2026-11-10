@@ -111,6 +111,77 @@ backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tab
 backend.imcSubmit.addEnvironment('FITPESO_CUSTOMERS_TABLE', customers.tableName)
 backend.imcSubmit.addEnvironment('GOOGLE_OAUTH_CLIENT_ID', '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com')
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
+// Etapa 2.2: novas entidades isoladas das tabelas legadas.
+// Stack separada para evitar alterações em chaves/GSIs já existentes.
+const identityStack = backend.createStack('fitpeso-identity-data')
+const identityTable = (id: string, key: string, type = dynamodb.AttributeType.STRING) =>
+  new dynamodb.Table(identityStack, id, {
+    partitionKey: { name: key, type },
+    billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    removalPolicy: RemovalPolicy.RETAIN,
+  })
+
+const pessoasV2 = identityTable('FitpesoPessoa', 'pessoa_id')
+const usuariosV2 = identityTable('FitpesoUsuario', 'user_id')
+const tiposUsuarioV2 = identityTable('FitpesoTipoUsuario', 'tipo_usuario_id', dynamodb.AttributeType.NUMBER)
+const customersV2 = identityTable('FitpesoCustomerV2', 'customer_id')
+const personalsV2 = identityTable('FitpesoPersonalV2', 'personal_id')
+
+usuariosV2.addGlobalSecondaryIndex({
+  indexName: 'UsuarioByPessoa',
+  partitionKey: { name: 'pessoa_id', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+usuariosV2.addGlobalSecondaryIndex({
+  indexName: 'UsuarioByUsername',
+  partitionKey: { name: 'username', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+usuariosV2.addGlobalSecondaryIndex({
+  indexName: 'UsuarioByTipo',
+  partitionKey: { name: 'tipo_usuario_id', type: dynamodb.AttributeType.NUMBER },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+customersV2.addGlobalSecondaryIndex({
+  indexName: 'CustomerByUsuario',
+  partitionKey: { name: 'user_id', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+personalsV2.addGlobalSecondaryIndex({
+  indexName: 'PersonalByUsuario',
+  partitionKey: { name: 'user_id', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+personalsV2.addGlobalSecondaryIndex({
+  indexName: 'PersonalByCidade',
+  partitionKey: { name: 'cidade', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+
+// As novas tabelas ainda não são usadas pelas rotas atuais.
+const newDataTables = [
+  [pessoasV2, 'FITPESO_PESSOA_TABLE'],
+  [usuariosV2, 'FITPESO_USUARIO_TABLE'],
+  [tiposUsuarioV2, 'FITPESO_TIPO_USUARIO_TABLE'],
+  [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
+  [personalsV2, 'FITPESO_PERSONAL_V2_TABLE'],
+] as const
+for (const [table, envName] of newDataTables) {
+  table.grantReadWriteData(backend.imcSubmit.resources.lambda)
+  backend.imcSubmit.addEnvironment(envName, table.tableName)
+}
+// Consultas em GSIs exigem permissão para ARN do índice.
+for (const [table, indices] of [
+  [usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
+  [customersV2, ['CustomerByUsuario']],
+  [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
+] as const) {
+  backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+    actions: ['dynamodb:Query'],
+    resources: indices.map(index => `${table.tableArn}/index/${index}`),
+  }))
+}
+
 const apiStack = backend.createStack('imc-api-stack')
 
 const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
