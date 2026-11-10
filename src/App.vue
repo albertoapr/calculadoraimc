@@ -2597,6 +2597,7 @@ async function sendResult() {
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
+          <label class="home-academy-select"><span class="sr-only">Cidade</span><select v-model="publicTrainerCity" aria-label="Cidade dos profissionais" @change="homeSelectedTrainerIds = []; loadPublicTrainers()"><option value="" disabled>Selecione a cidade</option><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
           <label class="home-academy-select"><span class="sr-only">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome" aria-label="Buscar por nome"></label>
           <label class="home-academy-select">
             <span class="sr-only">Academia</span>
@@ -2611,7 +2612,7 @@ async function sendResult() {
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
-          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ homeFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
+          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <div class="home-trainer-list">
             <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
               <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
@@ -2903,7 +2904,7 @@ async function sendResult() {
 .home-trainer-controls button,.home-academy-select select { min-width:0; width:100%; min-height:48px; font:inherit; }
 .home-academy-select select { color:inherit; background:var(--input-bg, transparent); border:1px solid currentColor; border-radius:12px; padding:10px; }
 .home-academy-select input { box-sizing:border-box; width:100%; min-height:48px; padding:10px; color:inherit; background:transparent; border:1px solid currentColor; border-radius:12px; font:inherit; }
-.public-directory .home-trainer-controls { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
+.public-directory .home-trainer-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
 @media(max-width:700px) { .public-directory .home-trainer-controls { grid-template-columns:1fr 1fr; } .public-directory .home-trainer-controls .home-proposal-button { grid-column:1 / -1; } }
 .home-trainer-list { display:grid; gap:10px; }
 .home-trainer-card { display:flex; gap:14px; align-items:center; border:1px solid var(--border-color, #86978f); border-radius:16px; padding:14px; cursor:pointer; }
