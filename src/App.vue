@@ -90,7 +90,7 @@ type CustomerProposal = { trainerId: string; name: string; whatsapp: string; ins
 type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
 type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string; academias: string[] }
 type TrainerAccountProfile = { trainerId: string; name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; sex?: string; slug?: string; academias?: string[] }
-type CustomerRequest = { requestId: string; city: string; objective?: string; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
+type CustomerRequest = { requestId: string; city: string; objective?: string; selectedTrainerIds?: string[]; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
 const trainerIdFromPath = getTrainerIdFromPath()
@@ -126,6 +126,10 @@ const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
 const homeAcademy = ref('')
 const homeSelectedTrainerIds = ref<string[]>([])
+const sharingRequestId = ref('')
+const sharingRequestMessage = ref('')
+const sharingRequestBusy = ref(false)
+const openShareableRequests = computed(() => customerRequests.value.filter(request => request.lifecycle === 'OPEN' && !request.requestExpired && request.validUntil * 1000 > Date.now() && request.proposalCount < 5))
 const pendingHomeTrainerIds = ref<string[]>([])
 const homeGymOptions = computed(() => {
   const names = new Set(academyOptions.filter(name => name !== 'Outros'))
@@ -145,8 +149,57 @@ function searchHomeTrainers() {
   void loadPublicTrainers()
 }
 function requestProposalFromHome() {
+  if (sharingRequestId.value) { void sendRequestToSelectedTrainers(); return }
   pendingHomeTrainerIds.value = [...homeSelectedTrainerIds.value]
   void openRequestForm()
+}
+
+async function openTrainersForRequest(request: CustomerRequest) {
+  sharingRequestId.value = request.requestId
+  sharingRequestMessage.value = 'Selecione os profissionais e clique em Enviar solicitação.'
+  homeSelectedTrainerIds.value = []
+  publicTrainerCity.value = request.city
+  homeCity.value = request.city
+  viewMode.value = 'public-trainers'
+  await loadPublicTrainers()
+  await nextTick()
+  window.scrollTo(0, 0)
+}
+
+async function refreshShareableRequests() {
+  if (!customerSignedInName.value) return
+  try {
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    if (!token) return
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/customers/requests', { headers: { authorization: 'Bearer ' + token }, cache: 'no-store' })
+    const body = await response.json() as { requests?: CustomerRequest[] }
+    if (response.ok && Array.isArray(body.requests)) customerRequests.value = body.requests
+  } catch { /* A lista pode ser atualizada novamente. */ }
+}
+
+async function sendRequestToSelectedTrainers() {
+  if (!sharingRequestId.value || sharingRequestBusy.value) return
+  if (!homeSelectedTrainerIds.value.length) { sharingRequestMessage.value = 'Selecione pelo menos um personal.'; return }
+  sharingRequestBusy.value = true
+  sharingRequestMessage.value = ''
+  try {
+    const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+    if (!token) throw new Error('Entre na sua conta para enviar a solicitação.')
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/requests/' + encodeURIComponent(sharingRequestId.value) + '/send-to-trainers', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      body: JSON.stringify({ trainerIds: homeSelectedTrainerIds.value }),
+    })
+    const body = await response.json() as { sent?: boolean; added?: number; error?: string }
+    if (!response.ok || !body.sent) throw new Error(body.error || 'Não foi possível enviar a solicitação.')
+    sharingRequestMessage.value = body.added ? 'Solicitação enviada para ' + body.added + (body.added === 1 ? ' personal!' : ' personais!') : 'Estes profissionais já receberam sua solicitação.'
+    homeSelectedTrainerIds.value = []
+    await refreshShareableRequests()
+  } catch (error) {
+    sharingRequestMessage.value = error instanceof Error ? error.message : 'Não foi possível enviar a solicitação.'
+  } finally { sharingRequestBusy.value = false }
 }
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
@@ -174,7 +227,10 @@ function openPublicTrainers() {
   homeAcademy.value = ''
   homeSelectedTrainerIds.value = []
   viewMode.value = 'public-trainers'
+  sharingRequestId.value = ''
+  sharingRequestMessage.value = ''
   if (publicTrainerCity.value) void loadPublicTrainers()
+  void refreshShareableRequests()
 }
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
@@ -2113,11 +2169,13 @@ async function createFitpesoRequest(request: Record<string, unknown>) {
   })
   const body = await response.json() as {
     created?: boolean
+    requestId?: string
     error?: string
   }
-  if (!response.ok || body.created !== true) {
+  if (!response.ok || body.created !== true || !body.requestId) {
     throw new Error(body.error || 'Não foi possível registrar a solicitação agora. Tente novamente.')
   }
+  return body.requestId
 }
 
 async function sendResult() {
@@ -2158,7 +2216,7 @@ async function sendResult() {
   try {
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
     if (!token) throw new Error('Entre na sua conta para solicitar atendimento.')
-    await createFitpesoRequest({
+    const createdRequestId = await createFitpesoRequest({
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
@@ -2175,6 +2233,17 @@ async function sendResult() {
       selectedTrainerIds: selectedTrainerIds.value,
       consent: form.shareContactConsent,
     })
+    sharingRequestId.value = createdRequestId
+    sharingRequestMessage.value = 'Solicitação criada! Selecione os personais abaixo para enviar sua solicitação.'
+    homeSelectedTrainerIds.value = []
+    publicTrainerCity.value = city
+    homeCity.value = city
+    viewMode.value = 'public-trainers'
+    showRequestForm.value = false
+    await loadPublicTrainers()
+    await refreshShareableRequests()
+    await nextTick()
+    window.scrollTo(0, 0)
   } catch (error) {
     status.value = error instanceof Error ? error.message : 'Não foi possível preparar a solicitação agora.'
     submittingRequest.value = false
@@ -2182,7 +2251,6 @@ async function sendResult() {
   }
 
   status.value = ''
-  requestSent.value = true
   submittingRequest.value = false
 }
 </script>
@@ -2589,6 +2657,7 @@ async function sendResult() {
           <p v-if="request.acceptedAt">Atendimento iniciado em {{ new Date(request.acceptedAt).toLocaleString('pt-BR') }}.</p>
           <p>{{ request.proposalCount }} de até 5 propostas · válida até {{ new Date(request.validUntil * 1000).toLocaleDateString('pt-BR') }}</p>
           <p v-if="!request.proposals.length">{{ request.lifecycle === 'INACTIVE' ? 'Solicitação pausada. Nenhum personal poderá enviar propostas até a reativação.' : 'Ainda não há propostas. Confira novamente mais tarde.' }}</p>
+          <button v-if="!request.requestExpired && request.validUntil * 1000 > Date.now() && request.lifecycle === 'OPEN'" class="primary-button" type="button" @click="openTrainersForRequest(request)">Enviar para personais</button>
           <button v-if="!request.requestExpired && request.validUntil * 1000 > Date.now() && request.lifecycle === 'OPEN' && request.proposalCount === 0 && request.proposals.length === 0" class="secondary-button" type="button" :disabled="Boolean(changingRequestId)" @click="changeRequestVisibility(request, 'deactivate')">Inativar solicitação</button>
           <button v-if="!request.requestExpired && request.validUntil * 1000 > Date.now() && request.lifecycle === 'INACTIVE'" class="secondary-button" type="button" :disabled="Boolean(changingRequestId)" @click="changeRequestVisibility(request, 'reactivate')">Reativar solicitação</button>
           <div v-for="proposal in request.proposals" :key="proposal.trainerId" class="customer-proposal-card">
@@ -2606,8 +2675,16 @@ async function sendResult() {
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
-          <button class="primary-button home-proposal-button" type="button" @click="requestProposalFromHome">Solicitar Proposta</button>
+          <label v-if="openShareableRequests.some(request => request.city === publicTrainerCity)" class="home-academy-select">
+            <span class="sr-only">Solicitação aberta</span>
+            <select v-model="sharingRequestId" aria-label="Escolher solicitação para enviar" @change="homeSelectedTrainerIds = []; sharingRequestMessage = ''">
+              <option value="">Criar nova solicitação</option>
+              <option v-for="request in openShareableRequests.filter(request => request.city === publicTrainerCity)" :key="request.requestId" :value="request.requestId">{{ request.objective || 'Solicitação' }} · {{ new Date(request.validUntil * 1000).toLocaleDateString('pt-BR') }}</option>
+            </select>
+          </label>
+          <button class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : sharingRequestId ? 'Enviar solicitação' : 'Solicitar Proposta' }}</button>
         </div>
+        <p v-if="sharingRequestMessage" class="home-list-message" role="status">{{ sharingRequestMessage }}</p>
         <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
