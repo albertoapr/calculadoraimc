@@ -1733,6 +1733,59 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
   }
 }
 
+async function sendCustomerRequestToTrainers(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestId = event.pathParameters?.requestId?.trim() ?? ''
+  const rawIds = data?.trainerIds
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !Array.isArray(rawIds) || rawIds.length < 1 || rawIds.length > 20 ||
+      rawIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) ||
+      new Set(rawIds).size !== rawIds.length) {
+    return response(400, { error: 'Selecione de 1 a 20 profissionais válidos.' })
+  }
+  const trainerIds = rawIds as string[]
+  const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!requestsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const result = await dynamodb.send(new GetItemCommand({
+      TableName: requestsTable, Key: { requestId: { S: requestId } }, ConsistentRead: true,
+    }))
+    const item = result.Item
+    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (item.lifecycle?.S !== 'OPEN' || Number(item.validUntil?.N ?? 0) <= now || Number(item.proposalCount?.N ?? 0) >= 5) {
+      return response(409, { error: 'Esta solicitação não está aberta para novos envios.' })
+    }
+    const eligible = await getActiveTrainersForCity(item.city?.S ?? '')
+    const matchingIds = new Set(eligible.filter(trainer => item.trainerGenderPreference?.S === 'indiferente' ||
+      !item.trainerGenderPreference?.S || trainer.sex === item.trainerGenderPreference.S).map(trainer => trainer.trainerId))
+    if (trainerIds.some(id => !matchingIds.has(id))) return response(409, { error: 'Algum profissional não está disponível nesta cidade.' })
+    const existing = item.selectedTrainerIds?.SS ?? []
+    const combined = [...new Set([...existing, ...trainerIds])]
+    if (combined.length > 20) return response(409, { error: 'Limite de 20 profissionais por solicitação.' })
+    const newIds = combined.filter(id => !existing.includes(id))
+    if (!newIds.length) return response(200, { sent: true, added: 0, selectedTrainerIds: combined })
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: requestsTable,
+      Key: { requestId: { S: requestId } },
+      UpdateExpression: 'SET selectedTrainerIds = :ids',
+      ConditionExpression: 'clientPhone = :phone AND #lifecycle = :open AND validUntil > :now AND proposalCount < :max AND ' +
+        (existing.length ? 'selectedTrainerIds = :previous' : 'attribute_not_exists(selectedTrainerIds)'),
+      ExpressionAttributeNames: { '#lifecycle': 'lifecycle' },
+      ExpressionAttributeValues: {
+        ':ids': { SS: combined }, ':phone': { S: auth.profile!.whatsapp }, ':open': { S: 'OPEN' },
+        ':now': { N: String(now) }, ':max': { N: '5' },
+        ...(existing.length ? { ':previous': { SS: existing } } : {}),
+      },
+    }))
+    return response(200, { sent: true, added: newIds.length, selectedTrainerIds: combined })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'A solicitação mudou. Atualize e tente novamente.' })
+    console.error('[imc-submit] Failed to share customer request with trainers', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível enviar a solicitação aos profissionais agora.' })
+  }
+}
+
 async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
@@ -2063,6 +2116,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/eligible')) return listEligibleTrainers(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/customers/requests')) return listCustomerRequests(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposals')) return submitTrainerProposal(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/send-to-trainers')) return sendCustomerRequestToTrainers(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/visibility')) return changeCustomerRequestVisibility(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/accept')) return acceptTrainerProposal(event, parseBody(event))
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/accepted-notifications')) {
