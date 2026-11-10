@@ -662,7 +662,7 @@ function goBackFromTitle() {
   if (showCustomerSignup.value) { closeCustomerSignup(); return }
   if (showTrainerSignup.value) { closeTrainerSignup(); return }
   if (viewMode.value === 'contact' && showRequestForm.value) {
-    if (requestStep.value === 4) requestStep.value = 3
+    if (requestStep.value === 4) requestStep.value = 2
     else if (requestStep.value === 3) requestStep.value = 2
     else goHome()
   } else {
@@ -1313,7 +1313,12 @@ async function continueToTrainerSelection() {
   form.attendsGym = true
   if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
   if (!form.trainingShifts.length) { status.value = 'Selecione pelo menos um turno.'; return }
-  await searchEligibleTrainers()
+  const selectedCity = matchSupportedRequestCity(form.city)
+  if (!selectedCity) { status.value = 'Selecione uma cidade atendida.'; return }
+  form.city = selectedCity
+  requestStep.value = 4
+  await nextTick()
+  window.scrollTo(0, 0)
 }
 
 function reviewRequest() {
@@ -2463,7 +2468,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr v-if="viewMode !== 'home'" class="personal-divider">
-        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : requestStep === 3 ? 'Escolher profissionais' : 'Confirmar atendimento' }}</h2>
+        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : 'Resumo da solicitação' }}</h2>
         <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
             <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
@@ -2817,44 +2822,28 @@ async function sendResult() {
           </label>
         </section>
 
-        <button class="primary-button field-wide" type="button" :disabled="checkingTrainers" @click="continueToTrainerSelection">{{ checkingTrainers ? 'Buscando…' : 'Escolher profissionais →' }}</button>
-        </template>
-
-        <template v-else-if="requestStep === 3">
-          <p v-if="checkingTrainers" class="field-wide" role="status">Carregando profissionais…</p>
-          <div class="field-wide trainer-results-bar">
-            <label class="trainer-select-all"><input type="checkbox" :checked="allVisibleTrainersSelected" :disabled="!filteredTrainers.length" @change="toggleAllVisibleTrainers"> Selecionar todos</label>
-            <span>{{ filteredTrainers.length }} {{ filteredTrainers.length === 1 ? 'profissional encontrado' : 'profissionais encontrados' }}</span>
-          </div>
-          <div class="field-wide trainer-table-scroll">
-            <table class="trainer-selection-table">
-              <thead><tr><th scope="col">✓</th><th scope="col">Profissional</th><th scope="col">Instagram</th><th scope="col">Academia</th><th scope="col">CREF</th></tr></thead>
-              <tbody>
-                <tr v-for="trainer in filteredTrainers" :key="trainer.trainerId">
-                  <td><input v-model="selectedTrainerIds" type="checkbox" :aria-label="`Selecionar ${trainer.name}`" :value="trainer.trainerId" :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= 20"></td>
-                  <td><strong>{{ trainerDisplayName(trainer.name) }}</strong></td>
-                  <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" class="trainer-instagram-icon" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="`Instagram de ${trainer.name} (abre em nova aba)`" title="Abrir Instagram"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg></a><span v-else>—</span></td>
-                  <td>{{ trainer.gymName || trainer.academy || '—' }}</td>
-                  <td>{{ trainer.cref || '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p v-if="!checkingTrainers && !filteredTrainers.length" class="field-wide" role="status">Nenhum profissional encontrado.</p>
-          <p class="field-wide trainer-selection-count">{{ selectedTrainerIds.length }} de 20 profissionais selecionados</p>
-          <button class="primary-button field-wide" type="button" :disabled="checkingTrainers || !selectedTrainerIds.length" @click="reviewRequest">Continuar →</button>
+        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">Revisar solicitação →</button>
         </template>
 
         <template v-else>
-          <h3 class="field-wide">Revise antes de enviar</h3>
-          <dl class="request-customer-summary field-wide"><div><dt>Cidade</dt><dd>{{ form.city }}</dd></div><div><dt>Preferência</dt><dd>{{ form.trainerGenderPreference === 'indiferente' ? 'Indiferente' : form.trainerGenderPreference === 'feminino' ? 'Mulher' : 'Homem' }}</dd></div><div><dt>Objetivo</dt><dd>{{ form.objective || 'Não informado' }}</dd></div><div v-if="form.sessionsPerWeek"><dt>Aulas por semana</dt><dd>{{ form.sessionsPerWeek }}</dd></div><div><dt>Profissionais</dt><dd>{{ eligibleTrainers.filter(item => selectedTrainerIds.includes(item.trainerId)).map(item => item.name).join(', ') }}</dd></div></dl>
-          <div class="field-wide" role="status" style="padding:14px 16px;border:1px solid currentColor;border-radius:12px">
-            <strong>Mensalidade estimada em {{ form.city }}</strong>
-            <p style="margin:8px 0 4px">De <strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> a <strong>{{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong> por mês.</p>
-            <small>Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por hora/aula. Os profissionais podem apresentar valores diferentes.</small>
+          <h3 class="field-wide">Resumo da solicitação</h3>
+          <div class="field-wide request-summary-table-wrap">
+            <table class="request-summary-table">
+              <tbody>
+                <tr><th scope="row">Cidade</th><td>{{ form.city }}</td></tr>
+                <tr><th scope="row">Academia / local</th><td>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</td></tr>
+                <tr><th scope="row">Objetivo</th><td>{{ form.objective || 'Não informado' }}</td></tr>
+                <tr><th scope="row">Aulas por semana</th><td>{{ form.sessionsPerWeek }}</td></tr>
+                <tr><th scope="row">Dias disponíveis</th><td>{{ form.trainingDays.join(', ') }}</td></tr>
+                <tr><th scope="row">Turnos disponíveis</th><td>{{ form.trainingShifts.join(', ') }}</td></tr>
+                <tr><th scope="row">Duração</th><td>{{ form.desiredDuration }}</td></tr>
+                <tr><th scope="row">Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
+                <tr class="request-summary-price"><th scope="row">Faixa mensal prevista</th><td><strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }} a {{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
+              </tbody>
+            </table>
           </div>
-          <p class="field-wide">A solicitação ficará aberta por até 7 dias ou até receber 5 propostas. Cada proposta fica disponível por 3 dias.</p>
-          <p class="field-wide">Ao confirmar e enviar, você autoriza o compartilhamento dos dados desta solicitação com os profissionais selecionados.</p>
+          <p class="field-wide request-summary-note">Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por aula. Os valores finais dependem da proposta do profissional.</p>
+          <p class="field-wide request-summary-note">Depois de criar sua solicitação, envie-a para um personal de sua preferência.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>
       </form>
@@ -2870,8 +2859,8 @@ async function sendResult() {
         <section class="success-dialog" role="dialog" aria-modal="true" aria-labelledby="request-sent-title">
           <div class="success-mark" aria-hidden="true">✓</div>
           <h2 id="request-sent-title">Solicitação registrada!</h2>
-          <p>Sua solicitação foi enviada aos profissionais escolhidos. Ela ficará aberta por até 7 dias ou até receber 5 propostas. Você pode conversar com vários profissionais antes de escolher.</p>
-          <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver propostas</button>
+          <p>Sua solicitação foi criada! Agora, envie-a para algum personal para receber uma proposta. Ela ficará disponível por até 7 dias.</p>
+          <button class="primary-button" type="button" @click="requestSent = false; openCustomerRequests()">Ver minhas solicitações</button>
         </section>
       </div>
       <div class="box-footer" role="group" aria-label="Aparência e contato" style="display:flex;justify-content:space-between;align-items:center">
