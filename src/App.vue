@@ -709,6 +709,11 @@ function logout() {
   goHome()
 }
 
+function openProfessionalRegistration() {
+  viewMode.value = 'professional-registration'
+  void nextTick(() => window.scrollTo(0, 0))
+}
+
 function goBackFromTitle() {
   if (showCustomerLogin.value) {
     if (loginStep.value !== 1 || emailLoginPending.value) returnToLoginIdentifier()
@@ -2510,7 +2515,7 @@ async function sendResult() {
             <div class="account-dropdown-panel">
               <button v-if="!trainerSignedInId && !customerSignedInName" type="button" @click="openCustomerLogin()">Entrar</button>
               <button type="button" @click="viewMode = 'assessment'">Avaliação corporal</button>
-              <button type="button" @click="viewMode = 'professional-registration'; $nextTick(() => window.scrollTo(0, 0))">Consultar Registro profissional</button>
+              <button type="button" @click="openProfessionalRegistration">Consultar Registro profissional</button>
               <template v-if="trainerSignedInId || customerSignedInName">
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
