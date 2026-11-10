@@ -151,9 +151,7 @@ function requestProposalFromHome() {
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
-const publicFilteredTrainers = computed(() => homeFilteredTrainers.value.filter(t =>
-  t.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(publicTrainerName.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
-))
+const publicFilteredTrainers = computed(() => publicTrainers.value)
 async function loadPublicTrainers() {
   const id = ++publicLookupId
   publicTrainersLoading.value = true
@@ -1136,6 +1134,11 @@ function updateHomeCity(city: string) {
   if (homeCityManuallySelected.value) return
   if (homeCity.value === city) return
   homeCity.value = city
+  if (viewMode.value === 'public-trainers') {
+    publicTrainerCity.value = city
+    homeSelectedTrainerIds.value = []
+    void loadPublicTrainers()
+  }
   void loadHomeTrainerCount(city)
 }
 
@@ -2441,9 +2444,9 @@ async function sendResult() {
             </div>
           </details>
         </nav>
-        <label v-if="viewMode === 'home' || (viewMode === 'contact' && showRequestForm)" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
+        <label v-if="viewMode === 'home' || viewMode === 'public-trainers' || (viewMode === 'contact' && showRequestForm)" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
-          <select id="home-city" :value="homeCity" aria-label="Alterar cidade" @change="selectHomeCity" style="max-width:165px;font:inherit;color:inherit;background:transparent;border:0;cursor:pointer">
+          <select id="home-city" :value="viewMode === 'public-trainers' ? publicTrainerCity : homeCity" aria-label="Alterar cidade" @change="selectHomeCity" style="max-width:165px;font:inherit;color:inherit;background:transparent;border:0;cursor:pointer">
             <option value="" disabled>Escolha sua cidade</option>
             <option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option>
           </select>
@@ -2481,7 +2484,6 @@ async function sendResult() {
           </svg>
           <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
-        <label v-if="viewMode === 'public-trainers'" class="home-academy-select directory-city-header"><span class="sr-only">Cidade</span><select v-model="publicTrainerCity" aria-label="Cidade dos profissionais" @change="homeSelectedTrainerIds = []; homeAcademy = ''; loadPublicTrainers()"><option value="" disabled>Selecione a cidade</option><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
@@ -2599,14 +2601,6 @@ async function sendResult() {
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
-          <label class="home-academy-select"><span class="sr-only">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome" aria-label="Buscar por nome"></label>
-          <label class="home-academy-select">
-            <span class="sr-only">Academia</span>
-            <select v-model="homeAcademy" aria-label="Filtrar por academia">
-              <option value="">Todas as academias</option>
-              <option v-for="academy in homeGymOptions" :key="academy" :value="academy">{{ academy }}</option>
-            </select>
-          </label>
           <button class="primary-button home-proposal-button" type="button" @click="requestProposalFromHome">Solicitar Proposta</button>
         </div>
         <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
