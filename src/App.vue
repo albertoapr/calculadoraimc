@@ -151,7 +151,7 @@ function requestProposalFromHome() {
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
-const publicFilteredTrainers = computed(() => publicTrainers.value.filter(t =>
+const publicFilteredTrainers = computed(() => homeFilteredTrainers.value.filter(t =>
   t.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(publicTrainerName.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
 ))
 async function loadPublicTrainers() {
@@ -171,10 +171,12 @@ async function loadPublicTrainers() {
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
 }
 function openPublicTrainers() {
-  publicTrainerCity.value = homeCity.value || supportedRequestCities[0]
+  publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
+  homeAcademy.value = ''
+  homeSelectedTrainerIds.value = []
   viewMode.value = 'public-trainers'
-  void loadPublicTrainers()
+  if (publicTrainerCity.value) void loadPublicTrainers()
 }
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
@@ -1147,7 +1149,7 @@ function selectHomeCity(event: Event) {
 
 watch(homeCity, city => {
   homeSelectedTrainerIds.value = []
-  if (city && isRootHome) searchHomeTrainers()
+  if (city && viewMode.value === 'public-trainers') searchHomeTrainers()
 })
 
 let requestCityLookupId = 0
@@ -2593,33 +2595,9 @@ async function sendResult() {
         <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
-      <section v-if="viewMode === 'public-trainers'" class="public-directory" aria-labelledby="page-title">
-        <div class="public-directory-filters">
-          <label class="field"><span class="field-label">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome"></label>
-        </div>
-        <p v-if="publicTrainersLoading" role="status">Carregando profissionais…</p>
-        <p v-else-if="publicTrainersError" role="alert">{{ publicTrainersError }} <button type="button" @click="loadPublicTrainers">Tentar novamente</button></p>
-        <template v-else>
-          <p role="status">{{ publicFilteredTrainers.length }} profissionais encontrados em {{ publicTrainerCity }}</p>
-          <div class="trainer-table-scroll"><table class="trainer-selection-table"><thead><tr><th>Profissional</th><th>Instagram</th><th>CREF</th></tr></thead><tbody>
-          <tr v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId"><td><strong>{{ trainerDisplayName(trainer.name) }}</strong></td>
-          <td><a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" class="trainer-instagram-icon" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)"><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="18" cy="6" r="1" fill="currentColor" stroke="none"/></svg></a><span v-else>—</span></td>
-          <td>{{ trainer.cref || '—' }}</td></tr>
-          </tbody></table></div><p v-if="!publicFilteredTrainers.length">Nenhum profissional encontrado.</p>
-        </template>
-      </section>
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
-        <div class="home-action">
-          <button class="primary-button" type="button" @click="searchHomeTrainers">
-            <span class="home-action-copy"><strong>Buscar Personal</strong><small>Encontre profissionais na sua cidade</small></span>
-          </button>
-        </div>
-        <div class="home-action home-assessment-link">
-          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
-        </div>
-      </div>
-      <section v-if="viewMode === 'home' && !result && isRootHome" class="home-trainer-directory" aria-label="Profissionais da sua cidade">
+      <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
+          <label class="home-academy-select"><span class="sr-only">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome" aria-label="Buscar por nome"></label>
           <label class="home-academy-select">
             <span class="sr-only">Academia</span>
             <select v-model="homeAcademy" aria-label="Filtrar por academia">
@@ -2627,16 +2605,15 @@ async function sendResult() {
               <option v-for="academy in homeGymOptions" :key="academy" :value="academy">{{ academy }}</option>
             </select>
           </label>
-          <button class="secondary-button home-search-button" type="button" :disabled="!homeCity || publicTrainersLoading" @click="searchHomeTrainers">Buscar Personal</button>
           <button class="primary-button home-proposal-button" type="button" @click="requestProposalFromHome">Solicitar Proposta</button>
         </div>
-        <p v-if="!homeCity" class="home-list-message">Selecione sua cidade para encontrar profissionais.</p>
+        <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
-          <p class="home-list-heading">{{ homeFilteredTrainers.length }} {{ homeFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ homeCity }}</p>
+          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ homeFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <div class="home-trainer-list">
-            <label v-for="trainer in homeFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
+            <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
               <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
@@ -2650,6 +2627,16 @@ async function sendResult() {
           <p v-if="!homeFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
         </template>
       </section>
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
+        <div class="home-action">
+          <button class="primary-button" type="button" @click="openPublicTrainers">
+            <span class="home-action-copy"><strong>Buscar Personal</strong><small>Encontre profissionais na sua cidade</small></span>
+          </button>
+        </div>
+        <div class="home-action home-assessment-link">
+          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
+        </div>
+      </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action"><button class="primary-button" type="button" @click="openRequestForm">Solicitar Proposta</button></div>
       </div>
@@ -2915,6 +2902,9 @@ async function sendResult() {
 .home-trainer-controls { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:stretch; }
 .home-trainer-controls button,.home-academy-select select { min-width:0; width:100%; min-height:48px; font:inherit; }
 .home-academy-select select { color:inherit; background:var(--input-bg, transparent); border:1px solid currentColor; border-radius:12px; padding:10px; }
+.home-academy-select input { box-sizing:border-box; width:100%; min-height:48px; padding:10px; color:inherit; background:transparent; border:1px solid currentColor; border-radius:12px; font:inherit; }
+.public-directory .home-trainer-controls { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
+@media(max-width:700px) { .public-directory .home-trainer-controls { grid-template-columns:1fr 1fr; } .public-directory .home-trainer-controls .home-proposal-button { grid-column:1 / -1; } }
 .home-trainer-list { display:grid; gap:10px; }
 .home-trainer-card { display:flex; gap:14px; align-items:center; border:1px solid var(--border-color, #86978f); border-radius:16px; padding:14px; cursor:pointer; }
 .home-trainer-card input { flex:none; width:22px; height:22px; accent-color:#08763a; }
