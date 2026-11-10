@@ -2683,8 +2683,7 @@ async function sendResult() {
       <section v-if="viewMode === 'professional-registration'" class="professional-registration-view" aria-labelledby="professional-registration-title">
         <h2 id="professional-registration-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar ao início" @click="goHome">&lt;</button> Consultar Registro profissional</h2>
         <p>Consulte a situação cadastral de profissionais de Educação Física no CREF-RJ.</p>
-        <iframe class="professional-registration-frame" src="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" title="Consulta de inscritos no CREF-RJ" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-        <p class="professional-registration-help">Se a consulta não aparecer acima, o site do CREF-RJ pode impedir a exibição dentro de outros sites. Nesse caso, <a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">abra a consulta diretamente no CREF-RJ</a>.</p>
+        <p class="professional-registration-help"><a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">Consultar registro diretamente no site do CREF-RJ</a>.</p>
       </section>
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
