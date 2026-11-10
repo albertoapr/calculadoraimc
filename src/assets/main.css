@@ -563,3 +563,28 @@ html[data-theme='dark'] .request-action-dialog { background: #1b2720; color: #f4
 .main-hamburger-menu > summary svg { width: 23px; height: 23px; }
 .main-hamburger-menu[open] > summary svg { transform: none; }
 .main-hamburger-menu .account-dropdown-panel { z-index: 50; }
+
+
+/* Controles de seleção: aparência consistente com os temas FitPeso. */
+html[data-theme='light'] { --select-bg: #fbfdff; --select-text: #203e32; --select-accent: #286b4e; --select-hover: #e8f5ed; }
+html[data-theme='dark'] { --select-bg: #141d18; --select-text: #f1f5f3; --select-accent: var(--blue); --select-hover: #29352b; }
+select {
+  color-scheme: light;
+  accent-color: var(--select-accent);
+}
+html[data-theme='dark'] select { color-scheme: dark; }
+.field select, select {
+  background-color: var(--select-bg);
+  color: var(--select-text);
+  border-color: var(--line);
+  cursor: pointer;
+}
+select option, select optgroup {
+  background-color: var(--select-bg);
+  color: var(--select-text);
+}
+select:focus-visible {
+  outline: 2px solid var(--select-accent);
+  outline-offset: 2px;
+}
+select:disabled { cursor: not-allowed; opacity: .55; }
