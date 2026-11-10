@@ -1209,6 +1209,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     createdAt: item.createdAt?.S ?? '',
+    selectedTrainerIds: item.selectedTrainerIds?.SS ?? [],
     validUntil: Number(item.validUntil?.N ?? 0),
     ...(item.acceptedAt?.S ? { acceptedAt: item.acceptedAt.S } : {}),
   }
