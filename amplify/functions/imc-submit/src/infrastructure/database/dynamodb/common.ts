@@ -43,7 +43,7 @@ export async function get<T>(table: string, key: Data): Promise<T | null> {
   const response = await dynamo.send(new GetItemCommand({
     TableName: table, Key: encode(key), ConsistentRead: true,
   }))
-  return response.Item ? decode(response.Item) as T : null
+  return response.Item ? decode(response.Item) as unknown as T : null
 }
 
 export async function create(table: string, data: Data, pk: string): Promise<void> {
@@ -74,7 +74,7 @@ export async function queryAll<T>(table: string, index: string, attribute: strin
       ExpressionAttributeValues: { ':value': value },
       ExclusiveStartKey: cursor,
     }))
-    for (const item of response.Items ?? []) results.push(decode(item) as T)
+    for (const item of response.Items ?? []) results.push(decode(item) as unknown as T)
     cursor = response.LastEvaluatedKey
   } while (cursor)
   return results
@@ -85,7 +85,7 @@ export async function scanAll<T>(table: string): Promise<T[]> {
   let cursor: Item | undefined
   do {
     const response = await dynamo.send(new ScanCommand({ TableName: table, ExclusiveStartKey: cursor }))
-    for (const item of response.Items ?? []) results.push(decode(item) as T)
+    for (const item of response.Items ?? []) results.push(decode(item) as unknown as T)
     cursor = response.LastEvaluatedKey
   } while (cursor)
   return results
