@@ -5,6 +5,7 @@ on:
     branches:
       - feature/buscar-personal-home
       - feature/remover-divisoria-home
+      - feature/lista-personais-na-busca
   workflow_dispatch:
 
 permissions:
