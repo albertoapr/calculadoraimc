@@ -2608,6 +2608,16 @@ async function sendResult() {
           </tbody></table></div><p v-if="!publicFilteredTrainers.length">Nenhum profissional encontrado.</p>
         </template>
       </section>
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
+        <div class="home-action">
+          <button class="primary-button" type="button" @click="searchHomeTrainers">
+            <span class="home-action-copy"><strong>Buscar Personal</strong><small>Encontre profissionais na sua cidade</small></span>
+          </button>
+        </div>
+        <div class="home-action home-assessment-link">
+          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
+        </div>
+      </div>
       <section v-if="viewMode === 'home' && !result && isRootHome" class="home-trainer-directory" aria-label="Profissionais da sua cidade">
         <div class="home-trainer-controls">
           <label class="home-academy-select">
