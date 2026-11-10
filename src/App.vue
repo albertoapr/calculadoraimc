@@ -2480,6 +2480,7 @@ async function sendResult() {
           </svg>
           <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
+        <label v-if="viewMode === 'public-trainers'" class="home-academy-select directory-city-header"><span class="sr-only">Cidade</span><select v-model="publicTrainerCity" aria-label="Cidade dos profissionais" @change="homeSelectedTrainerIds = []; homeAcademy = ''; loadPublicTrainers()"><option value="" disabled>Selecione a cidade</option><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
@@ -2597,7 +2598,6 @@ async function sendResult() {
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
-          <label class="home-academy-select"><span class="sr-only">Cidade</span><select v-model="publicTrainerCity" aria-label="Cidade dos profissionais" @change="homeSelectedTrainerIds = []; loadPublicTrainers()"><option value="" disabled>Selecione a cidade</option><option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option></select></label>
           <label class="home-academy-select"><span class="sr-only">Nome</span><input v-model="publicTrainerName" type="search" placeholder="Buscar por nome" aria-label="Buscar por nome"></label>
           <label class="home-academy-select">
             <span class="sr-only">Academia</span>
