@@ -558,3 +558,8 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
 .request-action-buttons button { flex: 1; min-width: 0; }
 html[data-theme='dark'] .request-action-dialog { background: #1b2720; color: #f4f5f0; border-color: #3b4b40; }
 @media (max-width: 390px) { .request-action-dialog { padding: 18px; } .request-action-buttons { flex-direction: column-reverse; } }
+
+/* Menu compacto do cabeçalho: disponível para visitantes e usuários autenticados. */
+.main-hamburger-menu > summary svg { width: 23px; height: 23px; }
+.main-hamburger-menu[open] > summary svg { transform: none; }
+.main-hamburger-menu .account-dropdown-panel { z-index: 50; }

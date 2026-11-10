@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/buscar-personal-home
+      - feature/remover-divisoria-home
   workflow_dispatch:
 
 permissions:

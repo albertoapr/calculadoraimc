@@ -2418,26 +2418,25 @@ async function sendResult() {
           <small class="brand-tagline">Rede de treinadores</small>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0">
-        <nav class="customer-account-links" aria-label="Conta do usuário">
-          <template v-if="trainerSignedInId || customerSignedInName">
-            <span class="account-greeting">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
-              <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
-            </span>
-            <details class="account-dropdown">
-              <summary aria-label="Abrir menu do usuário" title="Menu do usuário" aria-haspopup="menu">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-              </summary>
-              <div class="account-dropdown-panel">
+        <nav class="customer-account-links" aria-label="Menu principal">
+          <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+            <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
+          </span>
+          <details class="account-dropdown main-hamburger-menu">
+            <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </summary>
+            <div class="account-dropdown-panel">
+              <button v-if="!trainerSignedInId && !customerSignedInName" type="button" @click="openCustomerLogin()">Entrar</button>
+              <button type="button" @click="viewMode = 'assessment'">Avaliação corporal</button>
+              <template v-if="trainerSignedInId || customerSignedInName">
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
                 <button type="button" @click="logout">Sair</button>
-              </div>
-            </details>
-          </template>
-          <template v-else>
-            <button type="button" @click="openCustomerLogin()">Entrar</button>
-          </template>
+              </template>
+            </div>
+          </details>
         </nav>
         <label v-if="viewMode === 'home' || (viewMode === 'contact' && showRequestForm)" class="home-location-label" style="display:flex;align-items:center;gap:5px;max-width:100%" for="home-city">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg>
@@ -2457,7 +2456,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
-        <hr class="personal-divider">
+        <hr v-if="viewMode !== 'home'" class="personal-divider">
         <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : requestStep === 3 ? 'Escolher profissionais' : 'Confirmar atendimento' }}</h2>
         <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
