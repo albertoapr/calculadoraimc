@@ -602,3 +602,12 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 .request-summary-price td { color: var(--blue-dark); font-weight: 800; }
 .request-summary-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
 @media (max-width: 480px) { .request-summary-table th, .request-summary-table td { padding: 10px 9px; font-size: 12px; } }
+
+/* Consulta pública CREF-RJ integrada à navegação FitPeso. */
+.professional-registration-view { display: grid; gap: 14px; width: 100%; min-width: 0; color: var(--ink); }
+.professional-registration-view .request-form-title { margin: 0; }
+.professional-registration-view > p { margin: 0; line-height: 1.5; }
+.professional-registration-frame { display: block; width: 100%; height: min(75vh, 850px); min-height: 540px; border: 1px solid var(--line); border-radius: 12px; background: var(--select-bg); }
+.professional-registration-help { font-size: 13px; color: var(--muted); }
+.professional-registration-help a { color: var(--blue-dark); text-decoration: underline; }
+@media (max-width: 600px) { .professional-registration-frame { min-height: 580px; height: 75vh; } }
