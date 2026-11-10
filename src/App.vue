@@ -98,10 +98,10 @@ const trainerSlugFromHost = getTrainerSlugFromHost()
 const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
 const personalName = ref('FitPeso')
 const personalBrandFirstName = computed(() => personalName.value.endsWith(' Personal Trainer') ? personalName.value.slice(0, -' Personal Trainer'.length) : '')
-const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
+const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -2510,6 +2510,7 @@ async function sendResult() {
             <div class="account-dropdown-panel">
               <button v-if="!trainerSignedInId && !customerSignedInName" type="button" @click="openCustomerLogin()">Entrar</button>
               <button type="button" @click="viewMode = 'assessment'">Avaliação corporal</button>
+              <button type="button" @click="viewMode = 'professional-registration'; $nextTick(() => window.scrollTo(0, 0))">Consultar Registro profissional</button>
               <template v-if="trainerSignedInId || customerSignedInName">
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
@@ -2672,6 +2673,13 @@ async function sendResult() {
           </div>
         </article>
         <button class="back-button" type="button" @click="goHome">Início</button>
+      </section>
+
+      <section v-if="viewMode === 'professional-registration'" class="professional-registration-view" aria-labelledby="professional-registration-title">
+        <h2 id="professional-registration-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar ao início" @click="goHome">&lt;</button> Consultar Registro profissional</h2>
+        <p>Consulte a situação cadastral de profissionais de Educação Física no CREF-RJ.</p>
+        <iframe class="professional-registration-frame" src="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" title="Consulta de inscritos no CREF-RJ" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <p class="professional-registration-help">Se a consulta não aparecer acima, o site do CREF-RJ pode impedir a exibição dentro de outros sites. Nesse caso, <a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">abra a consulta diretamente no CREF-RJ</a>.</p>
       </section>
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
