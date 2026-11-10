@@ -2457,7 +2457,7 @@ async function sendResult() {
           <span class="brand-lockup"><span class="brand-default"><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span></span>
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
-        <hr class="personal-divider">
+        <hr v-if="viewMode !== 'home'" class="personal-divider">
         <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : requestStep === 3 ? 'Escolher profissionais' : 'Confirmar atendimento' }}</h2>
         <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
