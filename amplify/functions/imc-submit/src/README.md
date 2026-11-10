@@ -1,9 +1,9 @@
 # FitPeso — Camada de acesso a dados (Etapa 2.1)
 
 Estrutura **aditiva**, ainda **não conectada ao handler**. A aplicação continua
-utilizando as tabelas e rotas legadas. Nenhuma tabela, índice, permissão IAM ou
-variável de ambiente foi criada nesta etapa; **não executar a nova DAL em produção
-antes da Etapa 2.2**.
+utilizando as tabelas e rotas legadas. A Etapa 2.2 adicionou a definição das cinco
+tabelas, índices, permissões IAM e variáveis de ambiente em `amplify/backend.ts`.
+**As tabelas só existirão na AWS após um deploy aprovado e bem-sucedido.**
 
 ## Organização
 
@@ -35,4 +35,8 @@ antes da Etapa 2.2**.
   de conectar o cadastro.
 - A substituição integral de itens em `atualizar` é intencional para os novos
   modelos, mas requer controle de concorrência antes de uso em produção.
-- Índices e tabelas só serão provisionados após aprovação da Etapa 2.2.
+- As tabelas e índices da Etapa 2.2 estão declarados em uma stack independente
+  (`fitpeso-identity-data`). Nenhum dado inicial foi inserido em TipoUsuario;
+  os valores 1=Administrador, 2=Cliente e 3=Personal precisam de carga controlada.
+- A Etapa 2.3 deve implementar a integridade entre entidades e a unicidade
+  transacional antes de disponibilizar endpoints de gravação.
