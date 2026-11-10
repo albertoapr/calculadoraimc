@@ -1326,7 +1326,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         : trainers.filter(trainer => trainer.sex === request.trainerGenderPreference)
       const selectedTrainers = selectedTrainerIds?.length
         ? eligibleTrainers.filter(trainer => selectedTrainerIds.includes(trainer.trainerId))
-        : eligibleTrainers
+        : []
       const validUntil = request.validUntil
       return {
         ...request,
@@ -1577,8 +1577,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
   const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
   const selectedTrainerIds = [...new Set(rawTrainerIds.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))]
-  if (selectedTrainerIds.length < 1 || selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
-    return response(400, { error: 'Selecione de 1 a 20 profissionais.' })
+  if (selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
+    return response(400, { error: 'Selecione no máximo 20 profissionais válidos.' })
   }
   const cityTrainers = await getActiveTrainersForCity(city)
   const matchingTrainers = cityTrainers.filter(trainer => preference === 'indiferente' || trainer.sex === preference)
@@ -1606,7 +1606,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     status: { S: 'VALIDATED' },
     lifecycle: { S: 'OPEN' },
     proposalCount: { N: '0' },
-    selectedTrainerIds: { SS: selectedTrainerIds },
+    ...(selectedTrainerIds.length ? { selectedTrainerIds: { SS: selectedTrainerIds } } : {}),
     createdAt: { S: createdAt },
     consentAt: { S: createdAt },
     validUntil: { N: String(validUntil) },
