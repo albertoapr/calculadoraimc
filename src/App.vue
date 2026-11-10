@@ -1191,6 +1191,7 @@ function updateHomeCity(city: string) {
   if (homeCity.value === city) return
   homeCity.value = city
   if (viewMode.value === 'public-trainers') {
+    if (publicTrainerCity.value !== city) { sharingRequestId.value = ''; sharingRequestMessage.value = '' }
     publicTrainerCity.value = city
     homeSelectedTrainerIds.value = []
     void loadPublicTrainers()
@@ -2692,11 +2693,12 @@ async function sendResult() {
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <div class="home-trainer-list">
             <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
-              <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
+              <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
                 <strong>{{ trainerDisplayName(trainer.name) }}</strong>
                 <small>CREF {{ trainer.cref || 'não informado' }}</small>
+                <small v-if="sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)">Solicitação já enviada</small>
                 <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" @click.stop>Instagram</a>
                 <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">Academias: {{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
               </span>
