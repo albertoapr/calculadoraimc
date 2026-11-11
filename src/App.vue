@@ -77,6 +77,8 @@ type TrainerRequestDetails = {
   city: string
   objective?: string
   desiredDuration?: string
+  singleLesson?: boolean
+  withCompanion?: boolean
   attendsGym: boolean
   gymName?: string
   trainingDays: string[]
@@ -479,6 +481,8 @@ const form = reactive({
   city: '',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
   desiredDuration: '1 mês',
+  singleLesson: false,
+  withCompanion: false,
   attendsGym: false,
   gymName: '',
 
@@ -1434,6 +1438,8 @@ async function openRequestForm() {
   form.trainingDays = ['Segunda-feira']
   form.trainingShifts = ['Noite']
   form.desiredDuration = '1 mês'
+  form.singleLesson = false
+  form.withCompanion = false
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
   // A academia escolhida na página inicial pode não constar nas opções legadas do formulário.
@@ -2418,7 +2424,9 @@ async function sendResult() {
       ...(age !== undefined ? { age } : {}),
       city,
       trainerGenderPreference: form.trainerGenderPreference,
-      ...(form.desiredDuration ? { desiredDuration: form.desiredDuration } : {}),
+      desiredDuration: form.singleLesson ? 'Aula avulsa' : form.desiredDuration,
+      singleLesson: form.singleLesson,
+      withCompanion: form.withCompanion,
       attendsGym: form.attendsGym,
       ...(form.attendsGym && form.gymName.trim() ? { gymName: form.gymName === 'Outros' ? otherGymName.value.trim() : form.gymName.trim() } : {}),
       objective: form.objective,
@@ -2808,6 +2816,7 @@ async function sendResult() {
             <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
             <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
+            <div><dt>Participantes</dt><dd>{{ trainerRequest.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</dd></div>
             <div v-if="trainerRequest.desiredDuration"><dt>Tempo de acompanhamento</dt><dd>{{ trainerRequest.desiredDuration }}</dd></div>
             <div v-if="trainerRequest.attendsGym"><dt>Frequenta academia</dt><dd>Sim</dd></div>
             <div v-if="trainerRequest.attendsGym && trainerRequest.gymName"><dt>Qual?</dt><dd>{{ trainerRequest.gymName }}</dd></div>
@@ -3155,11 +3164,20 @@ async function sendResult() {
           </div>
         </section>
 
+        <section class="request-card field-wide" aria-labelledby="request-companion-heading">
+          <h3 id="request-companion-heading">Como você vai fazer a aula?</h3>
+          <div class="request-gender-row" role="group" aria-label="Participantes da aula">
+            <label class="request-choice"><input v-model="form.withCompanion" type="radio" name="withCompanion" :value="false"><span>Sozinho</span></label>
+            <label class="request-choice"><input v-model="form.withCompanion" type="radio" name="withCompanion" :value="true"><span>Com um acompanhante</span></label>
+          </div>
+        </section>
+
         <section class="request-card field-wide" aria-labelledby="request-duration-heading">
           <h3 id="request-duration-heading">⌛ Duração do atendimento</h3>
+          <label class="admin-trainer-active"><input v-model="form.singleLesson" type="checkbox"> Aula avulsa</label>
           <label class="field" for="request-duration">
             <span class="field-label">Por quanto tempo você deseja o acompanhamento?</span>
-            <select id="request-duration" v-model="form.desiredDuration" required>
+            <select id="request-duration" v-model="form.desiredDuration" :disabled="form.singleLesson" :required="!form.singleLesson">
               <option v-for="months in 6" :key="months" :value="`${months} ${months === 1 ? 'mês' : 'meses'}`">{{ months }} {{ months === 1 ? 'mês' : 'meses' }}</option>
             </select>
           </label>
@@ -3179,13 +3197,14 @@ async function sendResult() {
                 <tr><th scope="row">Aulas por semana</th><td>{{ form.sessionsPerWeek }}</td></tr>
                 <tr><th scope="row">Dias disponíveis</th><td>{{ form.trainingDays.join(', ') }}</td></tr>
                 <tr><th scope="row">Turnos disponíveis</th><td>{{ form.trainingShifts.join(', ') }}</td></tr>
-                <tr><th scope="row">Duração</th><td>{{ form.desiredDuration }}</td></tr>
+                <tr><th scope="row">Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
+                <tr><th scope="row">Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
                 <tr><th scope="row">Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
-                <tr class="request-summary-price"><th scope="row">Faixa mensal prevista</th><td><strong>{{ (Number(form.sessionsPerWeek) * 4 * 40).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }} a {{ (Number(form.sessionsPerWeek) * 4 * 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
+                <tr class="request-summary-price"><th scope="row">{{ form.singleLesson ? 'Valor previsto da aula' : 'Faixa mensal prevista' }}</th><td><strong>{{ ((form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }} a {{ ((form.singleLesson ? 100 : Number(form.sessionsPerWeek) * 4 * 100)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
               </tbody>
             </table>
           </div>
-          <p class="field-wide request-summary-note">Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por aula. Os valores finais dependem da proposta do profissional.</p>
+          <p class="field-wide request-summary-note">{{ form.singleLesson ? 'Estimativa para uma aula, considerando R$ 40 a R$ 100.' : 'Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por aula.' }} Os valores finais dependem da proposta do profissional.</p>
           <p class="field-wide request-summary-note">Depois de criar sua solicitação, envie-a para um personal de sua preferência.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>

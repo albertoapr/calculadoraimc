@@ -52,7 +52,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
-  const desiredDurations = ['1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
+  const desiredDurations = ['Aula avulsa', '1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
@@ -68,6 +68,9 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
+    (data.singleLesson === undefined || typeof data.singleLesson === 'boolean') &&
+    (data.withCompanion === undefined || typeof data.withCompanion === 'boolean') &&
+    (data.singleLesson !== true || data.desiredDuration === 'Aula avulsa') &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
     (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
     (typeof data.sessionsPerWeek === 'number' && Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7) &&
@@ -1407,6 +1410,8 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
     ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
+    singleLesson: item.singleLesson?.BOOL ?? false,
+    withCompanion: item.withCompanion?.BOOL ?? false,
     attendsGym: item.attendsGym?.BOOL ?? false,
     ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
     ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
@@ -1632,7 +1637,9 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
-      attendsGym: item.attendsGym?.BOOL ?? false,
+      singleLesson: item.singleLesson?.BOOL ?? false,
+    withCompanion: item.withCompanion?.BOOL ?? false,
+    attendsGym: item.attendsGym?.BOOL ?? false,
       ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
       ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
@@ -1842,6 +1849,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(Number.isInteger(requestData.age) ? { age: { N: String(requestData.age) } } : {}),
     ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
     trainerGenderPreference: { S: preference },
+    singleLesson: { BOOL: requestData.singleLesson === true },
+    withCompanion: { BOOL: requestData.withCompanion === true },
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
     ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
@@ -2208,6 +2217,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(age ? [`Idade: ${age}`] : []),
     `Cidade: ${String(data.city).trim()}`,
     `Gênero do personal: ${trainerGenderPreference}`,
+    `Participantes: ${data.withCompanion === true ? 'Com um acompanhante' : 'Sozinho'}`,
     ...(typeof data.desiredDuration === 'string' && data.desiredDuration ? [`Tempo de acompanhamento: ${data.desiredDuration}`] : []),
     ...(data.attendsGym === true ? [`Frequenta academia: Sim${gymName ? ` — ${gymName}` : ''}`] : []),
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
