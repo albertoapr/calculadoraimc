@@ -1285,6 +1285,28 @@ function createTrainerRequestToken(requestId: string, trainerId: string, expires
   return `${payload}.${signature}`
 }
 
+// Endpoint de leitura exclusivo da Beta. Reutiliza a credencial já usada nas validações WhatsApp.
+async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0]) {
+  if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Integração Beta não configurada.' })
+  if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+  const supportedCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const city = event.queryStringParameters?.cidade?.trim() || event.queryStringParameters?.city?.trim() || ''
+  if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
+  try {
+    const results = await Promise.all((city ? [city] : supportedCities).map(getActiveTrainersForCity))
+    const unique = [...new Map(results.flat().map(trainer => [trainer.trainerId, trainer])).values()]
+    const personais = unique.map(trainer => ({
+      id: trainer.trainerId, nome: trainer.name, cidades: results.flat().filter(item => item.trainerId === trainer.trainerId).map(item => item.city),
+      cref: trainer.cref, instagram: trainer.instagram ?? '', academias: trainer.academias,
+      genero: trainer.sex, ativo: true,
+    })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    return response(200, { total: personais.length, personais })
+  } catch (error) {
+    console.error('[imc-submit] Beta trainer listing failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Consulta de profissionais indisponível.' })
+  }
+}
+
 async function getActiveTrainersForCity(city: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
@@ -2176,6 +2198,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return getCustomerVerificationStatus(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/personal/listar')) return listTrainersForBeta(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/eligible')) return listEligibleTrainers(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/customers/requests')) return listCustomerRequests(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposals')) return submitTrainerProposal(parseBody(event))
