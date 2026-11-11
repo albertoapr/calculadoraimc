@@ -387,6 +387,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp,
         email: customer.Item.email?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+        isAdmin: customer.Item.isAdmin?.BOOL === true,
       } })
     } catch (error) {
       console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -420,6 +421,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp: customer.whatsapp?.S ?? '',
         email,
         dateOfBirth: customer.dateOfBirth?.S ?? '',
+        isAdmin: customer.isAdmin?.BOOL === true,
       },
     })
   } catch (error) {
@@ -1042,6 +1044,66 @@ async function registerTrainer(data: Record<string, unknown>) {
     ],
   }))
   return { slug, verificationCode: challenge.code }
+}
+
+async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const tableName = process.env.TRAINERS_TABLE
+  const slugTable = process.env.TRAINER_SLUGS_TABLE
+  if (!customersTable || !tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
+  const customer = await dynamodb.send(new GetItemCommand({
+    TableName: customersTable, Key: { whatsapp: { S: auth.profile!.whatsapp } }, ConsistentRead: true,
+  }))
+  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
+    return response(403, { error: 'Acesso exclusivo do administrador.' })
+  }
+  const data = parseBody(event)
+  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth) {
+    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidade e endereço válido.' })
+  }
+  const whatsapp = normalizePhone(data.whatsapp)
+  const cref = String(data.cref).trim().toUpperCase()
+  const cities = data.cities as string[]
+  // Check all supported cities, not only the selected ones.
+  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
+    let lastKey: Record<string, any> | undefined
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName, KeyConditionExpression: '#city = :city',
+        ExpressionAttributeNames: { '#city': 'city' }, ExpressionAttributeValues: { ':city': { S: city } },
+        ExclusiveStartKey: lastKey,
+      }))
+      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref)) {
+        return response(409, { error: 'Já existe um profissional com esse WhatsApp ou CREF.' })
+      }
+      lastKey = page.LastEvaluatedKey
+    } while (lastKey)
+  }
+  const slug = String(data.slug).trim().toLowerCase()
+  const trainerId = randomBytes(16).toString('hex')
+  const now = String(Math.floor(Date.now() / 1000))
+  try {
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
+      ...cities.map(city => ({ Put: { TableName: tableName, Item: {
+        city: { S: city }, trainerId: { S: trainerId }, slug: { S: slug },
+        name: { S: String(data.name).trim().replace(/\\s+/g, ' ') },
+        sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
+        email: { S: String(data.email ?? '').trim().toLowerCase() },
+        dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram) },
+        cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+        active: { BOOL: true }, whatsappVerified: { BOOL: false }, status: { S: 'active' },
+        createdByAdmin: { S: auth.profile!.whatsapp }, submittedAt: { N: now },
+      }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+    ] }))
+    return response(201, { registered: true, trainerId, status: 'active' })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro ou endereço já existente.' })
+    console.error('[imc-submit] Admin trainer registration failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o profissional.' })
+  }
 }
 
 function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -2217,6 +2279,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
     return verifyTrainerWhatsApp(parseBody(event))
   }
+
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/admin/trainers')) return registerAdminTrainer(event)
 
   if (event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)
