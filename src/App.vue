@@ -2948,7 +2948,7 @@ async function sendResult() {
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <div class="home-trainer-list">
             <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
-              <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
+              <input v-if="customerSignedInName && activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError" v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
                 <strong>{{ trainerDisplayName(trainer.name) }}</strong>
