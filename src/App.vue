@@ -1833,6 +1833,8 @@ async function checkPendingWhatsAppLogin() {
 }
 
 onUnmounted(() => {
+  document.removeEventListener('pointerdown', closeHamburgerOnOutsideClick)
+  document.removeEventListener('click', closeHamburgerOnSelection)
   stopWhatsAppTimers()
   whatsappRequest?.abort()
   document.removeEventListener('visibilitychange', onWhatsAppVisibilityChange)
@@ -2154,7 +2156,19 @@ async function finishEmailLoginFromLink() {
   }
 }
 
+function closeHamburgerOnOutsideClick(event: PointerEvent) {
+  const menu = document.querySelector<HTMLDetailsElement>('.main-hamburger-menu[open]')
+  if (menu && event.target instanceof Node && !menu.contains(event.target)) menu.open = false
+}
+
+function closeHamburgerOnSelection(event: MouseEvent) {
+  const menu = document.querySelector<HTMLDetailsElement>('.main-hamburger-menu[open]')
+  if (menu && event.target instanceof Element && event.target.closest('.account-dropdown-panel button')) menu.open = false
+}
+
 onMounted(() => {
+  document.addEventListener('pointerdown', closeHamburgerOnOutsideClick)
+  document.addEventListener('click', closeHamburgerOnSelection)
   void finishEmailLoginFromLink()
   if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
   window.scrollTo(0, 0)
