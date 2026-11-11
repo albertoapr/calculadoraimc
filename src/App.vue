@@ -2951,10 +2951,12 @@ async function sendResult() {
               <input v-if="customerSignedInName && activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError" v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
-                <strong>{{ trainerDisplayName(trainer.name) }}</strong>
+                <span class="home-trainer-name-row">
+                  <strong>{{ trainerDisplayName(trainer.name) }}</strong>
+                  <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" class="trainer-instagram-link" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)" title="Instagram" @click.stop><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+                </span>
+                <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">{{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
                 <small v-if="sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)">Solicitação já enviada</small>
-                <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" class="trainer-instagram-link" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)" title="Instagram" @click.stop><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
-                <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">Academias: {{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
               </span>
             </label>
           </div>
@@ -3237,7 +3239,10 @@ async function sendResult() {
 .home-trainer-card { display:flex; gap:14px; align-items:center; border:1px solid var(--border-color, #86978f); border-radius:16px; padding:14px; cursor:pointer; }
 .home-trainer-card input { flex:none; width:22px; height:22px; accent-color:#08763a; }
 .home-trainer-avatar { display:grid; flex:none; place-items:center; width:58px; height:58px; border-radius:12px; background:#d9efe0; color:#075f32; font-weight:750; }
-.home-trainer-info { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.home-trainer-info { display:flex; flex:1; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.home-trainer-name-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.home-trainer-name-row strong { min-width:0; }
+.home-trainer-name-row .trainer-instagram-link { flex-shrink:0; }
 .home-trainer-info strong { font-size:1.05rem; }
 .home-trainer-info a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
 .home-list-heading,.home-list-message { margin:0; }
