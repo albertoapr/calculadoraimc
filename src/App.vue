@@ -101,7 +101,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration' | 'admin-trainer'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -324,6 +324,26 @@ const customerLoginVerificationLink = ref('')
 const showCustomerLoginDialog = ref(false)
 const customerLoginSubmitting = ref(false)
 const customerSignedInName = ref('')
+const customerIsAdmin = ref(false)
+const adminTrainerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '', sex: 'feminino', cref: '', instagram: '@', slug: '', city: 'Mesquita', academias: '' })
+const adminTrainerStatus = ref('')
+const adminTrainerBusy = ref(false)
+async function saveAdminTrainer() {
+  if (!customerIsAdmin.value || adminTrainerBusy.value) return
+  const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+  if (!token) { adminTrainerStatus.value = 'Entre novamente como administrador.'; return }
+  adminTrainerBusy.value = true
+  adminTrainerStatus.value = 'Salvando profissional…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/admin/trainers', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify({ ...adminTrainerForm, cities: [adminTrainerForm.city], academias: adminTrainerForm.academias.split(',').map(x => x.trim()).filter(Boolean) }) })
+    const body = await response.json() as { registered?: boolean; error?: string }
+    if (!response.ok || !body.registered) throw new Error(body.error || 'Não foi possível cadastrar o profissional.')
+    adminTrainerStatus.value = 'Personal cadastrado e ativado com sucesso.'
+  } catch (error) { adminTrainerStatus.value = error instanceof Error ? error.message : 'Falha ao cadastrar profissional.' }
+  finally { adminTrainerBusy.value = false }
+}
+
 const trainerSignedInName = ref('')
 const trainerSignedInId = ref('')
 const editingProfile = reactive<EditableProfile>({ name: '', whatsapp: '', email: '', dateOfBirth: '', instagram: '', cref: '', slug: '', academias: [] })
@@ -532,7 +552,8 @@ function clearContactDetails() {
   googleProfileStatus.value = ''
 }
 
-function applyCustomerProfile(profile: { name: string; whatsapp: string; email: string; dateOfBirth?: string }) {
+function applyCustomerProfile(profile: { name: string; whatsapp: string; email: string; dateOfBirth?: string; isAdmin?: boolean }) {
+  customerIsAdmin.value = profile.isAdmin === true
   form.name = profile.name
   form.phone = profile.whatsapp
   form.email = profile.email
@@ -562,7 +583,7 @@ async function loadCustomerProfile(token: string, signal?: AbortSignal) {
   })
   const body = await response.json() as {
     authenticated?: boolean
-    profile?: { name: string; whatsapp: string; email: string; dateOfBirth?: string }
+    profile?: { name: string; whatsapp: string; email: string; dateOfBirth?: string; isAdmin?: boolean }
     error?: string
   }
   if (!response.ok || body.authenticated !== true || !body.profile) {
@@ -677,6 +698,7 @@ function logout() {
   }
 
   customerSignedInName.value = ''
+  customerIsAdmin.value = false
   trainerSignedInId.value = ''
   trainerSignedInName.value = ''
   loginAsTrainer.value = false
@@ -2593,6 +2615,7 @@ async function sendResult() {
               <template v-if="trainerSignedInId || customerSignedInName">
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
+                <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="viewMode = 'admin-trainer'">Cadastrar Personal</button>
                 <button type="button" @click="logout">Sair</button>
               </template>
             </div>
@@ -2754,6 +2777,23 @@ async function sendResult() {
         <button class="back-button" type="button" @click="goHome">Início</button>
       </section>
 
+      <section v-if="viewMode === 'admin-trainer' && customerIsAdmin" class="customer-signup" aria-labelledby="admin-trainer-title">
+        <h2 id="admin-trainer-title" class="request-form-title"><button type="button" class="title-back-button" @click="goHome" aria-label="Voltar">&lt;</button> Cadastrar Personal Trainer</h2>
+        <form class="form contact-fields" @submit.prevent="saveAdminTrainer">
+          <label class="field field-wide"><span class="field-label">Nome completo</span><input v-model="adminTrainerForm.name" required maxlength="80" /></label>
+          <label class="field"><span class="field-label">WhatsApp</span><input v-model="adminTrainerForm.whatsapp" required type="tel" /></label>
+          <label class="field"><span class="field-label">E-mail</span><input v-model="adminTrainerForm.email" type="email" /></label>
+          <label class="field"><span class="field-label">Nascimento</span><input v-model="adminTrainerForm.dateOfBirth" required type="date" /></label>
+          <label class="field"><span class="field-label">Gênero</span><select v-model="adminTrainerForm.sex"><option value="feminino">Feminino</option><option value="masculino">Masculino</option></select></label>
+          <label class="field"><span class="field-label">CREF</span><input v-model="adminTrainerForm.cref" required placeholder="000000-G/RJ" /></label>
+          <label class="field"><span class="field-label">Instagram</span><input v-model="adminTrainerForm.instagram" required placeholder="@usuario" /></label>
+          <label class="field"><span class="field-label">Endereço do perfil (slug)</span><input v-model="adminTrainerForm.slug" required pattern="[a-z0-9-]+" placeholder="nome-do-personal" /></label>
+          <label class="field"><span class="field-label">Cidade</span><select v-model="adminTrainerForm.city"><option v-for="city in availableCities" :key="city" :value="city">{{ city }}</option></select></label>
+          <label class="field"><span class="field-label">Academias (separadas por vírgula)</span><input v-model="adminTrainerForm.academias" /></label>
+          <button type="submit" class="primary-button" :disabled="adminTrainerBusy">Salvar Personal</button>
+          <p role="status">{{ adminTrainerStatus }}</p>
+        </form>
+      </section>
       <section v-if="viewMode === 'professional-registration'" class="professional-registration-view" aria-labelledby="professional-registration-title">
         <h2 id="professional-registration-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar ao início" @click="goHome">&lt;</button> Consultar Registro profissional</h2>
         <p>Consulte a situação cadastral de profissionais de Educação Física no CREF-RJ.</p>
