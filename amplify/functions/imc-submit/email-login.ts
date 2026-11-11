@@ -99,7 +99,7 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
     const host = event.requestContext.domainName
     const stage = event.requestContext.stage
     if (!host || !stage || !/^[a-zA-Z0-9.-]+$/.test(host)) throw new Error('API host unavailable')
-    const url = 'https://' + host + '/' + stage + '/api/customers/verify-email-login?code=' + code
+    const url = 'https://fitpeso.com.br/?emailLoginCode=' + encodeURIComponent(code)
     const transport = nodemailer.createTransport({
       host: 'smtp.gmail.com', port: 465, secure: true,
       auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASSWORD },
@@ -107,7 +107,7 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
     await transport.sendMail({
       from: process.env.GMAIL_USER, to: email,
       subject: 'FitPeso — confirme seu login',
-      text: 'Para confirmar seu login no FitPeso, abra o link e clique em Confirmar acesso:\n\n' + url +
+      text: 'Para confirmar seu login no FitPeso, abra o link abaixo:\n\n' + url +
         '\n\nO link expira em 15 minutos. Se não solicitou este acesso, ignore esta mensagem.',
     })
     return reply(200, { started: true, expiresAt })
@@ -140,18 +140,16 @@ export async function emailLoginStatus(event: APIGatewayProxyEvent) {
 export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
   const code = event.queryStringParameters?.code ?? ''
   if (!validCode(code)) return reply(400, { error: 'Link de confirmação inválido.' })
+  // GET never consumes a magic link: mail preview scanners may follow links automatically.
   if (event.httpMethod === 'GET') {
-    // Explicit button prevents mail preview bots from consuming the link.
-    const body = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FitPeso — confirmar login</title></head>' +
-      '<body style="font-family:system-ui;background:#112019;color:white;text-align:center;padding:4rem 1rem">' +
-      '<h1>FitPeso</h1><p>Confirme que você deseja acessar sua conta.</p>' +
-      '<form method="POST"><button style="font-size:1.1rem;padding:1rem 2rem;border:0;border-radius:1rem;background:#40d3a3;color:#102019;cursor:pointer">Confirmar acesso</button></form></body></html>'
-    return { statusCode: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }, body }
+    return { statusCode: 302, headers: { location: 'https://fitpeso.com.br/?emailLoginCode=' + encodeURIComponent(code), 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }, body: '' }
   }
   const table = process.env.IMC_REQUESTS_TABLE
   if (!table) return reply(503, { error: 'Serviço indisponível.' })
   const now = Math.floor(Date.now() / 1000)
   let ok = false
+  let browserSessionToken = ''
+  let challengeRole = 'customer'
   try {
     const challenge = (await db.send(new GetItemCommand({
       TableName: table, Key: { codeHash: { S: digest(code) } }, ConsistentRead: true,
@@ -169,6 +167,9 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
         record.trainerId = { S: challenge.trainerId.S }
         record.city = { S: challenge.city.S }
       }
+      challengeRole = challenge.role?.S === 'trainer' ? 'trainer' : 'customer'
+      browserSessionToken = randomBytes(32).toString('base64url')
+      const browserRecord: Record<string, AttributeValue> = { ...record, codeHash: { S: digest(browserSessionToken) } }
       await db.send(new TransactWriteItemsCommand({
         TransactItems: [
           { Update: { TableName: table, Key: { codeHash: { S: digest(code) } },
@@ -178,6 +179,7 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
             ExpressionAttributeValues: { ':flow': { S: 'fitpeso-email-login' }, ':now': { N: String(now) } },
           } },
           { Put: { TableName: table, Item: record, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+          { Put: { TableName: table, Item: browserRecord, ConditionExpression: 'attribute_not_exists(codeHash)' } },
         ],
       }))
       ok = true
@@ -187,7 +189,7 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
       console.error('[email-login] Confirmation failed', { errorClass: error instanceof Error ? error.name : typeof error })
     }
   }
-  const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FitPeso — login</title></head><body style="font-family:system-ui;background:#112019;color:white;text-align:center;padding:4rem 1rem"><h1>FitPeso</h1>' +
-    (ok ? '<p>E-mail confirmado! Volte à aba do FitPeso para acessar sua conta.</p>' : '<p>Este link expirou ou já foi utilizado. Solicite um novo login no FitPeso.</p>') + '</body></html>'
-  return { statusCode: ok ? 200 : 410, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }, body: html }
+  return ok
+    ? reply(200, { authenticated: true, sessionToken: browserSessionToken, role: challengeRole })
+    : reply(410, { error: 'Este link expirou ou já foi utilizado. Solicite um novo login no FitPeso.' })
 }
