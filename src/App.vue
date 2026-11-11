@@ -2556,7 +2556,7 @@ async function sendResult() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
             <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
           </span>
-          <button v-if="!trainerSignedInId && !customerSignedInName" type="button" class="header-signup-button" @click="openCustomerSignupFromLogin()">Cadastre-se</button>
+          <a v-if="!trainerSignedInId && !customerSignedInName" href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
           <details class="account-dropdown main-hamburger-menu">
             <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
