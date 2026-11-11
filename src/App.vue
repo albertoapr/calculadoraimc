@@ -2809,14 +2809,14 @@ async function sendResult() {
           </button>
         </div>
         <div class="home-action home-assessment-link">
-          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
+          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliar meu peso</button>
         </div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action"><button class="primary-button" type="button" @click="openRequestForm">Solicitar Proposta</button></div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-action home-assessment-link">
-        <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliação online grátis</button>
+        <button type="button" class="secondary-button" @click="viewMode = 'assessment'">Avaliar meu peso</button>
       </div>
 
       <form v-if="viewMode === 'assessment' && !result" class="form" @submit.prevent="calculateImc">
