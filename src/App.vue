@@ -134,7 +134,14 @@ const NAV_ROLE = 'fitpeso:preferred-role:v1'
 const publicTrainers = ref<EligibleTrainer[]>([])
 const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
-const homeAcademy = ref(readNavigationPreference(NAV_ACADEMY))
+const mesquitaAcademies = ['Smart Fit — Centro', 'LifeFit — Centro', 'Aquatic Center — Vila Emil', 'Aquatic Center — Cosmorama']
+const storedHomeAcademy = readNavigationPreference(NAV_ACADEMY)
+const homeAcademyChoice = ref(storedHomeAcademy && !mesquitaAcademies.includes(storedHomeAcademy) ? 'Outras academias' : storedHomeAcademy)
+const homeOtherAcademy = ref(homeAcademyChoice.value === 'Outras academias' ? storedHomeAcademy : '')
+const homeAcademy = ref(storedHomeAcademy)
+function updateHomeAcademy() {
+  homeAcademy.value = homeAcademyChoice.value === 'Outras academias' ? homeOtherAcademy.value.trim() : homeAcademyChoice.value
+}
 const homeSelectedTrainerIds = ref<string[]>([])
 const sharingRequestId = ref('')
 const sharingRequestMessage = ref('')
@@ -2786,6 +2793,15 @@ async function sendResult() {
           <p v-if="!homeFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
         </template>
       </section>
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-academy-preference" style="margin: 1rem 0;">
+        <label for="home-academy-choice" style="display: block; margin-bottom: .4rem; font-weight: 600;">Academia de preferência</label>
+        <select id="home-academy-choice" v-model="homeAcademyChoice" @change="updateHomeAcademy" style="width: 100%; padding: .7rem; border-radius: .5rem;">
+          <option value="">Selecione sua academia</option>
+          <option v-for="academy in mesquitaAcademies" :key="academy" :value="academy">{{ academy }}</option>
+          <option value="Outras academias">Outras academias</option>
+        </select>
+        <input v-if="homeAcademyChoice === 'Outras academias'" v-model="homeOtherAcademy" type="text" maxlength="60" placeholder="Digite o nome da academia" aria-label="Nome de outra academia" @input="updateHomeAcademy" style="width: 100%; box-sizing: border-box; margin-top: .5rem; padding: .7rem; border-radius: .5rem;" />
+      </div>
       <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openPublicTrainers">
