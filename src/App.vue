@@ -2845,17 +2845,17 @@ async function sendResult() {
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <p v-if="crefCopyMessage" class="home-list-message" role="status">{{ crefCopyMessage }}</p>
           <div class="home-trainer-list">
-            <div v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
+            <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
               <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
                 <strong>{{ trainerDisplayName(trainer.name) }}</strong>
-                <small class="trainer-cref">CREF <template v-if="trainer.cref"><button type="button" class="trainer-cref-copy" :aria-label="'Copiar CREF ' + trainer.cref" title="Copiar CREF" @click="copyTrainerCref(trainer.cref)">{{ trainer.cref }}</button><a class="trainer-cref-search" href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer" :aria-label="'Consultar CREF de ' + trainerDisplayName(trainer.name) + ' no site do CREF-RJ (abre em nova aba)'" title="Consultar no CREF-RJ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></a></template><span v-else>não informado</span></small>
+                <small class="trainer-cref">CREF <template v-if="trainer.cref"><button type="button" class="trainer-cref-copy" :aria-label="'Copiar CREF ' + trainer.cref" title="Copiar CREF" @click.stop.prevent="copyTrainerCref(trainer.cref)">{{ trainer.cref }}</button><a class="trainer-cref-search" href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer" :aria-label="'Consultar CREF de ' + trainerDisplayName(trainer.name) + ' no site do CREF-RJ (abre em nova aba)'" title="Consultar no CREF-RJ" @click.stop><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></a></template><span v-else>não informado</span></small>
                 <small v-if="sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)">Solicitação já enviada</small>
                 <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" @click.stop>Instagram</a>
                 <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">Academias: {{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
               </span>
-            </div>
+            </label>
           </div>
           <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
         </template>
