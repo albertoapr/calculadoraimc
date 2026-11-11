@@ -134,6 +134,7 @@ const NAV_ROLE = 'fitpeso:preferred-role:v1'
 const publicTrainers = ref<EligibleTrainer[]>([])
 const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
+const publicTrainerAcademy = ref('')
 const mesquitaAcademies = ['Smart Fit — Centro', 'LifeFit — Centro', 'Aquatic Center — Vila Emil', 'Aquatic Center — Cosmorama']
 const storedHomeAcademy = readNavigationPreference(NAV_ACADEMY)
 const homeAcademyChoice = ref(storedHomeAcademy && !mesquitaAcademies.includes(storedHomeAcademy) ? 'Outras academias' : storedHomeAcademy)
@@ -221,7 +222,8 @@ async function sendRequestToSelectedTrainers() {
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
-const publicFilteredTrainers = computed(() => publicTrainers.value)
+const publicTrainerAcademies = computed(() => [...new Set(publicTrainers.value.flatMap(trainer => [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].map(name => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+const publicFilteredTrainers = computed(() => publicTrainers.value.filter(trainer => !publicTrainerAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.trim().toLocaleLowerCase('pt-BR') === publicTrainerAcademy.value.toLocaleLowerCase('pt-BR'))))
 async function loadPublicTrainers() {
   const id = ++publicLookupId
   publicTrainersLoading.value = true
@@ -241,6 +243,7 @@ async function loadPublicTrainers() {
 function openPublicTrainers() {
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
+  publicTrainerAcademy.value = ''
   homeSelectedTrainerIds.value = []
   viewMode.value = 'public-trainers'
   sharingRequestId.value = ''
@@ -2807,6 +2810,13 @@ async function sendResult() {
 
       <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
+          <label class="home-academy-select">
+            <span class="sr-only">Filtrar por academia</span>
+            <select v-model="publicTrainerAcademy" aria-label="Filtrar profissionais por academia">
+              <option value="">Todas as academias</option>
+              <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
+            </select>
+          </label>
           <label v-if="openShareableRequests.some(request => request.city === publicTrainerCity)" class="home-academy-select">
             <span class="sr-only">Solicitação aberta</span>
             <select v-model="sharingRequestId" aria-label="Escolher solicitação para enviar" @change="homeSelectedTrainerIds = []; sharingRequestMessage = ''">
@@ -2835,7 +2845,7 @@ async function sendResult() {
               </span>
             </label>
           </div>
-          <p v-if="!homeFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
+          <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
         </template>
       </section>
       <div v-if="viewMode === 'home' && !result && isRootHome" class="home-academy-preference" style="margin: 1rem 0;">
