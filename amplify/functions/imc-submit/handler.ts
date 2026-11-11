@@ -24,7 +24,7 @@ const corsHeaders = {
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Content-Type, Authorization, X-Fitpeso-Verification-Secret',
-  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
 }
 
 function response(statusCode: number, body: Record<string, unknown>) {
@@ -1106,6 +1106,148 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   }
 }
 
+const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+
+async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!customersTable) return { error: response(503, { error: 'Serviço indisponível.' }) }
+  const customer = await dynamodb.send(new GetItemCommand({
+    TableName: customersTable,
+    Key: { whatsapp: { S: auth.profile!.whatsapp } },
+    ConsistentRead: true,
+  }))
+  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
+    return { error: response(403, { error: 'Acesso exclusivo do administrador.' }) }
+  }
+  return { profile: auth.profile! }
+}
+
+async function getTrainerRows(trainerId: string) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { city: { S: city }, trainerId: { S: trainerId } },
+    ConsistentRead: true,
+  }))))
+  return results.flatMap(result => result.Item ? [result.Item] : [])
+}
+
+async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço indisponível.' })
+  try {
+    const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: '#city = :city',
+      ExpressionAttributeNames: { '#city': 'city' },
+      ExpressionAttributeValues: { ':city': { S: city } },
+    }))))
+    const rows = results.flatMap(result => result.Items ?? [])
+    const grouped = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const trainerId = row.trainerId?.S
+      if (!trainerId) continue
+      const current = grouped.get(trainerId) ?? []
+      current.push(row)
+      grouped.set(trainerId, current)
+    }
+    const trainers = [...grouped.entries()].map(([trainerId, trainerRows]) => {
+      const item = trainerRows[0]
+      return {
+        trainerId,
+        name: item.name?.S ?? '',
+        whatsapp: item.whatsapp?.S ?? '',
+        email: item.email?.S ?? '',
+        dateOfBirth: item.dateOfBirth?.S ?? '',
+        sex: item.sex?.S ?? 'feminino',
+        cref: item.cref?.S ?? '',
+        instagram: item.instagram?.S ?? '',
+        slug: item.slug?.S ?? '',
+        cities: [...new Set(trainerRows.map(row => row.city?.S ?? '').filter(Boolean))],
+        academias: (item.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean),
+        active: item.active?.BOOL === true,
+      }
+    }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    return response(200, { trainers })
+  } catch (error) {
+    console.error('[imc-submit] Admin trainer listing failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível carregar os profissionais.' })
+  }
+}
+
+async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
+  const tableName = process.env.TRAINERS_TABLE
+  const slugTable = process.env.TRAINER_SLUGS_TABLE
+  if (!tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
+  const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Profissional inválido.' })
+  const data = parseBody(event)
+  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth || typeof data.active !== 'boolean') {
+    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidades e endereço.' })
+  }
+  const whatsapp = normalizePhone(data.whatsapp)
+  const cref = String(data.cref).trim().toUpperCase()
+  const cities = data.cities as string[]
+  const slug = String(data.slug).trim().toLowerCase()
+  try {
+    const existingRows = await getTrainerRows(trainerId)
+    if (!existingRows.length) return response(404, { error: 'Profissional não encontrado.' })
+    for (const city of supportedTrainerCities) {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: '#city = :city',
+        ExpressionAttributeNames: { '#city': 'city' },
+        ExpressionAttributeValues: { ':city': { S: city } },
+      }))
+      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref))) {
+        return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
+      }
+    }
+    const first = existingRows[0]
+    const oldCities = [...new Set(existingRows.map(row => row.city?.S ?? '').filter(Boolean))]
+    const oldSlug = first.slug?.S ?? ''
+    const now = new Date().toISOString()
+    const sharedItem = {
+      trainerId: { S: trainerId }, slug: { S: slug },
+      name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
+      sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
+      email: { S: String(data.email ?? '').trim().toLowerCase() },
+      dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram).trim() },
+      cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+      active: { BOOL: data.active as boolean }, status: { S: data.active ? 'active' : 'inactive' },
+      whatsappVerified: { BOOL: first.whatsappVerified?.BOOL === true },
+      ...(first.createdByAdmin?.S ? { createdByAdmin: { S: first.createdByAdmin.S } } : {}),
+      ...(first.submittedAt?.N ? { submittedAt: { N: first.submittedAt.N } } : {}),
+      updatedAt: { S: now }, updatedByAdmin: { S: auth.profile!.whatsapp },
+    }
+    const retained = cities.filter(city => oldCities.includes(city))
+    const added = cities.filter(city => !oldCities.includes(city))
+    const removed = oldCities.filter(city => !cities.includes(city))
+    const transaction: any[] = [
+      ...retained.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem } } })),
+      ...added.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+      ...removed.map(city => ({ Delete: { TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } } } })),
+    ]
+    if (slug !== oldSlug) {
+      transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } })
+      if (oldSlug) transaction.push({ Delete: { TableName: slugTable, Key: { slug: { S: oldSlug } }, ConditionExpression: 'trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: transaction }))
+    return response(200, { updated: true, trainerId })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Os dados foram alterados ou o endereço do perfil já está em uso.' })
+    console.error('[imc-submit] Admin trainer update failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o profissional.' })
+  }
+}
+
 function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandler>[0]) {
   const expected = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
   const supplied = Object.entries(event.headers ?? {}).find(([name]) => name.toLowerCase() === 'x-fitpeso-verification-secret')?.[1]
@@ -2161,6 +2303,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return verifyTrainerLogin(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/received-requests')) return listTrainerReceivedRequests(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/trainers')) return listAdminTrainers(event)
+  if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
     const auth = await getTrainerSession(event)
     return auth.error ?? response(200, { authenticated: true, profile: auth.profile! })
