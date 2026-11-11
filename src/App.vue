@@ -101,7 +101,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration' | 'about'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -2572,17 +2572,15 @@ async function sendResult() {
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
             <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
           </span>
-          <span v-if="!trainerSignedInId && !customerSignedInName" class="header-auth-links">
-            <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a><span class="header-auth-divider" aria-hidden="true">|</span><a href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
-          </span>
-          <details v-if="trainerSignedInId || customerSignedInName || viewMode !== 'home'" class="account-dropdown main-hamburger-menu">
+          <details class="account-dropdown main-hamburger-menu">
             <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </summary>
             <div class="account-dropdown-panel">
-              <button v-if="!trainerSignedInId && !customerSignedInName" type="button" @click="openCustomerLogin()">Entrar</button>
+              <template v-if="!trainerSignedInId && !customerSignedInName"><button type="button" @click="openCustomerLogin()">Entrar</button><button type="button" @click="openCustomerSignupFromLogin()">Cadastre-se</button></template>
               <button type="button" @click="viewMode = 'assessment'">Avaliação corporal</button>
               <button type="button" @click="openProfessionalRegistration">Consultar Registro profissional</button>
+              <button type="button" @click="viewMode = 'about'">Sobre</button>
               <template v-if="trainerSignedInId || customerSignedInName">
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
@@ -2629,12 +2627,18 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : viewMode === 'about' ? 'Sobre o FitPeso' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
 
-      <section v-if="viewMode === 'my-profile'" class="customer-signup" aria-labelledby="page-title">
+      <section v-if="viewMode === 'about'" class="about-page" aria-labelledby="page-title">
+        <p>O FitPeso é uma plataforma que conecta pessoas que desejam treinar com profissionais de Educação Física.</p>
+        <p>Encontre personal trainers na sua cidade, conheça os profissionais disponíveis e solicite propostas de atendimento conforme suas necessidades e disponibilidade.</p>
+        <p>Profissionais cadastrados podem apresentar seus serviços e receber solicitações de potenciais alunos.</p>
+        <p>Nosso objetivo é simplificar a busca por acompanhamento profissional para a prática de atividades físicas.</p>
+      </section>
+      <section v-else-if="viewMode === 'my-profile'" class="customer-signup" aria-labelledby="page-title">
         <p class="intro">Consulte e atualize as informações do seu cadastro.</p>
         <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
         <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
