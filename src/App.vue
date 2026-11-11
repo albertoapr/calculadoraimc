@@ -2573,7 +2573,7 @@ async function sendResult() {
             <span>Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}</span>
           </span>
           <a v-if="!trainerSignedInId && !customerSignedInName" href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
-          <details class="account-dropdown main-hamburger-menu">
+          <details v-if="trainerSignedInId || customerSignedInName || viewMode !== 'home'" class="account-dropdown main-hamburger-menu">
             <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </summary>
