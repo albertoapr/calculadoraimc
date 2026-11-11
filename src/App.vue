@@ -147,7 +147,9 @@ const homeSelectedTrainerIds = ref<string[]>([])
 const sharingRequestId = ref('')
 const sharingRequestMessage = ref('')
 const sharingRequestBusy = ref(false)
-const openShareableRequests = computed(() => customerRequests.value.filter(request => request.lifecycle === 'OPEN' && !request.requestExpired && request.validUntil * 1000 > Date.now() && request.proposalCount < 5))
+const activeCustomerRequest = computed(() => customerRequests.value.find(request => request.lifecycle === 'OPEN' && !request.requestExpired && request.validUntil * 1000 > Date.now()))
+const checkingCustomerRequests = ref(false)
+const customerRequestsLookupError = ref('')
 const pendingHomeTrainerIds = ref<string[]>([])
 const homeGymOptions = computed(() => {
   const names = new Set(academyOptions.filter(name => name !== 'Outros'))
@@ -185,15 +187,21 @@ async function openTrainersForRequest(request: CustomerRequest) {
 }
 
 async function refreshShareableRequests() {
-  if (!customerSignedInName.value) return
+  if (!customerSignedInName.value) { customerRequests.value = []; sharingRequestId.value = ''; customerRequestsLookupError.value = ''; return }
+  checkingCustomerRequests.value = true
+  customerRequestsLookupError.value = ''
   try {
     const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
-    if (!token) return
+    if (!token) throw new Error('Entre novamente para consultar sua solicitação.')
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(endpoint + '/api/customers/requests', { headers: { authorization: 'Bearer ' + token }, cache: 'no-store' })
     const body = await response.json() as { requests?: CustomerRequest[] }
-    if (response.ok && Array.isArray(body.requests)) customerRequests.value = body.requests
-  } catch { /* A lista pode ser atualizada novamente. */ }
+    if (!response.ok || !Array.isArray(body.requests)) throw new Error('Não foi possível consultar sua solicitação.')
+    customerRequests.value = body.requests
+    sharingRequestId.value = activeCustomerRequest.value?.requestId ?? ''
+  } catch {
+    customerRequestsLookupError.value = 'Não foi possível consultar sua solicitação. Tente novamente.'
+  } finally { checkingCustomerRequests.value = false }
 }
 
 async function sendRequestToSelectedTrainers() {
@@ -1239,7 +1247,7 @@ function updateHomeCity(city: string) {
   if (homeCity.value === city) return
   homeCity.value = city
   if (viewMode.value === 'public-trainers') {
-    if (publicTrainerCity.value !== city) { sharingRequestId.value = ''; sharingRequestMessage.value = '' }
+    if (publicTrainerCity.value !== city) sharingRequestMessage.value = ''
     publicTrainerCity.value = city
     homeSelectedTrainerIds.value = []
     void loadPublicTrainers()
@@ -2208,6 +2216,17 @@ async function finishEmailLoginFromLink() {
   }
 }
 
+const crefCopyMessage = ref('')
+
+async function copyTrainerCref(cref: string) {
+  try {
+    await navigator.clipboard.writeText(cref)
+    crefCopyMessage.value = 'CREF copiado: ' + cref
+  } catch {
+    crefCopyMessage.value = 'Não foi possível copiar o CREF. Selecione o número para copiá-lo.'
+  }
+}
+
 function closeHamburgerOnOutsideClick(event: PointerEvent) {
   const menu = document.querySelector<HTMLDetailsElement>('.main-hamburger-menu[open]')
   if (menu && event.target instanceof Node && !menu.contains(event.target)) menu.open = false
@@ -2817,28 +2836,26 @@ async function sendResult() {
               <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
             </select>
           </label>
-          <label v-if="openShareableRequests.some(request => request.city === publicTrainerCity)" class="home-academy-select">
-            <span class="sr-only">Solicitação aberta</span>
-            <select v-model="sharingRequestId" aria-label="Escolher solicitação para enviar" @change="homeSelectedTrainerIds = []; sharingRequestMessage = ''">
-              <option value="">Criar nova solicitação</option>
-              <option v-for="request in openShareableRequests.filter(request => request.city === publicTrainerCity)" :key="request.requestId" :value="request.requestId">{{ request.objective || 'Solicitação' }} · {{ new Date(request.validUntil * 1000).toLocaleDateString('pt-BR') }}</option>
-            </select>
-          </label>
-          <button class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : sharingRequestId ? 'Enviar solicitação' : 'Solicitar Proposta' }}</button>
+          <button class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy || checkingCustomerRequests || !!customerRequestsLookupError || (!!activeCustomerRequest && (activeCustomerRequest.city !== publicTrainerCity || activeCustomerRequest.proposalCount >= 5))" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : checkingCustomerRequests ? 'Consultando…' : activeCustomerRequest ? 'Enviar solicitação' : 'Solicitar Atendimento' }}</button>
         </div>
+        <p v-if="activeCustomerRequest" class="home-list-message"><a href="#minhas-solicitacoes" @click.prevent="openCustomerRequests">Ver solicitação aberta</a> · {{ activeCustomerRequest.city }}</p>
+        <p v-if="activeCustomerRequest && activeCustomerRequest.city !== publicTrainerCity" class="home-list-message">Para enviar esta solicitação, busque profissionais em {{ activeCustomerRequest.city }}.</p>
+        <p v-else-if="activeCustomerRequest && activeCustomerRequest.proposalCount >= 5" class="home-list-message">Esta solicitação já atingiu o limite de propostas.</p>
+        <p v-if="customerRequestsLookupError" class="home-list-message" role="alert">{{ customerRequestsLookupError }} <button type="button" @click="refreshShareableRequests">Tentar novamente</button></p>
         <p v-if="sharingRequestMessage" class="home-list-message" role="status">{{ sharingRequestMessage }}</p>
         <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
+          <p v-if="crefCopyMessage" class="home-list-message" role="status">{{ crefCopyMessage }}</p>
           <div class="home-trainer-list">
             <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
               <input v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
                 <strong>{{ trainerDisplayName(trainer.name) }}</strong>
-                <small>CREF {{ trainer.cref || 'não informado' }}</small>
+                <small class="trainer-cref">CREF <template v-if="trainer.cref"><button type="button" class="trainer-cref-copy" :aria-label="'Copiar CREF ' + trainer.cref" title="Copiar CREF" @click.stop.prevent="copyTrainerCref(trainer.cref)">{{ trainer.cref }}</button><a class="trainer-cref-search" href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer" :aria-label="'Consultar CREF de ' + trainerDisplayName(trainer.name) + ' no site do CREF-RJ (abre em nova aba)'" title="Consultar no CREF-RJ" @click.stop><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></a></template><span v-else>não informado</span></small>
                 <small v-if="sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)">Solicitação já enviada</small>
                 <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" @click.stop>Instagram</a>
                 <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">Academias: {{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
@@ -3119,6 +3136,10 @@ async function sendResult() {
 .public-directory .home-trainer-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
 @media(max-width:700px) { .public-directory .home-trainer-controls { grid-template-columns:1fr 1fr; } .public-directory .home-trainer-controls .home-proposal-button { grid-column:1 / -1; } }
 .home-trainer-list { display:grid; gap:10px; }
+.trainer-cref { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.trainer-cref-copy { color:inherit; font:inherit; background:transparent; border:0; padding:4px 0; text-decoration:underline; cursor:pointer; }
+.trainer-cref-search { display:inline-flex; align-items:center; justify-content:center; min-width:36px; min-height:36px; color:inherit; }
+.trainer-cref-search svg { width:18px; height:18px; }
 .home-trainer-card { display:flex; gap:14px; align-items:center; border:1px solid var(--border-color, #86978f); border-radius:16px; padding:14px; cursor:pointer; }
 .home-trainer-card input { flex:none; width:22px; height:22px; accent-color:#08763a; }
 .home-trainer-avatar { display:grid; flex:none; place-items:center; width:58px; height:58px; border-radius:12px; background:#d9efe0; color:#075f32; font-weight:750; }
