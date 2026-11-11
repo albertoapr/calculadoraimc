@@ -194,7 +194,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   },
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Fitpeso-Verification-Secret'],
   },
 })
