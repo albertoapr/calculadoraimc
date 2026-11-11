@@ -73,7 +73,7 @@ trainers.addGlobalSecondaryIndex({
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
-trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem')
+trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:DeleteItem')
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 fitpesoProposals.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 fitpesoAtendimentos.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:TransactWriteItems')
@@ -194,7 +194,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   },
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Fitpeso-Verification-Secret'],
   },
 })
@@ -222,7 +222,10 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const adminResource = apiResource.addResource('admin')
-adminResource.addResource('trainers').addMethod('POST', lambdaIntegration())
+const adminTrainersResource = adminResource.addResource('trainers')
+adminTrainersResource.addMethod('GET', lambdaIntegration())
+adminTrainersResource.addMethod('POST', lambdaIntegration())
+adminTrainersResource.addResource('{trainerId}').addMethod('PUT', lambdaIntegration())
 const personalResource = apiResource.addResource('personal')
 personalResource.addResource('listar').addMethod('GET', lambdaIntegration())
 const trainersResource = apiResource.addResource('trainers')
