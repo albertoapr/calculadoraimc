@@ -90,6 +90,7 @@ type CustomerProposal = { trainerId: string; name: string; whatsapp: string; ins
 type TrainerReceivedRequest = { requestId: string; clientName: string; city: string; objective?: string; createdAt: string; validUntil: number; lifecycle: string; token: string }
 type EditableProfile = { name: string; whatsapp: string; email: string; dateOfBirth: string; instagram: string; cref: string; slug: string; academias: string[] }
 type TrainerAccountProfile = { trainerId: string; name: string; whatsapp: string; email?: string; dateOfBirth?: string; instagram?: string; cref?: string; sex?: string; slug?: string; academias?: string[] }
+type AdminTrainer = { trainerId: string; name: string; whatsapp: string; email: string; dateOfBirth: string; sex: string; cref: string; instagram: string; slug: string; cities: string[]; academias: string[]; active: boolean }
 type CustomerRequest = { requestId: string; city: string; objective?: string; selectedTrainerIds?: string[]; lifecycle: string; proposalCount: number; validUntil: number; requestExpired?: boolean; acceptedAt?: string; proposals: CustomerProposal[] }
 
 const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -101,7 +102,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration' | 'admin-trainer'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration' | 'admin-trainer' | 'admin-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -353,6 +354,84 @@ async function saveAdminTrainer() {
     adminTrainerStatus.value = 'Personal cadastrado e ativado com sucesso.'
   } catch (error) { adminTrainerStatus.value = error instanceof Error ? error.message : 'Falha ao cadastrar profissional.' }
   finally { adminTrainerBusy.value = false }
+}
+
+const adminTrainers = ref<AdminTrainer[]>([])
+const adminTrainerSearch = ref('')
+const selectedAdminTrainerId = ref('')
+const adminTrainersStatus = ref('')
+const adminTrainersLoading = ref(false)
+const adminTrainerEditBusy = ref(false)
+const adminTrainerEditForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '', sex: 'feminino', cref: '', instagram: '', slug: '', cities: [] as string[], academias: '', active: true })
+const filteredAdminTrainers = computed(() => {
+  const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
+  if (!search) return adminTrainers.value
+  return adminTrainers.value.filter(trainer => [trainer.name, trainer.cref, trainer.whatsapp].some(value => value.toLocaleLowerCase('pt-BR').includes(search)))
+})
+
+function selectAdminTrainer(trainer: AdminTrainer) {
+  selectedAdminTrainerId.value = trainer.trainerId
+  Object.assign(adminTrainerEditForm, {
+    name: trainer.name, whatsapp: trainer.whatsapp, email: trainer.email,
+    dateOfBirth: trainer.dateOfBirth, sex: trainer.sex || 'feminino', cref: trainer.cref,
+    instagram: trainer.instagram, slug: trainer.slug, cities: [...trainer.cities],
+    academias: trainer.academias.join(', '), active: trainer.active,
+  })
+  adminTrainersStatus.value = ''
+  void nextTick(() => document.querySelector<HTMLElement>('#admin-trainer-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+async function loadAdminTrainers() {
+  if (!customerIsAdmin.value || adminTrainersLoading.value) return
+  const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+  if (!token) { adminTrainersStatus.value = 'Entre novamente como administrador.'; return }
+  adminTrainersLoading.value = true
+  adminTrainersStatus.value = 'Carregando profissionais…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/admin/trainers', { headers: { authorization: 'Bearer ' + token }, cache: 'no-store' })
+    const body = await response.json() as { trainers?: AdminTrainer[]; error?: string }
+    if (!response.ok || !Array.isArray(body.trainers)) throw new Error(body.error || 'Não foi possível carregar os profissionais.')
+    adminTrainers.value = body.trainers
+    adminTrainersStatus.value = body.trainers.length ? '' : 'Nenhum profissional cadastrado.'
+    if (selectedAdminTrainerId.value) {
+      const selected = body.trainers.find(trainer => trainer.trainerId === selectedAdminTrainerId.value)
+      if (selected) selectAdminTrainer(selected)
+    }
+  } catch (error) {
+    adminTrainersStatus.value = error instanceof Error ? error.message : 'Não foi possível carregar os profissionais.'
+  } finally { adminTrainersLoading.value = false }
+}
+
+function openAdminTrainers() {
+  viewMode.value = 'admin-trainers'
+  selectedAdminTrainerId.value = ''
+  adminTrainerSearch.value = ''
+  void loadAdminTrainers()
+  void nextTick(() => window.scrollTo(0, 0))
+}
+
+async function saveAdminTrainerEdit() {
+  if (!customerIsAdmin.value || !selectedAdminTrainerId.value || adminTrainerEditBusy.value) return
+  if (!adminTrainerEditForm.cities.length) { adminTrainersStatus.value = 'Selecione pelo menos uma cidade.'; return }
+  const token = sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+  if (!token) { adminTrainersStatus.value = 'Entre novamente como administrador.'; return }
+  adminTrainerEditBusy.value = true
+  adminTrainersStatus.value = 'Salvando profissional…'
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/admin/trainers/' + encodeURIComponent(selectedAdminTrainerId.value), {
+      method: 'PUT',
+      headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+      body: JSON.stringify({ ...adminTrainerEditForm, academias: adminTrainerEditForm.academias.split(',').map(name => name.trim()).filter(Boolean) }),
+    })
+    const body = await response.json() as { updated?: boolean; error?: string }
+    if (!response.ok || !body.updated) throw new Error(body.error || 'Não foi possível salvar o profissional.')
+    await loadAdminTrainers()
+    adminTrainersStatus.value = 'Dados do profissional atualizados com sucesso.'
+  } catch (error) {
+    adminTrainersStatus.value = error instanceof Error ? error.message : 'Não foi possível salvar o profissional.'
+  } finally { adminTrainerEditBusy.value = false }
 }
 
 const trainerSignedInName = ref('')
@@ -2643,6 +2722,7 @@ async function sendResult() {
                 <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
                 <button type="button" @click="openMyProfile">Meu cadastro</button>
                 <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="viewMode = 'admin-trainer'">Cadastrar Personal</button>
+                <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="openAdminTrainers">Editar profissionais</button>
                 <button type="button" @click="logout">Sair</button>
               </template>
             </div>
@@ -2819,6 +2899,35 @@ async function sendResult() {
           <label class="field"><span class="field-label">Academias (separadas por vírgula)</span><input v-model="adminTrainerForm.academias" /></label>
           <button type="submit" class="primary-button" :disabled="adminTrainerBusy">Salvar Personal</button>
           <p role="status">{{ adminTrainerStatus }}</p>
+        </form>
+      </section>
+      <section v-if="viewMode === 'admin-trainers' && customerIsAdmin" class="admin-trainers-view" aria-labelledby="admin-trainers-title">
+        <h2 id="admin-trainers-title" class="request-form-title"><button type="button" class="title-back-button" @click="goHome" aria-label="Voltar">&lt;</button> Editar profissionais</h2>
+        <label class="field field-wide"><span class="field-label">Buscar por nome, CREF ou WhatsApp</span><input v-model="adminTrainerSearch" type="search" autocomplete="off" placeholder="Digite para buscar" /></label>
+        <p v-if="adminTrainersStatus" class="status" role="status">{{ adminTrainersStatus }}</p>
+        <div v-if="!adminTrainersLoading" class="admin-trainer-list" aria-label="Profissionais cadastrados">
+          <button v-for="trainer in filteredAdminTrainers" :key="trainer.trainerId" type="button" class="admin-trainer-list-item" :class="{ selected: selectedAdminTrainerId === trainer.trainerId }" @click="selectAdminTrainer(trainer)">
+            <strong>{{ trainer.name }}</strong>
+            <span>{{ trainer.cref }} · {{ trainer.cities.join(', ') }}</span>
+            <small>{{ trainer.active ? 'Ativo' : 'Inativo' }}</small>
+          </button>
+        </div>
+        <p v-if="!adminTrainersLoading && adminTrainerSearch && !filteredAdminTrainers.length" class="status">Nenhum profissional encontrado.</p>
+
+        <form v-if="selectedAdminTrainerId" id="admin-trainer-edit-form" class="form contact-fields admin-trainer-edit-form" @submit.prevent="saveAdminTrainerEdit">
+          <h3 class="field-wide">Dados do profissional</h3>
+          <label class="field field-wide"><span class="field-label">Nome completo</span><input v-model="adminTrainerEditForm.name" required maxlength="80" /></label>
+          <label class="field"><span class="field-label">WhatsApp</span><input v-model="adminTrainerEditForm.whatsapp" required type="tel" /></label>
+          <label class="field"><span class="field-label">E-mail</span><input v-model="adminTrainerEditForm.email" type="email" /></label>
+          <label class="field"><span class="field-label">Nascimento</span><input v-model="adminTrainerEditForm.dateOfBirth" required type="date" /></label>
+          <label class="field"><span class="field-label">Gênero</span><select v-model="adminTrainerEditForm.sex"><option value="feminino">Feminino</option><option value="masculino">Masculino</option></select></label>
+          <label class="field"><span class="field-label">CREF</span><input v-model="adminTrainerEditForm.cref" required placeholder="000000-G/RJ" /></label>
+          <label class="field"><span class="field-label">Instagram</span><input v-model="adminTrainerEditForm.instagram" required placeholder="@usuario" /></label>
+          <label class="field"><span class="field-label">Endereço do perfil</span><input v-model="adminTrainerEditForm.slug" required pattern="[a-z0-9-]+" /></label>
+          <fieldset class="field field-wide admin-trainer-cities"><legend>Cidades atendidas</legend><label v-for="city in availableCities" :key="city"><input v-model="adminTrainerEditForm.cities" type="checkbox" :value="city" /> {{ city }}</label></fieldset>
+          <label class="field field-wide"><span class="field-label">Academias (separadas por vírgula)</span><input v-model="adminTrainerEditForm.academias" /></label>
+          <label class="admin-trainer-active field-wide"><input v-model="adminTrainerEditForm.active" type="checkbox" /> Profissional ativo e visível nas buscas</label>
+          <button class="primary-button field-wide" type="submit" :disabled="adminTrainerEditBusy">{{ adminTrainerEditBusy ? 'Salvando…' : 'Salvar alterações' }}</button>
         </form>
       </section>
       <section v-if="viewMode === 'professional-registration'" class="professional-registration-view" aria-labelledby="professional-registration-title">
@@ -3184,6 +3293,18 @@ async function sendResult() {
 .request-gender { flex:1 1 125px; }
 .request-card .field { min-width:0; }
 @media(max-width:390px) { .request-card { padding:12px; } .request-choice-row { gap:5px; } .request-choice:not(.request-shift):not(.request-gender) span { padding:8px; } }
+
+.admin-trainers-view { display:grid; gap:16px; }
+.admin-trainer-list { display:grid; gap:8px; max-height:360px; overflow:auto; padding:2px; }
+.admin-trainer-list-item { display:grid; gap:3px; width:100%; padding:12px 14px; border:1px solid currentColor; border-radius:12px; background:transparent; color:inherit; text-align:left; cursor:pointer; font:inherit; }
+.admin-trainer-list-item.selected { outline:3px solid #efa449; border-color:#efa449; }
+.admin-trainer-list-item span,.admin-trainer-list-item small { opacity:.8; }
+.admin-trainer-edit-form { margin-top:8px; padding-top:18px; border-top:1px solid currentColor; }
+.admin-trainer-edit-form h3 { margin:0; }
+.admin-trainer-cities { display:flex; flex-wrap:wrap; gap:12px; padding:12px; border:1px solid currentColor; border-radius:12px; }
+.admin-trainer-cities legend { padding:0 6px; font-weight:650; }
+.admin-trainer-cities label,.admin-trainer-active { display:flex; align-items:center; gap:7px; cursor:pointer; }
+.admin-trainer-cities input,.admin-trainer-active input { width:20px; height:20px; accent-color:#08763a; }
 
 .title-back-button {
   display: inline-flex;
