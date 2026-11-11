@@ -187,7 +187,7 @@ async function openTrainersForRequest(request: CustomerRequest) {
 }
 
 async function refreshShareableRequests() {
-  if (!customerSignedInName.value) { customerRequests.value = []; return }
+  if (!customerSignedInName.value) { customerRequests.value = []; sharingRequestId.value = ''; customerRequestsLookupError.value = ''; return }
   checkingCustomerRequests.value = true
   customerRequestsLookupError.value = ''
   try {
