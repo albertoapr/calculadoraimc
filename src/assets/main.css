@@ -611,3 +611,11 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 .professional-registration-help { font-size: 13px; color: var(--muted); }
 .professional-registration-help a { color: var(--blue-dark); text-decoration: underline; }
 @media (max-width: 600px) { .professional-registration-frame { min-height: 580px; height: 75vh; } }
+
+/* Keep the FitPeso icon, wordmark and tagline as one compact top-aligned lockup. */
+.fitpeso-home-topbar { align-items: flex-start; }
+.fitpeso-home-brand { gap: 0; line-height: 1; align-self: flex-start; }
+.fitpeso-home-brand-main { align-items: center; gap: 4px; line-height: 1; }
+.fitpeso-home-brand .dumbbell-icon { flex-shrink: 0; }
+.fitpeso-home-brand .brand-default { line-height: 1; vertical-align: middle; }
+.fitpeso-home-brand .brand-tagline { margin-top: -2px; line-height: 1.05; }
