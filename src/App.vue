@@ -2612,7 +2612,7 @@ async function sendResult() {
           <span v-if="!trainerSignedInId && !customerSignedInName" class="header-auth-links">
             <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a><span class="header-auth-divider" aria-hidden="true">|</span><a href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
           </span>
-          <details v-if="trainerSignedInId || customerSignedInName || (viewMode !== 'home' && !(viewMode === 'contact' && showRequestForm))" class="account-dropdown main-hamburger-menu">
+          <details v-if="trainerSignedInId || customerSignedInName || (viewMode !== 'home' && viewMode !== 'public-trainers' && !(viewMode === 'contact' && showRequestForm))" class="account-dropdown main-hamburger-menu">
             <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </summary>
