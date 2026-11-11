@@ -619,3 +619,13 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 .fitpeso-home-brand .dumbbell-icon { flex-shrink: 0; }
 .fitpeso-home-brand .brand-default { line-height: 1; vertical-align: middle; }
 .fitpeso-home-brand .brand-tagline { margin-top: -2px; line-height: 1.05; }
+
+/* Guest navigation uses the same two theme-aware colors as the FitPeso wordmark. */
+.header-auth-links { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 13px; font-weight: 800; }
+.header-auth-links a { text-decoration: none; border: 0; padding: 4px 0; background: transparent; }
+.header-auth-links a:hover, .header-auth-links a:focus-visible { text-decoration: underline; }
+.header-auth-links .header-login-link { color: #286b4e; }
+.header-auth-links .header-signup-link { color: #263f33; }
+.header-auth-divider { color: var(--muted); font-weight: 400; }
+html[data-theme='dark'] .header-auth-links .header-login-link { color: #55d6a3; }
+html[data-theme='dark'] .header-auth-links .header-signup-link { color: #f1f5f3; }
