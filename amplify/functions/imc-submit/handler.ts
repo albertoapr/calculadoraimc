@@ -1089,7 +1089,7 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
       { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
       ...cities.map(city => ({ Put: { TableName: tableName, Item: {
         city: { S: city }, trainerId: { S: trainerId }, slug: { S: slug },
-        name: { S: String(data.name).trim().replace(/\\s+/g, ' ') },
+        name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
         sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
         email: { S: String(data.email ?? '').trim().toLowerCase() },
         dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram) },
