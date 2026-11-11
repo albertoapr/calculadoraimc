@@ -2120,7 +2120,42 @@ function openCustomerSignupFromLogin() {
   history.replaceState(null, '', `${window.location.pathname}#cadastro-cliente`)
 }
 
+async function finishEmailLoginFromLink() {
+  const url = new URL(window.location.href)
+  const code = url.searchParams.get('emailLoginCode')
+  if (!code) return
+  // Remove the one-time code from history before making network requests.
+  url.searchParams.delete('emailLoginCode')
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+  try {
+    const endpoint = await getRequestApiEndpoint()
+    const response = await fetch(endpoint + '/api/customers/verify-email-login?code=' + encodeURIComponent(code), {
+      method: 'POST', cache: 'no-store',
+    })
+    const result = await response.json() as { authenticated?: boolean; sessionToken?: string; role?: string; error?: string }
+    if (!response.ok || !result.authenticated || !result.sessionToken) throw new Error(result.error || 'Não foi possível confirmar o e-mail.')
+    const token = result.sessionToken
+    if (result.role === 'trainer') {
+      const profile = await loadTrainerSession(token)
+      sessionStorage.setItem('fitpeso-trainer-session', token)
+      applyTrainerSession(profile)
+    } else {
+      const profile = await loadCustomerProfile(token)
+      sessionStorage.setItem('fitpeso-customer-session', token)
+      sessionStorage.removeItem('fitpeso-google-session')
+      applyCustomerProfile(profile)
+    }
+    emailLoginPending.value = false
+    showCustomerLogin.value = false
+    goHome()
+  } catch (error) {
+    emailLoginError.value = error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
+    showCustomerLogin.value = true
+  }
+}
+
 onMounted(() => {
+  void finishEmailLoginFromLink()
   if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
   window.scrollTo(0, 0)
   if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
