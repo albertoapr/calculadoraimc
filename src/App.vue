@@ -121,10 +121,20 @@ const signupAcademyChoice = ref('')
 const signupOtherAcademy = ref('')
 const profileAcademyChoice = ref('')
 const profileOtherAcademy = ref('')
+function readNavigationPreference(key: string): string {
+  try { return localStorage.getItem(key) ?? '' } catch { return '' }
+}
+function saveNavigationPreference(key: string, value: string) {
+  try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key) } catch { /* private browsing */ }
+}
+const NAV_CITY = 'fitpeso:preferred-city:v1'
+const NAV_ACADEMY = 'fitpeso:preferred-academy:v1'
+const NAV_ROLE = 'fitpeso:preferred-role:v1'
+
 const publicTrainers = ref<EligibleTrainer[]>([])
 const publicTrainerCity = ref('')
 const publicTrainerName = ref('')
-const homeAcademy = ref('')
+const homeAcademy = ref(readNavigationPreference(NAV_ACADEMY))
 const homeSelectedTrainerIds = ref<string[]>([])
 const sharingRequestId = ref('')
 const sharingRequestMessage = ref('')
@@ -224,7 +234,6 @@ async function loadPublicTrainers() {
 function openPublicTrainers() {
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
-  homeAcademy.value = ''
   homeSelectedTrainerIds.value = []
   viewMode.value = 'public-trainers'
   sharingRequestId.value = ''
@@ -261,7 +270,7 @@ const requestVerificationLink = ref('')
 const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
 const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
 const showCustomerLogin = ref(false)
-const loginAsTrainer = ref(false)
+const loginAsTrainer = ref(readNavigationPreference(NAV_ROLE) === 'trainer')
 const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
 const signupContact = ref('')
 const signupStep = ref<1 | 2>(1)
@@ -1141,7 +1150,9 @@ const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio d
 const detectingRequestCity = ref(false)
 const requestCityLocationMessage = ref('')
 const homeCity = ref('')
-const homeCityManuallySelected = ref(false)
+const storedHomeCity = readNavigationPreference(NAV_CITY)
+const homeCityManuallySelected = ref(storedHomeCity !== '' && supportedRequestCities.some(city => city === storedHomeCity))
+if (homeCityManuallySelected.value) homeCity.value = storedHomeCity
 const homeTrainerCount = ref<number | null>(null)
 const homeTrainerCountLoading = ref(false)
 let homeCityCountLookupId = 0
@@ -1209,8 +1220,11 @@ function selectHomeCity(event: Event) {
   if (!supportedRequestCities.some(item => item === city)) return
   homeCityManuallySelected.value = true
   homeCity.value = city
+  saveNavigationPreference(NAV_CITY, city)
   void loadHomeTrainerCount(city)
 }
+
+watch(homeAcademy, academy => saveNavigationPreference(NAV_ACADEMY, academy))
 
 watch(homeCity, city => {
   homeSelectedTrainerIds.value = []
@@ -1312,7 +1326,7 @@ async function openRequestForm() {
 
 async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
   requestLoginReturn.value = fromRequest
-  loginAsTrainer.value = false
+  loginAsTrainer.value = fromRequest ? false : readNavigationPreference(NAV_ROLE) === 'trainer'
   changeLoginProfile()
   customerLoginStatus.value = ''
   customerLoginError.value = ''
@@ -1843,6 +1857,7 @@ onUnmounted(() => {
 })
 
 function changeLoginProfile() {
+  if (!requestLoginReturn.value) saveNavigationPreference(NAV_ROLE, loginAsTrainer.value ? 'trainer' : 'customer')
   clearPendingWhatsAppLogin()
   loginStep.value = 1
   emailLoginPending.value = false
@@ -2175,7 +2190,8 @@ onMounted(() => {
   if (trainerRequestToken) window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`)
   void loadTrainerProfile()
   void loadTrainerRequest()
-  if (isRootHome) void detectRequestCity('home')
+  if (isRootHome && !homeCityManuallySelected.value) void detectRequestCity('home')
+  if (homeCity.value) void loadHomeTrainerCount(homeCity.value)
   try {
     const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
     if (trainerToken) {
