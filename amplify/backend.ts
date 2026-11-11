@@ -221,6 +221,8 @@ const lambdaIntegration = () => new apigateway.AwsIntegration({
 const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
+const adminResource = apiResource.addResource('admin')
+adminResource.addResource('trainers').addMethod('POST', lambdaIntegration())
 const trainersResource = apiResource.addResource('trainers')
 trainersResource.addResource('register').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('verify-whatsapp').addMethod('POST', lambdaIntegration())
