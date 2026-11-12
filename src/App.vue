@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
+import { getRequestApiEndpoint } from './services/api'
+import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
+import { minutesToTime } from './utils/time'
+import { trainingTimeRanges } from './constants/training'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import rootHomePersonalImage from './assets/root-home-personal.jpg'
@@ -288,14 +292,6 @@ function toggleAllVisibleTrainers(event: Event) {
   if (!checked) { selectedTrainerIds.value = selectedTrainerIds.value.filter(id => !visibleIds.includes(id)); return }
   selectedTrainerIds.value = [...new Set([...selectedTrainerIds.value, ...visibleIds])].slice(0, 20)
 }
-function trainerDisplayName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : (parts[0] || '')
-}
-function trainerInstagramUrl(instagram: string) {
-  const handle = instagram.trim().replace(/^@/, '').replace(/^https?:\/\/(?:www\.)?instagram\.com\//i, '').split(/[/?#]/)[0]
-  return /^[-._a-zA-Z0-9]+$/.test(handle) ? `https://www.instagram.com/${handle}/` : ''
-}
 
 const customerRequests = ref<CustomerRequest[]>([])
 const customerRequestsStatus = ref('')
@@ -507,17 +503,6 @@ const form = reactive({
 
 const trainingStartMinutes = ref(1080)
 const trainingEndMinutes = ref(1260)
-function minutesToTime(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
-}
-const trainingTimeRanges = [
-  { start: 360, end: 540, label: '06h às 09h' },
-  { start: 540, end: 720, label: '09h às 12h' },
-  { start: 720, end: 900, label: '12h às 15h' },
-  { start: 900, end: 1080, label: '15h às 18h' },
-  { start: 1080, end: 1260, label: '18h às 21h' },
-  { start: 1260, end: 1380, label: '21h às 23h' },
-]
 function selectTrainingTimeRange(start: number, end: number) {
   trainingStartMinutes.value = start
   trainingEndMinutes.value = end
@@ -1256,14 +1241,6 @@ function editMeasurement() {
 
 type AmplifyRuntimeOutputs = { custom?: { imcApi?: { endpoint?: string } } }
 
-async function getRequestApiEndpoint(signal?: AbortSignal) {
-  const outputResponse = await fetch('/amplify_outputs.json', { cache: 'no-store', signal })
-  if (!outputResponse.ok) throw new Error('A validação ainda não está disponível. Tente novamente mais tarde.')
-  const outputs = await outputResponse.json() as AmplifyRuntimeOutputs
-  const endpoint = outputs.custom?.imcApi?.endpoint?.trim()
-  if (!endpoint) throw new Error('A validação ainda não está disponível. Tente novamente mais tarde.')
-  return endpoint.replace(/\/+$/, '')
-}
 
 async function loadTrainerProfile() {
   if (!trainerIdFromPath && !trainerSlugFromHost) return
