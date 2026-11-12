@@ -510,7 +510,7 @@ function clampTrainingTime(changed: 'start' | 'end') {
 }
 function setTrainingTime(changed: 'start' | 'end', event: Event) {
   const input = event.target as HTMLInputElement
-  const match = /^(\\d{2}):(\\d{2})$/.exec(input.value)
+  const match = /^(\d{2}):(\d{2})$/.exec(input.value)
   if (match) {
     const minutes = Number(match[1]) * 60 + Number(match[2])
     if (changed === 'start') trainingStartMinutes.value = minutes
