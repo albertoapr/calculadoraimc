@@ -1449,6 +1449,8 @@ async function openRequestForm() {
   form.gymName = selectedAcademy ? (matchingGym ?? 'Outros') : ''
   otherGymName.value = selectedAcademy && !matchingGym ? selectedAcademy : ''
   viewMode.value = 'contact'
+  publicTrainerCity.value = form.city
+  if (publicTrainerCity.value) void loadPublicTrainers()
   await nextTick()
   window.scrollTo(0, 0)
   if (!homeCity.value) void detectRequestCity()
@@ -3113,11 +3115,16 @@ async function sendResult() {
               <span>{{ number }}</span>
             </label>
           </div>
+        </section>
+
+        <section class="request-card field-wide" aria-labelledby="request-location-heading">
+          <h3 id="request-location-heading">📍 Local de atendimento</h3>
           <label class="field" for="request-gym-name">
             <span class="field-label">Onde você deseja treinar?</span>
             <select id="request-gym-name" v-model="form.gymName" name="gymName" required @change="form.attendsGym = Boolean(form.gymName)">
-              <option value="" disabled>Selecione a academia</option>
-              <option v-for="gym in ['AquaticCenter', 'SmartFit', 'LifeFit', 'BodyTech', 'Outros']" :key="gym" :value="gym">{{ gym }}</option>
+              <option value="" disabled>Selecione o local</option>
+              <option v-for="gym in publicTrainerAcademies" :key="gym" :value="gym">{{ gym }}</option>
+              <option value="Outros">Outros</option>
             </select>
           </label>
           <label v-if="form.gymName === 'Outros'" class="field" for="request-other-gym">
