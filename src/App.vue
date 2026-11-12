@@ -2972,14 +2972,6 @@ async function sendResult() {
           <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
         </template>
       </section>
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-academy-preference" style="margin: 1rem 0;">
-        <select id="home-academy-choice" v-model="homeAcademyChoice" aria-label="Academia de preferência" @change="updateHomeAcademy" style="width: 100%; padding: .7rem; border-radius: .5rem;">
-          <option value="" disabled>Selecione sua academia</option>
-          <option v-for="academy in mesquitaAcademies" :key="academy" :value="academy">{{ academy.replace(' — ', ' - ') }}</option>
-          <option value="Outras academias">Outros</option>
-        </select>
-        <input v-if="homeAcademyChoice === 'Outras academias'" v-model="homeOtherAcademy" type="text" maxlength="60" placeholder="Digite o nome da academia" aria-label="Nome de outra academia" @input="updateHomeAcademy" style="width: 100%; box-sizing: border-box; margin-top: .5rem; padding: .7rem; border-radius: .5rem;" />
-      </div>
       <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openPublicTrainers">
