@@ -24,35 +24,25 @@ const { theme } = useFitpesoContext()
       </svg>
       <span>Fale conosco</span>
     </a>
-    <div class="box-theme-actions" role="group" aria-label="Escolher tema">
+    <div class="box-theme-actions">
       <button
         type="button"
-        class="theme-icon-button"
-        aria-label="Tema claro"
-        title="Claro"
-        :class="{ active: theme === 'light' }"
-        :aria-pressed="theme === 'light'"
-        @click="theme = 'light'"
+        class="theme-switch"
+        role="switch"
+        :aria-checked="theme === 'dark'"
+        :aria-label="`Tema escuro ${theme === 'dark' ? 'ativado' : 'desativado'}. Alternar aparência`"
+        :title="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
+        @click="theme = theme === 'dark' ? 'light' : 'dark'"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3.5" />
-          <path
-            d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"
-          />
-        </svg>
-      </button>
-      <button
-        type="button"
-        class="theme-icon-button"
-        aria-label="Tema escuro"
-        title="Escuro"
-        :class="{ active: theme === 'dark' }"
-        :aria-pressed="theme === 'dark'"
-        @click="theme = 'dark'"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" />
-        </svg>
+        <span class="theme-switch-thumb" aria-hidden="true">
+          <svg v-if="theme === 'dark'" viewBox="0 0 24 24">
+            <path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+          </svg>
+        </span>
       </button>
     </div>
   </div>
