@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build --force",
-    "test:whatsapp": "node --test tests/whatsapp-login.test.cjs"
+    "test:whatsapp": "node --test tests/whatsapp-login.test.cjs",
+    "test:selection": "node --import tsx --test tests/trainer-selection.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.933.0",
