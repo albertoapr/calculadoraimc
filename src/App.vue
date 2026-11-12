@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
+import PersonalCard from './components/profissionais/PersonalCard.vue'
 import { getRequestApiEndpoint } from './services/api'
 import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
 import { minutesToTime } from './utils/time'
@@ -3035,18 +3036,16 @@ async function sendResult() {
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
-          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
-          <div class="home-trainer-list">
-            <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
-              <input v-if="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && customerSignedInName && activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)" v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
-              <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
-              <span class="home-trainer-info">
-                <span class="home-trainer-name-row">
-                  <strong>{{ trainerDisplayName(trainer.name) }}</strong>
-                  <a v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)" :href="trainerInstagramUrl(trainer.instagram)" target="_blank" rel="noopener noreferrer" class="trainer-instagram-link" :aria-label="'Instagram de ' + trainerDisplayName(trainer.name)" title="Instagram" @click.stop><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
-                </span>
-                <small v-if="trainer.academias?.length || trainer.gymName || trainer.academy">{{ [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].filter(Boolean).join(', ') }}</small>
-                <small v-if="sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)">Solicitação já enviada</small>
+          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTr<PersonalCard
+              v-for="trainer in publicFilteredTrainers"
+              :key="trainer.trainerId"
+              :trainer="trainer"
+              :selectable="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && !!customerSignedInName && !!activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)"
+              :selected="homeSelectedTrainerIds.includes(trainer.trainerId)"
+              :disabled="Boolean((sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20))"
+              :already-sent="Boolean(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId))"
+              @update:selected="checked => { homeSelectedTrainerIds = checked ? [...homeSelectedTrainerIds, trainer.trainerId] : homeSelectedTrainerIds.filter(id => id !== trainer.trainerId) }"
+            />licitação já enviada</small>
               </span>
             </label>
           </div>
