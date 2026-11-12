@@ -43,7 +43,7 @@ const emit = defineEmits<{
               <option v-for="academy in academies" :key="academy" :value="academy">{{ academy }}</option>
             </select>
           </label>
-          <button v-if="selectingForDraft" class="primary-button home-proposal-button" type="button" @click="emit('continue')">Continuar com {{ selectedIds.length }} {{ selectedIds.length === 1 ? 'personal' : 'personais' }} →</button>
+          <button v-if="selectingForDraft" class="primary-button home-proposal-button" type="button" :disabled="selectedIds.length === 0" @click="emit('continue')">Continuar com {{ selectedIds.length }} {{ selectedIds.length === 1 ? 'personal' : 'personais' }} →</button>
           <button v-else-if="!selectingForDraft" class="primary-button home-proposal-button" type="button" :disabled="sharingBusy || checkingRequests || !!requestsError || (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))" @click="emit('request-proposal')">{{ sharingBusy ? 'Enviando…' : checkingRequests ? 'Consultando…' : activeRequest ? 'Enviar solicitação' : 'Solicitar Atendimento' }}</button>
         </div>
         <p v-if="selectingForDraft" class="home-list-message">Profissionais de {{ requestCity }} · Gênero: {{ requestGender === 'indiferente' ? 'sem preferência' : requestGender }}</p>
