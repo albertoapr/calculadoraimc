@@ -7,6 +7,7 @@ import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { usePublicNavigation } from './composables/usePublicNavigation'
 import { useTrainerSelection } from './stores/trainerSelection'
+import { storeToRefs } from 'pinia'
 import { getRequestApiEndpoint } from './services/api'
 import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
 import { minutesToTime } from './utils/time'
@@ -160,7 +161,8 @@ const homeAcademy = ref(storedHomeAcademy)
 function updateHomeAcademy() {
   homeAcademy.value = homeAcademyChoice.value === 'Outras academias' ? homeOtherAcademy.value.trim() : homeAcademyChoice.value
 }
-const { selectedTrainerIds: homeSelectedTrainerIds } = useTrainerSelection()
+const trainerSelectionStore = useTrainerSelection()
+const { selectedTrainerIds: homeSelectedTrainerIds } = storeToRefs(trainerSelectionStore)
 const sharingRequestId = ref('')
 const sharingRequestMessage = ref('')
 const sharingRequestBusy = ref(false)
