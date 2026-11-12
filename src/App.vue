@@ -106,7 +106,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'professional-registration' | 'admin-trainer' | 'admin-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'select-trainers' | 'professional-registration' | 'admin-trainer' | 'admin-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -186,7 +186,7 @@ async function openTrainersForRequest(request: CustomerRequest) {
   homeSelectedTrainerIds.value = []
   publicTrainerCity.value = request.city
   homeCity.value = request.city
-  viewMode.value = 'public-trainers'
+  viewMode.value = 'select-trainers'
   await loadPublicTrainers()
   await nextTick()
   window.scrollTo(0, 0)
@@ -239,7 +239,14 @@ let publicLookupId = 0
 const isMesquita = (city: string) => city.trim().toLocaleLowerCase('pt-BR') === 'mesquita'
 const publicTrainerAcademies = computed(() => [...new Set(publicTrainers.value.flatMap(trainer => [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].map(name => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
 watch(publicTrainerCity, city => { publicTrainerAcademy.value = '' })
-const publicFilteredTrainers = computed(() => publicTrainers.value.filter(trainer => !publicTrainerAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.trim().toLocaleLowerCase('pt-BR') === publicTrainerAcademy.value.toLocaleLowerCase('pt-BR'))))
+const publicFilteredTrainers = computed(() => publicTrainers.value.filter(trainer => {
+  if (viewMode.value === 'select-trainers') {
+    if (publicTrainerCity.value !== form.city) return false
+    const gender = (trainer.sex || trainer.gender || '').trim().toLocaleLowerCase('pt-BR')
+    if (form.trainerGenderPreference !== 'indiferente' && gender !== form.trainerGenderPreference) return false
+  }
+  return !publicTrainerAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.trim().toLocaleLowerCase('pt-BR') === publicTrainerAcademy.value.toLocaleLowerCase('pt-BR'))
+}))
 async function loadPublicTrainers() {
   const id = ++publicLookupId
   publicTrainersLoading.value = true
@@ -247,7 +254,7 @@ async function loadPublicTrainers() {
   publicTrainers.value = []
   try {
     const endpoint = await getRequestApiEndpoint()
-    const response = await fetch(endpoint + '/api/trainers/eligible?' + new URLSearchParams({city: publicTrainerCity.value, gender: 'indiferente'}))
+    const response = await fetch(endpoint + '/api/trainers/eligible?' + new URLSearchParams({city: publicTrainerCity.value, gender: viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente'}))
     if (!response.ok) throw new Error('Erro')
     const body = await response.json() as { trainers?: EligibleTrainer[] }
     if (!Array.isArray(body.trainers)) throw new Error('Erro')
@@ -257,6 +264,7 @@ async function loadPublicTrainers() {
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
 }
 function openPublicTrainers() {
+  selectingTrainersForDraft.value = false
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
   publicTrainerAcademy.value = ''
@@ -892,6 +900,9 @@ function goBackFromTitle() {
     if (requestStep.value === 4) requestStep.value = 2
     else if (requestStep.value === 3) requestStep.value = 2
     else goHome()
+  } else if (viewMode.value === 'select-trainers') {
+    void returnToDraftSummary()
+    return
   } else {
     goHome()
   }
@@ -2789,7 +2800,7 @@ async function sendResult() {
           <span v-if="!trainerSignedInId && !customerSignedInName" class="header-auth-links">
             <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a><span class="header-auth-divider" aria-hidden="true">|</span><a href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
           </span>
-          <details v-if="trainerSignedInId || customerSignedInName || (viewMode !== 'home' && viewMode !== 'public-trainers' && !(viewMode === 'contact' && showRequestForm))" class="account-dropdown main-hamburger-menu">
+          <details v-if="trainerSignedInId || customerSignedInName || (viewMode !== 'home' && viewMode !== 'public-trainers' && viewMode !== 'select-trainers' && !(viewMode === 'contact' && showRequestForm))" class="account-dropdown main-hamburger-menu">
             <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </summary>
@@ -2845,7 +2856,7 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span>{{ viewMode === 'select-trainers' ? 'Selecionar profissionais' : viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -3016,7 +3027,7 @@ async function sendResult() {
         <p class="professional-registration-help"><a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">Consultar registro diretamente no site do CREF-RJ</a>.</p>
       </section>
 
-      <section v-if="viewMode === 'public-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
+      <section v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
         <div class="home-trainer-controls">
           <label class="home-academy-select">
             <span class="sr-only">Filtrar por academia</span>
@@ -3026,13 +3037,14 @@ async function sendResult() {
             </select>
           </label>
           <button v-if="selectingTrainersForDraft" class="primary-button home-proposal-button" type="button" @click="returnToDraftSummary">Continuar com {{ homeSelectedTrainerIds.length }} {{ homeSelectedTrainerIds.length === 1 ? 'personal' : 'personais' }} →</button>
-          <button v-else class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy || checkingCustomerRequests || !!customerRequestsLookupError || (!!activeCustomerRequest && (activeCustomerRequest.city !== publicTrainerCity || activeCustomerRequest.proposalCount >= 5))" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : checkingCustomerRequests ? 'Consultando…' : activeCustomerRequest ? 'Enviar solicitação' : 'Solicitar Atendimento' }}</button>
+          <button v-else-if="viewMode === 'public-trainers'" class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy || checkingCustomerRequests || !!customerRequestsLookupError || (!!activeCustomerRequest && (activeCustomerRequest.city !== publicTrainerCity || activeCustomerRequest.proposalCount >= 5))" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : checkingCustomerRequests ? 'Consultando…' : activeCustomerRequest ? 'Enviar solicitação' : 'Solicitar Atendimento' }}</button>
         </div>
-        <p v-if="activeCustomerRequest" class="home-list-message"><a href="#minhas-solicitacoes" @click.prevent="openCustomerRequests">Ver solicitação aberta</a> · {{ activeCustomerRequest.city }}</p>
-        <p v-if="activeCustomerRequest && activeCustomerRequest.city !== publicTrainerCity" class="home-list-message">Para enviar esta solicitação, busque profissionais em {{ activeCustomerRequest.city }}.</p>
-        <p v-else-if="activeCustomerRequest && activeCustomerRequest.proposalCount >= 5" class="home-list-message">Esta solicitação já atingiu o limite de propostas.</p>
-        <p v-if="customerRequestsLookupError" class="home-list-message" role="alert">{{ customerRequestsLookupError }} <button type="button" @click="refreshShareableRequests">Tentar novamente</button></p>
-        <p v-if="sharingRequestMessage" class="home-list-message" role="status">{{ sharingRequestMessage }}</p>
+        <p v-if="viewMode === 'select-trainers'" class="home-list-message">Profissionais de {{ form.city }} · Gênero: {{ form.trainerGenderPreference === 'indiferente' ? 'sem preferência' : form.trainerGenderPreference }}</p>
+        <p v-if="viewMode === 'public-trainers' && activeCustomerRequest" class="home-list-message"><a href="#minhas-solicitacoes" @click.prevent="openCustomerRequests">Ver solicitação aberta</a> · {{ activeCustomerRequest.city }}</p>
+        <p v-if="viewMode === 'public-trainers' && activeCustomerRequest && activeCustomerRequest.city !== publicTrainerCity" class="home-list-message">Para enviar esta solicitação, busque profissionais em {{ activeCustomerRequest.city }}.</p>
+        <p v-else-if="viewMode === 'public-trainers' && activeCustomerRequest && activeCustomerRequest.proposalCount >= 5" class="home-list-message">Esta solicitação já atingiu o limite de propostas.</p>
+        <p v-if="viewMode === 'public-trainers' && customerRequestsLookupError" class="home-list-message" role="alert">{{ customerRequestsLookupError }} <button type="button" @click="refreshShareableRequests">Tentar novamente</button></p>
+        <p v-if="viewMode === 'public-trainers' && sharingRequestMessage" class="home-list-message" role="status">{{ sharingRequestMessage }}</p>
         <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
@@ -3040,7 +3052,7 @@ async function sendResult() {
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
           <div class="home-trainer-list">
             <label v-for="trainer in publicFilteredTrainers" :key="trainer.trainerId" class="home-trainer-card">
-              <input v-if="selectingTrainersForDraft || (customerSignedInName && activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)" v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
+              <input v-if="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && customerSignedInName && activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)" v-model="homeSelectedTrainerIds" type="checkbox" :value="trainer.trainerId" :disabled="(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20)" :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)">
               <span class="home-trainer-avatar" aria-hidden="true">{{ trainerDisplayName(trainer.name).split(' ').map(part => part[0]).join('').slice(0, 2) }}</span>
               <span class="home-trainer-info">
                 <span class="home-trainer-name-row">
@@ -3052,7 +3064,7 @@ async function sendResult() {
               </span>
             </label>
           </div>
-          <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para a academia selecionada.</p>
+          <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para os critérios selecionados.</p>
         </template>
       </section>
       <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
