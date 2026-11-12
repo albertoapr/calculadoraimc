@@ -32,7 +32,9 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <ProfissionaisDirectoryView
+  <div class="trainer-selection-stage">
+    <div class="request-step-progress" role="status">Etapa 4 de 4 — Selecionar profissionais</div>
+    <ProfissionaisDirectoryView
     :selecting-for-draft="true"
     :academy="academy"
     :academies="academies"
@@ -57,5 +59,11 @@ const emit = defineEmits<{
     @open-requests="emit('open-requests')"
     @refresh-requests="emit('refresh-requests')"
     @retry="emit('retry')"
-  />
+    />
+  </div>
 </template>
+
+<style scoped>
+.trainer-selection-stage { display: grid; gap: 12px; }
+.request-step-progress { padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--blue) 9%, var(--select-bg)); color: var(--select-text); font-size: 14px; font-weight: 700; text-align: center; }
+</style>
