@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
-import ProfissionaisListView from './views/profissionais/ProfissionaisListView.vue'
+import ProfissionaisDirectoryView from './views/profissionais/ProfissionaisDirectoryView.vue'
 import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { getRequestApiEndpoint } from './services/api'
@@ -3011,39 +3011,33 @@ async function sendResult() {
         <p class="professional-registration-help"><a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">Consultar registro diretamente no site do CREF-RJ</a>.</p>
       </section>
 
-      <section v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'" class="home-trainer-directory public-directory" aria-labelledby="page-title">
-        <div class="home-trainer-controls">
-          <label class="home-academy-select">
-            <span class="sr-only">Filtrar por academia</span>
-            <select v-model="publicTrainerAcademy" aria-label="Filtrar profissionais por academia">
-              <option value="">Todas as academias</option>
-              <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
-            </select>
-          </label>
-          <button v-if="selectingTrainersForDraft" class="primary-button home-proposal-button" type="button" @click="returnToDraftSummary">Continuar com {{ homeSelectedTrainerIds.length }} {{ homeSelectedTrainerIds.length === 1 ? 'personal' : 'personais' }} →</button>
-          <button v-else-if="viewMode === 'public-trainers'" class="primary-button home-proposal-button" type="button" :disabled="sharingRequestBusy || checkingCustomerRequests || !!customerRequestsLookupError || (!!activeCustomerRequest && (activeCustomerRequest.city !== publicTrainerCity || activeCustomerRequest.proposalCount >= 5))" @click="requestProposalFromHome">{{ sharingRequestBusy ? 'Enviando…' : checkingCustomerRequests ? 'Consultando…' : activeCustomerRequest ? 'Enviar solicitação' : 'Solicitar Atendimento' }}</button>
-        </div>
-        <p v-if="viewMode === 'select-trainers'" class="home-list-message">Profissionais de {{ form.city }} · Gênero: {{ form.trainerGenderPreference === 'indiferente' ? 'sem preferência' : form.trainerGenderPreference }}</p>
-        <p v-if="viewMode === 'public-trainers' && activeCustomerRequest" class="home-list-message"><a href="#minhas-solicitacoes" @click.prevent="openCustomerRequests">Ver solicitação aberta</a> · {{ activeCustomerRequest.city }}</p>
-        <p v-if="viewMode === 'public-trainers' && activeCustomerRequest && activeCustomerRequest.city !== publicTrainerCity" class="home-list-message">Para enviar esta solicitação, busque profissionais em {{ activeCustomerRequest.city }}.</p>
-        <p v-else-if="viewMode === 'public-trainers' && activeCustomerRequest && activeCustomerRequest.proposalCount >= 5" class="home-list-message">Esta solicitação já atingiu o limite de propostas.</p>
-        <p v-if="viewMode === 'public-trainers' && customerRequestsLookupError" class="home-list-message" role="alert">{{ customerRequestsLookupError }} <button type="button" @click="refreshShareableRequests">Tentar novamente</button></p>
-        <p v-if="viewMode === 'public-trainers' && sharingRequestMessage" class="home-list-message" role="status">{{ sharingRequestMessage }}</p>
-        <p v-if="!publicTrainerCity" class="home-list-message">Selecione sua cidade na tela inicial para encontrar profissionais.</p>
-        <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
-        <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
-        <template v-else>
-          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
-          <ProfissionaisListView
-            :trainers="publicFilteredTrainers"
-            :selected-ids="homeSelectedTrainerIds"
-            :selectable="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && !!customerSignedInName && !!activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)"
-            :sent-ids="sharingRequestId ? (customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds ?? []) : []"
-            @update:selected-ids="ids => { homeSelectedTrainerIds = ids }"
-          />
-          <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para os critérios selecionados.</p>
-        </template>
-      </section>
+      <ProfissionaisDirectoryView
+        v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'"
+        :selecting-for-draft="selectingTrainersForDraft"
+        :academy="publicTrainerAcademy"
+        :academies="publicTrainerAcademies"
+        :trainers="publicFilteredTrainers"
+        :selected-ids="homeSelectedTrainerIds"
+        :sent-ids="sharingRequestId ? (customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds ?? []) : []"
+        :city="publicTrainerCity"
+        :request-city="form.city"
+        :request-gender="form.trainerGenderPreference"
+        :signed-in-name="customerSignedInName"
+        :active-request="activeCustomerRequest"
+        :checking-requests="checkingCustomerRequests"
+        :requests-error="customerRequestsLookupError"
+        :sharing-busy="sharingRequestBusy"
+        :sharing-message="sharingRequestMessage"
+        :loading="publicTrainersLoading"
+        :error="publicTrainersError"
+        @update:academy="value => { publicTrainerAcademy = value }"
+        @update:selected-ids="ids => { homeSelectedTrainerIds = ids }"
+        @continue="returnToDraftSummary"
+        @request-proposal="requestProposalFromHome"
+        @open-requests="openCustomerRequests"
+        @refresh-requests="refreshShareableRequests"
+        @retry="searchHomeTrainers"
+      />
       <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openPublicTrainers">
