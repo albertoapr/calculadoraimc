@@ -53,6 +53,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
+  const clientGenderOptions = ['feminino', 'masculino', 'nao_informar']
   const desiredDurations = ['Aula avulsa', '1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
@@ -65,7 +66,8 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     typeof instagram === 'string' && (instagram === '' || (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
-    (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
+    (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120) &&
+    (data.clientGender === undefined || clientGenderOptions.includes(String(data.clientGender))) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
@@ -1407,6 +1409,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     clientPhone: item.clientPhone?.S ?? '',
     ...(item.email?.S ? { email: item.email.S } : {}),
     ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+    ...(item.clientGender?.S ? { clientGender: item.clientGender.S } : {}),
     city: item.city?.S ?? '',
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
@@ -1637,6 +1640,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+      ...(item.clientGender?.S ? { clientGender: item.clientGender.S } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
@@ -1795,16 +1799,17 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
   const customer = auth.profile!
-  if (customer.age === undefined) return response(400, { error: 'Informe sua data de nascimento na revisão do pedido antes de solicitar atendimento.' })
+  // A idade declarada na solicitação dispensa a data de nascimento no cadastro.
+  // Para integrações antigas, mantém a idade calculada do cadastro como alternativa.
   const requestData: Record<string, unknown> = {
     ...data,
     clientName: customer.name,
     clientPhone: customer.whatsapp,
-    ...(customer.age !== undefined ? { age: customer.age } : { age: undefined }),
+    age: data.age ?? customer.age,
     ...(customer.email ? { email: customer.email } : {}),
     consent: data.consent === true,
   }
-  if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento e autorize o envio aos profissionais.' })
+  if (!isValidRequest(requestData)) return response(400, { error: 'Informe sua idade (de 1 a 120 anos) e confira os dados do atendimento.' })
 
   const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
@@ -1852,6 +1857,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     expiresAt: { N: String(validUntil) },
     ...(customer.email ? { email: { S: customer.email } } : {}),
     ...(Number.isInteger(requestData.age) ? { age: { N: String(requestData.age) } } : {}),
+    ...(typeof requestData.clientGender === 'string' ? { clientGender: { S: requestData.clientGender } } : {}),
     ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
     trainerGenderPreference: { S: preference },
     singleLesson: { BOOL: requestData.singleLesson === true },
