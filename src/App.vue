@@ -294,6 +294,10 @@ function openPublicTrainers() {
 }
 const eligibleTrainers = ref<EligibleTrainer[]>([])
 const selectedTrainerIds = ref<string[]>([])
+const selectedTrainerNames = computed(() => selectedTrainerIds.value.map(id => {
+  const trainer = publicTrainers.value.find(item => item.trainerId === id)
+  return trainer ? trainerDisplayName(trainer.name) : 'Profissional indisponível'
+}))
 const checkingTrainers = ref(false)
 const filteredTrainers = computed(() => eligibleTrainers.value)
 const allVisibleTrainersSelected = computed(() => filteredTrainers.value.length > 0 && filteredTrainers.value.every(t => selectedTrainerIds.value.includes(t.trainerId)))
@@ -897,10 +901,18 @@ function goBackFromTitle() {
   if (showCustomerSignup.value) { closeCustomerSignup(); return }
   if (showTrainerSignup.value) { closeTrainerSignup(); return }
   if (viewMode.value === 'contact' && showRequestForm.value) {
+    if (requestStep.value === 5) { void selectTrainersForDraft(); return }
     if (requestStep.value > 1) requestStep.value -= 1
     else goHome()
   } else if (viewMode.value === 'select-trainers') {
-    void returnToDraftSummary()
+    if (selectingTrainersForDraft.value) {
+      selectingTrainersForDraft.value = false
+      viewMode.value = 'contact'
+      requestStep.value = 3
+    } else {
+      goHome()
+    }
+    void nextTick(() => window.scrollTo(0, 0))
     return
   } else {
     goHome()
@@ -948,7 +960,7 @@ function closeCustomerSignup() {
     showCustomerLogin.value = true
     showRequestForm.value = true
     viewMode.value = 'contact'
-    requestStep.value = 4
+    requestStep.value = 5
     customerLoginMethod.value = 'whatsapp'
     customerLoginStatus.value = 'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
     history.replaceState(null, '', window.location.pathname)
@@ -1517,7 +1529,7 @@ async function returnToRequestFormAfterLogin() {
   requestLoginReturn.value = false
   viewMode.value = 'contact'
   showRequestForm.value = true
-  requestStep.value = 4
+  requestStep.value = 5
   showCustomerLogin.value = false
   await nextTick()
   window.scrollTo(0, 0)
@@ -1607,7 +1619,11 @@ async function continueToTrainerSelection() {
     if (!selectedCity) { status.value = 'Selecione uma cidade atendida.'; return }
     form.city = selectedCity
   }
-  if (requestStep.value < 4) requestStep.value += 1
+  if (requestStep.value === 3) {
+    await selectTrainersForDraft()
+    return
+  }
+  if (requestStep.value < 3) requestStep.value += 1
   await nextTick()
   window.scrollTo(0, 0)
 }
@@ -1622,6 +1638,7 @@ async function selectTrainersForDraft() {
   if (!matchSupportedRequestCity(form.city)) { status.value = 'Selecione uma cidade atendida antes de escolher os profissionais.'; requestStep.value = 2; return }
   status.value = ''
   selectingTrainersForDraft.value = true
+  sharingRequestMessage.value = ''
   publicTrainerCity.value = form.city
   publicTrainerAcademy.value = ''
   homeSelectedTrainerIds.value = [...selectedTrainerIds.value]
@@ -1631,10 +1648,14 @@ async function selectTrainersForDraft() {
   window.scrollTo(0, 0)
 }
 async function returnToDraftSummary() {
+  if (selectingTrainersForDraft.value && !homeSelectedTrainerIds.value.length) {
+    sharingRequestMessage.value = 'Selecione pelo menos um personal para continuar.'
+    return
+  }
   selectedTrainerIds.value = [...homeSelectedTrainerIds.value]
   selectingTrainersForDraft.value = false
   viewMode.value = 'contact'
-  requestStep.value = 4
+  requestStep.value = 5
   showRequestForm.value = true
   await nextTick()
   window.scrollTo(0, 0)
@@ -1826,7 +1847,7 @@ async function saveMyProfile() {
     if (trainer) applyTrainerSession(body.profile)
     else applyCustomerProfile({ name: body.profile.name, whatsapp: body.profile.whatsapp, email: body.profile.email ?? '', dateOfBirth: body.profile.dateOfBirth })
     editingProfileStatus.value = 'Cadastro atualizado com sucesso.'
-    if (!trainer && requestStep.value === 4 && showRequestForm.value && isValidLoginBirthDate(customerForm.dateOfBirth)) {
+    if (!trainer && requestStep.value === 5 && showRequestForm.value && isValidLoginBirthDate(customerForm.dateOfBirth)) {
       viewMode.value = 'contact'
       status.value = 'Cadastro completo. Agora você pode confirmar sua solicitação.'
       await nextTick()
@@ -2864,7 +2885,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr v-if="viewMode !== 'home'" class="personal-divider">
-        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 4 ? 'Resumo da solicitação' : 'Solicitar atendimento' }}</h2>
+        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 5 ? 'Resumo da solicitação' : 'Solicitar atendimento' }}</h2>
         <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
             <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
@@ -3237,7 +3258,7 @@ async function sendResult() {
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
-        <div v-if="requestStep < 4" class="field-wide request-step-progress" role="status" aria-live="polite">Etapa {{ requestStep }} de 3</div>
+        <div v-if="requestStep < 4" class="field-wide request-step-progress" role="status" aria-live="polite">Etapa {{ requestStep }} de 4</div>
         <template v-if="requestStep < 4">
         
         <section v-if="requestStep === 1" class="request-card field-wide" aria-labelledby="request-client-heading">
@@ -3346,7 +3367,7 @@ async function sendResult() {
           </label>
         </section>
 
-        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">{{ requestStep === 3 ? 'Revisar solicitação →' : 'Continuar →' }}</button>
+        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">{{ requestStep === 3 ? 'Selecionar profissionais →' : 'Continuar →' }}</button>
         </template>
 
         <template v-else>
@@ -3364,12 +3385,13 @@ async function sendResult() {
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">👥</span>Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">⏳</span>Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Gênero do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">✅</span>Personais escolhidos</th><td><span v-for="(name, index) in selectedTrainerNames" :key="index">{{ index ? ', ' : '' }}{{ name }}</span><span v-if="!selectedTrainerNames.length">Nenhum selecionado</span></td></tr>
                 <tr class="request-summary-price"><th scope="row"><span class="summary-row-icon" aria-hidden="true">💰</span>Valor estimado</th><td><strong>a partir de {{ ((form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40) * (form.withCompanion ? 2 : 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
               </tbody>
             </table>
           </div>
           <button class="secondary-button field-wide" type="button" @click="modifyRequestDetails">Modificar atendimento</button>
-          <button class="primary-button field-wide" type="button" @click="selectTrainersForDraft">Selecionar personal{{ selectedTrainerIds.length ? ' (' + selectedTrainerIds.length + ')' : '' }}</button>
+          <button class="primary-button field-wide" type="button" @click="selectTrainersForDraft">Alterar personais{{ selectedTrainerIds.length ? ' (' + selectedTrainerIds.length + ')' : '' }}</button>
           <button v-if="selectedTrainerIds.length" class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>
       </form>
