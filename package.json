@@ -8,13 +8,17 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
-    "type-check": "vue-tsc --build --force"
+    "type-check": "vue-tsc --build --force",
+    "test:whatsapp": "node --test tests/whatsapp-login.test.cjs",
+    "test:selection": "node --import tsx --test tests/trainer-selection.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.933.0",
     "google-auth-library": "^9.15.1",
     "nodemailer": "^10.3.1",
-    "vue": "^3.4.21"
+    "vue": "^3.4.21",
+    "pinia": "3.0.4",
+    "vue-router": "4.6.4"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.5.0",
