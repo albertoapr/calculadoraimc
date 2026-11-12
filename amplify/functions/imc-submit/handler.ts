@@ -1,9 +1,11 @@
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
+import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
   DynamoDBClient,
   GetItemCommand,
+  DeleteItemCommand,
   PutItemCommand,
   QueryCommand,
   TransactionCanceledException,
@@ -23,7 +25,7 @@ const corsHeaders = {
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Content-Type, Authorization, X-Fitpeso-Verification-Secret',
-  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
 }
 
 function response(statusCode: number, body: Record<string, unknown>) {
@@ -37,6 +39,11 @@ function parseBody(event: Parameters<APIGatewayProxyHandler>[0]) {
   try { return JSON.parse(body) as Record<string, unknown> } catch { return null }
 }
 
+function getBetaDisplayName(data: Record<string, unknown> | null): string {
+  const name = typeof data?.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) ? name : ''
+}
+
 function isValidRequest(data: Record<string, unknown> | null) {
   if (!data || data.consent !== true) return false
   const name = typeof data.clientName === 'string' ? data.clientName.trim().replace(/\s+/g, ' ') : ''
@@ -46,7 +53,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
   const objectives = ['Emagrecimento', 'Musculação', 'Outros']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
-  const desiredDurations = ['1 mês', '2 meses', '3 meses', 'Mais de 3 meses']
+  const desiredDurations = ['Aula avulsa', '1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
   const trainingDays = data.trainingDays
@@ -62,10 +69,14 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
+    (data.singleLesson === undefined || typeof data.singleLesson === 'boolean') &&
+    (data.withCompanion === undefined || typeof data.withCompanion === 'boolean') &&
+    (data.singleLesson !== true || data.desiredDuration === 'Aula avulsa') &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
     (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
-    Array.isArray(trainingDays) && trainingDays.every(day => days.includes(String(day))) &&
-    Array.isArray(trainingShifts) && trainingShifts.every(shift => shifts.includes(String(shift)))
+    (typeof data.sessionsPerWeek === 'number' && Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7) &&
+    Array.isArray(trainingDays) && trainingDays.length > 0 && trainingDays.every(day => days.includes(String(day))) &&
+    Array.isArray(trainingShifts) && trainingShifts.length > 0 && trainingShifts.every(shift => shifts.includes(String(shift)))
 }
 
 function normalizePhone(value: unknown) {
@@ -140,6 +151,11 @@ async function getPublicTrainerBySlug(slug: string) {
   return trainerId ? getPublicTrainerById(trainerId) : null
 }
 
+function validAcademias(value: unknown) {
+  return Array.isArray(value) && value.length <= 5 && value.every(x => typeof x === 'string' && x.trim() === x && x.length >= 2 && x.length <= 60) &&
+    new Set(value.map((x: string) => x.toLocaleLowerCase('pt-BR'))).size === value.length
+}
+
 function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
@@ -151,12 +167,13 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
-    (sex === 'masculino' || sex === 'feminino') && isValidBirthDate(data.dateOfBirth) &&
+    (sex === 'masculino' || sex === 'feminino') && (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
-    !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda'].includes(slug) &&
+    !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
     /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
+    (data.academias === undefined || validAcademias(data.academias)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
     new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
 }
@@ -166,12 +183,9 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
-  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
-  const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ? new Date(`${dateOfBirth}T00:00:00.000Z`) : null
-  const validDate = Boolean(parsedDate && !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === dateOfBirth &&
-    dateOfBirth >= '1900-01-01' && dateOfBirth <= new Date().toISOString().slice(0, 10))
-  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
-    email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && validDate
+  return (name === '' || (name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name))) && Boolean(whatsapp) &&
+    (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
+    (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth))
 }
 
 async function registerCustomer(data: Record<string, unknown>) {
@@ -179,9 +193,9 @@ async function registerCustomer(data: Record<string, unknown>) {
   const codesTable = process.env.IMC_REQUESTS_TABLE
   if (!customersTable || !codesTable) throw new Error('Customer registration is not configured')
   const whatsapp = normalizePhone(data.whatsapp)
-  const name = String(data.name).trim().replace(/\s+/g, ' ')
-  const email = String(data.email).trim().toLowerCase()
-  const dateOfBirth = String(data.dateOfBirth)
+  const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
     Key: { whatsapp: { S: whatsapp } },
@@ -202,8 +216,8 @@ async function registerCustomer(data: Record<string, unknown>) {
           Item: {
             whatsapp: { S: whatsapp },
             name: { S: name },
-            email: { S: email },
-            dateOfBirth: { S: dateOfBirth },
+            ...(email ? { email: { S: email } } : {}),
+            ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             status: { S: 'PENDING_VERIFICATION' },
             whatsappVerified: { BOOL: false },
             createdAt: { S: new Date(now * 1000).toISOString() },
@@ -254,10 +268,13 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
       ConsistentRead: true,
     }))
     const customer = customerResult.Item
-    if (customer?.whatsappVerified?.BOOL === true && challenge.consumedAt?.N) return response(200, { verified: true, alreadyVerified: true })
+    if (customer?.whatsappVerified?.BOOL === true && challenge.consumedAt?.N) return response(200, { verified: true, alreadyVerified: true, name: customer.name?.S ?? '' })
     if (Number(challenge.expiresAt?.N ?? 0) <= now || customer?.status?.S !== 'PENDING_VERIFICATION') return response(200, { verified: false })
 
     const verifiedAt = new Date(now * 1000).toISOString()
+    // Nome declarado à Beta por um remetente que concluiu a verificação do número; não é titularidade certificada.
+    const acceptedName = getBetaDisplayName(data) || getBetaDisplayName({ name: customer?.name?.S })
+    if (!acceptedName) return response(422, { verified: false, error: 'A Beta precisa enviar um nome válido junto com o WhatsApp e o código para concluir o cadastro.' })
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
@@ -278,10 +295,11 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
           Update: {
             TableName: customersTable,
             Key: { whatsapp: { S: whatsapp } },
-            UpdateExpression: 'SET #status = :active, whatsappVerified = :true, verifiedAt = :verifiedAt',
+            UpdateExpression: 'SET #status = :active, whatsappVerified = :true, verifiedAt = :verifiedAt, #name = :name',
             ConditionExpression: '#status = :pending AND whatsappVerified = :false',
-            ExpressionAttributeNames: { '#status': 'status' },
+            ExpressionAttributeNames: { '#status': 'status', '#name': 'name' },
             ExpressionAttributeValues: {
+              ':name': { S: acceptedName },
               ':active': { S: 'ACTIVE' },
               ':pending': { S: 'PENDING_VERIFICATION' },
               ':true': { BOOL: true },
@@ -292,7 +310,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         },
       ],
     }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, whatsapp, name: acceptedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
       const customerResult = await dynamodb.send(new GetItemCommand({
@@ -300,7 +318,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         Key: { whatsapp: { S: whatsapp } },
         ConsistentRead: true,
       }))
-      if (customerResult.Item?.whatsappVerified?.BOOL === true) return response(200, { verified: true, alreadyVerified: true })
+      if (customerResult.Item?.whatsappVerified?.BOOL === true) return response(200, { verified: true, alreadyVerified: true, name: customerResult.Item.name?.S ?? '' })
       return response(200, { verified: false })
     }
     console.error('[imc-submit] Customer WhatsApp verification failed', {
@@ -326,7 +344,12 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
     if (challenge?.flow?.S !== 'fitpeso-customer-whatsapp' || challenge.whatsapp?.S !== whatsapp) {
       return response(200, { verified: false })
     }
-    if (challenge.consumedAt?.N) return response(200, { verified: true })
+    if (challenge.consumedAt?.N) {
+      const customer = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
+      }))
+      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+    }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
     console.error('[imc-submit] Customer verification status lookup failed', {
@@ -368,6 +391,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp,
         email: customer.Item.email?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+        isAdmin: customer.Item.isAdmin?.BOOL === true,
       } })
     } catch (error) {
       console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -401,6 +425,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp: customer.whatsapp?.S ?? '',
         email,
         dateOfBirth: customer.dateOfBirth?.S ?? '',
+        isAdmin: customer.isAdmin?.BOOL === true,
       },
     })
   } catch (error) {
@@ -449,10 +474,9 @@ function isValidBirthDate(value: unknown) {
 
 async function beginCustomerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
-  const dateOfBirth = data?.dateOfBirth
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
-  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
-    return response(400, { error: 'Informe um WhatsApp e uma data de nascimento válidos.' })
+  if (!whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe um WhatsApp válido.' })
   }
   const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
   const codesTable = process.env.IMC_REQUESTS_TABLE
@@ -461,16 +485,15 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
     const customer = await dynamodb.send(new GetItemCommand({
       TableName: customersTable,
       Key: { whatsapp: { S: whatsapp } },
-      ProjectionExpression: '#status, #verified, #dob',
-      ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified', '#dob': 'dateOfBirth' },
+      ProjectionExpression: '#status, #verified',
+      ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified' },
       ConsistentRead: true,
     }))
-    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true &&
-      customer.Item.dateOfBirth?.S === dateOfBirth
+    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
     if (!eligible) {
       return response(200, {
         started: false,
-        error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento ou faça seu cadastro.',
+        error: 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
       })
     }
     const code = randomBytes(16).toString('base64url')
@@ -543,7 +566,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -614,35 +637,127 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) {
       return { error: response(401, { error: 'Cadastro do personal indisponível.' }) }
     }
-    return { profile: { trainerId, name: item.name?.S ?? '', whatsapp } }
+    return { profile: {
+      trainerId,
+      name: item.name?.S ?? '',
+      whatsapp,
+      email: item.email?.S ?? '',
+      dateOfBirth: item.dateOfBirth?.S ?? '',
+      instagram: item.instagram?.S ?? '',
+      cref: item.cref?.S ?? '',
+      academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
+      sex: item.sex?.S ?? '',
+      slug: item.slug?.S ?? '',
+    } }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
   }
 }
 
+
+function validProfileName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().replace(/\s+/g, ' ').length >= 2 &&
+    value.trim().replace(/\s+/g, ' ').length <= 80 &&
+    /^[\p{L}\p{M} .'-]+$/u.test(value.trim().replace(/\s+/g, ' '))
+}
+
+async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const data = parseBody(event)
+  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth'].includes(key))) {
+    return response(400, { error: 'Informe um nome válido. A data de nascimento é opcional até solicitar atendimento.' })
+  }
+  const tableName = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
+  const whatsapp = auth.profile!.whatsapp
+  try {
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: tableName,
+      Key: { whatsapp: { S: whatsapp } },
+      UpdateExpression: data.dateOfBirth ? 'SET #name = :name, #dob = :dob, updatedAt = :updated' : 'SET #name = :name, updatedAt = :updated',
+      ConditionExpression: '#status = :active AND whatsappVerified = :verified',
+      ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
+        ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+        ':updated': { S: new Date().toISOString() },
+        ':active': { S: 'ACTIVE' }, ':verified': { BOOL: true },
+      },
+    }))
+    // Return an authoritative profile, including unchanged identity fields.
+    return getCustomerProfile(event)
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'Cadastro não está ativo. Entre novamente.' })
+    console.error('[imc-submit] Customer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar seu cadastro.' })
+  }
+}
+
+async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await getTrainerSession(event)
+  if (auth.error) return auth.error
+  const data = parseBody(event)
+  const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
+  const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
+  const academias = data?.academias ?? []
+  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+      (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
+      (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
+      !validAcademias(academias) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias'].includes(key))) {
+    return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
+  }
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
+  try {
+    // A professional may have up to two city records. Update both as one operation.
+    const lookup = await dynamodb.send(new QueryCommand({
+      TableName: tableName, IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: auth.profile!.trainerId } },
+    }))
+    const rows = lookup.Items ?? []
+    const cities = [...new Set(rows.map(row => row.city?.S ?? '').filter(Boolean))]
+    if (cities.length < 1 || cities.length > 2) return response(409, { error: 'Não foi possível confirmar as cidades do cadastro.' })
+    const time = new Date().toISOString()
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+      Update: {
+        TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
+        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
+        ExpressionAttributeValues: {
+          ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
+          ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+          ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
+          ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
+        },
+      },
+    })) }))
+    const refreshed = await getTrainerSession(event)
+    return refreshed.error ?? response(200, { authenticated: true, profile: refreshed.profile! })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou indisponível. Atualize a página e tente novamente.' })
+    console.error('[imc-submit] Trainer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o perfil do personal.' })
+  }
+}
+
 async function beginTrainerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
-  const dateOfBirth = data?.dateOfBirth
-  if (!whatsapp || !isValidBirthDate(dateOfBirth) || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
-    return response(400, { error: 'Informe WhatsApp e data de nascimento válidos.' })
+  if (!whatsapp || !/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) {
+    return response(400, { error: 'Informe um WhatsApp válido.' })
   }
   const tableName = process.env.IMC_REQUESTS_TABLE
   if (!tableName) return response(503, { error: 'Serviço indisponível.' })
   try {
     const trainer = await findActiveTrainerByWhatsApp(whatsapp)
     if (!trainer) return response(200, { started: false, error: 'Não foi possível validar seu cadastro de personal. Confira os dados.' })
-    const trainerRecord = await dynamodb.send(new GetItemCommand({
-      TableName: process.env.TRAINERS_TABLE!, Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
-      ProjectionExpression: 'dateOfBirth', ConsistentRead: true,
-    }))
-    if (!trainerRecord.Item?.dateOfBirth?.S) return response(200, {
-      started: false, error: 'Seu cadastro ainda não possui data de nascimento. Solicite à Beta a atualização do cadastro para habilitar o login.',
-    })
-    if (trainerRecord.Item.dateOfBirth.S !== dateOfBirth) return response(200, {
-      started: false, error: 'Não foi possível validar os dados. Confira o WhatsApp e a data de nascimento.',
-    })
     const code = randomBytes(16).toString('base64url')
     const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
     await dynamodb.send(new PutItemCommand({
@@ -697,7 +812,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
     ] }))
-    return response(200, { verified: true })
+    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
   } catch (error) {
     if (error instanceof TransactionCanceledException) return response(200, { verified: false })
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -751,7 +866,7 @@ async function listTrainerReceivedRequests(event: Parameters<APIGatewayProxyHand
           ScanIndexForward: false, Limit: 100, ExclusiveStartKey: lastKey,
         }))
         for (const item of result.Items ?? []) {
-          if (!item.selectedTrainerIds?.SS?.includes(trainerId)) continue
+          if (!item.selectedTrainerIds?.SS?.includes(trainerId) || item.lifecycle?.S !== 'OPEN') continue
           const id = item.requestId?.S ?? ''
           const expiresAt = Number(item.validUntil?.N ?? 0)
           if (!id || !expiresAt) continue
@@ -799,6 +914,7 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const cities = data.cities as string[]
+  const academias = (data.academias ?? []) as string[]
   const slugResult = await dynamodb.send(new GetItemCommand({
     TableName: slugTableName,
     Key: { slug: { S: slug } },
@@ -873,9 +989,10 @@ async function registerTrainer(data: Record<string, unknown>) {
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
-  const dateOfBirth = String(data.dateOfBirth)
+  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
+  const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
@@ -915,9 +1032,10 @@ async function registerTrainer(data: Record<string, unknown>) {
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
-            dateOfBirth: { S: dateOfBirth },
+            ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
+            academias: { L: academias.map(name => ({ S: name })) },
             ...(cref ? { cref: { S: cref } } : {}),
             active: { BOOL: false },
             whatsappVerified: { BOOL: false },
@@ -932,6 +1050,208 @@ async function registerTrainer(data: Record<string, unknown>) {
   return { slug, verificationCode: challenge.code }
 }
 
+async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const tableName = process.env.TRAINERS_TABLE
+  const slugTable = process.env.TRAINER_SLUGS_TABLE
+  if (!customersTable || !tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
+  const customer = await dynamodb.send(new GetItemCommand({
+    TableName: customersTable, Key: { whatsapp: { S: auth.profile!.whatsapp } }, ConsistentRead: true,
+  }))
+  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
+    return response(403, { error: 'Acesso exclusivo do administrador.' })
+  }
+  const data = parseBody(event)
+  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth) {
+    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidade e endereço válido.' })
+  }
+  const whatsapp = normalizePhone(data.whatsapp)
+  const cref = String(data.cref).trim().toUpperCase()
+  const cities = data.cities as string[]
+  // Check all supported cities, not only the selected ones.
+  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
+    let lastKey: Record<string, any> | undefined
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName, KeyConditionExpression: '#city = :city',
+        ExpressionAttributeNames: { '#city': 'city' }, ExpressionAttributeValues: { ':city': { S: city } },
+        ExclusiveStartKey: lastKey,
+      }))
+      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref)) {
+        return response(409, { error: 'Já existe um profissional com esse WhatsApp ou CREF.' })
+      }
+      lastKey = page.LastEvaluatedKey
+    } while (lastKey)
+  }
+  const slug = String(data.slug).trim().toLowerCase()
+  const trainerId = randomBytes(16).toString('hex')
+  const now = String(Math.floor(Date.now() / 1000))
+  try {
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
+      ...cities.map(city => ({ Put: { TableName: tableName, Item: {
+        city: { S: city }, trainerId: { S: trainerId }, slug: { S: slug },
+        name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
+        sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
+        email: { S: String(data.email ?? '').trim().toLowerCase() },
+        dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram) },
+        cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+        active: { BOOL: true }, whatsappVerified: { BOOL: false }, status: { S: 'active' },
+        createdByAdmin: { S: auth.profile!.whatsapp }, submittedAt: { N: now },
+      }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+    ] }))
+    return response(201, { registered: true, trainerId, status: 'active' })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro ou endereço já existente.' })
+    console.error('[imc-submit] Admin trainer registration failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o profissional.' })
+  }
+}
+
+const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+
+async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth
+  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!customersTable) return { error: response(503, { error: 'Serviço indisponível.' }) }
+  const customer = await dynamodb.send(new GetItemCommand({
+    TableName: customersTable,
+    Key: { whatsapp: { S: auth.profile!.whatsapp } },
+    ConsistentRead: true,
+  }))
+  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
+    return { error: response(403, { error: 'Acesso exclusivo do administrador.' }) }
+  }
+  return { profile: auth.profile! }
+}
+
+async function getTrainerRows(trainerId: string) {
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { city: { S: city }, trainerId: { S: trainerId } },
+    ConsistentRead: true,
+  }))))
+  return results.flatMap(result => result.Item ? [result.Item] : [])
+}
+
+async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) return response(503, { error: 'Serviço indisponível.' })
+  try {
+    const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: '#city = :city',
+      ExpressionAttributeNames: { '#city': 'city' },
+      ExpressionAttributeValues: { ':city': { S: city } },
+    }))))
+    const rows = results.flatMap(result => result.Items ?? [])
+    const grouped = new Map<string, typeof rows>()
+    for (const row of rows) {
+      const trainerId = row.trainerId?.S
+      if (!trainerId) continue
+      const current = grouped.get(trainerId) ?? []
+      current.push(row)
+      grouped.set(trainerId, current)
+    }
+    const trainers = [...grouped.entries()].map(([trainerId, trainerRows]) => {
+      const item = trainerRows[0]
+      return {
+        trainerId,
+        name: item.name?.S ?? '',
+        whatsapp: item.whatsapp?.S ?? '',
+        email: item.email?.S ?? '',
+        dateOfBirth: item.dateOfBirth?.S ?? '',
+        sex: item.sex?.S ?? 'feminino',
+        cref: item.cref?.S ?? '',
+        instagram: item.instagram?.S ?? '',
+        slug: item.slug?.S ?? '',
+        cities: [...new Set(trainerRows.map(row => row.city?.S ?? '').filter(Boolean))],
+        academias: (item.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean),
+        active: item.active?.BOOL === true,
+      }
+    }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    return response(200, { trainers })
+  } catch (error) {
+    console.error('[imc-submit] Admin trainer listing failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível carregar os profissionais.' })
+  }
+}
+
+async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
+  const tableName = process.env.TRAINERS_TABLE
+  const slugTable = process.env.TRAINER_SLUGS_TABLE
+  if (!tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
+  const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Profissional inválido.' })
+  const data = parseBody(event)
+  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth || typeof data.active !== 'boolean') {
+    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidades e endereço.' })
+  }
+  const whatsapp = normalizePhone(data.whatsapp)
+  const cref = String(data.cref).trim().toUpperCase()
+  const cities = data.cities as string[]
+  const slug = String(data.slug).trim().toLowerCase()
+  try {
+    const existingRows = await getTrainerRows(trainerId)
+    if (!existingRows.length) return response(404, { error: 'Profissional não encontrado.' })
+    for (const city of supportedTrainerCities) {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: '#city = :city',
+        ExpressionAttributeNames: { '#city': 'city' },
+        ExpressionAttributeValues: { ':city': { S: city } },
+      }))
+      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref))) {
+        return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
+      }
+    }
+    const first = existingRows[0]
+    const oldCities = [...new Set(existingRows.map(row => row.city?.S ?? '').filter(Boolean))]
+    const oldSlug = first.slug?.S ?? ''
+    const now = new Date().toISOString()
+    const sharedItem = {
+      trainerId: { S: trainerId }, slug: { S: slug },
+      name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
+      sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
+      email: { S: String(data.email ?? '').trim().toLowerCase() },
+      dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram).trim() },
+      cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+      active: { BOOL: data.active as boolean }, status: { S: data.active ? 'active' : 'inactive' },
+      whatsappVerified: { BOOL: first.whatsappVerified?.BOOL === true },
+      ...(first.createdByAdmin?.S ? { createdByAdmin: { S: first.createdByAdmin.S } } : {}),
+      ...(first.submittedAt?.N ? { submittedAt: { N: first.submittedAt.N } } : {}),
+      updatedAt: { S: now }, updatedByAdmin: { S: auth.profile!.whatsapp },
+    }
+    const retained = cities.filter(city => oldCities.includes(city))
+    const added = cities.filter(city => !oldCities.includes(city))
+    const removed = oldCities.filter(city => !cities.includes(city))
+    const transaction: any[] = [
+      ...retained.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem } } })),
+      ...added.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+      ...removed.map(city => ({ Delete: { TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } } } })),
+    ]
+    if (slug !== oldSlug) {
+      transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } })
+      if (oldSlug) transaction.push({ Delete: { TableName: slugTable, Key: { slug: { S: oldSlug } }, ConditionExpression: 'trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: transaction }))
+    return response(200, { updated: true, trainerId })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Os dados foram alterados ou o endereço do perfil já está em uso.' })
+    console.error('[imc-submit] Admin trainer update failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível salvar o profissional.' })
+  }
+}
+
 function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandler>[0]) {
   const expected = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
   const supplied = Object.entries(event.headers ?? {}).find(([name]) => name.toLowerCase() === 'x-fitpeso-verification-secret')?.[1]
@@ -939,6 +1259,34 @@ function trainerVerificationSecretMatches(event: Parameters<APIGatewayProxyHandl
   const expectedBuffer = Buffer.from(expected)
   const suppliedBuffer = Buffer.from(supplied)
   return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer)
+}
+
+async function releaseStaleRequestLock(locksTable: string, requestsTable: string, whatsapp: string, now: number) {
+  const lock = await dynamodb.send(new GetItemCommand({
+    TableName: locksTable, Key: { clientPhone: { S: whatsapp } }, ConsistentRead: true,
+  }))
+  const lockedId = lock.Item?.requestId?.S
+  if (!lockedId || Number(lock.Item?.validUntil?.N ?? 0) <= now) return
+  const locked = await dynamodb.send(new GetItemCommand({
+    TableName: requestsTable, Key: { requestId: { S: lockedId } }, ConsistentRead: true,
+  }))
+  const item = locked.Item
+  const stale = !item || item.clientPhone?.S !== whatsapp ||
+    item.lifecycle?.S === 'INACTIVE' || item.status?.S === 'INACTIVE' ||
+    item.lifecycle?.S === 'CLOSED' || item.lifecycle?.S === 'ACCEPTED' ||
+    Number(item.validUntil?.N ?? 0) <= now
+  if (!stale) return
+  try {
+    await dynamodb.send(new DeleteItemCommand({
+      TableName: locksTable, Key: { clientPhone: { S: whatsapp } },
+      ConditionExpression: 'requestId = :id AND validUntil = :until',
+      ExpressionAttributeValues: {
+        ':id': { S: lockedId }, ':until': { N: lock.Item!.validUntil!.N! },
+      },
+    }))
+  } catch (error) {
+    if (!(error instanceof ConditionalCheckFailedException)) throw error
+  }
 }
 
 async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
@@ -975,6 +1323,7 @@ async function verifyFitpesoRequest(data: Record<string, unknown> | null) {
     }
     if (request.status?.S !== 'PENDING_VERIFICATION' || verificationExpiresAt <= now) return response(200, { verified: false })
 
+    await releaseStaleRequestLock(locksTable, requestsTable, whatsapp, now)
     const validUntil = now + 7 * 24 * 60 * 60
     const nowIso = new Date(now * 1000).toISOString()
     await dynamodb.send(new TransactWriteItemsCommand({
@@ -1062,11 +1411,17 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
     ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
+    singleLesson: item.singleLesson?.BOOL ?? false,
+    withCompanion: item.withCompanion?.BOOL ?? false,
     attendsGym: item.attendsGym?.BOOL ?? false,
     ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
+    ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    ...(item.trainingStartTime?.S ? { trainingStartTime: item.trainingStartTime.S } : {}),
+    ...(item.trainingEndTime?.S ? { trainingEndTime: item.trainingEndTime.S } : {}),
     createdAt: item.createdAt?.S ?? '',
+    selectedTrainerIds: item.selectedTrainerIds?.SS ?? [],
     validUntil: Number(item.validUntil?.N ?? 0),
     ...(item.acceptedAt?.S ? { acceptedAt: item.acceptedAt.S } : {}),
   }
@@ -1080,6 +1435,28 @@ function createTrainerRequestToken(requestId: string, trainerId: string, expires
   return `${payload}.${signature}`
 }
 
+// Endpoint de leitura exclusivo da Beta. Reutiliza a credencial já usada nas validações WhatsApp.
+async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0]) {
+  if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Integração Beta não configurada.' })
+  if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+  const supportedCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const city = event.queryStringParameters?.cidade?.trim() || event.queryStringParameters?.city?.trim() || ''
+  if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
+  try {
+    const results = await Promise.all((city ? [city] : supportedCities).map(getActiveTrainersForCity))
+    const unique = [...new Map(results.flat().map(trainer => [trainer.trainerId, trainer])).values()]
+    const personais = unique.map(trainer => ({
+      id: trainer.trainerId, nome: trainer.name, cidades: results.flat().filter(item => item.trainerId === trainer.trainerId).map(item => item.city),
+      cref: trainer.cref, instagram: trainer.instagram ?? '', academias: trainer.academias,
+      genero: trainer.sex, ativo: true,
+    })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    return response(200, { total: personais.length, personais })
+  } catch (error) {
+    console.error('[imc-submit] Beta trainer listing failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Consulta de profissionais indisponível.' })
+  }
+}
+
 async function getActiveTrainersForCity(city: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
@@ -1090,7 +1467,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -1100,6 +1477,8 @@ async function getActiveTrainersForCity(city: string) {
         '#slug': 'slug',
         '#instagram': 'instagram',
         '#sex': 'sex',
+        '#cref': 'cref',
+        '#academias': 'academias',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -1115,7 +1494,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}) }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -1135,6 +1514,8 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         name: trainer.name,
         slug: trainer.slug,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
+        cref: trainer.cref,
+        academias: trainer.academias,
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
     return response(200, { trainers: eligible, count: eligible.length })
@@ -1171,6 +1552,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
     const trainerCache = new Map<string, ReturnType<typeof getActiveTrainersForCity>>()
     const requests = await Promise.all((result.Items ?? []).map(async item => {
       const request = deserializeFitpesoRequest(item)
+      if (item.lifecycle?.S !== 'OPEN') return null
       if (!trainerCache.has(request.city)) trainerCache.set(request.city, getActiveTrainersForCity(request.city))
       const trainers = await trainerCache.get(request.city)!
       const selectedTrainerIds = item.selectedTrainerIds?.SS as string[] | undefined
@@ -1179,7 +1561,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         : trainers.filter(trainer => trainer.sex === request.trainerGenderPreference)
       const selectedTrainers = selectedTrainerIds?.length
         ? eligibleTrainers.filter(trainer => selectedTrainerIds.includes(trainer.trainerId))
-        : eligibleTrainers
+        : []
       const validUntil = request.validUntil
       return {
         ...request,
@@ -1190,7 +1572,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         })),
       }
     }))
-    return response(200, { requests, ...(nextCursor ? { nextCursor } : {}) })
+    return response(200, { requests: requests.filter(request => request !== null), ...(nextCursor ? { nextCursor } : {}) })
   } catch (error) {
     console.error('[imc-submit] Valid Fitpeso request lookup failed', {
       errorClass: error instanceof Error ? error.name : typeof error,
@@ -1232,7 +1614,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     const item = requestResult.Item
     const validUntil = Number(item?.validUntil?.N ?? 0)
     if (item && validUntil <= now) return response(410, { expired: true })
-    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') ||
+    if (!item || validUntil !== Number(claims.exp) || !['VALIDATED', 'PROCESSED'].includes(item.status?.S ?? '') || item.lifecycle?.S !== 'OPEN' ||
         (item.selectedTrainerIds?.SS && !item.selectedTrainerIds.SS.includes(claims.tid))) return invalid()
 
     const trainerResult = await dynamodb.send(new GetItemCommand({
@@ -1258,10 +1640,15 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
-      attendsGym: item.attendsGym?.BOOL ?? false,
+      singleLesson: item.singleLesson?.BOOL ?? false,
+    withCompanion: item.withCompanion?.BOOL ?? false,
+    attendsGym: item.attendsGym?.BOOL ?? false,
       ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
+      ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    ...(item.trainingStartTime?.S ? { trainingStartTime: item.trainingStartTime.S } : {}),
+    ...(item.trainingEndTime?.S ? { trainingEndTime: item.trainingEndTime.S } : {}),
       validUntil,
       proposalAlreadySent: Boolean(existingProposal?.Item),
     }, token })
@@ -1324,11 +1711,19 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const item = codeResult.Item
     if (item?.flow?.S !== 'trainer-whatsapp' || item.whatsapp?.S !== whatsapp) return response(200, { verified: false })
     const slug = item.slug?.S ?? ''
-    if (item.consumedAt?.N) return response(200, { verified: true, slug })
-    if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
     const trainerId = item.trainerId?.S
     const cities = item.cities?.SS ?? []
     if (!trainerId || cities.length < 1 || cities.length > 2) return response(200, { verified: false })
+    const trainerRecord = await dynamodb.send(new GetItemCommand({
+      TableName: trainersTable,
+      Key: { city: { S: cities[0] }, trainerId: { S: trainerId } },
+      ProjectionExpression: '#name, whatsapp',
+      ExpressionAttributeNames: { '#name': 'name' },
+      ConsistentRead: true,
+    }))
+    const confirmedName = trainerRecord.Item?.whatsapp?.S === whatsapp ? trainerRecord.Item.name?.S ?? '' : ''
+    if (item.consumedAt?.N) return response(200, { verified: true, slug, whatsapp, name: confirmedName })
+    if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
 
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
@@ -1367,7 +1762,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
         })),
       ],
     }))
-    return response(200, { verified: true, slug })
+    return response(200, { verified: true, slug, whatsapp, name: confirmedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
       return response(200, { verified: false })
@@ -1400,6 +1795,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
   const customer = auth.profile!
+  if (customer.age === undefined) return response(400, { error: 'Informe sua data de nascimento na revisão do pedido antes de solicitar atendimento.' })
   const requestData: Record<string, unknown> = {
     ...data,
     clientName: customer.name,
@@ -1420,8 +1816,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
   const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
   const selectedTrainerIds = [...new Set(rawTrainerIds.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))]
-  if (selectedTrainerIds.length < 1 || selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
-    return response(400, { error: 'Selecione de 1 a 20 profissionais.' })
+  if (selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
+    return response(400, { error: 'Selecione no máximo 20 profissionais válidos.' })
   }
   const cityTrainers = await getActiveTrainersForCity(city)
   const matchingTrainers = cityTrainers.filter(trainer => preference === 'indiferente' || trainer.sex === preference)
@@ -1430,10 +1826,10 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     return response(409, { error: 'A lista de profissionais mudou. Confira os critérios e selecione novamente.' })
   }
   const now = Math.floor(Date.now() / 1000)
+  await releaseStaleRequestLock(locksTable, requestsTable, clientPhone, now)
   const existingLock = await dynamodb.send(new GetItemCommand({
     TableName: locksTable,
     Key: { clientPhone: { S: clientPhone } },
-    ProjectionExpression: 'validUntil',
     ConsistentRead: true,
   }))
   if (Number(existingLock.Item?.validUntil?.N ?? 0) > now) return response(409, { error: 'Já existe uma solicitação válida para este WhatsApp. Aguarde o retorno da equipe.' })
@@ -1449,7 +1845,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     status: { S: 'VALIDATED' },
     lifecycle: { S: 'OPEN' },
     proposalCount: { N: '0' },
-    selectedTrainerIds: { SS: selectedTrainerIds },
+    ...(selectedTrainerIds.length ? { selectedTrainerIds: { SS: selectedTrainerIds } } : {}),
     createdAt: { S: createdAt },
     consentAt: { S: createdAt },
     validUntil: { N: String(validUntil) },
@@ -1458,11 +1854,16 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(Number.isInteger(requestData.age) ? { age: { N: String(requestData.age) } } : {}),
     ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
     trainerGenderPreference: { S: preference },
+    singleLesson: { BOOL: requestData.singleLesson === true },
+    withCompanion: { BOOL: requestData.withCompanion === true },
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
     ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
+    ...(typeof requestData.sessionsPerWeek === 'number' && Number.isInteger(requestData.sessionsPerWeek) && requestData.sessionsPerWeek >= 1 && requestData.sessionsPerWeek <= 7 ? { sessionsPerWeek: { N: String(requestData.sessionsPerWeek) } } : {}),
     ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
+    ...(typeof requestData.trainingStartTime === 'string' && /^\d{2}:\d{2}$/.test(requestData.trainingStartTime) ? { trainingStartTime: { S: requestData.trainingStartTime } } : {}),
+    ...(typeof requestData.trainingEndTime === 'string' && /^\d{2}:\d{2}$/.test(requestData.trainingEndTime) ? { trainingEndTime: { S: requestData.trainingEndTime } } : {}),
   }
 
   await dynamodb.send(new TransactWriteItemsCommand({
@@ -1575,6 +1976,59 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
   }
 }
 
+async function sendCustomerRequestToTrainers(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestId = event.pathParameters?.requestId?.trim() ?? ''
+  const rawIds = data?.trainerIds
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !Array.isArray(rawIds) || rawIds.length < 1 || rawIds.length > 20 ||
+      rawIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) ||
+      new Set(rawIds).size !== rawIds.length) {
+    return response(400, { error: 'Selecione de 1 a 20 profissionais válidos.' })
+  }
+  const trainerIds = rawIds as string[]
+  const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!requestsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  try {
+    const result = await dynamodb.send(new GetItemCommand({
+      TableName: requestsTable, Key: { requestId: { S: requestId } }, ConsistentRead: true,
+    }))
+    const item = result.Item
+    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (item.lifecycle?.S !== 'OPEN' || Number(item.validUntil?.N ?? 0) <= now || Number(item.proposalCount?.N ?? 0) >= 5) {
+      return response(409, { error: 'Esta solicitação não está aberta para novos envios.' })
+    }
+    const eligible = await getActiveTrainersForCity(item.city?.S ?? '')
+    const matchingIds = new Set(eligible.filter(trainer => item.trainerGenderPreference?.S === 'indiferente' ||
+      !item.trainerGenderPreference?.S || trainer.sex === item.trainerGenderPreference.S).map(trainer => trainer.trainerId))
+    if (trainerIds.some(id => !matchingIds.has(id))) return response(409, { error: 'Algum profissional não está disponível nesta cidade.' })
+    const existing = item.selectedTrainerIds?.SS ?? []
+    const combined = [...new Set([...existing, ...trainerIds])]
+    if (combined.length > 20) return response(409, { error: 'Limite de 20 profissionais por solicitação.' })
+    const newIds = combined.filter(id => !existing.includes(id))
+    if (!newIds.length) return response(200, { sent: true, added: 0, selectedTrainerIds: combined })
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: requestsTable,
+      Key: { requestId: { S: requestId } },
+      UpdateExpression: 'SET selectedTrainerIds = :ids',
+      ConditionExpression: 'clientPhone = :phone AND #lifecycle = :open AND validUntil > :now AND proposalCount < :max AND ' +
+        (existing.length ? 'selectedTrainerIds = :previous' : 'attribute_not_exists(selectedTrainerIds)'),
+      ExpressionAttributeNames: { '#lifecycle': 'lifecycle' },
+      ExpressionAttributeValues: {
+        ':ids': { SS: combined }, ':phone': { S: auth.profile!.whatsapp }, ':open': { S: 'OPEN' },
+        ':now': { N: String(now) }, ':max': { N: '5' },
+        ...(existing.length ? { ':previous': { SS: existing } } : {}),
+      },
+    }))
+    return response(200, { sent: true, added: newIds.length, selectedTrainerIds: combined })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'A solicitação mudou. Atualize e tente novamente.' })
+    console.error('[imc-submit] Failed to share customer request with trainers', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível enviar a solicitação aos profissionais agora.' })
+  }
+}
+
 async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
@@ -1595,6 +2049,85 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
   } catch (error) {
     console.error('[imc-submit] Customer requests lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível carregar suas solicitações.' })
+  }
+}
+
+async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
+  const auth = await authenticateCustomer(event)
+  if (auth.error) return auth.error
+  const requestId = event.pathParameters?.requestId?.trim() ?? ''
+  const action = data?.action
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !['deactivate', 'reactivate'].includes(String(action))) {
+    return response(400, { error: 'Solicitação ou ação inválida.' })
+  }
+  const tableName = process.env.FITPESO_USER_REQUESTS_TABLE
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
+  if (!tableName || !proposalsTable || !locksTable) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const nowIso = new Date(now * 1000).toISOString()
+  try {
+    const existing = await dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { requestId: { S: requestId } }, ConsistentRead: true,
+    }))
+    const item = existing.Item
+    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (Number(item.validUntil?.N ?? 0) <= now) return response(409, { error: 'O prazo de validade da solicitação terminou.' })
+    if (action === 'deactivate') {
+      if ((item.lifecycle?.S ?? 'OPEN') !== 'OPEN' ||
+          Number(item.proposalCount?.N ?? 0) !== 0) {
+        return response(409, { error: 'Apenas solicitações ativas sem propostas podem ser inativadas.' })
+      }
+      const proposals = await dynamodb.send(new QueryCommand({
+        TableName: proposalsTable, KeyConditionExpression: 'requestId = :id',
+        ExpressionAttributeValues: { ':id': { S: requestId } }, Limit: 1, ConsistentRead: true,
+      }))
+      if (proposals.Items?.length) return response(409, { error: 'Esta solicitação já recebeu propostas.' })
+      await dynamodb.send(new TransactWriteItemsCommand({
+        TransactItems: [{ Update: {
+        TableName: tableName, Key: { requestId: { S: requestId } },
+        UpdateExpression: 'SET #status = :inactive, lifecycle = :inactive, previousStatus = :previous, updatedAt = :updated',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND (attribute_not_exists(lifecycle) OR lifecycle = :open) AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
+        },
+        } }, { Delete: {
+          TableName: locksTable, Key: { clientPhone: { S: auth.profile!.whatsapp } },
+          ConditionExpression: 'attribute_not_exists(requestId) OR requestId = :id',
+          ExpressionAttributeValues: { ':id': { S: requestId } },
+        } }],
+      }))
+    } else {
+      if (item.lifecycle?.S !== 'INACTIVE' || item.status?.S !== 'INACTIVE' ||
+          !['VALIDATED', 'PROCESSED'].includes(item.previousStatus?.S ?? '') ||
+          Number(item.proposalCount?.N ?? 0) !== 0) {
+        return response(409, { error: 'Esta solicitação não pode ser reativada.' })
+      }
+      await dynamodb.send(new TransactWriteItemsCommand({
+        TransactItems: [{ Update: {
+        TableName: tableName, Key: { requestId: { S: requestId } },
+        UpdateExpression: 'SET #status = :previous, lifecycle = :open, updatedAt = :updated REMOVE previousStatus',
+        ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: {
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
+        },
+        } }, { Put: {
+          TableName: locksTable,
+          Item: { clientPhone: { S: auth.profile!.whatsapp }, requestId: { S: requestId }, validUntil: { N: item.validUntil!.N! }, expiresAt: { N: item.validUntil!.N! } },
+          ConditionExpression: 'attribute_not_exists(clientPhone) OR validUntil <= :now',
+          ExpressionAttributeValues: { ':now': { N: String(now) } },
+        } }],
+      }))
+    }
+    return response(200, { updated: true, lifecycle: action === 'deactivate' ? 'INACTIVE' : 'OPEN' })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException || (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed'))) return response(409, { error: 'A solicitação mudou ou existe outra solicitação ativa. Atualize a lista e tente novamente.' })
+    console.error('[imc-submit] Request visibility update failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível atualizar a solicitação.' })
   }
 }
 
@@ -1691,6 +2224,7 @@ async function sendRequestEmail(data: Record<string, unknown>, code: string) {
     ...(age ? [`Idade: ${age}`] : []),
     `Cidade: ${String(data.city).trim()}`,
     `Gênero do personal: ${trainerGenderPreference}`,
+    `Participantes: ${data.withCompanion === true ? 'Com um acompanhante' : 'Sozinho'}`,
     ...(typeof data.desiredDuration === 'string' && data.desiredDuration ? [`Tempo de acompanhamento: ${data.desiredDuration}`] : []),
     ...(data.attendsGym === true ? [`Frequenta academia: Sim${gymName ? ` — ${gymName}` : ''}`] : []),
     ...(typeof data.objective === 'string' && data.objective ? [`Objetivo: ${data.objective}`] : []),
@@ -1777,6 +2311,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/verify-phone')) return verifyPhoneSignupFromBeta(event)
+  if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login-status')) return getTrainerLoginStatus(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/verify-login')) {
@@ -1785,6 +2324,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return verifyTrainerLogin(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/received-requests')) return listTrainerReceivedRequests(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/trainers')) return listAdminTrainers(event)
+  if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
     const auth = await getTrainerSession(event)
     return auth.error ?? response(200, { authenticated: true, profile: auth.profile! })
@@ -1822,9 +2363,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return getCustomerVerificationStatus(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/trainer-view')) return getTrainerRequest(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/personal/listar')) return listTrainersForBeta(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/eligible')) return listEligibleTrainers(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/customers/requests')) return listCustomerRequests(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposals')) return submitTrainerProposal(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/send-to-trainers')) return sendCustomerRequestToTrainers(event, parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/visibility')) return changeCustomerRequestVisibility(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/accept')) return acceptTrainerProposal(event, parseBody(event))
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/accepted-notifications')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
@@ -1843,7 +2387,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
     const registration = parseBody(event)
-    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira nome, WhatsApp, e-mail e data de nascimento.' })
+    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o WhatsApp e os dados informados. O nome será obtido na confirmação com a Beta.' })
     try {
       const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
       return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })
@@ -1923,6 +2467,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
     return verifyTrainerWhatsApp(parseBody(event))
   }
+
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/admin/trainers')) return registerAdminTrainer(event)
 
   if (event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)

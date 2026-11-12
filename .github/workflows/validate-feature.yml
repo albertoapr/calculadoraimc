@@ -1,0 +1,32 @@
+name: Validar layout FitPeso
+
+on:
+  push:
+    branches:
+      - feature/buscar-personal-home
+      - feature/remover-divisoria-home
+      - feature/lista-personais-na-busca
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: Type-check e build Vite
+        run: npm run build
+      - name: Testes de WhatsApp
+        run: npm run test:whatsapp
