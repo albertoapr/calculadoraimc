@@ -3,6 +3,7 @@ import ProfissionaisDirectoryView from '../profissionais/ProfissionaisDirectoryV
 import type { PublicTrainer } from '../../services/profissionaisService'
 
 defineProps<{
+  draftSelection: boolean
   academy: string
   academies: string[]
   trainers: PublicTrainer[]
@@ -33,7 +34,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="trainer-selection-stage">
-    <div class="request-step-progress" role="status">Etapa 4 de 4 — Selecionar profissionais</div>
+    <div v-if="draftSelection" class="request-step-progress" role="status">Etapa 4 de 4 — Selecionar profissionais</div>
     <ProfissionaisDirectoryView
     :selecting-for-draft="true"
     :academy="academy"
