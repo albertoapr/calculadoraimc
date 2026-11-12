@@ -51,7 +51,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const phone = normalizePhone(data.clientPhone)
   const email = typeof data.email === 'string' ? data.email.trim() : ''
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
-  const objectives = ['Emagrecimento', 'Musculação', 'Outros']
+  const objectives = ['Emagrecimento', 'Musculação', 'Outros', 'Hipertrofia', 'Condicionamento físico', 'Saúde e qualidade de vida', 'Reabilitação', 'Outro']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
   const clientGenderOptions = ['feminino', 'masculino', 'nao_informar']
   const desiredDurations = ['Aula avulsa', '1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
@@ -1810,7 +1810,10 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(customer.email ? { email: customer.email } : {}),
     consent: data.consent === true,
   }
-  if (!isValidRequest(requestData)) return response(400, { error: 'Informe sua idade (de 1 a 120 anos) e confira os dados do atendimento.' })
+  if (!Number.isInteger(requestData.age) || Number(requestData.age) < 1 || Number(requestData.age) > 120) {
+    return response(400, { error: 'Informe uma idade válida, de 1 a 120 anos.' })
+  }
+  if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento, como objetivo, academia e disponibilidade.' })
 
   const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
