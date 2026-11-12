@@ -27,14 +27,14 @@ const { theme } = useFitpesoContext()
     <div class="box-theme-actions">
       <button
         type="button"
-        class="theme-switch"
+        class="theme-mode-toggle"
         role="switch"
         :aria-checked="theme === 'dark'"
         :aria-label="`Tema escuro ${theme === 'dark' ? 'ativado' : 'desativado'}. Alternar aparência`"
         :title="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
         @click="theme = theme === 'dark' ? 'light' : 'dark'"
       >
-        <span class="theme-switch-thumb" aria-hidden="true">
+        <span class="theme-mode-toggle-thumb" aria-hidden="true">
           <svg v-if="theme === 'dark'" viewBox="0 0 24 24">
             <path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" />
           </svg>
