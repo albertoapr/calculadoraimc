@@ -86,6 +86,7 @@ function getTrainerSlugFromHost() {
 type TrainerRequestDetails = {
   clientName: string
   age?: number
+  clientGender?: 'feminino' | 'masculino' | 'nao_informar'
   city: string
   objective?: string
   desiredDuration?: string
@@ -2901,6 +2902,7 @@ async function sendResult() {
           <dl>
             <div><dt>Nome</dt><dd>{{ trainerRequest.clientName }}</dd></div>
             <div v-if="trainerRequest.age"><dt>Idade</dt><dd>{{ trainerRequest.age }} anos</dd></div>
+            <div v-if="trainerRequest.clientGender"><dt>Gênero do cliente</dt><dd>{{ trainerRequest.clientGender === 'feminino' ? 'Mulher' : trainerRequest.clientGender === 'masculino' ? 'Homem' : 'Prefere não informar' }}</dd></div>
             <div><dt>Cidade</dt><dd>{{ trainerRequest.city }}</dd></div>
             <div v-if="trainerRequest.objective"><dt>Objetivo</dt><dd>{{ trainerRequest.objective }}</dd></div>
             <div><dt>Participantes</dt><dd>{{ trainerRequest.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</dd></div>
