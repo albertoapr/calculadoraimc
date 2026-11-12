@@ -1513,7 +1513,7 @@ const otherGymName = ref('')
 async function continueToTrainerSelection() {
   status.value = ''
   const sessions = Number(form.sessionsPerWeek)
-  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 7) { status.value = 'Selecione de 1 a 7 aulas por semana.'; return }
+  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 4) { status.value = 'Selecione de 1 a 4 aulas por semana.'; return }
   if (!form.gymName) { status.value = 'Selecione uma academia.'; return }
   if (form.gymName === 'Outros' && !otherGymName.value.trim()) { status.value = 'Informe o lugar onde pretende treinar.'; return }
   form.attendsGym = true
@@ -2404,7 +2404,7 @@ async function sendResult() {
     status.value = 'Complete seu cadastro antes de solicitar atendimento.'
     return
   }
-  if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 7 || !form.trainingDays.length || !form.trainingShifts.length) {
+  if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 4 || !form.trainingDays.length || !form.trainingShifts.length) {
     status.value = 'Informe as aulas por semana, pelo menos um dia e um turno.'
     return
   }
@@ -3108,7 +3108,7 @@ async function sendResult() {
           <h3 id="request-training-heading">🏋️ Seu treino</h3>
           <p class="request-question">Quantas aulas por semana você deseja?</p>
           <div class="request-choice-row" role="group" aria-label="Quantidade de aulas por semana">
-            <label v-for="number in 7" :key="number" class="request-choice">
+            <label v-for="number in 4" :key="number" class="request-choice">
               <input v-model="form.sessionsPerWeek" type="radio" name="sessionsPerWeek" :value="String(number)">
               <span>{{ number }}</span>
             </label>
