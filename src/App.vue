@@ -1479,7 +1479,8 @@ async function openRequestForm() {
   form.withCompanion = false
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
-  form.gymName = ''
+  form.gymName = defaultAcademyForCity(form.city)
+  form.attendsGym = Boolean(form.gymName)
   otherGymName.value = ''
   form.objective = 'Emagrecimento'
   viewMode.value = 'contact'
@@ -1544,10 +1545,23 @@ async function searchEligibleTrainers() {
   } finally { checkingTrainers.value = false }
 }
 
+function defaultAcademyForCity(city: string): string {
+  if (!isMesquita(city)) return ''
+  return publicTrainerAcademies.value.find(name => name.trim().toLocaleLowerCase('pt-BR') === 'aquatic center — vila emil')
+    ?? publicTrainerAcademies.value.find(name => /aquatic\s*center/i.test(name) && /vila\s*emil/i.test(name))
+    ?? ''
+}
+watch(publicTrainerAcademies, () => {
+  if (viewMode.value === 'contact' && !form.gymName) {
+    form.gymName = defaultAcademyForCity(form.city)
+    form.attendsGym = Boolean(form.gymName)
+  }
+})
 const otherGymName = ref('')
 watch(() => form.city, city => {
   if (viewMode.value !== 'contact' || requestStep.value !== 2) return
-  form.gymName = ''
+  form.gymName = defaultAcademyForCity(city)
+  form.attendsGym = Boolean(form.gymName)
   otherGymName.value = ''
   publicTrainerCity.value = city
   if (city) void loadPublicTrainers()
