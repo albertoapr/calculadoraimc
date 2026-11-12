@@ -601,7 +601,7 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 .request-summary-table tr:last-child th, .request-summary-table tr:last-child td { border-bottom: 0; }
 .request-summary-price td { color: var(--blue-dark); font-weight: 800; }
 .request-summary-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
-@media (max-width: 480px) { .request-summary-table th, .request-summary-table td { padding: 10px 9px; font-size: 12px; } }
+@media (max-width: 480px) { .request-summary-table th, .request-summary-table td { padding: 10px 9px; font-size: 14px; } }
 
 /* Consulta pública CREF-RJ integrada à navegação FitPeso. */
 .professional-registration-view { display: grid; gap: 14px; width: 100%; min-width: 0; color: var(--ink); }
