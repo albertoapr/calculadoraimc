@@ -491,6 +491,7 @@ const form = reactive({
   objective: 'Emagrecimento',
   sex: 'feminino' as Sex,
   age: '',
+  clientGender: 'nao_informar' as 'feminino' | 'masculino' | 'nao_informar',
   city: '',
   trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
   desiredDuration: '1 mês',
@@ -668,6 +669,7 @@ function clearContactDetails() {
   form.email = ''
   form.objective = 'Emagrecimento'
   form.age = ''
+  form.clientGender = 'nao_informar'
   form.city = ''
   form.sessionsPerWeek = '1'
   form.trainingDays = ['Segunda-feira']
@@ -1606,13 +1608,9 @@ async function returnToDraftSummary() {
 }
 async function confirmServiceRequest() {
   if (!selectedTrainerIds.value.length) { status.value = 'Selecione pelo menos um personal antes de enviar a solicitação.'; return }
+  if (!/^(?:[1-9]|[1-9]\d|1[01]\d|120)$/.test(String(form.age).trim())) { status.value = 'Informe sua idade (de 1 a 120 anos) antes de enviar.'; return }
   if (!customerSignedInName.value) {
     await openCustomerLogin(true, 'whatsapp')
-    return
-  }
-  if (!isValidLoginBirthDate(customerForm.dateOfBirth)) {
-    await openMyProfile()
-    editingProfileStatus.value = 'Para enviar a solicitação, você precisa completar seu cadastro. Informe sua data de nascimento e salve as alterações.'
     return
   }
   form.shareContactConsent = true
@@ -2481,16 +2479,12 @@ async function sendResult() {
   const age = ageInput ? Number(ageInput) : undefined
   const validName = clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
   const validCity = Boolean(matchSupportedRequestCity(city))
-  const validAge = age === undefined || (Number.isInteger(age) && age >= 1 && age <= 120)
+  const validAge = age !== undefined && Number.isInteger(age) && age >= 1 && age <= 120
   const normalizedPhoneDigits = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
   const validPhone = /^55[1-9]{2}9?\d{8}$/.test(normalizedPhoneDigits)
 
   if (!validName || !validCity || !validAge || !validPhone) {
-    status.value = 'Confira o nome, o WhatsApp com DDD e a cidade. Se informar a idade, use um valor entre 1 e 120 anos.'
-    return
-  }
-  if (!isValidLoginBirthDate(customerForm.dateOfBirth)) {
-    status.value = 'Complete seu cadastro antes de solicitar atendimento.'
+    status.value = 'Confira o nome, o WhatsApp, a cidade e informe sua idade (de 1 a 120 anos).'
     return
   }
   if (!selectedTrainerIds.value.length) { status.value = 'Selecione pelo menos um personal.'; return }
@@ -2511,7 +2505,8 @@ async function sendResult() {
       clientName,
       clientPhone: `+${normalizedPhoneDigits}`,
       ...(email ? { email } : {}),
-      ...(age !== undefined ? { age } : {}),
+      age,
+      clientGender: form.clientGender,
       city,
       trainerGenderPreference: form.trainerGenderPreference,
       desiredDuration: form.singleLesson ? 'Aula avulsa' : form.desiredDuration,
@@ -3210,6 +3205,21 @@ async function sendResult() {
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
         <template v-if="requestStep === 2">
         
+        <section class="request-card field-wide" aria-labelledby="request-client-heading">
+          <h3 id="request-client-heading">👤 Sobre você</h3>
+          <label class="field" for="request-client-age">
+            <span class="field-label">Qual é a sua idade?</span>
+            <input id="request-client-age" v-model="form.age" name="clientAge" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Idade em anos" required>
+          </label>
+          <p class="request-question">Como você se identifica?</p>
+          <div class="request-gender-row" role="group" aria-label="Seu gênero">
+            <label v-for="option in [{ value: 'feminino', label: 'Mulher' }, { value: 'masculino', label: 'Homem' }, { value: 'nao_informar', label: 'Prefiro não informar' }]" :key="option.value" class="request-choice request-gender">
+              <input v-model="form.clientGender" type="radio" name="clientGender" :value="option.value">
+              <span>{{ option.label }}</span>
+            </label>
+          </div>
+        </section>
+
         <section class="request-card field-wide" aria-labelledby="request-training-heading">
           <h3 id="request-training-heading">🏋️ Seu treino</h3>
           <label class="field" for="request-objective">
@@ -3305,6 +3315,20 @@ async function sendResult() {
         </template>
 
         <template v-else>
+          <section class="request-card field-wide" aria-labelledby="request-client-summary-heading">
+            <h3 id="request-client-summary-heading">👤 Sobre você</h3>
+            <label class="field" for="request-summary-age">
+              <span class="field-label">Sua idade (anos)</span>
+              <input id="request-summary-age" v-model="form.age" name="requestAge" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Informe sua idade" required>
+            </label>
+            <p class="request-question">Seu gênero</p>
+            <div class="request-gender-row" role="group" aria-label="Seu gênero">
+              <label v-for="option in [{ value: 'feminino', label: 'Mulher' }, { value: 'masculino', label: 'Homem' }, { value: 'nao_informar', label: 'Prefiro não informar' }]" :key="option.value" class="request-choice request-gender">
+                <input v-model="form.clientGender" type="radio" name="clientGenderSummary" :value="option.value">
+                <span>{{ option.label }}</span>
+              </label>
+            </div>
+          </section>
           <div class="field-wide request-summary-table-wrap">
             <table class="request-summary-table">
               <tbody>
