@@ -233,7 +233,10 @@ async function sendRequestToSelectedTrainers() {
 const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
-const publicTrainerAcademies = computed(() => [...new Set(publicTrainers.value.flatMap(trainer => [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].map(name => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+const MESQUITA_DEFAULT_ACADEMY = 'Aquatic Center — Vila Emil'
+const isMesquita = (city: string) => city.trim().toLocaleLowerCase('pt-BR') === 'mesquita'
+const publicTrainerAcademies = computed(() => [...new Set([...publicTrainers.value.flatMap(trainer => [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].map(name => name.trim()).filter(Boolean)), ...(isMesquita(publicTrainerCity.value) ? [MESQUITA_DEFAULT_ACADEMY] : [])])].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+watch(publicTrainerCity, city => { publicTrainerAcademy.value = isMesquita(city) ? MESQUITA_DEFAULT_ACADEMY : '' })
 const publicFilteredTrainers = computed(() => publicTrainers.value.filter(trainer => !publicTrainerAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.trim().toLocaleLowerCase('pt-BR') === publicTrainerAcademy.value.toLocaleLowerCase('pt-BR'))))
 async function loadPublicTrainers() {
   const id = ++publicLookupId
@@ -254,7 +257,7 @@ async function loadPublicTrainers() {
 function openPublicTrainers() {
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
-  publicTrainerAcademy.value = ''
+  publicTrainerAcademy.value = isMesquita(publicTrainerCity.value) ? MESQUITA_DEFAULT_ACADEMY : ''
   homeSelectedTrainerIds.value = []
   viewMode.value = 'public-trainers'
   sharingRequestId.value = ''
@@ -1442,12 +1445,8 @@ async function openRequestForm() {
   form.withCompanion = false
   eligibleTrainers.value = []
   selectedTrainerIds.value = []
-  // A academia escolhida na página inicial pode não constar nas opções legadas do formulário.
-  // Nesse caso, selecione "Outros" e preserve o nome escolhido.
-  const selectedAcademy = homeAcademy.value.trim()
-  const matchingGym = academyOptions.find(gym => gym !== 'Outros' && gym.toLocaleLowerCase('pt-BR') === selectedAcademy.toLocaleLowerCase('pt-BR'))
-  form.gymName = selectedAcademy ? (matchingGym ?? 'Outros') : ''
-  otherGymName.value = selectedAcademy && !matchingGym ? selectedAcademy : ''
+  form.gymName = isMesquita(form.city) ? MESQUITA_DEFAULT_ACADEMY : ''
+  otherGymName.value = ''
   viewMode.value = 'contact'
   publicTrainerCity.value = form.city
   if (publicTrainerCity.value) void loadPublicTrainers()
@@ -1511,6 +1510,13 @@ async function searchEligibleTrainers() {
 }
 
 const otherGymName = ref('')
+watch(() => form.city, city => {
+  if (viewMode.value !== 'contact' || requestStep.value !== 2) return
+  form.gymName = isMesquita(city) ? MESQUITA_DEFAULT_ACADEMY : ''
+  otherGymName.value = ''
+  publicTrainerCity.value = city
+  if (city) void loadPublicTrainers()
+})
 
 async function continueToTrainerSelection() {
   status.value = ''
