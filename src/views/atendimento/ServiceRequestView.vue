@@ -47,18 +47,21 @@ const {
         <h3 id="request-client-heading">👤 Sobre você</h3>
         <label class="field" for="request-client-age">
           <span class="field-label">Qual é a sua idade?</span>
+          <output class="request-age-value" for="request-client-age">{{ form.age }} anos</output>
           <input
             id="request-client-age"
             v-model="form.age"
             name="clientAge"
-            type="number"
-            inputmode="numeric"
-            min="1"
-            max="120"
+            type="range"
+            min="15"
+            max="100"
             step="1"
-            placeholder="Idade em anos"
             required
           />
+          <span class="request-age-limits" aria-hidden="true">
+            <span>15 anos</span>
+            <span>100 anos</span>
+          </span>
         </label>
         <p class="request-question">Qual é o seu sexo?</p>
         <div class="request-gender-row" role="group" aria-label="Seu sexo">
