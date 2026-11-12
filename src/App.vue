@@ -1565,6 +1565,8 @@ watch(() => form.city, city => {
 
 async function continueToTrainerSelection() {
   status.value = ''
+  const age = Number(String(form.age).trim())
+  if (!String(form.age).trim() || !Number.isInteger(age) || age < 1 || age > 120) { status.value = 'Informe sua idade (de 1 a 120 anos).'; return }
   const sessions = Number(form.sessionsPerWeek)
   if (!Number.isInteger(sessions) || sessions < 1 || sessions > 4) { status.value = 'Selecione de 1 a 4 aulas por semana.'; return }
   if (!form.gymName) { status.value = 'Selecione uma academia.'; return }
@@ -3213,8 +3215,8 @@ async function sendResult() {
             <span class="field-label">Qual é a sua idade?</span>
             <input id="request-client-age" v-model="form.age" name="clientAge" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Idade em anos" required>
           </label>
-          <p class="request-question">Como você se identifica?</p>
-          <div class="request-gender-row" role="group" aria-label="Seu gênero">
+          <p class="request-question">Qual é o seu sexo?</p>
+          <div class="request-gender-row" role="group" aria-label="Seu sexo">
             <label v-for="option in [{ value: 'feminino', label: 'Mulher' }, { value: 'masculino', label: 'Homem' }, { value: 'nao_informar', label: 'Prefiro não informar' }]" :key="option.value" class="request-choice request-gender">
               <input v-model="form.clientGender" type="radio" name="clientGender" :value="option.value">
               <span>{{ option.label }}</span>
@@ -3317,23 +3319,11 @@ async function sendResult() {
         </template>
 
         <template v-else>
-          <section class="request-card field-wide" aria-labelledby="request-client-summary-heading">
-            <h3 id="request-client-summary-heading">👤 Sobre você</h3>
-            <label class="field" for="request-summary-age">
-              <span class="field-label">Sua idade (anos)</span>
-              <input id="request-summary-age" v-model="form.age" name="requestAge" type="number" inputmode="numeric" min="1" max="120" step="1" placeholder="Informe sua idade" required>
-            </label>
-            <p class="request-question">Seu gênero</p>
-            <div class="request-gender-row" role="group" aria-label="Seu gênero">
-              <label v-for="option in [{ value: 'feminino', label: 'Mulher' }, { value: 'masculino', label: 'Homem' }, { value: 'nao_informar', label: 'Prefiro não informar' }]" :key="option.value" class="request-choice request-gender">
-                <input v-model="form.clientGender" type="radio" name="clientGenderSummary" :value="option.value">
-                <span>{{ option.label }}</span>
-              </label>
-            </div>
-          </section>
           <div class="field-wide request-summary-table-wrap">
             <table class="request-summary-table">
               <tbody>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🎂</span>Idade</th><td>{{ form.age ? form.age + ' anos' : 'Não informada' }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">👤</span>Sexo</th><td>{{ form.clientGender === 'feminino' ? 'Mulher' : form.clientGender === 'masculino' ? 'Homem' : 'Prefiro não informar' }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">📍</span>Cidade</th><td>{{ form.city }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🏋️</span>Academia / local</th><td>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🎯</span>Objetivo</th><td>{{ form.objective || 'Não informado' }}</td></tr>
@@ -3480,9 +3470,9 @@ async function sendResult() {
 .public-directory{width:100%;padding:12px 0 24px}.public-directory-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
 
 /* Resumo de atendimento: leitura confortável e ícones identificadores. */
-.request-summary-table { font-size: 1.08rem; line-height: 1.55; }
+.request-summary-table { font-size: 14px; line-height: 1.55; }
 .request-summary-table th, .request-summary-table td { padding: 0.85rem 0.7rem; }
 .request-summary-table th { font-weight: 650; }
 .summary-row-icon { display: inline-block; width: 1.65em; margin-right: 0.2em; font-size: 1.15em; vertical-align: -0.08em; }
-@media (max-width: 480px) { .request-summary-table { font-size: 1rem; } .request-summary-table th, .request-summary-table td { padding: 0.75rem 0.45rem; } }
+@media (max-width: 480px) { .request-summary-table { font-size: 14px; } .request-summary-table th, .request-summary-table td { padding: 0.75rem 0.45rem; } }
 </style>
