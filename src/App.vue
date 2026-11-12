@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { updatePageSeo } from './services/seo'
 import ConsultarProfissionaisView from './views/profissionais/ConsultarProfissionaisView.vue'
 import SelecionarProfissionaisView from './views/atendimento/SelecionarProfissionaisView.vue'
-import { listEligibleTrainers } from './services/profissionaisService'
+import { getCachedEligibleTrainers, listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { usePublicNavigation } from './composables/usePublicNavigation'
 import { useTrainerSelection } from './stores/trainerSelection'
@@ -262,11 +262,19 @@ const { academies: publicTrainerAcademies, filtered: publicFilteredTrainers } = 
 watch(publicTrainerCity, () => { publicTrainerAcademy.value = '' })
 async function loadPublicTrainers() {
   const id = ++publicLookupId
-  publicTrainersLoading.value = true
+  const city = publicTrainerCity.value
+  const gender = viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente'
+  const cached = getCachedEligibleTrainers(city, gender)
   publicTrainersError.value = ''
-  publicTrainers.value = []
+  // Dados em cache aparecem imediatamente; não esvaziar a listagem em toda navegação.
+  if (cached) {
+    publicTrainers.value = cached
+    publicTrainersLoading.value = false
+    return
+  }
+  publicTrainersLoading.value = true
   try {
-    const trainers = await listEligibleTrainers(publicTrainerCity.value, viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente')
+    const trainers = await listEligibleTrainers(city, gender)
     if (id === publicLookupId) publicTrainers.value = trainers
   } catch {
     if (id === publicLookupId) publicTrainersError.value = 'Não foi possível consultar os profissionais.'
