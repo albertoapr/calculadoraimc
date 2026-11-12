@@ -6,6 +6,7 @@ import SelecionarProfissionaisView from './views/atendimento/SelecionarProfissio
 import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { usePublicNavigation } from './composables/usePublicNavigation'
+import { useTrainerSelection } from './stores/trainerSelection'
 import { getRequestApiEndpoint } from './services/api'
 import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
 import { minutesToTime } from './utils/time'
@@ -159,7 +160,7 @@ const homeAcademy = ref(storedHomeAcademy)
 function updateHomeAcademy() {
   homeAcademy.value = homeAcademyChoice.value === 'Outras academias' ? homeOtherAcademy.value.trim() : homeAcademyChoice.value
 }
-const homeSelectedTrainerIds = ref<string[]>([])
+const { selectedTrainerIds: homeSelectedTrainerIds } = useTrainerSelection()
 const sharingRequestId = ref('')
 const sharingRequestMessage = ref('')
 const sharingRequestBusy = ref(false)
