@@ -5,6 +5,7 @@ import ConsultarProfissionaisView from './views/profissionais/ConsultarProfissio
 import SelecionarProfissionaisView from './views/atendimento/SelecionarProfissionaisView.vue'
 import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
+import { usePublicNavigation } from './composables/usePublicNavigation'
 import { getRequestApiEndpoint } from './services/api'
 import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
 import { minutesToTime } from './utils/time'
@@ -268,7 +269,6 @@ async function loadPublicTrainers() {
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
 }
 function openPublicTrainers() {
-  if (isRootHome) window.history.pushState(null, '', '/profissionais')
   selectingTrainersForDraft.value = false
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
@@ -2379,6 +2379,17 @@ function closeHamburgerOnSelection(event: MouseEvent) {
   const menu = document.querySelector<HTMLDetailsElement>('.main-hamburger-menu[open]')
   if (menu && event.target instanceof Element && event.target.closest('.account-dropdown-panel button')) menu.open = false
 }
+
+usePublicNavigation(viewMode, () => {
+  selectingTrainersForDraft.value = false
+  publicTrainerCity.value = homeCity.value || ''
+  publicTrainerAcademy.value = ''
+  viewMode.value = 'public-trainers'
+  if (publicTrainerCity.value) void loadPublicTrainers()
+}, () => {
+  viewMode.value = 'home'
+  selectingTrainersForDraft.value = false
+})
 
 watch(viewMode, mode => updatePageSeo(mode === 'home' ? 'home' : mode === 'public-trainers' ? 'directory' : 'private'), { immediate: true })
 
