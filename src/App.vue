@@ -3187,7 +3187,6 @@ async function sendResult() {
         </template>
 
         <template v-else>
-          <h3 class="field-wide">Resumo da solicitação</h3>
           <div class="field-wide request-summary-table-wrap">
             <table class="request-summary-table">
               <tbody>
@@ -3204,8 +3203,6 @@ async function sendResult() {
               </tbody>
             </table>
           </div>
-          <p class="field-wide request-summary-note">{{ form.singleLesson ? 'Estimativa para uma aula, considerando R$ 40 a R$ 100.' : 'Estimativa para 4 semanas, considerando R$ 40 a R$ 100 por aula.' }} Os valores finais dependem da proposta do profissional.</p>
-          <p class="field-wide request-summary-note">Depois de criar sua solicitação, envie-a para um personal de sua preferência.</p>
           <button class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>
       </form>
