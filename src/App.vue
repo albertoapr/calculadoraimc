@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { updatePageSeo } from './services/seo'
 import silhouetteScaleImage from './assets/female-bmi-silhouette-scale.jpg'
 import maleSilhouetteScaleImage from './assets/male-bmi-silhouette-scale.jpg'
 import rootHomePersonalImage from './assets/root-home-personal.jpg'
@@ -106,7 +107,7 @@ const personalBrandFirstName = computed(() => personalName.value.endsWith(' Pers
 const showHomeTopbar = computed(() => ((viewMode.value === 'home' && !result.value) || viewMode.value === 'public-trainers' || viewMode.value === 'professional-registration' || (viewMode.value === 'contact' && showRequestForm.value)) && (isRootHome || Boolean(trainerSlugFromHost)))
 const trainerProfileFailed = ref(false)
 const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'select-trainers' | 'professional-registration' | 'admin-trainer' | 'admin-trainers'>(trainerRequestToken ? 'trainer-request' : 'home')
+const viewMode = ref<'home' | 'assessment' | 'contact' | 'trainer-request' | 'customer-requests' | 'trainer-requests' | 'my-profile' | 'public-trainers' | 'select-trainers' | 'professional-registration' | 'admin-trainer' | 'admin-trainers'>(trainerRequestToken ? 'trainer-request' : window.location.pathname.replace(/\/$/, '') === '/profissionais' ? 'public-trainers' : 'home')
 const trainerRequest = ref<TrainerRequestDetails | null>(null)
 const trainerProposalPrice = ref('')
 const trainerProposalMessage = ref('')
@@ -264,6 +265,7 @@ async function loadPublicTrainers() {
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
 }
 function openPublicTrainers() {
+  if (isRootHome) window.history.pushState(null, '', '/profissionais')
   selectingTrainersForDraft.value = false
   publicTrainerCity.value = homeCity.value || ''
   publicTrainerName.value = ''
@@ -910,6 +912,7 @@ function goBackFromTitle() {
 }
 
 function goHome() {
+  if (window.location.pathname === '/profissionais') window.history.replaceState(null, '', '/')
   clearPendingWhatsAppLogin()
   showTrainerSignup.value = false
   showCustomerSignup.value = false
@@ -2401,7 +2404,13 @@ function closeHamburgerOnSelection(event: MouseEvent) {
   if (menu && event.target instanceof Element && event.target.closest('.account-dropdown-panel button')) menu.open = false
 }
 
+watch(viewMode, mode => updatePageSeo(mode === 'home' ? 'home' : mode === 'public-trainers' ? 'directory' : 'private'), { immediate: true })
+
 onMounted(() => {
+  if (viewMode.value === 'public-trainers') {
+    publicTrainerCity.value = homeCity.value
+    if (publicTrainerCity.value) void loadPublicTrainers()
+  }
   document.addEventListener('pointerdown', closeHamburgerOnOutsideClick)
   document.addEventListener('click', closeHamburgerOnSelection)
   void finishEmailLoginFromLink()
