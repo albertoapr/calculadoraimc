@@ -1570,6 +1570,13 @@ watch(() => form.city, city => {
   if (city) void loadPublicTrainers()
 })
 
+async function modifyRequestDetails() {
+  requestStep.value = 1
+  status.value = ''
+  await nextTick()
+  window.scrollTo(0, 0)
+}
+
 async function continueToTrainerSelection() {
   status.value = ''
   if (requestStep.value === 1) {
@@ -3361,7 +3368,7 @@ async function sendResult() {
               </tbody>
             </table>
           </div>
-          <button class="secondary-button field-wide" type="button" @click="requestStep = 1; status = ''; $nextTick(() => window.scrollTo(0, 0))">Modificar atendimento</button>
+          <button class="secondary-button field-wide" type="button" @click="modifyRequestDetails">Modificar atendimento</button>
           <button class="primary-button field-wide" type="button" @click="selectTrainersForDraft">Selecionar personal{{ selectedTrainerIds.length ? ' (' + selectedTrainerIds.length + ')' : '' }}</button>
           <button v-if="selectedTrainerIds.length" class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>
