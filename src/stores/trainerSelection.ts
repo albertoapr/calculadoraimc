@@ -1,14 +1,15 @@
 import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
 
-/**
- * Shared state for the request's trainer selection.
- * Module scope preserves the draft while navigating between extracted views.
- * A future Pinia migration can reuse the same public interface.
- */
-const selectedTrainerIds = ref<string[]>([])
 const MAX_TRAINERS = 20
 
-export function useTrainerSelection() {
+/**
+ * Shared selection state for the public directory and the request flow.
+ * State is intentionally kept in memory: clearing/starting a request must
+ * not restore professionals selected during an earlier session.
+ */
+export const useTrainerSelection = defineStore('trainerSelection', () => {
+  const selectedTrainerIds = ref<string[]>([])
   const count = computed(() => selectedTrainerIds.value.length)
   const canAdd = computed(() => count.value < MAX_TRAINERS)
 
@@ -28,4 +29,4 @@ export function useTrainerSelection() {
     clearSelection,
     maxTrainers: MAX_TRAINERS,
   }
-}
+})
