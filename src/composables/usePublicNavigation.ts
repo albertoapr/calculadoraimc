@@ -6,7 +6,7 @@ export type PublicRoute = 'home' | 'public-trainers'
  * Keep public URLs and the existing view-mode navigation in sync.
  * This is a compatibility layer until the legacy views migrate to Vue Router.
  */
-export function usePublicNavigation(viewMode: Ref<string>, onDirectoryOpen: () => void, onHomeOpen: () => void) {
+export function usePublicNavigation<T extends string>(viewMode: Ref<T>, onDirectoryOpen: () => void, onHomeOpen: () => void) {
   let handlingHistory = false
 
   function syncFromLocation() {
