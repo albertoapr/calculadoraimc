@@ -1590,7 +1590,7 @@ async function selectTrainersForDraft() {
   publicTrainerCity.value = form.city
   publicTrainerAcademy.value = ''
   homeSelectedTrainerIds.value = [...selectedTrainerIds.value]
-  viewMode.value = 'public-trainers'
+  viewMode.value = 'select-trainers'
   await loadPublicTrainers()
   await nextTick()
   window.scrollTo(0, 0)
