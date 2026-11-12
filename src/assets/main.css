@@ -636,3 +636,7 @@ html[data-theme='dark'] .header-auth-links .header-signup-link { color: #f1f5f3;
 .time-range-fields input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--border, #9ca3af); border-radius: 8px; background: var(--surface, transparent); color: inherit; color-scheme: light dark; }
 .time-range-slider { display: grid; gap: 10px; margin: 16px 0 8px; }
 .time-range-slider input[type="range"] { width: 100%; accent-color: #29835b; touch-action: pan-y; }
+
+.training-time-button { cursor: pointer; min-height: 44px; padding: 10px 14px; border: 1px solid var(--muted, #888); border-radius: 9px; background: transparent; color: inherit; font: inherit; }
+.training-time-button-active { border-color: #218052; background: #218052; color: #fff; font-weight: 700; }
+.training-time-button:focus-visible { outline: 3px solid #69ba91; outline-offset: 2px; }
