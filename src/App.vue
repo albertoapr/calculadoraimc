@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
-import ProfissionaisDirectoryView from './views/profissionais/ProfissionaisDirectoryView.vue'
+import ConsultarProfissionaisView from './views/profissionais/ConsultarProfissionaisView.vue'
+import SelecionarProfissionaisView from './views/atendimento/SelecionarProfissionaisView.vue'
 import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { getRequestApiEndpoint } from './services/api'
@@ -3011,9 +3012,36 @@ async function sendResult() {
         <p class="professional-registration-help"><a href="https://cref-rj.implanta.net.br/servicosOnline/Publico/ConsultaInscritos/" target="_blank" rel="noopener noreferrer">Consultar registro diretamente no site do CREF-RJ</a>.</p>
       </section>
 
-      <ProfissionaisDirectoryView
+      <ConsultarProfissionaisView
+        v-if="viewMode === 'public-trainers'"
         v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'"
-        :selecting-for-draft="selectingTrainersForDraft"
+        :academy="publicTrainerAcademy"
+        :academies="publicTrainerAcademies"
+        :trainers="publicFilteredTrainers"
+        :selected-ids="homeSelectedTrainerIds"
+        :sent-ids="sharingRequestId ? (customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds ?? []) : []"
+        :city="publicTrainerCity"
+        :request-city="form.city"
+        :request-gender="form.trainerGenderPreference"
+        :signed-in-name="customerSignedInName"
+        :active-request="activeCustomerRequest"
+        :checking-requests="checkingCustomerRequests"
+        :requests-error="customerRequestsLookupError"
+        :sharing-busy="sharingRequestBusy"
+        :sharing-message="sharingRequestMessage"
+        :loading="publicTrainersLoading"
+        :error="publicTrainersError"
+        @update:academy="value => { publicTrainerAcademy = value }"
+        @update:selected-ids="ids => { homeSelectedTrainerIds = ids }"
+        @continue="returnToDraftSummary"
+        @request-proposal="requestProposalFromHome"
+        @open-requests="openCustomerRequests"
+        @refresh-requests="refreshShareableRequests"
+        @retry="searchHomeTrainers"
+      />
+      <SelecionarProfissionaisView
+        v-if="viewMode === 'select-trainers'"
+        v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'"
         :academy="publicTrainerAcademy"
         :academies="publicTrainerAcademies"
         :trainers="publicFilteredTrainers"
