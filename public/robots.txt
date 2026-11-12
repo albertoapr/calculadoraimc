@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /minhas-solicitacoes
+Disallow: /atendimento
+Sitemap: https://fitpeso.com.br/sitemap.xml
