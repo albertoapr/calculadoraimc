@@ -16,7 +16,11 @@ test('starts with an empty selection', () => {
 
 test('limits selection to 20 professionals and removes duplicate ids', () => {
   const selection = useTrainerSelection()
-  selection.setSelectedTrainerIds(['trainer-1', 'trainer-1', ...Array.from({ length: 24 }, (_, i) => `trainer-${i + 2}`)])
+  selection.setSelectedTrainerIds([
+    'trainer-1',
+    'trainer-1',
+    ...Array.from({ length: 24 }, (_, i) => `trainer-${i + 2}`),
+  ])
   assert.equal(selection.selectedTrainerIds.length, 20)
   assert.equal(new Set(selection.selectedTrainerIds).size, 20)
   assert.equal(selection.count, 20)

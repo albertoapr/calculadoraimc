@@ -12,6 +12,9 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.ts'
+      - 'eslint.config.js'
+      - '.prettierrc.json'
+      - '.prettierignore'
       - 'tsconfig*.json'
       - '.github/workflows/frontend-validation.yml'
 
@@ -28,8 +31,4 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - run: npm run type-check
-      - run: npm run build-only
-      - run: npm run test:whatsapp
-      - run: npm run test:selection
-      - run: node --import tsx --test tests/profissionais-cache.test.ts
+      - run: npm run check

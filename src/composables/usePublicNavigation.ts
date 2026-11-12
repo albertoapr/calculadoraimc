@@ -1,33 +1,51 @@
-import { onMounted, onUnmounted, watch, type Ref } from 'vue'
+import { onScopeDispose, watch, type Ref } from 'vue'
+import { useRouter, type Router } from 'vue-router'
 
 export type PublicRoute = 'home' | 'public-trainers'
 
-/**
- * Keep public URLs and the existing view-mode navigation in sync.
- * This is a compatibility layer until the legacy views migrate to Vue Router.
- */
-export function usePublicNavigation<T extends string>(viewMode: Ref<T>, onDirectoryOpen: () => void, onHomeOpen: () => void) {
+/** Synchronize public screens without remounting pending login or request flows. */
+export function bindPublicNavigation<T extends string>(
+  router: Router,
+  viewMode: Ref<T>,
+  onDirectoryOpen: () => void,
+  onHomeOpen: () => void,
+) {
   let handlingHistory = false
-
-  function syncFromLocation() {
-    const route: PublicRoute = window.location.pathname.replace(/\/$/, '') === '/profissionais' ? 'public-trainers' : 'home'
+  const removeHook = router.afterEach((to) => {
     handlingHistory = true
     try {
-      if (route === 'public-trainers' && viewMode.value !== 'public-trainers') onDirectoryOpen()
-      if (route === 'home' && viewMode.value === 'public-trainers') onHomeOpen()
+      if (to.path === '/profissionais' && viewMode.value !== 'public-trainers') onDirectoryOpen()
+      if (to.path === '/' && viewMode.value === 'public-trainers') onHomeOpen()
     } finally {
       handlingHistory = false
     }
-  }
-
-  watch(viewMode, mode => {
-    if (handlingHistory) return
-    // Only public navigation changes the browser URL. Private views keep their legacy flow.
-    if (mode === 'public-trainers' && window.location.pathname !== '/profissionais') {
-      window.history.pushState(null, '', '/profissionais')
-    }
   })
+  const stop = watch(
+    viewMode,
+    (mode, previous) => {
+      if (handlingHistory) return
+      if (mode === 'public-trainers' && router.currentRoute.value.path !== '/profissionais') {
+        void router.push('/profissionais')
+      } else if (
+        mode === 'home' &&
+        previous === 'public-trainers' &&
+        router.currentRoute.value.path === '/profissionais'
+      ) {
+        void router.push('/')
+      }
+    },
+    { flush: 'sync' },
+  )
+  return () => {
+    stop()
+    removeHook()
+  }
+}
 
-  onMounted(() => window.addEventListener('popstate', syncFromLocation))
-  onUnmounted(() => window.removeEventListener('popstate', syncFromLocation))
+export function usePublicNavigation<T extends string>(
+  viewMode: Ref<T>,
+  onDirectoryOpen: () => void,
+  onHomeOpen: () => void,
+) {
+  onScopeDispose(bindPublicNavigation(useRouter(), viewMode, onDirectoryOpen, onHomeOpen))
 }

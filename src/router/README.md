@@ -1,14 +1,5 @@
-# Migração incremental do roteamento
+# Navegação
 
-Nesta etapa, Vue Router é registrado, mas **não** controla a renderização.
-O `App.vue` permanece montado diretamente e continua utilizando `viewMode` e
-`usePublicNavigation` para preservar fluxos de login, cadastro e solicitação.
+`AppRoot.vue` renderiza o `RouterView`. Todas as rotas usam o mesmo shell `App.vue`, mantendo seu estado entre as URLs públicas. `usePublicNavigation` sincroniza `/` e `/profissionais` com as telas, inclusive Voltar/Avançar.
 
-Rotas preparadas: `/` e `/profissionais`, com fallback para URLs legadas.
-Os componentes de rota são placeholders que ainda não são renderizados.
-
-Próxima etapa, após CI verde: migrar uma rota pública por vez para
-`RouterView`, remover gradualmente o histórico manual e cobrir Voltar/Avançar,
-links de confirmação por e-mail e URLs com tokens.
-
-O Pinia também é registrado sem migrar o estado existente nesta fase.
+O fallback preserva links personalizados e de confirmação. Passos do atendimento, autenticação e áreas privadas continuam sendo fluxos internos do shell. Tokens são removidos da URL pelo Router depois de capturados pelo controlador.

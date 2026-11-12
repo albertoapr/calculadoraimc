@@ -1,10 +1,11 @@
 import './assets/main.css'
 import { createApp } from 'vue'
-import App from './App.vue'
+import App from './AppRoot.vue'
+import { router } from './router'
+import './assets/styles/screens.css'
 import { pinia } from './stores'
 
-// Compatibility phase: App.vue still renders all screens and owns navigation.
-// Register plugins now, migrate routes and state only after regression tests.
 const app = createApp(App)
 app.use(pinia)
-app.mount('#app')
+app.use(router)
+void router.isReady().then(() => app.mount('#app'))

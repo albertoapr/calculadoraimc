@@ -1,6 +1,4 @@
-# Migração incremental de telas
+# Telas
 
-As telas permanecem temporariamente no `App.vue` para preservar as sessões,
-os retornos de autenticação e a navegação existente. Cada tela será extraída
-após separar suas dependências de estado e chamadas HTTP. Não adicionar views
-vazias apenas para simular uma migração concluída.
+As telas são agrupadas em auth, account, assessment, atendimento e profissionais.
+Os componentes em layout compõem a estrutura comum. O shell cria o contexto tipado de aplicação uma vez; as telas obtêm somente as referências e ações necessárias por `useFitpesoContext`.

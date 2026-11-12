@@ -34,37 +34,51 @@ const emit = defineEmits<{
 
 <template>
   <div class="trainer-selection-stage">
-    <div v-if="draftSelection" class="request-step-progress" role="status">Etapa 4 de 4 — Selecionar profissionais</div>
+    <div v-if="draftSelection" class="request-step-progress" role="status">
+      Etapa 4 de 4 — Selecionar profissionais
+    </div>
     <ProfissionaisDirectoryView
-    :selecting-for-draft="true"
-    :academy="academy"
-    :academies="academies"
-    :trainers="trainers"
-    :selected-ids="selectedIds"
-    :sent-ids="sentIds"
-    :city="city"
-    :request-city="requestCity"
-    :request-gender="requestGender"
-    :signed-in-name="signedInName"
-    :active-request="activeRequest"
-    :checking-requests="checkingRequests"
-    :requests-error="requestsError"
-    :sharing-busy="sharingBusy"
-    :sharing-message="sharingMessage"
-    :loading="loading"
-    :error="error"
-    @update:academy="value => emit('update:academy', value)"
-    @update:selected-ids="ids => emit('update:selectedIds', ids)"
-    @continue="emit('continue')"
-    @request-proposal="emit('request-proposal')"
-    @open-requests="emit('open-requests')"
-    @refresh-requests="emit('refresh-requests')"
-    @retry="emit('retry')"
+      :selecting-for-draft="true"
+      :academy="academy"
+      :academies="academies"
+      :trainers="trainers"
+      :selected-ids="selectedIds"
+      :sent-ids="sentIds"
+      :city="city"
+      :request-city="requestCity"
+      :request-gender="requestGender"
+      :signed-in-name="signedInName"
+      :active-request="activeRequest"
+      :checking-requests="checkingRequests"
+      :requests-error="requestsError"
+      :sharing-busy="sharingBusy"
+      :sharing-message="sharingMessage"
+      :loading="loading"
+      :error="error"
+      @update:academy="(value) => emit('update:academy', value)"
+      @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
+      @continue="emit('continue')"
+      @request-proposal="emit('request-proposal')"
+      @open-requests="emit('open-requests')"
+      @refresh-requests="emit('refresh-requests')"
+      @retry="emit('retry')"
     />
   </div>
 </template>
 
 <style scoped>
-.trainer-selection-stage { display: grid; gap: 12px; }
-.request-step-progress { padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--blue) 9%, var(--select-bg)); color: var(--select-text); font-size: 14px; font-weight: 700; text-align: center; }
+.trainer-selection-stage {
+  display: grid;
+  gap: 12px;
+}
+.request-step-progress {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--blue) 9%, var(--select-bg));
+  color: var(--select-text);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
 </style>

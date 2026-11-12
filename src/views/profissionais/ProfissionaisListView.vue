@@ -14,7 +14,7 @@ const emit = defineEmits<{ 'update:selectedIds': [ids: string[]] }>()
 function updateSelection(trainerId: string, checked: boolean) {
   const ids = checked
     ? [...new Set([...props.selectedIds, trainerId])].slice(0, props.maxSelection ?? 20)
-    : props.selectedIds.filter(id => id !== trainerId)
+    : props.selectedIds.filter((id) => id !== trainerId)
   emit('update:selectedIds', ids)
 }
 </script>
@@ -27,13 +27,19 @@ function updateSelection(trainerId: string, checked: boolean) {
       :trainer="trainer"
       :selectable="selectable"
       :selected="selectedIds.includes(trainer.trainerId)"
-      :disabled="sentIds.includes(trainer.trainerId) || (!selectedIds.includes(trainer.trainerId) && selectedIds.length >= (maxSelection ?? 20))"
+      :disabled="
+        sentIds.includes(trainer.trainerId) ||
+        (!selectedIds.includes(trainer.trainerId) && selectedIds.length >= (maxSelection ?? 20))
+      "
       :already-sent="sentIds.includes(trainer.trainerId)"
-      @update:selected="checked => updateSelection(trainer.trainerId, checked)"
+      @update:selected="(checked) => updateSelection(trainer.trainerId, checked)"
     />
   </div>
 </template>
 
 <style scoped>
-.home-trainer-list { display:grid; gap:10px; }
+.home-trainer-list {
+  display: grid;
+  gap: 10px;
+}
 </style>
