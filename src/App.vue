@@ -500,24 +500,17 @@ const trainingEndMinutes = ref(1260)
 function minutesToTime(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 }
-function clampTrainingTime(changed: 'start' | 'end') {
-  trainingStartMinutes.value = Math.max(300, Math.min(1350, Math.round(trainingStartMinutes.value / 30) * 30))
-  trainingEndMinutes.value = Math.max(330, Math.min(1380, Math.round(trainingEndMinutes.value / 30) * 30))
-  if (trainingStartMinutes.value >= trainingEndMinutes.value) {
-    if (changed === 'start') trainingEndMinutes.value = Math.min(1380, trainingStartMinutes.value + 30)
-    else trainingStartMinutes.value = Math.max(300, trainingEndMinutes.value - 30)
-  }
-}
-function setTrainingTime(changed: 'start' | 'end', event: Event) {
-  const input = event.target as HTMLInputElement
-  const match = /^(\d{2}):(\d{2})$/.exec(input.value)
-  if (match) {
-    const minutes = Number(match[1]) * 60 + Number(match[2])
-    if (changed === 'start') trainingStartMinutes.value = minutes
-    else trainingEndMinutes.value = minutes
-  }
-  clampTrainingTime(changed)
-  input.value = minutesToTime(changed === 'start' ? trainingStartMinutes.value : trainingEndMinutes.value)
+const trainingTimeRanges = [
+  { start: 360, end: 540, label: '06h às 09h' },
+  { start: 540, end: 720, label: '09h às 12h' },
+  { start: 720, end: 900, label: '12h às 15h' },
+  { start: 900, end: 1080, label: '15h às 18h' },
+  { start: 1080, end: 1260, label: '18h às 21h' },
+  { start: 1260, end: 1380, label: '21h às 23h' },
+]
+function selectTrainingTimeRange(start: number, end: number) {
+  trainingStartMinutes.value = start
+  trainingEndMinutes.value = end
 }
 const trainingTimeShifts = computed(() => {
   const start = trainingStartMinutes.value
@@ -3203,16 +3196,16 @@ async function sendResult() {
             </label>
           </div>
           <p class="request-question">Qual faixa de horário você prefere?</p>
-          <p class="request-hint">A mesma faixa vale para todos os dias selecionados. Ajuste de 30 em 30 minutos.</p>
-          <div class="time-range-fields">
-            <label>Das <input type="time" :value="minutesToTime(trainingStartMinutes)" min="05:00" max="22:30" step="1800" @change="setTrainingTime('start', $event)"></label>
-            <label>Até <input type="time" :value="minutesToTime(trainingEndMinutes)" min="05:30" max="23:00" step="1800" @change="setTrainingTime('end', $event)"></label>
+          <p class="request-hint">Selecione uma faixa para todos os dias escolhidos.</p>
+          <div class="request-choice-row" role="group" aria-label="Faixas de horário">
+            <button v-for="range in trainingTimeRanges" :key="range.start" type="button"
+              class="request-choice training-time-button"
+              :class="{ 'training-time-button-active': trainingStartMinutes === range.start }"
+              :aria-pressed="trainingStartMinutes === range.start"
+              @click="selectTrainingTimeRange(range.start, range.end)">
+              {{ range.label }}
+            </button>
           </div>
-          <div class="time-range-slider" aria-label="Faixa de horário">
-            <input v-model.number="trainingStartMinutes" type="range" min="300" max="1350" step="30" aria-label="Horário inicial" @input="clampTrainingTime('start')">
-            <input v-model.number="trainingEndMinutes" type="range" min="330" max="1380" step="30" aria-label="Horário final" @input="clampTrainingTime('end')">
-          </div>
-          <p class="request-hint">Das {{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}</p>
         </section>
 
         <section class="request-card field-wide" aria-labelledby="request-gender-heading">
