@@ -2,16 +2,18 @@
 
 :root {
   font-family: 'DM Sans', sans-serif;
-  color: #1b365d;
-  background: #f1f6fd;
+  color: #254538;
+  background: #e9eee7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --blue: #2563eb;
-  --blue-dark: #1d4ed8;
-  --ink: #163454;
-  --muted: #6b7f99;
-  --line: #dce6f2;
+  /* Identidade visual do tema claro: verde floresta e superfícies sem branco puro. */
+  --blue: #286b4e;
+  --blue-dark: #20543d;
+  --ink: #203e32;
+  --muted: #52695a;
+  --line: #c9d5c9;
+  --card-bg: #f2f4ee;
 }
 
 * { box-sizing: border-box; }
@@ -20,6 +22,7 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 
 .page-shell {
+  position: relative;
   min-height: 100vh;
   padding: 44px 20px 24px;
   background: radial-gradient(ellipse at 50% 0%, #dceafd 0, #f1f6fd 46%, #f8faff 100%);
@@ -35,10 +38,23 @@ button { cursor: pointer; }
 }
 .hero { text-align: center; }
 .home-tagline { width: 100%; max-width: 100%; margin: 4px auto 24px; padding: 0 8px; font-size: clamp(24px, 7vw, 35px); line-height: 1.08; text-wrap: balance; }
-.root-home-personal-image { display: block; width: 100%; height: auto; margin: 0 auto 20px; aspect-ratio: 1069 / 594; border-radius: 14px; object-fit: contain; }
-.root-home-tagline-subtitle { margin: -10px 0 24px; color: var(--muted); font-size: 15px; font-weight: 600; line-height: 1.35; text-align: center; }
+.root-home-photo { position: relative; width: 100%; margin: 0 auto 24px; overflow: hidden; border-radius: 14px; isolation: isolate; }
+.root-home-personal-image { display: block; width: 100%; height: auto; aspect-ratio: 1069 / 594; object-fit: cover; }
+.root-home-photo::after { content: ''; position: absolute; z-index: 1; inset: 70% 0 0; background: linear-gradient(to bottom, rgba(242,244,238,0) 0%, rgba(242,244,238,.7) 65%, #f2f4ee 100%); pointer-events: none; }
+.root-home-tagline-subtitle { position: absolute; z-index: 2; left: 12px; right: 12px; bottom: 3%; margin: 0; color: #20543d; font-size: clamp(20px, 4.5vw, 32px); font-weight: 800; line-height: 1.15; text-align: center; text-wrap: balance; }
+html[data-theme='dark'] .root-home-photo::after { background: linear-gradient(to bottom, rgba(20,29,24,0) 0%, rgba(20,29,24,.85) 65%, #141d18 100%); }
+html[data-theme='dark'] .root-home-tagline-subtitle { color: var(--blue); }
 .brand { display: inline-flex; max-width: 100%; align-items: center; justify-content: center; gap: 9px; color: var(--blue-dark); font-size: clamp(19px, 5vw, 25px); font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
 .brand-lockup { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; }
+/* Marca de personal em subdomínio: nome em verde nos dois temas. */
+.personal-trainer-brand { display: inline-flex; max-width: 100%; align-items: baseline; justify-content: center; flex-wrap: wrap; column-gap: .35em; row-gap: 2px; font-family: Manrope, sans-serif; font-size: clamp(19px, 5vw, 25px); font-weight: 800; line-height: 1.25; letter-spacing: -.025em; text-align: center; }
+.personal-trainer-first-name { color: #286b4e; overflow-wrap: anywhere; }
+.personal-trainer-role { color: #203e32; }
+/* No domínio do personal, o nome ocupa a chamada principal e herda seu tamanho. */
+.home-tagline .personal-trainer-home-title { width: 100%; font-size: inherit; line-height: inherit; letter-spacing: inherit; }
+html[data-theme='dark'] .personal-trainer-first-name { color: #55d6a3; }
+html[data-theme='dark'] .personal-trainer-role { color: #f1f5f3; }
+
 .brand-tagline { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0; line-height: 1.2; }
 .brand-default { font-size: clamp(32px, 7vw, 39px); font-weight: 900; letter-spacing: -.04em; line-height: 1.1; }
 .brand-fit { color: #147a5b; }
@@ -205,25 +221,81 @@ h2 { font-size: 21px; line-height: 1.4; }
 .status { margin: 15px 0 0; padding: 11px 13px; border-radius: 9px; color: #31558a; background: #edf4ff; font-size: 12px; line-height: 1.5; }
 .login-validation-error { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; background: #fef2f2; font-size: 13px; font-weight: 600; line-height: 1.45; }
 .disclaimer { margin: 20px 0 0; color: #71839a; text-align: center; font-size: 12px; line-height: 1.6; }
-footer { width: min(100%, 560px); margin: 17px auto 0; color: #228342; text-align: center; font-size: 15px; font-weight: 700; }
-.footer-bar { position: relative; display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 12px; }
-.footer-brand { position: absolute; left: 50%; display: flex; align-items: center; justify-content: center; gap: 8px; transform: translateX(-50%); }
-footer a { color: inherit; text-decoration: none; }
-footer a:hover { text-decoration: underline; }
-footer img { width: 24px; height: 24px; }
-.trainer-signup-link { display: block; width: fit-content; margin: 10px auto 0; color: var(--blue-dark); font-size: 13px; font-weight: 600; text-align: center; text-decoration: none; }
-.trainer-signup-link:hover { text-decoration: underline; }
-.customer-account-links { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; color: var(--blue-dark); font-size: 13px; font-weight: 600; }
-.customer-account-links a, .customer-account-links button { padding: 0; border: 0; color: inherit; background: none; font: inherit; text-decoration: none; cursor: pointer; }
+/* Rodapé interno: temas à esquerda e contato centralizado na mesma linha. */
+/* Rodapé interno: link centralizado no box e dois botões idênticos à direita. */
+.box-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 8px; width: 100%; margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); }
+.box-footer-balancer { grid-column: 1; }
+.box-theme-actions { grid-column: 3; display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.box-footer .box-theme-actions .theme-icon-button { box-sizing: border-box; display: grid; flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; max-height: 44px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
+.box-footer .box-theme-actions .theme-icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.box-footer .box-theme-actions .theme-icon-button.active { border: 2px solid var(--blue); color: #fff; background: var(--blue); box-shadow: 0 0 0 2px rgba(40, 107, 78, .18); }
+.box-footer .box-theme-actions .theme-icon-button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.box-contact-link { grid-column: 2; grid-row: 1; justify-self: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 4px; color: var(--blue-dark); font-size: 14px; font-weight: 700; text-decoration: none; text-align: center; white-space: nowrap; }
+.box-contact-link:hover { text-decoration: underline; }
+.box-contact-link:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 6px; }
+.box-contact-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+html[data-theme='dark'] .box-contact-link { color: #7ed39b; }
+html[data-theme='dark'] .box-footer .box-theme-actions .theme-icon-button { border-color: #3b4b40; color: #c3cdc5; background: transparent; }
+html[data-theme='dark'] .box-footer .box-theme-actions .theme-icon-button.active { border: 2px solid #f2a04b; color: #182019; background: #f2a04b; box-shadow: 0 0 0 2px rgba(242, 160, 75, .22); }
+@media (max-width: 390px) { .box-footer { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; margin-top: 22px; padding-top: 10px; } .box-footer-balancer { display: none; } .box-theme-actions { grid-column: 2; grid-row: 1; } .box-contact-link { grid-column: 1 / -1; grid-row: 2; } }
+/* Barra superior da página inicial: marca à esquerda, acesso à direita. */
+.fitpeso-home-topbar { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; margin-bottom: 8px; }
+.fitpeso-home-brand { display: inline-flex; flex: 0 1 auto; min-width: 0; flex-direction: column; align-items: stretch; gap: 2px; font-family: Manrope, sans-serif; font-weight: 900; letter-spacing: -.05em; line-height: 1.2; }
+.fitpeso-home-brand-main { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.fitpeso-home-brand .dumbbell-icon { width: 42px; height: 42px; transform: none; align-self: center; }
+.fitpeso-home-brand .brand-default { display: inline-block; }
+.fitpeso-home-brand .brand-default { font-size: 27px; white-space: nowrap; }
+.fitpeso-home-brand .brand-tagline { display: block; width: 100%; font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap; letter-spacing: .01em; }
+.customer-account-links { display: flex; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; margin: 0; color: var(--blue-dark); font-size: 16px; font-weight: 700; line-height: 1.25; }
+.customer-account-links > a, .customer-account-links > button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 4px; border: 0; border-radius: 8px; color: inherit; background: transparent; font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer; }
 .customer-account-links a:hover, .customer-account-links button:hover { text-decoration: underline; }
-.customer-account-links a:focus-visible, .customer-account-links button:focus-visible { outline: 2px solid #a8c7ff; outline-offset: 3px; }
+.customer-account-links a:focus-visible, .customer-account-links button:focus-visible, .account-dropdown > summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.account-nav-divider { padding: 0 3px; color: var(--muted); font-weight: 400; }
+.account-greeting { display: inline-flex; min-width: 0; align-items: center; gap: 5px; color: var(--ink); font-size: 16px; font-weight: 700; white-space: nowrap; }
+.account-greeting > span { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-greeting svg { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.account-dropdown { position: relative; flex: 0 0 auto; }
+.account-dropdown > summary { display: grid; width: 44px; height: 44px; align-items: center; justify-items: center; list-style: none; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: color-mix(in srgb, var(--blue) 5%, transparent); cursor: pointer; }
+.account-dropdown > summary::-webkit-details-marker { display: none; }
+.account-dropdown > summary svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.account-dropdown[open] > summary svg { transform: rotate(180deg); }
+.account-dropdown-panel { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; display: grid; width: max-content; min-width: 205px; max-width: min(80vw, 270px); padding: 7px; border: 1px solid var(--line); border-radius: 13px; background: var(--card-bg, #fff); box-shadow: 0 12px 32px rgba(0, 0, 0, .17); }
+.account-dropdown-panel button { display: flex; align-items: center; width: 100%; min-height: 46px; padding: 10px 13px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
+.account-dropdown-panel button:hover { background: color-mix(in srgb, var(--blue) 9%, transparent); }
+.account-dropdown-panel button:last-child { border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; color: var(--muted); }
+html[data-theme='dark'] .account-dropdown-panel { background: #1b2720; }
+html[data-theme='dark'] .account-dropdown > summary { background: #1b2720; border-color: #3b4b40; }
+.home-tagline { font-size: clamp(22px, 5.5vw, 30px); }
 .customer-signup-intro { margin-bottom: 20px; font-size: 15px; }
+
+/* Login progressivo: formulário legível, checkbox discreto e etapas bem separadas. */
+.login-screen .intro { max-width: 350px; margin-bottom: 20px; font-size: 15px; }
+.login-step-form { width: 100%; max-width: 440px; margin-inline: auto; }
+.login-profile-option { display: flex; align-items: center; justify-content: flex-start; gap: 10px; margin: 0; padding: 7px 2px; cursor: pointer; color: var(--ink); font-size: 14px; font-weight: 600; }
+.login-profile-option input[type='checkbox'] { appearance: auto; display: inline-block; flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; border-radius: 4px; accent-color: #28a67e; cursor: pointer; }
+.login-profile-option span { line-height: 1.4; }
+.login-google-alternative { display: grid; justify-items: center; gap: 12px; margin-top: 3px; color: var(--muted); font-size: 13px; }
+.login-google-alternative .google-button-container { display: flex; justify-content: center; width: 100%; }
+.login-second-step { display: grid; gap: 20px; max-width: 440px; margin-inline: auto; }
+.login-identity-summary { display: grid; gap: 4px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--blue) 5%, transparent); overflow-wrap: anywhere; }
+.login-identity-summary span { color: var(--muted); font-size: 12px; font-weight: 600; }
+.login-identity-summary strong { color: var(--ink); font-size: 15px; }
+.login-identity-summary button { justify-self: start; padding: 4px 0; border: 0; background: transparent; color: var(--blue-dark); font-size: 13px; font-weight: 700; cursor: pointer; }
+.login-step-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.login-email-waiting { display: grid; justify-items: center; gap: 13px; color: var(--ink); text-align: center; }
+.login-email-waiting h2 { font-size: 22px; }
+.login-email-waiting p { margin: 0; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.login-email-waiting strong { color: var(--ink); }
+
 .customer-signup-confirmation { display: grid; gap: 12px; }
 .customer-signup-confirmation > small { color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
 .secondary-button { min-height: 46px; padding: 11px 16px; border: 1px solid var(--blue); border-radius: 12px; color: var(--blue-dark); background: transparent; font-size: 15px; font-weight: 700; }
 .secondary-button:hover { background: color-mix(in srgb, var(--blue) 8%, transparent); }
 .home-actions { display: grid; gap: 20px; margin-top: 8px; }
 .home-action { display: grid; gap: 9px; }
+.home-assessment-link { width: 100%; justify-items: center; text-align: center; }
+.home-assessment-link .secondary-button { width: 100%; min-height: 60px; font-size: 19px; font-weight: 700; }
+.home-assessment-link .secondary-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .home-action p { margin: 0; color: var(--muted); font-size: 19px; font-weight: 600; line-height: 1.45; text-align: center; }
 .home-actions .primary-button, .home-actions .secondary-button { width: 100%; min-height: 76px; font-size: 20px; }
 .home-actions .primary-button > span:not([aria-hidden]), .home-actions .secondary-button > span:not([aria-hidden]) { min-width: 0; flex: 1; text-align: center; line-height: 1.2; }
@@ -250,10 +322,81 @@ footer img { width: 24px; height: 24px; }
 .request-form-title { font-size: 19px; text-align: center; }
 
 .theme-switch { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: 6px; margin: 0; }
+html[data-theme='dark'] .theme-switch button.active { border-color: #f6ae61; color: #f6ae61; background: #2b342c; }
 .theme-switch button { display: grid; width: 36px; min-height: 36px; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; }
 .theme-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #edf4ff; }
 .theme-switch button:focus-visible { outline: 3px solid #a8c7ff; outline-offset: 2px; }
+
+/* Tema claro: baixo brilho, verde sóbrio e contraste preservado.
+   Estes ajustes nunca sobrescrevem o tema escuro. */
+html:not([data-theme='dark']) .page-shell {
+  background: radial-gradient(ellipse at 50% 0%, #e0e9dd 0%, #e9eee7 55%, #e5ece4 100%);
+}
+html:not([data-theme='dark']) .calculator {
+  border-color: #d6dfd3;
+  background: #f2f4ee;
+  box-shadow: 0 18px 48px rgba(31, 65, 43, .08);
+}
+html:not([data-theme='dark']) .brand-fit { color: #286b4e; }
+html:not([data-theme='dark']) .brand-peso { color: #263f33; }
+html:not([data-theme='dark']) .dumbbell-icon { fill: #d7e4d9; stroke: #286b4e; }
+html:not([data-theme='dark']) .personal-divider { border-top-color: #a0b6a6; }
+html:not([data-theme='dark']) .gender-tabs { background: #e2e9df; }
+html:not([data-theme='dark']) .gender-tab { color: #536d5b; }
+html:not([data-theme='dark']) .gender-tab.active { color: #fff; box-shadow: 0 2px 8px rgba(27, 84, 54, .18); }
+html:not([data-theme='dark']) .field,
+html:not([data-theme='dark']) .field-label,
+html:not([data-theme='dark']) .availability-group legend { color: #365343; }
+html:not([data-theme='dark']) .field-label > span,
+html:not([data-theme='dark']) .field input::placeholder { color: #667c6b; }
+html:not([data-theme='dark']) .field input,
+html:not([data-theme='dark']) .field select,
+html:not([data-theme='dark']) .field textarea,
+html:not([data-theme='dark']) .availability-option { border-color: var(--line); color: var(--ink); background: #eaf0e7; }
+html:not([data-theme='dark']) .field input:focus,
+html:not([data-theme='dark']) .field select:focus,
+html:not([data-theme='dark']) .field textarea:focus { border-color: #286b4e; box-shadow: 0 0 0 3px rgba(40, 107, 78, .16); }
+html:not([data-theme='dark']) .date-picker-button:focus-visible,
+html:not([data-theme='dark']) .back-button:focus-visible,
+html:not([data-theme='dark']) .primary-button:focus-visible,
+html:not([data-theme='dark']) .customer-account-links a:focus-visible,
+html:not([data-theme='dark']) .customer-account-links button:focus-visible,
+html:not([data-theme='dark']) .account-dropdown > summary:focus-visible { outline-color: #286b4e; }
+html:not([data-theme='dark']) .slider-adjust,
+html:not([data-theme='dark']) .back-button,
+html:not([data-theme='dark']) .trainer-contact-card { border-color: #bdd0bd; color: var(--blue-dark); background: #e5ece3; }
+html:not([data-theme='dark']) .slider-adjust:hover:not(:disabled),
+html:not([data-theme='dark']) .back-button:hover,
+html:not([data-theme='dark']) .trainer-contact-card:hover { border-color: #87ab90; background: #dbe7da; }
+html:not([data-theme='dark']) .field input.range-input::-webkit-slider-runnable-track { background: #c4d6c7; }
+html:not([data-theme='dark']) .field input.range-input::-moz-range-track { background: #c4d6c7; }
+html:not([data-theme='dark']) .body-fat-toggle,
+html:not([data-theme='dark']) .contact-opt-in,
+html:not([data-theme='dark']) .google-fill,
+html:not([data-theme='dark']) .body-fat-fields,
+html:not([data-theme='dark']) .request-customer-summary,
+html:not([data-theme='dark']) .result-card,
+html:not([data-theme='dark']) .bmi-summary { border-color: #cad9cb; color: #31523e; background: #e5ede3; }
+html:not([data-theme='dark']) .google-fill > p,
+html:not([data-theme='dark']) .google-fill > small,
+html:not([data-theme='dark']) .bmi-summary p { color: #47634f; }
+html:not([data-theme='dark']) .score { color: var(--blue); }
+html:not([data-theme='dark']) .silhouette-item.active { color: var(--blue-dark); background: #dce9d9; }
+html:not([data-theme='dark']) .trainer-request-details,
+html:not([data-theme='dark']) .customer-request-card,
+html:not([data-theme='dark']) .customer-proposal-card,
+html:not([data-theme='dark']) .success-dialog,
+html:not([data-theme='dark']) .account-dropdown-panel { border-color: #cbd8c9; background: #eff2ea; }
+html:not([data-theme='dark']) .google-login-link { background: #eef2eb; color: #254538; }
+html:not([data-theme='dark']) .google-login-link:hover { background: #e1eae0; }
+html:not([data-theme='dark']) .theme-switch button.active { border-color: var(--blue); color: var(--blue-dark); background: #dbe8d9; }
+html:not([data-theme='dark']) .success-overlay { background: rgba(27, 53, 37, .48); }
+html:not([data-theme='dark']) .evaluation-overlay { background: rgba(27, 53, 37, .40); }
+html:not([data-theme='dark']) .evaluation-circle::before { background: #f2f4ee; }
+html:not([data-theme='dark']) .evaluation-circle { background: conic-gradient(var(--blue) var(--progress), #c7d9c9 var(--progress)); }
+html:not([data-theme='dark']) .account-dropdown > summary { background: #e4ece1; }
+html:not([data-theme='dark']) .primary-button { box-shadow: 0 3px 11px rgba(22, 75, 47, .12); }
 
 html[data-theme='dark'] {
   color-scheme: dark;
@@ -322,7 +465,7 @@ html[data-theme='dark'] .body-fat-reference-unavailable { color: #a6b2a9; }
 html[data-theme='dark'] .silhouette-item { color: #a6b2a9; }
 html[data-theme='dark'] .silhouette-item.active { border-color: #f2a04b; color: #ffbd7d; background: #27352c; }
 html[data-theme='dark'] .status { color: #d9e6db; background: #26372b; }
-html[data-theme='dark'] footer { color: #7ed39b; }
+
 html[data-theme='dark'] .trainer-signup-link { color: #f6ae61; }
 html[data-theme='dark'] .theme-switch button { border-color: #3b4b40; color: #c3cdc5; }
 html[data-theme='dark'] .theme-switch button.active { border-color: #f2a04b; color: #182019; background: #f2a04b; }
@@ -340,6 +483,17 @@ html[data-theme='dark'] .proposal-contact-links a { color: #f6ae61; }
 html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0; background: #1b2720; }
 
 @media (max-width: 520px) {
+  .fitpeso-home-topbar { gap: 8px; margin-bottom: 2px; }
+  .fitpeso-home-brand-main { gap: 5px; }
+  .fitpeso-home-brand .dumbbell-icon { width: 36px; height: 36px; }
+  .fitpeso-home-brand .brand-default { font-size: 23px; }
+  .fitpeso-home-brand .brand-tagline { font-size: 10px; }
+  .customer-account-links { gap: 1px; font-size: 15px; }
+  .customer-account-links > a, .customer-account-links > button { min-height: 44px; padding-inline: 3px; }
+  .account-greeting { font-size: 15px; }
+  .account-greeting > span { max-width: 10ch; }
+  .account-dropdown > summary { width: 44px; height: 44px; }
+  .home-tagline { font-size: clamp(22px, 5.6vw, 27px); }
   .page-shell { padding: 14px 10px 20px; }
   .calculator { padding: 25px 17px 22px; border-radius: 18px; }
   .intro { margin: 10px auto 23px; font-size: 17px; }
@@ -365,3 +519,124 @@ html[data-theme='dark'] .field textarea { border-color: #3b4b40; color: #f4f5f0;
   .status { font-size: 14px; }
   .disclaimer { font-size: 12px; }
 }
+
+@media (max-width: 370px) {
+  .fitpeso-home-brand .dumbbell-icon { width: 32px; height: 32px; }
+  .fitpeso-home-brand .brand-default { font-size: 20px; }
+  .fitpeso-home-brand .brand-tagline { font-size: 10px; }
+  .customer-account-links { font-size: 14px; }
+  .account-greeting { font-size: 14px; }
+  .account-greeting > span { max-width: 8ch; }
+  .account-greeting svg { width: 16px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-account-links button, .customer-account-links a { scroll-behavior: auto; }
+}
+
+
+/* WhatsApp confirmation: the bar measures waiting time, not authentication. */
+.whatsapp-progress { margin: 1rem 0; }
+.whatsapp-progress-track { height: .6rem; overflow: hidden; border-radius: 1rem; background: color-mix(in srgb, currentColor 15%, transparent); }
+.whatsapp-progress-track span { display: block; height: 100%; border-radius: inherit; background: currentColor; transition: width .1s linear; }
+.whatsapp-progress small { display: block; margin-top: .5rem; }
+.whatsapp-wait-icon { font-size: 2.5rem; animation: whatsapp-wait-spin 1.5s linear infinite; }
+.whatsapp-wait-icon.is-confirmed { animation: none; }
+@keyframes whatsapp-wait-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .whatsapp-wait-icon { animation: none; }
+  .whatsapp-progress-track span { transition: none; }
+}
+
+/* Confirmation dialog for temporary request inactivation/reactivation. */
+.request-action-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 18px; }
+.request-action-dialog { width: min(100%, 440px); padding: 26px; border-radius: 20px; background: var(--card, #fff); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 22px 65px rgba(0,0,0,.28); }
+.request-action-dialog h2 { margin: 0 0 12px; font-size: 23px; }
+.request-action-dialog p { line-height: 1.5; }
+.request-action-expiry { font-weight: 650; }
+.request-action-error { padding: 12px; border-radius: 10px; background: #fee2e2; color: #991b1b; }
+.request-action-buttons { display: flex; gap: 12px; margin-top: 20px; }
+.request-action-buttons button { flex: 1; min-width: 0; }
+html[data-theme='dark'] .request-action-dialog { background: #1b2720; color: #f4f5f0; border-color: #3b4b40; }
+@media (max-width: 390px) { .request-action-dialog { padding: 18px; } .request-action-buttons { flex-direction: column-reverse; } }
+
+/* Menu compacto do cabeçalho: disponível para visitantes e usuários autenticados. */
+.main-hamburger-menu > summary svg { width: 23px; height: 23px; }
+.main-hamburger-menu[open] > summary svg { transform: none; }
+.main-hamburger-menu .account-dropdown-panel { z-index: 50; }
+
+
+/* Controles de seleção: aparência consistente com os temas FitPeso. */
+html[data-theme='light'] { --select-bg: #fbfdff; --select-text: #203e32; --select-accent: #286b4e; --select-hover: #e8f5ed; }
+html[data-theme='dark'] { --select-bg: #141d18; --select-text: #f1f5f3; --select-accent: var(--blue); --select-hover: #29352b; }
+select {
+  color-scheme: light;
+  accent-color: var(--select-accent);
+}
+html[data-theme='dark'] select { color-scheme: dark; }
+.field select, select {
+  background-color: var(--select-bg);
+  color: var(--select-text);
+  border-color: var(--line);
+  cursor: pointer;
+}
+select option, select optgroup {
+  background-color: var(--select-bg);
+  color: var(--select-text);
+}
+select:focus-visible {
+  outline: 2px solid var(--select-accent);
+  outline-offset: 2px;
+}
+select:disabled { cursor: not-allowed; opacity: .55; }
+
+/* Cadastro visível ao lado do menu principal, seguindo o tema ativo. */
+.customer-account-links > .header-signup-button { padding: 7px 10px; border: 1px solid var(--blue); border-radius: 9px; color: var(--blue-dark); font-size: 13px; font-weight: 800; }
+.customer-account-links > .header-signup-button:hover { background: color-mix(in srgb, var(--blue) 12%, transparent); text-decoration: none; }
+
+/* Resumo de solicitação: tabela responsiva e adaptada aos temas. */
+.request-summary-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.request-summary-table { width: 100%; border-collapse: collapse; color: var(--ink); background: var(--select-bg); font-size: 14px; }
+.request-summary-table th, .request-summary-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.request-summary-table th { width: 42%; font-weight: 700; background: color-mix(in srgb, var(--blue) 7%, var(--select-bg)); }
+.request-summary-table tr:last-child th, .request-summary-table tr:last-child td { border-bottom: 0; }
+.request-summary-price td { color: var(--blue-dark); font-weight: 800; }
+.request-summary-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
+@media (max-width: 480px) { .request-summary-table th, .request-summary-table td { padding: 10px 9px; font-size: 12px; } }
+
+/* Consulta pública CREF-RJ integrada à navegação FitPeso. */
+.professional-registration-view { display: grid; gap: 14px; width: 100%; min-width: 0; color: var(--ink); }
+.professional-registration-view .request-form-title { margin: 0; }
+.professional-registration-view > p { margin: 0; line-height: 1.5; }
+.professional-registration-frame { display: block; width: 100%; height: min(75vh, 850px); min-height: 540px; border: 1px solid var(--line); border-radius: 12px; background: var(--select-bg); }
+.professional-registration-help { font-size: 13px; color: var(--muted); }
+.professional-registration-help a { color: var(--blue-dark); text-decoration: underline; }
+@media (max-width: 600px) { .professional-registration-frame { min-height: 580px; height: 75vh; } }
+
+/* Keep the FitPeso icon, wordmark and tagline as one compact top-aligned lockup. */
+.fitpeso-home-topbar { align-items: flex-start; }
+.fitpeso-home-brand { gap: 0; line-height: 1; align-self: flex-start; }
+.fitpeso-home-brand-main { align-items: center; gap: 4px; line-height: 1; }
+.fitpeso-home-brand .dumbbell-icon { flex-shrink: 0; }
+.fitpeso-home-brand .brand-default { line-height: 1; vertical-align: middle; }
+.fitpeso-home-brand .brand-tagline { margin-top: -2px; line-height: 1.05; }
+
+/* Guest navigation uses the same two theme-aware colors as the FitPeso wordmark. */
+.header-auth-links { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 13px; font-weight: 800; }
+.header-auth-links a { text-decoration: none; border: 0; padding: 4px 0; background: transparent; }
+.header-auth-links a:hover, .header-auth-links a:focus-visible { text-decoration: underline; }
+.header-auth-links .header-login-link { color: #286b4e; }
+.header-auth-links .header-signup-link { color: #263f33; }
+.header-auth-divider { color: var(--muted); font-weight: 400; }
+html[data-theme='dark'] .header-auth-links .header-login-link { color: #55d6a3; }
+html[data-theme='dark'] .header-auth-links .header-signup-link { color: #f1f5f3; }
+
+/* Faixa única de horários da solicitação */
+.time-range-fields { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.time-range-fields label { display: flex; flex: 1 1 130px; flex-direction: column; gap: 6px; font-weight: 600; }
+.time-range-fields input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--border, #9ca3af); border-radius: 8px; background: var(--surface, transparent); color: inherit; color-scheme: light dark; }
+.time-range-slider { display: grid; gap: 10px; margin: 16px 0 8px; }
+.time-range-slider input[type="range"] { width: 100%; accent-color: #29835b; touch-action: pan-y; }
+
+.training-time-button { cursor: pointer; min-height: 44px; padding: 10px 14px; border: 1px solid var(--muted, #888); border-radius: 9px; background: transparent; color: inherit; font: inherit; }
+.training-time-button-active { border-color: #f3a446; background: #f3a446; color: #17251d; font-weight: 700; }
+.training-time-button:focus-visible { outline: 3px solid #f3a446; outline-offset: 3px; }
