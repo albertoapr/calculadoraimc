@@ -638,5 +638,5 @@ html[data-theme='dark'] .header-auth-links .header-signup-link { color: #f1f5f3;
 .time-range-slider input[type="range"] { width: 100%; accent-color: #29835b; touch-action: pan-y; }
 
 .training-time-button { cursor: pointer; min-height: 44px; padding: 10px 14px; border: 1px solid var(--muted, #888); border-radius: 9px; background: transparent; color: inherit; font: inherit; }
-.training-time-button-active { border-color: #218052; background: #218052; color: #fff; font-weight: 700; }
-.training-time-button:focus-visible { outline: 3px solid #69ba91; outline-offset: 2px; }
+.training-time-button-active { border-color: #f3a446; background: #f3a446; color: #17251d; font-weight: 700; }
+.training-time-button:focus-visible { outline: 3px solid #f3a446; outline-offset: 3px; }
