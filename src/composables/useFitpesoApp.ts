@@ -1856,7 +1856,7 @@ export function useFitpesoApp() {
     form.city = homeCity.value
     // O controle deslizante precisa sempre começar com uma idade válida.
     if (!Number.isInteger(Number(form.age)) || Number(form.age) < 15 || Number(form.age) > 100) {
-      form.age = '30'
+      form.age = '35'
     }
     requestCityLocationMessage.value = ''
     form.trainerGenderPreference = 'indiferente'
@@ -2035,8 +2035,8 @@ export function useFitpesoApp() {
       status.value = 'Selecione pelo menos um personal antes de enviar a solicitação.'
       return
     }
-    if (!/^(?:[1-9]|[1-9]\d|1[01]\d|120)$/.test(String(form.age).trim())) {
-      status.value = 'Informe sua idade (de 1 a 120 anos) antes de enviar.'
+    if (!/^(?:1[5-9]|[2-9]\d|100)$/.test(String(form.age).trim())) {
+      status.value = 'Informe sua idade (de 15 a 100 anos) antes de enviar.'
       return
     }
     if (!customerSignedInName.value) {
