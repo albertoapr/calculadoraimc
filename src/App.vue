@@ -3033,7 +3033,9 @@ async function sendResult() {
         <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
-          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTr<PersonalCard
+          <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
+          <div class="home-trainer-list">
+            <PersonalCard
               v-for="trainer in publicFilteredTrainers"
               :key="trainer.trainerId"
               :trainer="trainer"
@@ -3042,9 +3044,7 @@ async function sendResult() {
               :disabled="Boolean((sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20))"
               :already-sent="Boolean(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId))"
               @update:selected="checked => { homeSelectedTrainerIds = checked ? [...homeSelectedTrainerIds, trainer.trainerId] : homeSelectedTrainerIds.filter(id => id !== trainer.trainerId) }"
-            />licitação já enviada</small>
-              </span>
-            </label>
+            />
           </div>
           <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para os critérios selecionados.</p>
         </template>
