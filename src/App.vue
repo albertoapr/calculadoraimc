@@ -83,6 +83,8 @@ type TrainerRequestDetails = {
   gymName?: string
   trainingDays: string[]
   trainingShifts: string[]
+  trainingStartTime?: string
+  trainingEndTime?: string
   validUntil: number
   proposalAlreadySent?: boolean
 }
@@ -493,6 +495,40 @@ const form = reactive({
   trainingShifts: ['Noite'] as string[],
 })
 
+const trainingStartMinutes = ref(1080)
+const trainingEndMinutes = ref(1260)
+function minutesToTime(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+function clampTrainingTime(changed: 'start' | 'end') {
+  trainingStartMinutes.value = Math.max(300, Math.min(1350, Math.round(trainingStartMinutes.value / 30) * 30))
+  trainingEndMinutes.value = Math.max(330, Math.min(1380, Math.round(trainingEndMinutes.value / 30) * 30))
+  if (trainingStartMinutes.value >= trainingEndMinutes.value) {
+    if (changed === 'start') trainingEndMinutes.value = Math.min(1380, trainingStartMinutes.value + 30)
+    else trainingStartMinutes.value = Math.max(300, trainingEndMinutes.value - 30)
+  }
+}
+function setTrainingTime(changed: 'start' | 'end', event: Event) {
+  const input = event.target as HTMLInputElement
+  const match = /^(\\d{2}):(\\d{2})$/.exec(input.value)
+  if (match) {
+    const minutes = Number(match[1]) * 60 + Number(match[2])
+    if (changed === 'start') trainingStartMinutes.value = minutes
+    else trainingEndMinutes.value = minutes
+  }
+  clampTrainingTime(changed)
+  input.value = minutesToTime(changed === 'start' ? trainingStartMinutes.value : trainingEndMinutes.value)
+}
+const trainingTimeShifts = computed(() => {
+  const start = trainingStartMinutes.value
+  const end = trainingEndMinutes.value
+  return [
+    ...(start < 720 && end > 300 ? ['Manhã'] : []),
+    ...(start < 1080 && end > 720 ? ['Tarde'] : []),
+    ...(end > 1080 ? ['Noite'] : []),
+  ]
+})
+
 const result = ref<ImcResult | null>(null)
 
 // Cada tela lógica começa no topo, inclusive ao voltar ou alternar cadastros.
@@ -646,6 +682,8 @@ function clearContactDetails() {
   form.sessionsPerWeek = '1'
   form.trainingDays = ['Segunda-feira']
   form.trainingShifts = ['Noite']
+  trainingStartMinutes.value = 1080
+  trainingEndMinutes.value = 1260
   googleProfileStatus.value = ''
 }
 
@@ -1440,6 +1478,8 @@ async function openRequestForm() {
   form.sessionsPerWeek = '1'
   form.trainingDays = ['Segunda-feira']
   form.trainingShifts = ['Noite']
+  trainingStartMinutes.value = 1080
+  trainingEndMinutes.value = 1260
   form.desiredDuration = '1 mês'
   form.singleLesson = false
   form.withCompanion = false
@@ -1526,7 +1566,7 @@ async function continueToTrainerSelection() {
   if (form.gymName === 'Outros' && !otherGymName.value.trim()) { status.value = 'Informe o lugar onde pretende treinar.'; return }
   form.attendsGym = true
   if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
-  if (!form.trainingShifts.length) { status.value = 'Selecione pelo menos um turno.'; return }
+  if (trainingStartMinutes.value >= trainingEndMinutes.value) { status.value = 'Informe uma faixa de horário válida.'; return }
   const selectedCity = matchSupportedRequestCity(form.city)
   if (!selectedCity) { status.value = 'Selecione uma cidade atendida.'; return }
   form.city = selectedCity
@@ -2412,12 +2452,12 @@ async function sendResult() {
     status.value = 'Complete seu cadastro antes de solicitar atendimento.'
     return
   }
-  if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 4 || !form.trainingDays.length || !form.trainingShifts.length) {
-    status.value = 'Informe as aulas por semana, pelo menos um dia e um turno.'
+  if (!Number.isInteger(Number(form.sessionsPerWeek)) || Number(form.sessionsPerWeek) < 1 || Number(form.sessionsPerWeek) > 4 || !form.trainingDays.length || trainingStartMinutes.value >= trainingEndMinutes.value) {
+    status.value = 'Informe as aulas por semana, pelo menos um dia e uma faixa de horário válida.'
     return
   }
   const trainingDays = form.trainingDays
-  const trainingShifts = form.trainingShifts
+  const trainingShifts = trainingTimeShifts.value
 
   submittingRequest.value = true
   status.value = 'Enviando sua solicitação para a Beta…'
@@ -2441,6 +2481,8 @@ async function sendResult() {
       ...(form.sessionsPerWeek ? { sessionsPerWeek: Number(form.sessionsPerWeek) } : {}),
       trainingDays,
       trainingShifts,
+      trainingStartTime: minutesToTime(trainingStartMinutes.value),
+      trainingEndTime: minutesToTime(trainingEndMinutes.value),
       selectedTrainerIds: selectedTrainerIds.value,
       consent: form.shareContactConsent,
     })
@@ -2828,7 +2870,7 @@ async function sendResult() {
             <div v-if="trainerRequest.desiredDuration"><dt>Tempo de acompanhamento</dt><dd>{{ trainerRequest.desiredDuration }}</dd></div>
             <div v-if="trainerRequest.attendsGym"><dt>Frequenta academia</dt><dd>Sim</dd></div>
             <div v-if="trainerRequest.attendsGym && trainerRequest.gymName"><dt>Qual?</dt><dd>{{ trainerRequest.gymName }}</dd></div>
-            <div><dt>Disponibilidade para treino</dt><dd>{{ [trainerRequest.trainingDays.length ? `Dias: ${trainerRequest.trainingDays.join(', ')}` : '', trainerRequest.trainingShifts.length ? `Turnos: ${trainerRequest.trainingShifts.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Não informada' }}</dd></div>
+            <div><dt>Disponibilidade para treino</dt><dd>{{ [trainerRequest.trainingDays.length ? `Dias: ${trainerRequest.trainingDays.join(', ')}` : '', trainerRequest.trainingStartTime && trainerRequest.trainingEndTime ? `Horário: ${trainerRequest.trainingStartTime} às ${trainerRequest.trainingEndTime}` : trainerRequest.trainingShifts.length ? `Turnos: ${trainerRequest.trainingShifts.join(', ')}` : ''].filter(Boolean).join(' · ') || 'Não informada' }}</dd></div>
           </dl>
           <p class="trainer-request-expiry">Válida até {{ new Date(trainerRequest.validUntil * 1000).toLocaleString('pt-BR') }}.</p>
           <form v-if="!trainerRequest.proposalAlreadySent" class="form contact-fields" @submit.prevent="submitTrainerProposal">
@@ -3160,14 +3202,17 @@ async function sendResult() {
               <span>{{ day.label }}</span>
             </label>
           </div>
-          <p class="request-question">Em quais turnos você pode treinar?</p>
-          <p class="request-hint">Selecione um ou mais turnos</p>
-          <div class="request-shift-row" role="group" aria-label="Turnos disponíveis">
-            <label v-for="shift in trainingShiftOptions" :key="shift" class="request-choice request-shift">
-              <input v-model="form.trainingShifts" type="checkbox" name="trainingShifts" :value="shift">
-              <span>{{ shift }} <small>{{ shift === 'Manhã' ? '6h às 12h' : shift === 'Tarde' ? '12h às 18h' : '18h às 22h' }}</small></span>
-            </label>
+          <p class="request-question">Qual faixa de horário você prefere?</p>
+          <p class="request-hint">A mesma faixa vale para todos os dias selecionados. Ajuste de 30 em 30 minutos.</p>
+          <div class="time-range-fields">
+            <label>Das <input type="time" :value="minutesToTime(trainingStartMinutes)" min="05:00" max="22:30" step="1800" @change="setTrainingTime('start', $event)"></label>
+            <label>Até <input type="time" :value="minutesToTime(trainingEndMinutes)" min="05:30" max="23:00" step="1800" @change="setTrainingTime('end', $event)"></label>
           </div>
+          <div class="time-range-slider" aria-label="Faixa de horário">
+            <input v-model.number="trainingStartMinutes" type="range" min="300" max="1350" step="30" aria-label="Horário inicial" @input="clampTrainingTime('start')">
+            <input v-model.number="trainingEndMinutes" type="range" min="330" max="1380" step="30" aria-label="Horário final" @input="clampTrainingTime('end')">
+          </div>
+          <p class="request-hint">Das {{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}</p>
         </section>
 
         <section class="request-card field-wide" aria-labelledby="request-gender-heading">
@@ -3212,7 +3257,7 @@ async function sendResult() {
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🎯</span>Objetivo</th><td>{{ form.objective || 'Não informado' }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🔢</span>Aulas por semana</th><td>{{ form.sessionsPerWeek }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">📅</span>Dias disponíveis</th><td>{{ form.trainingDays.join(', ') }}</td></tr>
-                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🕒</span>Turnos disponíveis</th><td>{{ form.trainingShifts.join(', ') }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🕒</span>Horário disponível</th><td>{{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">👥</span>Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">⏳</span>Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
