@@ -1630,7 +1630,7 @@ async function continueToTrainerSelection() {
 
 function reviewRequest() {
   if (!selectedTrainerIds.value.length) { status.value = 'Selecione ao menos um profissional.'; return }
-  requestStep.value = 4
+  requestStep.value = 5
   status.value = ''
 }
 
@@ -3104,6 +3104,7 @@ async function sendResult() {
       />
       <SelecionarProfissionaisView
         v-if="viewMode === 'select-trainers'"
+        :draft-selection="selectingTrainersForDraft"
         :academy="publicTrainerAcademy"
         :academies="publicTrainerAcademies"
         :trainers="publicFilteredTrainers"
