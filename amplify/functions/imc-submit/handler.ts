@@ -1417,6 +1417,8 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
     trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
     trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    ...(item.trainingStartTime?.S ? { trainingStartTime: item.trainingStartTime.S } : {}),
+    ...(item.trainingEndTime?.S ? { trainingEndTime: item.trainingEndTime.S } : {}),
     createdAt: item.createdAt?.S ?? '',
     selectedTrainerIds: item.selectedTrainerIds?.SS ?? [],
     validUntil: Number(item.validUntil?.N ?? 0),
@@ -1644,6 +1646,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       ...(item.sessionsPerWeek?.N ? { sessionsPerWeek: Number(item.sessionsPerWeek.N) } : {}),
       trainingDays: item.trainingDays?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
       trainingShifts: item.trainingShifts?.L?.map((entry: { S?: string }) => entry.S ?? '') ?? [],
+    ...(item.trainingStartTime?.S ? { trainingStartTime: item.trainingStartTime.S } : {}),
+    ...(item.trainingEndTime?.S ? { trainingEndTime: item.trainingEndTime.S } : {}),
       validUntil,
       proposalAlreadySent: Boolean(existingProposal?.Item),
     }, token })
@@ -1857,6 +1861,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(typeof requestData.sessionsPerWeek === 'number' && Number.isInteger(requestData.sessionsPerWeek) && requestData.sessionsPerWeek >= 1 && requestData.sessionsPerWeek <= 7 ? { sessionsPerWeek: { N: String(requestData.sessionsPerWeek) } } : {}),
     ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
+    ...(typeof requestData.trainingStartTime === 'string' && /^\d{2}:\d{2}$/.test(requestData.trainingStartTime) ? { trainingStartTime: { S: requestData.trainingStartTime } } : {}),
+    ...(typeof requestData.trainingEndTime === 'string' && /^\d{2}:\d{2}$/.test(requestData.trainingEndTime) ? { trainingEndTime: { S: requestData.trainingEndTime } } : {}),
   }
 
   await dynamodb.send(new TransactWriteItemsCommand({
