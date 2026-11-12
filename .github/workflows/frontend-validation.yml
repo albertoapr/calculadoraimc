@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/frontend-modular
+      - develop
   pull_request:
     paths:
       - 'src/**'
