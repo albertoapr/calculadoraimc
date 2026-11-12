@@ -1275,10 +1275,12 @@ h2 {
   outline-offset: 2px;
 }
 /* Seletor compacto de aparência: um único controle para claro/escuro. */
-.box-footer .theme-switch {
+.box-footer .theme-mode-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 76px;
   width: 76px;
   height: 44px;
   padding: 5px;
@@ -1288,7 +1290,7 @@ h2 {
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
 }
-.box-footer .theme-switch-thumb {
+.box-footer .theme-mode-toggle-thumb {
   display: grid;
   width: 32px;
   height: 32px;
@@ -1300,7 +1302,7 @@ h2 {
   transform: translateX(0);
   transition: transform 0.2s ease, background-color 0.2s ease;
 }
-.box-footer .theme-switch-thumb svg {
+.box-footer .theme-mode-toggle-thumb svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -1309,22 +1311,22 @@ h2 {
   stroke-linejoin: round;
   stroke-width: 1.8;
 }
-.box-footer .theme-switch:focus-visible {
+.box-footer .theme-mode-toggle:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 3px;
 }
-html[data-theme='dark'] .box-footer .theme-switch {
+html[data-theme='dark'] .box-footer .theme-mode-toggle {
   border-color: #3b4b40;
   background: #314336;
 }
-html[data-theme='dark'] .box-footer .theme-switch-thumb {
+html[data-theme='dark'] .box-footer .theme-mode-toggle-thumb {
   color: #e9d56a;
   background: #19271e;
   transform: translateX(32px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .box-footer .theme-switch,
-  .box-footer .theme-switch-thumb {
+  .box-footer .theme-mode-toggle,
+  .box-footer .theme-mode-toggle-thumb {
     transition: none;
   }
 }
