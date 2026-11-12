@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
 import PersonalCard from './components/profissionais/PersonalCard.vue'
+import { listEligibleTrainers } from './services/profissionaisService'
+import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { getRequestApiEndpoint } from './services/api'
 import { trainerDisplayName, trainerInstagramUrl } from './utils/trainer'
 import { minutesToTime } from './utils/time'
@@ -243,28 +245,23 @@ const publicTrainersLoading = ref(false)
 const publicTrainersError = ref('')
 let publicLookupId = 0
 const isMesquita = (city: string) => city.trim().toLocaleLowerCase('pt-BR') === 'mesquita'
-const publicTrainerAcademies = computed(() => [...new Set(publicTrainers.value.flatMap(trainer => [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].map(name => name.trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'pt-BR')))
-watch(publicTrainerCity, city => { publicTrainerAcademy.value = '' })
-const publicFilteredTrainers = computed(() => publicTrainers.value.filter(trainer => {
-  if (viewMode.value === 'select-trainers') {
-    if (publicTrainerCity.value !== form.city) return false
-    const gender = (trainer.sex || trainer.gender || '').trim().toLocaleLowerCase('pt-BR')
-    if (form.trainerGenderPreference !== 'indiferente' && gender !== form.trainerGenderPreference) return false
-  }
-  return !publicTrainerAcademy.value || [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(name => name.trim().toLocaleLowerCase('pt-BR') === publicTrainerAcademy.value.toLocaleLowerCase('pt-BR'))
-}))
+const { academies: publicTrainerAcademies, filtered: publicFilteredTrainers } = useTrainerDirectory({
+  trainers: publicTrainers,
+  academy: publicTrainerAcademy,
+  city: publicTrainerCity,
+  requestCity: computed(() => form.city),
+  requestGender: computed(() => form.trainerGenderPreference),
+  selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
+})
+watch(publicTrainerCity, () => { publicTrainerAcademy.value = '' })
 async function loadPublicTrainers() {
   const id = ++publicLookupId
   publicTrainersLoading.value = true
   publicTrainersError.value = ''
   publicTrainers.value = []
   try {
-    const endpoint = await getRequestApiEndpoint()
-    const response = await fetch(endpoint + '/api/trainers/eligible?' + new URLSearchParams({city: publicTrainerCity.value, gender: viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente'}))
-    if (!response.ok) throw new Error('Erro')
-    const body = await response.json() as { trainers?: EligibleTrainer[] }
-    if (!Array.isArray(body.trainers)) throw new Error('Erro')
-    if (id === publicLookupId) publicTrainers.value = body.trainers
+    const trainers = await listEligibleTrainers(publicTrainerCity.value, viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente')
+    if (id === publicLookupId) publicTrainers.value = trainers
   } catch {
     if (id === publicLookupId) publicTrainersError.value = 'Não foi possível consultar os profissionais.'
   } finally { if (id === publicLookupId) publicTrainersLoading.value = false }
