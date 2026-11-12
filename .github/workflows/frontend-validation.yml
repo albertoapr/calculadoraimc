@@ -32,3 +32,4 @@ jobs:
       - run: npm run build-only
       - run: npm run test:whatsapp
       - run: npm run test:selection
+      - run: node --import tsx --test tests/profissionais-cache.test.ts
