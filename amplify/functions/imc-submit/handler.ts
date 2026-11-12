@@ -1,3 +1,4 @@
+import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
@@ -2306,6 +2307,10 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  // Progressive signup is isolated: the existing registration/login remains unchanged.
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/verify-phone')) return verifyPhoneSignupFromBeta(event)
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
