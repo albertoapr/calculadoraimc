@@ -26,6 +26,11 @@ test('public navigation supports directory, home and browser history without res
   mode.value = 'public-trainers'
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(router.currentRoute.value.path, '/profissionais')
+  mode.value = 'home'
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(router.currentRoute.value.path, '/')
+  mode.value = 'public-trainers'
+  await new Promise((resolve) => setImmediate(resolve))
   await router.push('/')
   assert.equal(mode.value, 'home')
   const returned = new Promise<void>((resolve) => {

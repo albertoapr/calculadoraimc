@@ -92,7 +92,9 @@ export function useFitpesoApp() {
   const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
   const trainerIdFromPath = getTrainerIdFromPath()
   const trainerSlugFromHost = getTrainerSlugFromHost()
-  const isRootHome = window.location.pathname === '/' && !trainerIdFromPath && !trainerSlugFromHost
+  const isRootHome = computed(
+    () => router.currentRoute.value.path === '/' && !trainerIdFromPath && !trainerSlugFromHost,
+  )
   const personalName = ref('FitPeso')
   const personalBrandFirstName = computed(() =>
     personalName.value.endsWith(' Personal Trainer')
@@ -117,7 +119,7 @@ export function useFitpesoApp() {
   >(
     trainerRequestToken
       ? 'trainer-request'
-      : window.location.pathname.replace(/\/$/, '') === '/profissionais'
+      : router.currentRoute.value.path.replace(/\/$/, '') === '/profissionais'
         ? 'public-trainers'
         : 'home',
   )
@@ -1148,7 +1150,7 @@ export function useFitpesoApp() {
   }
 
   function goHome() {
-    if (window.location.pathname === '/profissionais') void router.replace('/')
+    const leavingPublicDirectory = router.currentRoute.value.path === '/profissionais'
     clearPendingWhatsAppLogin()
     showTrainerSignup.value = false
     showCustomerSignup.value = false
@@ -1172,7 +1174,9 @@ export function useFitpesoApp() {
       window.clearTimeout(customerVerificationPollTimer)
     customerVerificationPollTimer = undefined
     showCustomerLoginDialog.value = false
-    void router.replace(window.location.pathname)
+    // The public-navigation watcher owns the /profissionais -> / transition.
+    // Other screens only need their temporary hash removed.
+    if (!leavingPublicDirectory) void router.replace(router.currentRoute.value.path)
     void nextTick(() => window.scrollTo(0, 0))
   }
 
@@ -3107,7 +3111,7 @@ export function useFitpesoApp() {
       void router.replace(`${window.location.pathname}${window.location.hash}`)
     void loadTrainerProfile()
     void loadTrainerRequest()
-    if (isRootHome && !homeCityManuallySelected.value) void detectRequestCity('home')
+    if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
     if (homeCity.value) void loadHomeTrainerCount(homeCity.value)
     try {
       const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')

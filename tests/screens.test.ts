@@ -53,7 +53,7 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   const bundle = await build({
     stdin: {
-      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import App from './src/App.vue'; export {nextTick}; export async function mount(){const router=createRouter({history:createMemoryHistory(),routes:[{path:'/:pathMatch(.*)*',component:App}]}); await router.push('/'); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');return app}`,
+      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import App from './src/App.vue'; export {nextTick}; export async function mount(path='/'){const router=createRouter({history:createMemoryHistory(),routes:[{path:'/:pathMatch(.*)*',component:App}]}); await router.push(path); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');return app}`,
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -83,7 +83,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     createRequire(import.meta.url),
   )
   const { mount, nextTick } = module.exports
-  const app = await mount()
+  let app = await mount()
   const click = async (label: RegExp) => {
     const button = [...document.querySelectorAll('button,a')].find((el) =>
       label.test(el.textContent?.trim() || ''),
@@ -133,6 +133,16 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.equal(document.documentElement.dataset.theme, 'light')
     assert.equal(localStorage.getItem('beta-imc-theme'), 'light')
     assert.ok(!requestCalls.some((url) => /verify|start-email|\/api\/requests$/.test(url)))
+
+    app.unmount()
+    app = await mount('/profissionais')
+    assert.match(document.body.textContent!, /Profissionais/)
+    ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    assert.ok(document.querySelector('.root-home-photo'))
+    assert.doesNotMatch(document.body.textContent!, /Solicitar Proposta/)
   } finally {
     app.unmount()
     dom.window.close()

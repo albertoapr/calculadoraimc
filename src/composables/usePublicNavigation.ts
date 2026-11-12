@@ -31,7 +31,9 @@ export function bindPublicNavigation<T extends string>(
         previous === 'public-trainers' &&
         router.currentRoute.value.path === '/profissionais'
       ) {
-        void router.push('/')
+        // Returning from the directory should replace that entry so a browser Back
+        // action does not reopen the directory after the title Back button was used.
+        void router.replace('/')
       }
     },
     { flush: 'sync' },
