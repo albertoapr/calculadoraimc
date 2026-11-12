@@ -897,8 +897,7 @@ function goBackFromTitle() {
   if (showCustomerSignup.value) { closeCustomerSignup(); return }
   if (showTrainerSignup.value) { closeTrainerSignup(); return }
   if (viewMode.value === 'contact' && showRequestForm.value) {
-    if (requestStep.value === 4) requestStep.value = 2
-    else if (requestStep.value === 3) requestStep.value = 2
+    if (requestStep.value > 1) requestStep.value -= 1
     else goHome()
   } else if (viewMode.value === 'select-trainers') {
     void returnToDraftSummary()
@@ -1467,7 +1466,7 @@ async function detectRequestCity(cityDetectionScope: 'request' | 'home' = 'reque
 async function openRequestForm() {
   status.value = ''
   showRequestForm.value = true
-  requestStep.value = 4
+  requestStep.value = 1
   selectingTrainersForDraft.value = false
   ++requestCityLookupId
   form.city = homeCity.value
@@ -1563,7 +1562,7 @@ watch(publicTrainerAcademies, () => {
 })
 const otherGymName = ref('')
 watch(() => form.city, city => {
-  if (viewMode.value !== 'contact' || requestStep.value !== 2) return
+  if (viewMode.value !== 'contact' || requestStep.value > 3) return
   form.gymName = defaultAcademyForCity(city)
   form.attendsGym = Boolean(form.gymName)
   otherGymName.value = ''
@@ -1573,19 +1572,35 @@ watch(() => form.city, city => {
 
 async function continueToTrainerSelection() {
   status.value = ''
-  const age = Number(String(form.age).trim())
-  if (!String(form.age).trim() || !Number.isInteger(age) || age < 1 || age > 120) { status.value = 'Informe sua idade (de 1 a 120 anos).'; return }
-  const sessions = Number(form.sessionsPerWeek)
-  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 4) { status.value = 'Selecione de 1 a 4 aulas por semana.'; return }
-  if (!form.gymName) { status.value = 'Selecione uma academia.'; return }
-  if (form.gymName === 'Outros' && !otherGymName.value.trim()) { status.value = 'Informe o lugar onde pretende treinar.'; return }
-  form.attendsGym = true
-  if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
-  if (trainingStartMinutes.value >= trainingEndMinutes.value) { status.value = 'Informe uma faixa de horário válida.'; return }
-  const selectedCity = matchSupportedRequestCity(form.city)
-  if (!selectedCity) { status.value = 'Selecione uma cidade atendida.'; return }
-  form.city = selectedCity
-  requestStep.value = 4
+  if (requestStep.value === 1) {
+    const age = Number(String(form.age).trim())
+    if (!String(form.age).trim() || !Number.isInteger(age) || age < 1 || age > 120) {
+      status.value = 'Informe sua idade (de 1 a 120 anos).'
+      return
+    }
+    const sessions = Number(form.sessionsPerWeek)
+    if (!form.objective) { status.value = 'Selecione seu objetivo.'; return }
+    if (!Number.isInteger(sessions) || sessions < 1 || sessions > 4) {
+      status.value = 'Selecione de 1 a 4 aulas por semana.'
+      return
+    }
+  } else if (requestStep.value === 2) {
+    if (!form.gymName) { status.value = 'Selecione uma academia.'; return }
+    if (form.gymName === 'Outros' && !otherGymName.value.trim()) {
+      status.value = 'Informe o lugar onde pretende treinar.'
+      return
+    }
+    form.attendsGym = true
+    if (!form.trainingDays.length) { status.value = 'Selecione pelo menos um dia da semana.'; return }
+    if (trainingStartMinutes.value >= trainingEndMinutes.value) {
+      status.value = 'Informe uma faixa de horário válida.'
+      return
+    }
+    const selectedCity = matchSupportedRequestCity(form.city)
+    if (!selectedCity) { status.value = 'Selecione uma cidade atendida.'; return }
+    form.city = selectedCity
+  }
+  if (requestStep.value < 4) requestStep.value += 1
   await nextTick()
   window.scrollTo(0, 0)
 }
@@ -2842,7 +2857,7 @@ async function sendResult() {
         </div>
         <p v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed" class="trainer-profile-status" role="status">Não foi possível localizar o personal.</p>
         <hr v-if="viewMode !== 'home'" class="personal-divider">
-        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 2 ? 'Solicitar atendimento' : 'Resumo da solicitação' }}</h2>
+        <h2 v-if="viewMode === 'contact' && showRequestForm" id="contact-form-title" class="request-form-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> {{ requestStep === 4 ? 'Resumo da solicitação' : 'Solicitar atendimento' }}</h2>
         <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
           <span v-if="trainerSlugFromHost && personalBrandFirstName" class="personal-trainer-brand personal-trainer-home-title">
             <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
@@ -3215,9 +3230,10 @@ async function sendResult() {
       </section>
 
       <form v-if="viewMode === 'contact' && showRequestForm" id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent="sendResult">
-        <template v-if="requestStep === 2">
+        <div v-if="requestStep < 4" class="field-wide request-step-progress" role="status" aria-live="polite">Etapa {{ requestStep }} de 3</div>
+        <template v-if="requestStep < 4">
         
-        <section class="request-card field-wide" aria-labelledby="request-client-heading">
+        <section v-if="requestStep === 1" class="request-card field-wide" aria-labelledby="request-client-heading">
           <h3 id="request-client-heading">👤 Sobre você</h3>
           <label class="field" for="request-client-age">
             <span class="field-label">Qual é a sua idade?</span>
@@ -3232,7 +3248,7 @@ async function sendResult() {
           </div>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-training-heading">
+        <section v-if="requestStep === 1" class="request-card field-wide" aria-labelledby="request-training-heading">
           <h3 id="request-training-heading">🏋️ Seu treino</h3>
           <label class="field" for="request-objective">
             <span class="field-label">Qual é o seu objetivo?</span>
@@ -3255,7 +3271,7 @@ async function sendResult() {
           </div>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-location-heading">
+        <section v-if="requestStep === 2" class="request-card field-wide" aria-labelledby="request-location-heading">
           <h3 id="request-location-heading">📍 Local de atendimento</h3>
           <label class="field" for="request-gym-name">
             <span class="field-label">Onde você deseja treinar?</span>
@@ -3271,7 +3287,7 @@ async function sendResult() {
           </label>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-availability-heading">
+        <section v-if="requestStep === 2" class="request-card field-wide" aria-labelledby="request-availability-heading">
           <h3 id="request-availability-heading">▦ Sua disponibilidade</h3>
           <p class="request-question">Em quais dias você pode treinar?</p>
           <div class="request-choice-row" role="group" aria-label="Dias disponíveis">
@@ -3293,7 +3309,7 @@ async function sendResult() {
           </div>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-gender-heading">
+        <section v-if="requestStep === 3" class="request-card field-wide" aria-labelledby="request-gender-heading">
           <h3 id="request-gender-heading">♙ Preferência do personal</h3>
           <p class="request-question">Você tem preferência pelo gênero do personal?</p>
           <div class="request-gender-row" role="group" aria-label="Preferência de gênero">
@@ -3304,7 +3320,7 @@ async function sendResult() {
           </div>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-companion-heading">
+        <section v-if="requestStep === 3" class="request-card field-wide" aria-labelledby="request-companion-heading">
           <h3 id="request-companion-heading">Como você vai fazer a aula?</h3>
           <div class="request-gender-row" role="group" aria-label="Participantes da aula">
             <label class="request-choice"><input v-model="form.withCompanion" type="radio" name="withCompanion" :value="false"><span>Sozinho</span></label>
@@ -3312,7 +3328,7 @@ async function sendResult() {
           </div>
         </section>
 
-        <section class="request-card field-wide" aria-labelledby="request-duration-heading">
+        <section v-if="requestStep === 3" class="request-card field-wide" aria-labelledby="request-duration-heading">
           <h3 id="request-duration-heading">⌛ Duração do atendimento</h3>
           <label class="admin-trainer-active"><input v-model="form.singleLesson" type="checkbox"> Aula avulsa</label>
           <label class="field" for="request-duration">
@@ -3323,7 +3339,7 @@ async function sendResult() {
           </label>
         </section>
 
-        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">Revisar solicitação →</button>
+        <button class="primary-button field-wide" type="button" @click="continueToTrainerSelection">{{ requestStep === 3 ? 'Revisar solicitação →' : 'Continuar →' }}</button>
         </template>
 
         <template v-else>
@@ -3345,7 +3361,7 @@ async function sendResult() {
               </tbody>
             </table>
           </div>
-          <button class="secondary-button field-wide" type="button" @click="requestStep = 2">Modificar atendimento</button>
+          <button class="secondary-button field-wide" type="button" @click="requestStep = 1; status = ''; $nextTick(() => window.scrollTo(0, 0))">Modificar atendimento</button>
           <button class="primary-button field-wide" type="button" @click="selectTrainersForDraft">Selecionar personal{{ selectedTrainerIds.length ? ' (' + selectedTrainerIds.length + ')' : '' }}</button>
           <button v-if="selectedTrainerIds.length" class="primary-button field-wide" type="button" :disabled="submittingRequest" @click="confirmServiceRequest">{{ submittingRequest ? 'Enviando…' : customerSignedInName ? 'Confirmar e enviar' : 'Entrar para confirmar' }}</button>
         </template>
