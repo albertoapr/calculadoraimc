@@ -13,7 +13,7 @@ defineProps<{
   requestCity: string
   requestGender: string
   signedInName: string
-  activeRequest: { city: string; proposalCount: number } | null
+  activeRequest: { city: string; proposalCount: number } | null | undefined
   checkingRequests: boolean
   requestsError: string
   sharingBusy: boolean
