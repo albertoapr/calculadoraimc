@@ -24,7 +24,6 @@ const {
   ConsultarProfissionaisView,
   SelecionarProfissionaisView,
   isRootHome,
-  showHomeTopbar,
   viewMode,
   showRequestForm,
   requestSent,
@@ -89,7 +88,7 @@ const {
       "
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
-      <HomeHeader v-if="showHomeTopbar" />
+      <HomeHeader />
       <PageHeader />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />

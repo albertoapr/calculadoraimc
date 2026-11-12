@@ -95,7 +95,10 @@ test('extracted screens preserve login, request age between steps and theme chan
     await nextTick()
   }
   try {
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     await click(/^Entrar$/)
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
+    assert.match(document.querySelector('.fitpeso-home-topbar')?.textContent ?? '', /FitPeso/)
     const identifier = document.querySelector('#login-identifier') as HTMLInputElement
     identifier.value = '21999999999'
     identifier.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
@@ -111,8 +114,11 @@ test('extracted screens preserve login, request age between steps and theme chan
     )
     ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
     await nextTick()
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     await click(/Buscar Personal/)
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     await click(/Solicitar Atendimento/)
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     assert.match(document.body.textContent!, /Etapa 1 de 4/)
     const age = document.querySelector('#request-client-age') as HTMLInputElement
     age.value = '45'

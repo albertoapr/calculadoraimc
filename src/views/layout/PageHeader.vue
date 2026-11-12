@@ -6,7 +6,6 @@ const {
   trainerSlugFromHost,
   isRootHome,
   personalBrandFirstName,
-  showHomeTopbar,
   trainerProfileFailed,
   viewMode,
   showRequestForm,
@@ -19,17 +18,6 @@ const {
 
 <template>
   <header class="hero">
-    <div v-if="!showHomeTopbar" class="brand" aria-label="FitPeso — Rede de treinadores">
-      <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
-        <path d="M4 15h4v10H4zm5-4h4v18H9zm18 0h4v18h-4zm5 4h4v10h-4z" />
-      </svg>
-      <span class="brand-lockup"
-        ><span class="brand-default"
-          ><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span
-        ></span
-      >
-    </div>
     <p
       v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed"
       class="trainer-profile-status"

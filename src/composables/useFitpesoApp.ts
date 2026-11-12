@@ -99,14 +99,6 @@ export function useFitpesoApp() {
       ? personalName.value.slice(0, -' Personal Trainer'.length)
       : '',
   )
-  const showHomeTopbar = computed(
-    () =>
-      ((viewMode.value === 'home' && !result.value) ||
-        viewMode.value === 'public-trainers' ||
-        viewMode.value === 'professional-registration' ||
-        (viewMode.value === 'contact' && showRequestForm.value)) &&
-      (isRootHome || Boolean(trainerSlugFromHost)),
-  )
   const trainerProfileFailed = ref(false)
   const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
   const viewMode = ref<
@@ -3275,7 +3267,6 @@ export function useFitpesoApp() {
     ConsultarProfissionaisView,
     SelecionarProfissionaisView,
     isRootHome,
-    showHomeTopbar,
     viewMode,
     showRequestForm,
     requestSent,

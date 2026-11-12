@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
   loginAsTrainer,
@@ -40,14 +41,8 @@ const {
 
 <template>
   <section class="calculator customer-signup login-screen" aria-labelledby="customer-login-title">
+    <HomeHeader />
     <header class="hero">
-      <div class="brand" aria-label="FitPeso — Rede de treinadores">
-        <span class="brand-lockup"
-          ><span class="brand-default"
-            ><span class="brand-fit">Fit</span><span class="brand-peso">Peso</span></span
-          ></span
-        >
-      </div>
       <hr class="personal-divider" />
       <h1 id="customer-login-title">
         <button
