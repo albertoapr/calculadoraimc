@@ -3108,6 +3108,18 @@ async function sendResult() {
         
         <section class="request-card field-wide" aria-labelledby="request-training-heading">
           <h3 id="request-training-heading">🏋️ Seu treino</h3>
+          <label class="field" for="request-objective">
+            <span class="field-label">Qual é o seu objetivo?</span>
+            <select id="request-objective" v-model="form.objective" name="objective" required>
+              <option value="" disabled>Selecione seu objetivo</option>
+              <option value="Emagrecimento">Emagrecimento</option>
+              <option value="Hipertrofia">Ganho de massa muscular (hipertrofia)</option>
+              <option value="Condicionamento físico">Condicionamento físico</option>
+              <option value="Saúde e qualidade de vida">Saúde e qualidade de vida</option>
+              <option value="Reabilitação">Reabilitação</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </label>
           <p class="request-question">Quantas aulas por semana você deseja?</p>
           <div class="request-choice-row" role="group" aria-label="Quantidade de aulas por semana">
             <label v-for="number in 4" :key="number" class="request-choice">
