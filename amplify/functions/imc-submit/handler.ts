@@ -1516,6 +1516,7 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         trainerId: trainer.trainerId,
         name: trainer.name,
         slug: trainer.slug,
+        sex: trainer.sex,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
         cref: trainer.cref,
         academias: trainer.academias,
