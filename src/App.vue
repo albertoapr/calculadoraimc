@@ -3253,7 +3253,7 @@ async function sendResult() {
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🕒</span>Horário disponível</th><td>{{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">👥</span>Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
                 <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">⏳</span>Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
-                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Gênero do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
                 <tr class="request-summary-price"><th scope="row"><span class="summary-row-icon" aria-hidden="true">💰</span>Valor estimado</th><td><strong>a partir de {{ ((form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40) * (form.withCompanion ? 2 : 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
               </tbody>
             </table>
