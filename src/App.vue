@@ -3014,7 +3014,6 @@ async function sendResult() {
 
       <ConsultarProfissionaisView
         v-if="viewMode === 'public-trainers'"
-        v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'"
         :academy="publicTrainerAcademy"
         :academies="publicTrainerAcademies"
         :trainers="publicFilteredTrainers"
@@ -3041,7 +3040,6 @@ async function sendResult() {
       />
       <SelecionarProfissionaisView
         v-if="viewMode === 'select-trainers'"
-        v-if="viewMode === 'public-trainers' || viewMode === 'select-trainers'"
         :academy="publicTrainerAcademy"
         :academies="publicTrainerAcademies"
         :trainers="publicFilteredTrainers"
