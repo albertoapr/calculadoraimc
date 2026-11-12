@@ -3201,16 +3201,16 @@ async function sendResult() {
           <div class="field-wide request-summary-table-wrap">
             <table class="request-summary-table">
               <tbody>
-                <tr><th scope="row">Cidade</th><td>{{ form.city }}</td></tr>
-                <tr><th scope="row">Academia / local</th><td>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</td></tr>
-                <tr><th scope="row">Objetivo</th><td>{{ form.objective || 'Não informado' }}</td></tr>
-                <tr><th scope="row">Aulas por semana</th><td>{{ form.sessionsPerWeek }}</td></tr>
-                <tr><th scope="row">Dias disponíveis</th><td>{{ form.trainingDays.join(', ') }}</td></tr>
-                <tr><th scope="row">Turnos disponíveis</th><td>{{ form.trainingShifts.join(', ') }}</td></tr>
-                <tr><th scope="row">Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
-                <tr><th scope="row">Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
-                <tr><th scope="row">Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
-                <tr class="request-summary-price"><th scope="row">{{ form.singleLesson ? 'Valor previsto da aula' : 'Faixa mensal prevista' }}</th><td><strong>{{ ((form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }} a {{ ((form.singleLesson ? 100 : Number(form.sessionsPerWeek) * 4 * 100)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">📍</span>Cidade</th><td>{{ form.city }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🏋️</span>Academia / local</th><td>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🎯</span>Objetivo</th><td>{{ form.objective || 'Não informado' }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🔢</span>Aulas por semana</th><td>{{ form.sessionsPerWeek }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">📅</span>Dias disponíveis</th><td>{{ form.trainingDays.join(', ') }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🕒</span>Turnos disponíveis</th><td>{{ form.trainingShifts.join(', ') }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">👥</span>Participantes</th><td>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">⏳</span>Duração</th><td>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td></tr>
+                <tr><th scope="row"><span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Preferência do personal</th><td>{{ form.trainerGenderPreference === 'indiferente' ? 'Sem preferência' : form.trainerGenderPreference === 'feminino' ? 'Feminino' : 'Masculino' }}</td></tr>
+                <tr class="request-summary-price"><th scope="row"><span class="summary-row-icon" aria-hidden="true">💰</span>{{ form.singleLesson ? 'Valor previsto da aula' : 'Faixa mensal prevista' }}</th><td><strong>{{ ((form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }} a {{ ((form.singleLesson ? 100 : Number(form.sessionsPerWeek) * 4 * 100)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</strong></td></tr>
               </tbody>
             </table>
           </div>
@@ -3343,4 +3343,11 @@ async function sendResult() {
 
 <style scoped>
 .public-directory{width:100%;padding:12px 0 24px}.public-directory-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
+
+/* Resumo de atendimento: leitura confortável e ícones identificadores. */
+.request-summary-table { font-size: 1.08rem; line-height: 1.55; }
+.request-summary-table th, .request-summary-table td { padding: 0.85rem 0.7rem; }
+.request-summary-table th { font-weight: 650; }
+.summary-row-icon { display: inline-block; width: 1.65em; margin-right: 0.2em; font-size: 1.15em; vertical-align: -0.08em; }
+@media (max-width: 480px) { .request-summary-table { font-size: 1rem; } .request-summary-table th, .request-summary-table td { padding: 0.75rem 0.45rem; } }
 </style>
