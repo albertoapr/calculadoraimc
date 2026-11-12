@@ -1854,6 +1854,10 @@ export function useFitpesoApp() {
     selectingTrainersForDraft.value = false
     ++requestCityLookupId
     form.city = homeCity.value
+    // O controle deslizante precisa sempre começar com uma idade válida.
+    if (!Number.isInteger(Number(form.age)) || Number(form.age) < 15 || Number(form.age) > 100) {
+      form.age = '30'
+    }
     requestCityLocationMessage.value = ''
     form.trainerGenderPreference = 'indiferente'
     form.sessionsPerWeek = '1'
@@ -1949,8 +1953,8 @@ export function useFitpesoApp() {
     status.value = ''
     if (requestStep.value === 1) {
       const age = Number(String(form.age).trim())
-      if (!String(form.age).trim() || !Number.isInteger(age) || age < 1 || age > 120) {
-        status.value = 'Informe sua idade (de 1 a 120 anos).'
+      if (!String(form.age).trim() || !Number.isInteger(age) || age < 15 || age > 100) {
+        status.value = 'Informe sua idade (de 15 a 100 anos).'
         return
       }
       const sessions = Number(form.sessionsPerWeek)
@@ -3180,12 +3184,12 @@ export function useFitpesoApp() {
     const validName =
       clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
     const validCity = Boolean(matchSupportedRequestCity(city))
-    const validAge = age !== undefined && Number.isInteger(age) && age >= 1 && age <= 120
+    const validAge = age !== undefined && Number.isInteger(age) && age >= 15 && age <= 100
     const normalizedPhoneDigits = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
     const validPhone = /^55[1-9]{2}9?\d{8}$/.test(normalizedPhoneDigits)
 
     if (!validName || !validCity || !validAge || !validPhone) {
-      status.value = 'Confira o nome, o WhatsApp, a cidade e informe sua idade (de 1 a 120 anos).'
+      status.value = 'Confira o nome, o WhatsApp, a cidade e informe sua idade (de 15 a 100 anos).'
       return
     }
     if (!selectedTrainerIds.value.length) {
