@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { updatePageSeo } from './services/seo'
-import PersonalCard from './components/profissionais/PersonalCard.vue'
+import ProfissionaisListView from './views/profissionais/ProfissionaisListView.vue'
 import { listEligibleTrainers } from './services/profissionaisService'
 import { useTrainerDirectory } from './composables/useTrainerDirectory'
 import { getRequestApiEndpoint } from './services/api'
@@ -3034,18 +3034,13 @@ async function sendResult() {
         <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }} <button type="button" @click="searchHomeTrainers">Tentar novamente</button></p>
         <template v-else>
           <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ publicTrainerCity }}</p>
-          <div class="home-trainer-list">
-            <PersonalCard
-              v-for="trainer in publicFilteredTrainers"
-              :key="trainer.trainerId"
-              :trainer="trainer"
-              :selectable="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && !!customerSignedInName && !!activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)"
-              :selected="homeSelectedTrainerIds.includes(trainer.trainerId)"
-              :disabled="Boolean((sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId)) || (!homeSelectedTrainerIds.includes(trainer.trainerId) && homeSelectedTrainerIds.length >= 20))"
-              :already-sent="Boolean(sharingRequestId && customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds?.includes(trainer.trainerId))"
-              @update:selected="checked => { homeSelectedTrainerIds = checked ? [...homeSelectedTrainerIds, trainer.trainerId] : homeSelectedTrainerIds.filter(id => id !== trainer.trainerId) }"
-            />
-          </div>
+          <ProfissionaisListView
+            :trainers="publicFilteredTrainers"
+            :selected-ids="homeSelectedTrainerIds"
+            :selectable="viewMode === 'select-trainers' || (viewMode === 'public-trainers' && !!customerSignedInName && !!activeCustomerRequest && !checkingCustomerRequests && !customerRequestsLookupError)"
+            :sent-ids="sharingRequestId ? (customerRequests.find(request => request.requestId === sharingRequestId)?.selectedTrainerIds ?? []) : []"
+            @update:selected-ids="ids => { homeSelectedTrainerIds = ids }"
+          />
           <p v-if="!publicFilteredTrainers.length" class="home-list-message">Nenhum profissional encontrado para os critérios selecionados.</p>
         </template>
       </section>
