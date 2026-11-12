@@ -3500,7 +3500,7 @@ async function sendResult() {
 <style scoped>
 .public-directory{width:100%;padding:12px 0 24px}.public-directory-filters{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:18px 0}.public-trainers-link{background:transparent;border:0;padding:4px;color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit}.public-academy-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.public-academy-item{display:flex;gap:12px;align-items:center;margin:6px 0}
 
-.request-step-progress { padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue, #286b4e) 9%, var(--card-bg, #f2f4ee)); color: var(--ink, #203e32); font-size: 14px; font-weight: 700; text-align: center; }
+.request-step-progress { padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--blue) 9%, var(--select-bg)); color: var(--select-text); font-size: 14px; font-weight: 700; text-align: center; }
 
 /* Resumo de atendimento: leitura confortável e ícones identificadores. */
 .request-summary-table { font-size: 14px; line-height: 1.55; }
