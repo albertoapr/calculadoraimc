@@ -9,7 +9,6 @@ const {
   trainerProfileFailed,
   viewMode,
   showRequestForm,
-  requestStep,
   form,
   result,
   goBackFromTitle,
@@ -34,7 +33,7 @@ const {
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      {{ requestStep === 5 ? 'Resumo da solicitação' : 'Solicitar atendimento' }}
+      Solicitar atendimento
     </h2>
     <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
       <span
