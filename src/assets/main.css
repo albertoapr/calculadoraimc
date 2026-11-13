@@ -3169,3 +3169,20 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
 .home-academy-select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .root-home-actions + .hero .root-home-photo { margin-top: 0; }
 html[data-theme='dark'] .home-academy-select { background: #1b2720; border-color: #3b4b40; color: #f4f5f0; }
+
+/* O botão de avaliação na faixa de links tem o mesmo estilo dos links de acesso. */
+.header-auth-links button.header-signup-link {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: #263f33;
+  font: inherit;
+  cursor: pointer;
+}
+.header-auth-links button.header-signup-link:hover,
+.header-auth-links button.header-signup-link:focus-visible {
+  text-decoration: underline;
+}
+html[data-theme='dark'] .header-auth-links button.header-signup-link {
+  color: #f1f5f3;
+}
