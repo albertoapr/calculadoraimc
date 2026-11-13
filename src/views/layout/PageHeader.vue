@@ -74,7 +74,9 @@ const {
       <span>{{
         viewMode === 'select-trainers'
           ? 'Selecionar profissional'
-          : viewMode === 'public-trainers'
+          : viewMode === 'about'
+            ? 'Sobre o FitPeso'
+            : viewMode === 'public-trainers'
             ? 'Profissionais'
             : viewMode === 'trainer-request'
               ? 'Solicitação de atendimento'
