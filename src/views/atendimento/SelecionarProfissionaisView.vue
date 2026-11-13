@@ -34,9 +34,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="trainer-selection-stage">
-    <div v-if="draftSelection" class="request-step-progress" role="status">
-      Etapa 4 de 4 — Selecionar profissionais
-    </div>
+    <p class="trainer-selection-instruction">Escolha até 20 profissionais</p>
     <ProfissionaisDirectoryView
       :selecting-for-draft="true"
       :academy="academy"
@@ -71,14 +69,11 @@ const emit = defineEmits<{
   display: grid;
   gap: 12px;
 }
-.request-step-progress {
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--blue) 9%, var(--select-bg));
-  color: var(--select-text);
-  font-size: 14px;
-  font-weight: 700;
+.trainer-selection-instruction {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
   text-align: center;
 }
 </style>
