@@ -8,8 +8,9 @@ const props = defineProps<{
   selectable: boolean
   sentIds: string[]
   maxSelection?: number
+  showRequestLink?: boolean
 }>()
-const emit = defineEmits<{ 'update:selectedIds': [ids: string[]] }>()
+const emit = defineEmits<{ 'update:selectedIds': [ids: string[]]; 'request-trainer': [id: string] }>()
 
 function updateSelection(trainerId: string, checked: boolean) {
   const ids = checked
@@ -25,6 +26,8 @@ function updateSelection(trainerId: string, checked: boolean) {
       v-for="trainer in trainers"
       :key="trainer.trainerId"
       :trainer="trainer"
+      :show-request-link="showRequestLink"
+      @request-trainer="emit('request-trainer', trainer.trainerId)"
       :selectable="selectable"
       :selected="selectedIds.includes(trainer.trainerId)"
       :disabled="
