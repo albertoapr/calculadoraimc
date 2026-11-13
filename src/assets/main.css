@@ -3153,6 +3153,64 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   .request-accordion-chevron { transition: none; }
 }
 
+/* Contraste próprio das opções do formulário sanfonado no tema escuro. */
+html[data-theme='dark'] .request-accordion-item {
+  background: #1b2720;
+  border-color: #3b4b40;
+}
+html[data-theme='dark'] .request-accordion-toggle {
+  background: transparent;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .request-accordion-open .request-accordion-toggle {
+  background: #29372d;
+}
+html[data-theme='dark'] .request-accordion-preview,
+html[data-theme='dark'] .request-accordion-subtext,
+html[data-theme='dark'] .request-accordion-limits {
+  color: #c3cdc5;
+}
+html[data-theme='dark'] .request-accordion-chevron {
+  border-color: #f2a04b;
+}
+html[data-theme='dark'] .request-accordion-panel {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .request-accordion-panel .request-choice span,
+html[data-theme='dark'] .request-accordion-panel .training-time-button {
+  border: 1px solid #66776a;
+  background: #223128;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .request-accordion-panel .request-choice input:checked + span,
+html[data-theme='dark'] .request-accordion-panel .training-time-button.training-time-button-active {
+  border-color: #f2a04b;
+  background: #f2a04b;
+  color: #17251d;
+  font-weight: 700;
+}
+html[data-theme='dark'] .request-accordion-panel .request-choice input:focus-visible + span,
+html[data-theme='dark'] .request-accordion-panel .training-time-button:focus-visible {
+  outline: 3px solid #f6ae61;
+  outline-offset: 2px;
+}
+html[data-theme='dark'] .request-accordion-select,
+html[data-theme='dark'] .request-accordion-input {
+  background: #223128;
+  border-color: #66776a;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .request-accordion-estimate {
+  background: #29372d;
+  border-color: #3b4b40;
+}
+html[data-theme='dark'] .request-accordion-label strong,
+html[data-theme='dark'] .request-accordion-estimate-text strong {
+  color: #f6ae61;
+}
+
 /* Busca por academia antes da foto motivadora na home. */
 .root-home-actions { margin: 24px 0 18px; }
 .home-gym-title { gap: 0.3em; font-size: clamp(26px, 6vw, 34px); line-height: 1.2; margin-bottom: 8px; }
