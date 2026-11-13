@@ -1,6 +1,13 @@
 import { nextTick, onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
 import { registerCustomer, queryCustomerSignup } from '../services/signupService'
-import { normalizeBrazilianPhone } from '../utils/signupValidation'
+import {
+  isValidEmail,
+  isValidPersonName,
+  normalizeBrazilianPhone,
+  normalizeContactIdentifier,
+  normalizeEmail,
+  normalizePersonName,
+} from '../utils/validation'
 
 export function useCustomerSignup(options: {
   onClose: (confirmed: boolean) => void
@@ -92,21 +99,17 @@ export function useCustomerSignup(options: {
 
   async function continueSignupContact() {
     customerStatus.value = ''
-    const contact = signupContact.value.trim()
-    if (contact.includes('@')) {
-      const email = contact.toLowerCase()
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        customerStatus.value = 'Informe um e-mail válido.'
-        return
-      }
-      customerForm.email = email
+    const contact = normalizeContactIdentifier(signupContact.value)
+    if (!contact) {
+      customerStatus.value = signupContact.value.includes('@')
+        ? 'Informe um e-mail válido.'
+        : 'Informe um WhatsApp com DDD ou um e-mail válido.'
+      return
+    }
+    if (contact.kind === 'email') {
+      customerForm.email = contact.value
     } else {
-      const phone = normalizeBrazilianPhone(contact)
-      if (!phone) {
-        customerStatus.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
-        return
-      }
-      customerForm.whatsapp = phone
+      customerForm.whatsapp = contact.value
       customerForm.name = ''
       customerForm.email = ''
       // O nome vem da confirmação realizada pela Beta.
@@ -127,10 +130,10 @@ export function useCustomerSignup(options: {
     customerVerificationPollStartedAt = 0
     if (customerVerificationPollTimer !== undefined)
       window.clearTimeout(customerVerificationPollTimer)
-    const name = customerForm.name.trim().replace(/\s+/g, ' ')
+    const name = normalizePersonName(customerForm.name)
     const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
-    const email = customerForm.email.trim().toLowerCase()
-    if (name && (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name))) {
+    const email = normalizeEmail(customerForm.email)
+    if (!isValidPersonName(name, true)) {
       customerStatus.value = 'Informe um nome válido.'
       return
     }
@@ -138,7 +141,7 @@ export function useCustomerSignup(options: {
       customerStatus.value = 'Informe um WhatsApp válido com DDD.'
       return
     }
-    if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) {
+    if (!isValidEmail(email, true)) {
       customerStatus.value = 'Informe um e-mail válido.'
       return
     }

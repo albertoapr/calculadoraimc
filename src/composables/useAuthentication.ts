@@ -1,4 +1,5 @@
 import { computed, nextTick, onUnmounted, ref, type Ref } from 'vue'
+import { normalizeBrazilianPhone, normalizeContactIdentifier } from '../utils/validation'
 import {
   loadCustomerProfile,
   loadTrainerSession,
@@ -19,7 +20,6 @@ export type AuthenticationOptions = {
   showCustomerSignup: Ref<boolean>
   showTrainerSignup: Ref<boolean>
   saveRole: (role: 'customer' | 'trainer') => void
-  normalizeBrazilianPhone: (value: string) => string
   applyCustomerProfile: (profile: CustomerAccountProfile) => void
   applyTrainerSession: (profile: TrainerAccountProfile) => void
   renderGoogleButton: (target: 'client') => Promise<void>
@@ -33,7 +33,6 @@ export function useAuthentication(options: AuthenticationOptions) {
   const {
     showCustomerSignup,
     showTrainerSignup,
-    normalizeBrazilianPhone,
     applyCustomerProfile,
     applyTrainerSession,
     renderGoogleButton,
@@ -532,24 +531,20 @@ export function useAuthentication(options: AuthenticationOptions) {
     emailLoginError.value = ''
     customerLoginError.value = ''
     trainerLoginError.value = ''
-    const typed = loginIdentifier.value.trim()
-    if (typed.includes('@')) {
-      const email = typed.toLowerCase()
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        emailLoginError.value = 'Informe um endereço de e-mail válido.'
-        return
-      }
-      loginIdentifier.value = email
+    const contact = normalizeContactIdentifier(loginIdentifier.value)
+    if (!contact) {
+      emailLoginError.value = loginIdentifier.value.includes('@')
+        ? 'Informe um endereço de e-mail válido.'
+        : 'Informe um WhatsApp com DDD ou um e-mail válido.'
+      return
+    }
+    if (contact.kind === 'email') {
+      loginIdentifier.value = contact.value
       loginIdentifierKind.value = 'email'
     } else {
-      const phone = normalizeBrazilianPhone(typed)
-      if (!phone) {
-        emailLoginError.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
-        return
-      }
       loginIdentifierKind.value = 'whatsapp'
-      customerLoginWhatsApp.value = phone
-      loginIdentifier.value = phone
+      customerLoginWhatsApp.value = contact.value
+      loginIdentifier.value = contact.value
     }
     loginStep.value = 2
     void nextTick(() => document.getElementById('login-confirm-action')?.focus())

@@ -129,6 +129,7 @@ function harness() {
   const service = loadModule('src/services/authenticationService.ts', {
     './api': { getRequestApiEndpoint: context.getRequestApiEndpoint },
   })
+  const validation = loadModule('src/utils/validation.ts', {})
   const { useAuthentication } = loadModule('src/composables/useAuthentication.ts', {
     vue: {
       ref,
@@ -141,13 +142,13 @@ function harness() {
       loadCustomerProfile: context.loadCustomerProfile,
       loadTrainerSession: context.loadTrainerSession,
     },
+    '../utils/validation': validation,
   })
   const api = useAuthentication({
     initialRole: '',
     showCustomerSignup: state.showCustomerSignup,
     showTrainerSignup: state.showTrainerSignup,
     saveRole() {},
-    normalizeBrazilianPhone: (value) => value,
     applyCustomerProfile: context.applyCustomerProfile,
     applyTrainerSession: context.applyTrainerSession,
     renderGoogleButton: async () => {},

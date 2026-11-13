@@ -1,6 +1,14 @@
 import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
-import { normalizeBrazilianPhone, isValidBirthDate } from '../utils/signupValidation'
+import {
+  isValidAge,
+  isValidBirthDate,
+  isValidEmail,
+  isValidPersonName,
+  normalizeBrazilianPhone,
+  normalizeEmail,
+  normalizePersonName,
+} from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
 import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
 import { useAccountProfile } from './useAccountProfile'
@@ -378,7 +386,6 @@ export function useFitpesoApp() {
     showCustomerSignup,
     showTrainerSignup,
     saveRole: (role) => saveNavigationPreference(NAV_ROLE, role),
-    normalizeBrazilianPhone,
     applyCustomerProfile,
     applyTrainerSession,
     renderGoogleButton,
@@ -1438,8 +1445,7 @@ export function useFitpesoApp() {
   async function continueToTrainerSelection() {
     status.value = ''
     if (requestStep.value === 1) {
-      const age = Number(String(form.age).trim())
-      if (!String(form.age).trim() || !Number.isInteger(age) || age < 15 || age > 100) {
+      if (!isValidAge(form.age)) {
         status.value = 'Informe sua idade (de 15 a 100 anos).'
         return
       }
@@ -1521,7 +1527,7 @@ export function useFitpesoApp() {
       status.value = 'Selecione pelo menos um personal antes de enviar a solicitação.'
       return
     }
-    if (!/^(?:1[5-9]|[2-9]\d|100)$/.test(String(form.age).trim())) {
+    if (!isValidAge(form.age)) {
       status.value = 'Informe sua idade (de 15 a 100 anos) antes de enviar.'
       return
     }
@@ -1706,22 +1712,21 @@ export function useFitpesoApp() {
     if (!form.shareContactConsent || submittingRequest.value) return
     status.value = ''
 
-    const clientName = form.name.trim().replace(/\s+/g, ' ')
-    const phone = form.phone.trim()
-    const phoneDigits = phone.replace(/\D/g, '').replace(/^0/, '')
-    const email = form.email.trim().toLowerCase()
+    const clientName = normalizePersonName(form.name)
+    const normalizedPhone = normalizeBrazilianPhone(form.phone)
+    const email = normalizeEmail(form.email)
     const city = form.city.trim().replace(/\s+/g, ' ')
     const ageInput = String(form.age).trim()
     const age = ageInput ? Number(ageInput) : undefined
-    const validName =
-      clientName.length >= 2 && clientName.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(clientName)
+    const validName = isValidPersonName(clientName)
     const validCity = Boolean(matchSupportedRequestCity(city))
-    const validAge = age !== undefined && Number.isInteger(age) && age >= 15 && age <= 100
-    const normalizedPhoneDigits = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`
-    const validPhone = /^55[1-9]{2}9?\d{8}$/.test(normalizedPhoneDigits)
+    const validAge = isValidAge(ageInput)
+    const validPhone = Boolean(normalizedPhone)
+    const validEmail = isValidEmail(email, true)
 
-    if (!validName || !validCity || !validAge || !validPhone) {
-      status.value = 'Confira o nome, o WhatsApp, a cidade e informe sua idade (de 15 a 100 anos).'
+    if (!validName || !validCity || !validAge || !validPhone || !validEmail) {
+      status.value =
+        'Confira o nome, o WhatsApp, o e-mail, a cidade e informe sua idade (de 15 a 100 anos).'
       return
     }
     if (!selectedTrainerIds.value.length) {
@@ -1753,7 +1758,7 @@ export function useFitpesoApp() {
       const createdRequestId = await createFitpesoRequest(
         {
           clientName,
-          clientPhone: `+${normalizedPhoneDigits}`,
+          clientPhone: normalizedPhone,
           ...(email ? { email } : {}),
           age,
           clientGender: form.clientGender,

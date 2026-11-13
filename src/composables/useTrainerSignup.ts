@@ -1,10 +1,16 @@
 import { onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
 import { registerTrainer } from '../services/signupService'
 import {
-  normalizeBrazilianPhone,
-  normalizeInstagramHandle,
   isValidBirthDate,
-} from '../utils/signupValidation'
+  isValidEmail,
+  isValidLooseCref,
+  isValidPersonName,
+  isValidProfileSlug,
+  normalizeBrazilianPhone,
+  normalizeEmail,
+  normalizeInstagramHandle,
+  normalizePersonName,
+} from '../utils/validation'
 
 export function useTrainerSignup(options: { onClose: () => void; active?: Ref<boolean> }) {
   let disposed = false
@@ -65,46 +71,31 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     if (disposed || trainerSubmitting.value) return
     trainerStatus.value = ''
     trainerVerificationLink.value = ''
-    const name = trainerForm.name.trim().replace(/\s+/g, ' ')
+    const name = normalizePersonName(trainerForm.name)
     const sex = trainerForm.sex
     const slug = trainerForm.slug.trim().toLowerCase()
     const phone = normalizeBrazilianPhone(trainerForm.phone)
-    const email = trainerForm.email.trim().toLowerCase()
+    const email = normalizeEmail(trainerForm.email)
     const dateOfBirth = trainerForm.dateOfBirth
     const instagram = normalizeInstagramHandle(trainerForm.instagram)
     const cref = trainerForm.cref.trim()
-    const reservedSlugs = [
-      'www',
-      'api',
-      'mail',
-      'ftp',
-      'admin',
-      'app',
-      'beta',
-      'fitpeso',
-      'suporte',
-      'ajuda',
-      'develop',
-      'test',
-      'homologacao',
-    ]
     let validationError = ''
-    if (!name) validationError = 'Informe seu nome completo.'
+    if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
     else if (sex !== 'masculino' && sex !== 'feminino')
       validationError = 'Selecione Masculino ou Feminino.'
     else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
     else if (dateOfBirth && !isValidBirthDate(dateOfBirth))
       validationError = 'Informe uma data de nascimento válida ou deixe em branco.'
-    else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
+    else if (!isValidProfileSlug(slug)) {
       validationError =
         'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
     } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
     } else if (!instagram) {
       validationError = 'Informe um Instagram válido: @usuario, usuario ou instagram.com/usuario.'
-    } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!isValidEmail(email, true)) {
       validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'
-    } else if (cref && !/^[\p{L}\p{M}0-9 ./-]{1,40}$/u.test(cref)) {
+    } else if (!isValidLooseCref(cref)) {
       validationError = 'Confira o CREF ou deixe o campo vazio.'
     }
     if (validationError) {

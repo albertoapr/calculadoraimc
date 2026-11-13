@@ -18,7 +18,7 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 - `src/composables/useAccountProfile.ts`: carregamento, edição e salvamento do cadastro do cliente ou personal.
 - `src/services/signupService.ts`: registro de cliente/personal e consulta da confirmação do cliente, sem estado de interface.
 - `src/services/accountProfileService.ts`: consulta e atualização do cadastro da conta autenticada.
-- `src/utils/signupValidation.ts`: normalização de WhatsApp/Instagram e validação de data compartilhadas com os fluxos existentes.
+- `src/utils/validation.ts`: normalização e validações compartilhadas de nome, WhatsApp, e-mail, nascimento, idade, Instagram, CREF e endereço do perfil.
 - `src/composables/useAuthentication.ts`: estado de login, confirmação por WhatsApp/e-mail e ciclo de vida dos temporizadores; recebe callbacks de perfil e navegação, sem depender do controlador principal.
 - `src/composables/useCustomerRequests.ts`: consulta de solicitações do cliente, envio para profissionais, inativação/reativação e aceite de propostas.
 - `src/services/authenticationService.ts` e `customerRequestsService.ts`: transporte HTTP e contratos desses fluxos; recebem tokens explicitamente e não alteram a sessão ou a navegação.
@@ -53,6 +53,8 @@ npm run check
 Os testes de autenticação executam o módulo extraído e seus serviços com relógio, armazenamento e rede controlados. Incluem retomada de login, expiração, confirmação de e-mail para cliente e personal e limpeza dos recursos ao desmontar. Os testes de solicitações verificam as regras de visibilidade, seleção obrigatória, envio duplicado e respostas de aceite da API.
 
 Os testes de cadastro usam relógio e rede simulados para validar os dados enviados, a confirmação pela Beta, expiração, mensagens de erro, bloqueio de cliques repetidos e descarte de respostas tardias ao fechar o cadastro. A montagem dos componentes verifica também a passagem pelo cadastro de cliente e personal. Nenhuma mensagem real de WhatsApp é enviada nesses testes.
+
+Os testes de validação cobrem os limites compartilhados por cadastro, login, perfil e solicitação: normalização de nome e contato, tamanho de e-mail, datas reais, idade, Instagram, CREF e endereço interno do personal.
 
 Para conferir visualmente com Chromium:
 

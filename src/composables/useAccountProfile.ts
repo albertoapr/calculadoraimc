@@ -1,5 +1,11 @@
 import { nextTick, reactive, ref } from 'vue'
-import { isValidBirthDate } from '../utils/signupValidation'
+import {
+  isValidBirthDate,
+  isValidFormattedCref,
+  isValidInstagramHandle,
+  isValidPersonName,
+  normalizePersonName,
+} from '../utils/validation'
 import {
   loadAccountProfile,
   updateAccountProfile,
@@ -78,9 +84,9 @@ export function useAccountProfile(options: AccountProfileOptions) {
 
   async function saveMyProfile() {
     if (editingProfileSaving.value || editingProfileLoading.value) return
-    const name = editingProfile.name.trim().replace(/\s+/g, ' ')
+    const name = normalizePersonName(editingProfile.name)
     const birth = editingProfile.dateOfBirth
-    if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
+    if (!isValidPersonName(name)) {
       editingProfileStatus.value = 'Informe um nome válido.'
       return
     }
@@ -93,17 +99,11 @@ export function useAccountProfile(options: AccountProfileOptions) {
     const trainer = type === 'trainer'
     const cref = editingProfile.cref.trim().toUpperCase()
     const instagram = editingProfile.instagram.trim()
-    if (trainer && cref && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) {
+    if (trainer && !isValidFormattedCref(cref)) {
       editingProfileStatus.value = 'Informe um CREF no formato 072573-G/RJ ou deixe em branco.'
       return
     }
-    if (
-      trainer &&
-      instagram &&
-      (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) ||
-        instagram.includes('..') ||
-        instagram.endsWith('.'))
-    ) {
+    if (trainer && !isValidInstagramHandle(instagram, true)) {
       editingProfileStatus.value = 'Informe o Instagram no formato @usuario.'
       return
     }
