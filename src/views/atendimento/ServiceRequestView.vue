@@ -1,203 +1,293 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+
 const {
-  minutesToTime, trainingTimeRanges, publicTrainerAcademies, selectedTrainerIds,
-  selectedTrainerNames, customerSignedInName, trainingDayOptions, supportedRequestCities,
-  form, trainingStartMinutes, trainingEndMinutes, selectTrainingTimeRange,
-  submittingRequest, otherGymName, selectTrainersForDraft, confirmServiceRequest,
+  minutesToTime,
+  trainingTimeRanges,
+  publicTrainerAcademies,
+  selectedTrainerIds,
+  selectedTrainerNames,
+  customerSignedInName,
+  trainingDayOptions,
+  supportedRequestCities,
+  form,
+  trainingStartMinutes,
+  trainingEndMinutes,
+  selectTrainingTimeRange,
+  submittingRequest,
+  otherGymName,
+  selectTrainersForDraft,
+  confirmServiceRequest,
 } = useFitpesoContext()
-const editingField = ref('')
-const editError = ref('')
-const editTitles: Record<string, string> = {
- age:'Idade',gender:'Sexo',city:'Cidade',gym:'Academia / local',objective:'Objetivo',
- sessions:'Aulas por semana',days:'Dias disponíveis',time:'Horário disponível',
- companion:'Participantes',duration:'Duração',trainerGender:'Gênero do personal'
+
+type AccordionSection =
+  | 'profile'
+  | 'objective'
+  | 'frequency'
+  | 'schedule'
+  | 'location'
+  | 'participants'
+  | 'duration'
+  | 'professionals'
+
+const expandedSection = ref<AccordionSection | null>('profile')
+
+function toggleSection(section: AccordionSection) {
+  expandedSection.value = expandedSection.value === section ? null : section
 }
-let oldForm = { ...form, trainingDays: [...form.trainingDays] }
-let oldGym = otherGymName.value
-let oldStart = trainingStartMinutes.value
-let oldEnd = trainingEndMinutes.value
-function beginEdit(field: string) {
- oldForm = { ...form, trainingDays: [...form.trainingDays] }
- oldGym = otherGymName.value
- oldStart = trainingStartMinutes.value
- oldEnd = trainingEndMinutes.value
- editError.value = ''
- editingField.value = field
-}
-function closeEdit(restore = true) {
- if (restore) {
-   Object.assign(form, oldForm)
-   otherGymName.value = oldGym
-   trainingStartMinutes.value = oldStart
-   trainingEndMinutes.value = oldEnd
- }
- editingField.value = ''
- editError.value = ''
-}
-function saveEdit() {
- const f = editingField.value
- if (f === 'age' && (!Number.isInteger(Number(form.age)) || Number(form.age) < 15 || Number(form.age) > 100))
-   editError.value = 'Selecione uma idade entre 15 e 100 anos.'
- else if (f === 'city' && !supportedRequestCities.includes(form.city))
-   editError.value = 'Selecione uma cidade atendida.'
- else if (f === 'gym' && (!form.gymName || (form.gymName === 'Outros' && !otherGymName.value.trim())))
-   editError.value = 'Informe o local de atendimento.'
- else if (f === 'days' && !form.trainingDays.length)
-   editError.value = 'Selecione pelo menos um dia.'
- else closeEdit(false)
-}
+
+const estimatedValue = computed(() => {
+  const lessons = form.singleLesson ? 1 : Number(form.sessionsPerWeek) * 4
+  const amount = lessons * 40 * (form.withCompanion ? 2 : 1)
+  return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+})
+
+const genderLabel = computed(() =>
+  form.clientGender === 'feminino'
+    ? 'Mulher'
+    : form.clientGender === 'masculino'
+      ? 'Homem'
+      : 'Prefiro não informar',
+)
+const professionalGenderLabel = computed(() =>
+  form.trainerGenderPreference === 'feminino'
+    ? 'Feminino'
+    : form.trainerGenderPreference === 'masculino'
+      ? 'Masculino'
+      : 'Sem preferência',
+)
 </script>
+
 <template>
-<form id="contact-fields" class="form contact-fields request-form" aria-labelledby="contact-form-title" @submit.prevent>
-      <div class="field-wide request-summary-table-wrap">
-        <table class="request-summary-table">
-          <tbody>
-            <tr>
-              <th scope="row"><span class="summary-row-icon" aria-hidden="true">🎂</span>Idade</th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar age" title="Editar" @click="beginEdit('age')">✎</button>{{ form.age ? form.age + ' anos' : 'Não informada' }}</td>
-            </tr>
-            <tr>
-              <th scope="row"><span class="summary-row-icon" aria-hidden="true">👤</span>Sexo</th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar gender" title="Editar" @click="beginEdit('gender')">✎</button>
-                {{
-                  form.clientGender === 'feminino'
-                    ? 'Mulher'
-                    : form.clientGender === 'masculino'
-                      ? 'Homem'
-                      : 'Prefiro não informar'
-                }}
-              </td>
-            </tr>
-            <tr>
-              <th scope="row"><span class="summary-row-icon" aria-hidden="true">📍</span>Cidade</th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar city" title="Editar" @click="beginEdit('city')">✎</button>{{ form.city }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">🏋️</span>Academia / local
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar gym" title="Editar" @click="beginEdit('gym')">✎</button>{{ form.gymName === 'Outros' ? otherGymName : form.gymName }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">🎯</span>Objetivo
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar objective" title="Editar" @click="beginEdit('objective')">✎</button>{{ form.objective || 'Não informado' }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">🔢</span>Aulas por semana
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar sessions" title="Editar" @click="beginEdit('sessions')">✎</button>{{ form.sessionsPerWeek }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">📅</span>Dias disponíveis
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar days" title="Editar" @click="beginEdit('days')">✎</button>{{ form.trainingDays.join(', ') }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">🕒</span>Horário disponível
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar time" title="Editar" @click="beginEdit('time')">✎</button>
-                {{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">👥</span>Participantes
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar companion" title="Editar" @click="beginEdit('companion')">✎</button>{{ form.withCompanion ? 'Com um acompanhante' : 'Sozinho' }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">⏳</span>Duração
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar duration" title="Editar" @click="beginEdit('duration')">✎</button>{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">🧑‍🏫</span>Gênero do personal
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar trainerGender" title="Editar" @click="beginEdit('trainerGender')">✎</button>
-                {{
-                  form.trainerGenderPreference === 'indiferente'
-                    ? 'Sem preferência'
-                    : form.trainerGenderPreference === 'feminino'
-                      ? 'Feminino'
-                      : 'Masculino'
-                }}
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">✅</span>Personais escolhidos
-              </th>
-              <td><button type="button" class="request-edit-pencil" aria-label="Editar trainers" title="Editar" @click="selectTrainersForDraft()">✎</button>
-                <span v-for="(name, index) in selectedTrainerNames" :key="index"
-                  >{{ index ? ', ' : '' }}{{ name }}</span
-                ><span v-if="!selectedTrainerNames.length">Nenhum selecionado</span>
-              </td>
-            </tr>
-            <tr class="request-summary-price">
-              <th scope="row">
-                <span class="summary-row-icon" aria-hidden="true">💰</span>Valor estimado
-              </th>
-              <td>
-                <strong
-                  >a partir de
-                  {{
-                    (
-                      (form.singleLesson ? 40 : Number(form.sessionsPerWeek) * 4 * 40) *
-                      (form.withCompanion ? 2 : 1)
-                    ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                  }}</strong
-                >
-              </td>
-            </tr>
-          </tbody>
-        </table>
+  <form
+    id="contact-fields"
+    class="form contact-fields request-form request-accordion-form"
+    aria-labelledby="contact-form-title"
+    @submit.prevent
+  >
+    <p class="request-accordion-intro">Confira os dados do seu atendimento. Toque em cada linha para alterar.</p>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'profile' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'profile'" aria-controls="request-panel-profile" @click="toggleSection('profile')">
+          <span class="request-accordion-icon" aria-hidden="true">👤</span>
+          <span class="request-accordion-title">Perfil</span>
+          <span class="request-accordion-preview">{{ form.age }} anos · {{ genderLabel }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'profile'" id="request-panel-profile" class="request-accordion-panel">
+        <label class="request-accordion-label" for="accordion-age">Sua idade: <strong>{{ form.age }} anos</strong></label>
+        <input id="accordion-age" v-model="form.age" class="request-accordion-age" type="range" min="15" max="100" step="1" />
+        <div class="request-accordion-limits" aria-hidden="true"><span>15 anos</span><span>100 anos</span></div>
+        <p class="request-accordion-label">Sexo</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Seu sexo">
+          <label v-for="option in [
+            { value: 'feminino', label: 'Mulher' },
+            { value: 'masculino', label: 'Homem' },
+            { value: 'nao_informar', label: 'Prefiro não informar' },
+          ]" :key="option.value" class="request-choice">
+            <input v-model="form.clientGender" type="radio" name="accordion-client-gender" :value="option.value" />
+            <span>{{ option.label }}</span>
+          </label>
+        </div>
       </div>
-      <button class="primary-button field-wide" type="button" @click="selectTrainersForDraft">
-        Alterar personais{{
-          selectedTrainerIds.length ? ' (' + selectedTrainerIds.length + ')' : ''
-        }}
-      </button>
-      <button
-        v-if="selectedTrainerIds.length"
-        class="primary-button field-wide"
-        type="button"
-        :disabled="submittingRequest"
-        @click="confirmServiceRequest"
-      >
-        {{
-          submittingRequest
-            ? 'Enviando…'
-            : customerSignedInName
-              ? 'Confirmar e enviar'
-              : 'Entrar para confirmar'
-        }}
-      </button>
-<div v-if="editingField" class="request-edit-overlay" @click.self="closeEdit()" @keydown.esc.stop="closeEdit()">
- <section class="request-edit-dialog" role="dialog" aria-modal="true" :aria-label="'Editar ' + editTitles[editingField]">
-  <header class="request-edit-heading"><h3>{{ editTitles[editingField] }}</h3><button type="button" class="request-edit-close" aria-label="Fechar" @click="closeEdit()">×</button></header>
-  <div v-if="editingField === 'age'" class="request-edit-body"><label for="edit-age">Idade: <strong>{{ form.age }} anos</strong></label><input id="edit-age" v-model="form.age" type="range" min="15" max="100" step="1"/><div class="request-age-limits"><span>15 anos</span><span>100 anos</span></div></div>
-  <div v-else-if="editingField === 'gender'" class="request-edit-body request-choice-row"><label v-for="o in [{value:'feminino',label:'Mulher'},{value:'masculino',label:'Homem'},{value:'nao_informar',label:'Prefiro não informar'}]" :key="o.value" class="request-choice"><input v-model="form.clientGender" type="radio" name="edit-gender" :value="o.value" /><span>{{ o.label }}</span></label></div>
-  <div v-else-if="editingField === 'city'" class="request-edit-body"><label for="edit-city">Cidade</label><select id="edit-city" v-model="form.city"><option value="" disabled>Selecione a cidade</option><option v-for="c in supportedRequestCities" :key="c" :value="c">{{ c }}</option></select></div>
-  <div v-else-if="editingField === 'gym'" class="request-edit-body"><label for="edit-gym">Local de atendimento</label><select id="edit-gym" v-model="form.gymName" @change="form.attendsGym = Boolean(form.gymName)"><option value="" disabled>Selecione</option><option v-for="g in publicTrainerAcademies" :key="g" :value="g">{{ g }}</option><option value="Outros">Outros</option></select><template v-if="form.gymName === 'Outros'"><label for="edit-other">Nome do local</label><input id="edit-other" v-model.trim="otherGymName" maxlength="100" /></template></div>
-  <div v-else-if="editingField === 'objective'" class="request-edit-body"><label for="edit-objective">Objetivo</label><select id="edit-objective" v-model="form.objective"><option v-for="o in ['Emagrecimento','Hipertrofia','Condicionamento físico','Saúde e qualidade de vida','Reabilitação','Outro']" :key="o" :value="o">{{ o === 'Hipertrofia' ? 'Ganho de massa muscular (hipertrofia)' : o }}</option></select></div>
-  <div v-else-if="editingField === 'sessions'" class="request-edit-body request-choice-row"><label v-for="n in 4" :key="n" class="request-choice"><input v-model="form.sessionsPerWeek" type="radio" name="edit-sessions" :value="String(n)"/><span>{{ n }} {{ n === 1 ? 'aula' : 'aulas' }}</span></label></div>
-  <div v-else-if="editingField === 'days'" class="request-edit-body request-choice-row"><label v-for="d in trainingDayOptions" :key="d.value" class="request-choice"><input v-model="form.trainingDays" type="checkbox" :value="d.value"/><span>{{ d.label }}</span></label></div>
-  <div v-else-if="editingField === 'time'" class="request-edit-body request-choice-row"><button v-for="range in trainingTimeRanges" :key="range.start" type="button" class="request-choice training-time-button" :class="{ 'training-time-button-active': trainingStartMinutes === range.start }" :aria-pressed="trainingStartMinutes === range.start" @click="selectTrainingTimeRange(range.start,range.end)">{{ range.label }}</button></div>
-  <div v-else-if="editingField === 'companion'" class="request-edit-body request-choice-row"><label v-for="o in [{value:false,label:'Sozinho'},{value:true,label:'Com acompanhante'}]" :key="o.value" class="request-choice"><input v-model="form.withCompanion" type="radio" name="edit-companion" :value="o.value" /><span>{{ o.label }}</span></label></div>
-  <div v-else-if="editingField === 'duration'" class="request-edit-body"><label><input v-model="form.singleLesson" type="checkbox"/> Aula avulsa</label><label for="edit-duration">Duração do atendimento</label><select id="edit-duration" v-model="form.desiredDuration" :disabled="form.singleLesson"><option v-for="m in 6" :key="m" :value="m + (m===1 ? ' mês' : ' meses')">{{ m }} {{ m===1 ? 'mês' : 'meses' }}</option></select></div>
-  <div v-else-if="editingField === 'trainerGender'" class="request-edit-body request-choice-row"><label v-for="o in [{value:'indiferente',label:'Sem preferência'},{value:'feminino',label:'Feminino'},{value:'masculino',label:'Masculino'}]" :key="o.value" class="request-choice"><input v-model="form.trainerGenderPreference" type="radio" name="edit-trainer-gender" :value="o.value" /><span>{{ o.label }}</span></label></div>
-  <p v-if="editError" class="request-edit-error" role="alert">{{ editError }}</p>
-  <footer class="request-edit-actions"><button type="button" class="secondary-button" @click="closeEdit()">Cancelar</button><button type="button" class="primary-button" @click="saveEdit">Salvar</button></footer>
- </section>
-</div>
-</form>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'objective' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'objective'" aria-controls="request-panel-objective" @click="toggleSection('objective')">
+          <span class="request-accordion-icon" aria-hidden="true">🎯</span>
+          <span class="request-accordion-title">Objetivo</span>
+          <span class="request-accordion-preview">{{ form.objective || 'A definir' }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'objective'" id="request-panel-objective" class="request-accordion-panel">
+        <label class="request-accordion-label" for="accordion-objective">Qual é o seu objetivo?</label>
+        <select id="accordion-objective" v-model="form.objective" class="request-accordion-select">
+          <option value="Emagrecimento">Emagrecimento</option>
+          <option value="Hipertrofia">Ganho de massa muscular (hipertrofia)</option>
+          <option value="Condicionamento físico">Condicionamento físico</option>
+          <option value="Saúde e qualidade de vida">Saúde e qualidade de vida</option>
+          <option value="Reabilitação">Reabilitação</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'frequency' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'frequency'" aria-controls="request-panel-frequency" @click="toggleSection('frequency')">
+          <span class="request-accordion-icon" aria-hidden="true">📅</span>
+          <span class="request-accordion-title">Frequência</span>
+          <span class="request-accordion-preview">{{ form.sessionsPerWeek }} {{ Number(form.sessionsPerWeek) === 1 ? 'aula' : 'aulas' }}/semana · {{ form.trainingDays.join(', ') || 'Escolha os dias' }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'frequency'" id="request-panel-frequency" class="request-accordion-panel">
+        <p class="request-accordion-label">Quantas aulas por semana?</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Aulas por semana">
+          <label v-for="n in 4" :key="n" class="request-choice">
+            <input v-model="form.sessionsPerWeek" type="radio" name="accordion-sessions" :value="String(n)" />
+            <span>{{ n }}</span>
+          </label>
+        </div>
+        <p class="request-accordion-label">Em quais dias você pode treinar?</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Dias disponíveis">
+          <label v-for="day in trainingDayOptions" :key="day.value" class="request-choice">
+            <input v-model="form.trainingDays" type="checkbox" :value="day.value" />
+            <span>{{ day.label }}</span>
+          </label>
+        </div>
+        <p v-if="!form.trainingDays.length" class="request-accordion-warning" role="alert">Selecione pelo menos um dia.</p>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'schedule' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'schedule'" aria-controls="request-panel-schedule" @click="toggleSection('schedule')">
+          <span class="request-accordion-icon" aria-hidden="true">🕒</span>
+          <span class="request-accordion-title">Horário preferencial</span>
+          <span class="request-accordion-preview">{{ minutesToTime(trainingStartMinutes) }} às {{ minutesToTime(trainingEndMinutes) }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'schedule'" id="request-panel-schedule" class="request-accordion-panel">
+        <p class="request-accordion-label">Escolha uma faixa de horário</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Faixas de horário">
+          <button v-for="range in trainingTimeRanges" :key="range.start" type="button"
+            class="request-choice training-time-button"
+            :class="{ 'training-time-button-active': trainingStartMinutes === range.start }"
+            :aria-pressed="trainingStartMinutes === range.start"
+            @click="selectTrainingTimeRange(range.start, range.end)">
+            {{ range.label }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'location' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'location'" aria-controls="request-panel-location" @click="toggleSection('location')">
+          <span class="request-accordion-icon" aria-hidden="true">📍</span>
+          <span class="request-accordion-title">Local do atendimento</span>
+          <span class="request-accordion-preview">{{ form.gymName === 'Outros' ? (otherGymName || 'Informe o local') : (form.gymName || form.city || 'A definir') }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'location'" id="request-panel-location" class="request-accordion-panel">
+        <label for="accordion-city" class="request-accordion-label">Cidade</label>
+        <select id="accordion-city" v-model="form.city" class="request-accordion-select">
+          <option value="" disabled>Escolha uma cidade</option>
+          <option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option>
+        </select>
+        <label for="accordion-gym" class="request-accordion-label">Academia / local</label>
+        <select id="accordion-gym" v-model="form.gymName" class="request-accordion-select" @change="form.attendsGym = Boolean(form.gymName)">
+          <option value="" disabled>Selecione o local</option>
+          <option v-for="gym in publicTrainerAcademies" :key="gym" :value="gym">{{ gym }}</option>
+          <option value="Outros">Outros</option>
+        </select>
+        <template v-if="form.gymName === 'Outros'">
+          <label for="accordion-other-gym" class="request-accordion-label">Informe o local</label>
+          <input id="accordion-other-gym" v-model.trim="otherGymName" class="request-accordion-input" maxlength="100" placeholder="Nome do local" />
+        </template>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'participants' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'participants'" aria-controls="request-panel-participants" @click="toggleSection('participants')">
+          <span class="request-accordion-icon" aria-hidden="true">👥</span>
+          <span class="request-accordion-title">Participantes</span>
+          <span class="request-accordion-preview">{{ form.withCompanion ? 'Com acompanhante' : 'Sozinho' }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'participants'" id="request-panel-participants" class="request-accordion-panel">
+        <p class="request-accordion-label">Como você vai treinar?</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Participantes da aula">
+          <label class="request-choice"><input v-model="form.withCompanion" type="radio" name="accordion-companion" :value="false" /><span>Sozinho</span></label>
+          <label class="request-choice"><input v-model="form.withCompanion" type="radio" name="accordion-companion" :value="true" /><span>Com acompanhante</span></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'duration' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'duration'" aria-controls="request-panel-duration" @click="toggleSection('duration')">
+          <span class="request-accordion-icon" aria-hidden="true">⏳</span>
+          <span class="request-accordion-title">Duração</span>
+          <span class="request-accordion-preview">{{ form.singleLesson ? 'Aula avulsa' : form.desiredDuration }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'duration'" id="request-panel-duration" class="request-accordion-panel">
+        <label class="request-accordion-check"><input v-model="form.singleLesson" type="checkbox" /> Aula avulsa</label>
+        <label for="accordion-duration" class="request-accordion-label">Duração do acompanhamento</label>
+        <select id="accordion-duration" v-model="form.desiredDuration" class="request-accordion-select" :disabled="form.singleLesson">
+          <option v-for="months in 6" :key="months" :value="months + (months === 1 ? ' mês' : ' meses')">
+            {{ months }} {{ months === 1 ? 'mês' : 'meses' }}
+          </option>
+        </select>
+      </div>
+    </section>
+
+    <section class="request-accordion-item" :class="{ 'request-accordion-open': expandedSection === 'professionals' }">
+      <h3 class="request-accordion-heading">
+        <button type="button" class="request-accordion-toggle" :aria-expanded="expandedSection === 'professionals'" aria-controls="request-panel-professionals" @click="toggleSection('professionals')">
+          <span class="request-accordion-icon" aria-hidden="true">🧑‍🏫</span>
+          <span class="request-accordion-title">Profissional</span>
+          <span class="request-accordion-preview">{{ selectedTrainerIds.length ? selectedTrainerIds.length + ' selecionado(s)' : 'A definir' }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div v-if="expandedSection === 'professionals'" id="request-panel-professionals" class="request-accordion-panel">
+        <p class="request-accordion-label">Gênero do personal</p>
+        <div class="request-choice-row request-accordion-choices" role="group" aria-label="Gênero do personal">
+          <label v-for="option in [
+            { value: 'indiferente', label: 'Sem preferência' },
+            { value: 'feminino', label: 'Feminino' },
+            { value: 'masculino', label: 'Masculino' },
+          ]" :key="option.value" class="request-choice">
+            <input v-model="form.trainerGenderPreference" type="radio" name="accordion-trainer-gender" :value="option.value" />
+            <span>{{ option.label }}</span>
+          </label>
+        </div>
+        <p class="request-accordion-subtext">Preferência: {{ professionalGenderLabel }}</p>
+        <p v-if="selectedTrainerNames.length" class="request-accordion-subtext">{{ selectedTrainerNames.join(', ') }}</p>
+        <button type="button" class="secondary-button request-accordion-professionals-action" @click="selectTrainersForDraft">
+          {{ selectedTrainerIds.length ? 'Alterar profissionais' : 'Selecionar profissionais' }} →
+        </button>
+      </div>
+    </section>
+
+    <div class="request-accordion-estimate" aria-live="polite">
+      <span class="request-accordion-estimate-icon" aria-hidden="true">💰</span>
+      <div class="request-accordion-estimate-text">
+        <span>Valor estimado</span>
+        <strong>a partir de {{ estimatedValue }}{{ form.singleLesson ? ' / aula' : ' / mês' }}</strong>
+      </div>
+    </div>
+
+    <p v-if="!form.city || !form.gymName || (form.gymName === 'Outros' && !otherGymName.trim()) || !form.trainingDays.length" class="request-accordion-warning" role="alert">
+      Preencha a cidade, o local e pelo menos um dia de treino antes de continuar.
+    </p>
+
+    <button
+      class="primary-button field-wide request-accordion-submit"
+      type="button"
+      :disabled="submittingRequest || !form.city || !form.gymName || (form.gymName === 'Outros' && !otherGymName.trim()) || !form.trainingDays.length"
+      @click="selectedTrainerIds.length ? confirmServiceRequest() : selectTrainersForDraft()"
+    >
+      {{
+        submittingRequest
+          ? 'Enviando…'
+          : selectedTrainerIds.length
+            ? (customerSignedInName ? 'Confirmar e enviar solicitação' : 'Entrar para confirmar solicitação')
+            : 'Selecionar profissionais →'
+      }}
+    </button>
+  </form>
 </template>
