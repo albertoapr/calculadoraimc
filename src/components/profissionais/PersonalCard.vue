@@ -17,8 +17,9 @@ const props = defineProps<{
   selected: boolean
   disabled: boolean
   alreadySent: boolean
+  showRequestLink?: boolean
 }>()
-const emit = defineEmits<{ 'update:selected': [value: boolean] }>()
+const emit = defineEmits<{ 'update:selected': [value: boolean]; 'request-trainer': [] }>()
 const displayName = computed(() => trainerDisplayName(props.trainer.name))
 const instagramUrl = computed(() =>
   props.trainer.instagram ? trainerInstagramUrl(props.trainer.instagram) : '',
@@ -53,6 +54,9 @@ const academies = computed(() =>
     <span class="home-trainer-info">
       <span class="home-trainer-name-row">
         <strong>{{ displayName }}</strong>
+        <button v-if="showRequestLink" type="button" class="trainer-whatsapp-link" :aria-label="'Solicitar atendimento com ' + displayName" title="Solicitar atendimento" @click.prevent.stop="emit('request-trainer')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.8a8.5 8.5 0 0 1-12.4 7.5L3 21l1.8-4.9a8.5 8.5 0 1 1 15.7-4.3Z"/><path d="M9 8.7c-.5.3-.7 1.1-.4 1.9.6 1.7 2.2 3.3 3.9 3.9.8.3 1.6.1 1.9-.4l.5-.8-1.8-1-1 .9c-.9-.4-1.6-1.1-2-2l.9-1-1-1.8-.9.3Z"/></svg>
+        </button>
         <a
           v-if="instagramUrl"
           :href="instagramUrl"
@@ -83,6 +87,8 @@ const academies = computed(() =>
 </template>
 
 <style scoped>
+.trainer-whatsapp-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; color: #188b51; background: transparent; border: 0; cursor: pointer; }
+.trainer-whatsapp-link svg { width: 25px; height: 25px; }
 .trainer-instagram-link {
   display: inline-flex;
   align-items: center;
