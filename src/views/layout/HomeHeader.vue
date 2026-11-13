@@ -54,7 +54,7 @@ const {
             }}</span
           >
         </span>
-        <span v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'home' && viewMode !== 'assessment'" class="header-auth-links">
+        <span v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'assessment'" class="header-auth-links">
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a
           ><span class="header-auth-divider" aria-hidden="true">|</span
           ><a
@@ -66,8 +66,7 @@ const {
         </span>
         <details
           v-if="
-            viewMode === 'home' ||
-            ((trainerSignedInId || customerSignedInName) && viewMode !== 'assessment')
+            (trainerSignedInId || customerSignedInName) && viewMode !== 'home' && viewMode !== 'assessment'
           "
           class="account-dropdown main-hamburger-menu"
         >
