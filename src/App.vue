@@ -89,7 +89,7 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
-      <PageHeader />
+      <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
@@ -244,8 +244,19 @@ const {
         @refresh-requests="refreshShareableRequests"
         @retry="searchHomeTrainers"
       />
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions">
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions root-home-actions">
         <div class="home-action">
+          <h1 class="home-gym-title"><span class="brand-fit">Minha</span> <span class="brand-peso">academia</span></h1>
+          <select
+            id="home-academy"
+            v-model="publicTrainerAcademy"
+            class="home-academy-select"
+            aria-label="Minha academia"
+            :disabled="!publicTrainerCity || publicTrainersLoading"
+          >
+            <option value="">Todos</option>
+            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
+          </select>
           <button class="primary-button" type="button" @click="openPublicTrainers">
             <span class="home-action-copy"
               ><strong>Buscar Personal</strong
@@ -255,10 +266,11 @@ const {
           <a
             href="#cadastro-personal"
             class="home-personal-signup-link"
-            style="display: block; margin-top: 16px; text-align: center; color: var(--text-color, inherit)"
+            style="display: block; margin-top: 12px; text-align: center; color: var(--blue)"
           >Sou personal trainer</a>
         </div>
       </div>
+      <PageHeader v-if="viewMode === 'home' && !result && isRootHome" />
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openRequestForm">
