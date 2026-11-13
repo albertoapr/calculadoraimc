@@ -3212,6 +3212,15 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
 }
 
 /* Busca por academia antes da foto motivadora na home. */
+.home-header-divider {
+  width: 100%;
+  margin: 14px 0 20px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.root-home-photo.home-training-photo {
+  margin: 20px auto 12px;
+}
 .root-home-actions { margin: 24px 0 18px; }
 .home-gym-title { gap: 0.3em; font-size: clamp(26px, 6vw, 34px); line-height: 1.2; margin-bottom: 8px; }
 .home-academy-select {
