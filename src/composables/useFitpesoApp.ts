@@ -322,7 +322,8 @@ export function useFitpesoApp() {
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
   // A tela inicial sempre mostra uma academia válida quando a lista da cidade está disponível.
-  watch([publicTrainerAcademies, publicTrainerCity], ([academies, city], [, previousCity]) => {
+  watch([publicTrainerAcademies, publicTrainerCity], ([academies, city], previousValues) => {
+    const previousCity = previousValues?.[1]
     if (city !== previousCity) publicTrainerAcademy.value = ''
     if (!academies.length || !city) return
     if (academies.includes(publicTrainerAcademy.value)) return
