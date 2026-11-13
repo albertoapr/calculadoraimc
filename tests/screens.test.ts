@@ -102,6 +102,11 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.ok(citySelector)
     assert.equal(citySelector.closest('.fitpeso-home-topbar'), null)
     assert.ok(document.querySelector('.home-header-divider + .home-city-selector'))
+    assert.match(
+      document.querySelector('.home-training-title')?.textContent ?? '',
+      /Treine.*personal/s,
+    )
+    assert.equal(document.querySelector('.home-training-photo .root-home-tagline-subtitle'), null)
     await click(/^Entrar$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     assert.match(document.querySelector('.fitpeso-home-topbar')?.textContent ?? '', /FitPeso/)

@@ -95,6 +95,10 @@ const {
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector />
+      <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
+        <span class="brand-fit">Treine</span>
+        <span class="brand-peso">com um personal</span>
+      </h1>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
@@ -284,7 +288,6 @@ const {
               alt="Personal trainer acompanhando uma aluna durante o treinamento"
               decoding="async"
             />
-            <p class="root-home-tagline-subtitle">Treine com um personal</p>
           </div>
           <nav
             class="header-auth-links"
