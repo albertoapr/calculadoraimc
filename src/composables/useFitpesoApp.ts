@@ -211,13 +211,15 @@ export function useFitpesoApp() {
     }
   }
 
-  function requestProposalFromHome() {
+  async function requestProposalFromHome() {
     if (sharingRequestId.value) {
       void sendRequestToSelectedTrainers()
       return
     }
+    // Preserva as escolhas feitas nos checkboxes antes de abrir a solicitação.
     pendingHomeTrainerIds.value = [...homeSelectedTrainerIds.value]
-    void openRequestForm()
+    await openRequestForm()
+    selectedTrainerIds.value = [...pendingHomeTrainerIds.value]
   }
 
   async function openTrainersForRequest(request: CustomerRequest) {
