@@ -6,6 +6,7 @@ export type TrainerCardData = {
   trainerId: string
   name: string
   instagram?: string
+  cref?: string
   academias?: string[]
   gymName?: string
   academy?: string
@@ -39,16 +40,15 @@ const instagramUrl = computed(() =>
       :aria-label="'Selecionar ' + displayName"
       @change="emit('update:selected', ($event.target as HTMLInputElement).checked)"
     />
-    <span class="home-trainer-avatar" aria-hidden="true">{{
-      displayName
-        .split(' ')
-        .map((part) => part[0])
-        .join('')
-        .slice(0, 2)
-    }}</span>
     <span class="home-trainer-info">
       <span class="home-trainer-name-row">
-        <strong>{{ displayName }}</strong>
+        <span class="trainer-identity">
+          <strong>{{ displayName }}</strong>
+          <span v-if="trainer.cref?.trim()" class="trainer-cref">
+            CREF: {{ trainer.cref }}
+            <a href="https://www.confef.org.br/registrados/" target="_blank" rel="noopener noreferrer" class="trainer-cref-search" :aria-label="'Consultar CREF de ' + displayName + ' no CONFEF'" title="Consultar registro no CONFEF" @click.stop>🔎</a>
+          </span>
+        </span>
         <span class="trainer-social-links">
           <button v-if="showRequestLink" type="button" class="trainer-whatsapp-link" :aria-label="'Solicitar atendimento com ' + displayName" title="Solicitar atendimento" @click.prevent.stop="emit('request-trainer')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.8a8.5 8.5 0 0 1-12.4 7.5L3 21l1.8-4.9a8.5 8.5 0 1 1 15.7-4.3Z"/><path d="M9 8.7c-.5.3-.7 1.1-.4 1.9.6 1.7 2.2 3.3 3.9 3.9.8.3 1.6.1 1.9-.4l.5-.8-1.8-1-1 .9c-.9-.4-1.6-1.1-2-2l.9-1-1-1.8-.9.3Z"/></svg>
@@ -83,6 +83,23 @@ const instagramUrl = computed(() =>
 </template>
 
 <style scoped>
+.trainer-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.trainer-cref {
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+.trainer-cref-search {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  text-decoration: none !important;
+  font-size: 1rem;
+}
 .trainer-social-links {
   display: flex;
   flex-direction: column;
@@ -131,17 +148,6 @@ const instagramUrl = computed(() =>
   width: 22px;
   height: 22px;
   accent-color: #08763a;
-}
-.home-trainer-avatar {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 58px;
-  height: 58px;
-  border-radius: 12px;
-  background: #d9efe0;
-  color: #075f32;
-  font-weight: 750;
 }
 .home-trainer-info {
   display: flex;
