@@ -200,6 +200,17 @@ export function useFitpesoApp() {
     publicTrainerCity.value = homeCity.value
     void loadPublicTrainers()
   }
+  async function openRequestForTrainer(trainerId: string) {
+    if (!publicFilteredTrainers.value.some((trainer) => trainer.trainerId === trainerId)) return
+    await openRequestForm()
+    selectedTrainerIds.value = [trainerId]
+    homeSelectedTrainerIds.value = [trainerId]
+    if (publicTrainerAcademy.value) {
+      form.gymName = publicTrainerAcademy.value
+      form.attendsGym = true
+    }
+  }
+
   function requestProposalFromHome() {
     if (sharingRequestId.value) {
       void sendRequestToSelectedTrainers()
@@ -310,8 +321,8 @@ export function useFitpesoApp() {
       requestGender: computed(() => form.trainerGenderPreference),
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
-  watch(publicTrainerCity, () => {
-    publicTrainerAcademy.value = ''
+  watch(publicTrainerCity, (city, previousCity) => {
+    if (city !== previousCity && viewMode.value !== 'public-trainers') publicTrainerAcademy.value = ''
   })
   async function loadPublicTrainers() {
     const id = ++publicLookupId
@@ -1875,7 +1886,7 @@ export function useFitpesoApp() {
     form.withCompanion = false
     eligibleTrainers.value = []
     selectedTrainerIds.value = []
-    form.gymName = defaultAcademyForCity(form.city)
+    form.gymName = publicTrainerAcademy.value || defaultAcademyForCity(form.city)
     form.attendsGym = Boolean(form.gymName)
     otherGymName.value = ''
     form.objective = 'Emagrecimento'
@@ -3290,6 +3301,7 @@ export function useFitpesoApp() {
     selectingTrainersForDraft,
     publicTrainerCity,
     publicTrainerAcademy,
+    openRequestForTrainer,
     homeSelectedTrainerIds,
     sharingRequestId,
     sharingRequestMessage,
