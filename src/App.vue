@@ -254,7 +254,7 @@ const {
             aria-label="Minha academia"
             :disabled="!publicTrainerCity || publicTrainersLoading"
           >
-            <option value="">Todos</option>
+            <option value="" disabled>Selecione uma academia</option>
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
           </select>
           <button class="primary-button" type="button" @click="openPublicTrainers">
