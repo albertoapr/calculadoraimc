@@ -98,6 +98,10 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   try {
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
+    const citySelector = document.querySelector('#home-city')
+    assert.ok(citySelector)
+    assert.equal(citySelector.closest('.fitpeso-home-topbar'), null)
+    assert.ok(document.querySelector('.home-header-divider + .home-city-selector'))
     await click(/^Entrar$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     assert.match(document.querySelector('.fitpeso-home-topbar')?.textContent ?? '', /FitPeso/)

@@ -7,6 +7,7 @@ import LoginView from './views/auth/LoginView.vue'
 import CustomerSignupView from './views/auth/CustomerSignupView.vue'
 import HomeHeader from './views/layout/HomeHeader.vue'
 import PageHeader from './views/layout/PageHeader.vue'
+import CitySelector from './views/layout/CitySelector.vue'
 import MyProfileView from './views/account/MyProfileView.vue'
 import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
@@ -93,6 +94,7 @@ const {
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
+      <CitySelector />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 

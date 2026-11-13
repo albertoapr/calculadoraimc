@@ -3,8 +3,6 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
   goHome,
-  showRequestForm,
-  publicTrainerCity,
   customerSignedInName,
   customerIsAdmin,
   openAdminTrainers,
@@ -12,9 +10,6 @@ const {
   trainerSignedInId,
   logout,
   openProfessionalRegistration,
-  supportedRequestCities,
-  homeCity,
-  selectHomeCity,
   openCustomerLogin,
   openCustomerRequests,
   openMyProfile,
@@ -124,48 +119,6 @@ const {
           </div>
         </details>
       </nav>
-      <label
-        v-if="
-          viewMode === 'home' ||
-          viewMode === 'public-trainers' ||
-          (viewMode === 'contact' && showRequestForm)
-        "
-        class="home-location-label"
-        style="display: flex; align-items: center; gap: 5px; max-width: 100%"
-        for="home-city"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          aria-hidden="true"
-        >
-          <path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z" />
-          <circle cx="12" cy="9" r="2.5" />
-        </svg>
-        <select
-          id="home-city"
-          :value="viewMode === 'public-trainers' ? publicTrainerCity : homeCity"
-          aria-label="Alterar cidade"
-          @change="selectHomeCity"
-          style="
-            max-width: 165px;
-            font: inherit;
-            color: inherit;
-            background: transparent;
-            border: 0;
-            cursor: pointer;
-          "
-        >
-          <option value="" disabled>Escolha sua cidade</option>
-          <option v-for="city in supportedRequestCities" :key="city" :value="city">
-            {{ city }},RJ
-          </option>
-        </select>
-      </label>
     </div>
   </div>
 </template>

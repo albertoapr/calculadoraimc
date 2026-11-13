@@ -3321,6 +3321,41 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
   border: 0;
   border-top: 1px solid var(--line);
 }
+.home-city-selector {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0 0 20px;
+}
+.home-city-selector svg {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 15px;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.home-city-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--card-bg);
+  font: inherit;
+  cursor: pointer;
+}
+.home-city-select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue) 28%, transparent);
+  outline-offset: 2px;
+}
 .root-home-photo.home-training-photo {
   margin: 20px auto 12px;
 }
