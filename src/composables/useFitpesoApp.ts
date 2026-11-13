@@ -1,3 +1,6 @@
+import { useAuthentication } from './useAuthentication'
+import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
+import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
 import { useTrainerProposal } from './useTrainerProposal'
 import { useAccountSession } from '../stores/accountSession'
@@ -27,12 +30,10 @@ import type {
   GoogleIdentityApi,
   ImcResult,
   EligibleTrainer,
-  CustomerProposal,
   TrainerReceivedRequest,
   EditableProfile,
   TrainerAccountProfile,
   CustomerRequest,
-  PendingWhatsAppLogin,
 } from '../types/domain'
 
 declare global {
@@ -184,19 +185,39 @@ export function useFitpesoApp() {
 
   const trainerSelectionStore = useTrainerSelection()
   const { selectedTrainerIds: homeSelectedTrainerIds } = storeToRefs(trainerSelectionStore)
-  const sharingRequestId = ref('')
-  const sharingRequestMessage = ref('')
-  const sharingRequestBusy = ref(false)
-  const activeCustomerRequest = computed(() =>
-    customerRequests.value.find(
-      (request) =>
-        request.lifecycle === 'OPEN' &&
-        !request.requestExpired &&
-        request.validUntil * 1000 > Date.now(),
-    ),
-  )
-  const checkingCustomerRequests = ref(false)
-  const customerRequestsLookupError = ref('')
+
+  const {
+    sharingRequestId,
+    sharingRequestMessage,
+    sharingRequestBusy,
+    activeCustomerRequest,
+    checkingCustomerRequests,
+    customerRequestsLookupError,
+    customerRequests,
+    customerRequestsStatus,
+    changingRequestId,
+    requestActionDialog,
+    requestActionError,
+    refreshShareableRequests,
+    sendRequestToSelectedTrainers,
+    openCustomerRequests,
+    changeRequestVisibility,
+    confirmRequestVisibilityChange,
+    acceptProposal,
+  } = useCustomerRequests({
+    signedInName: customerSignedInName,
+    selectedTrainerIds: homeSelectedTrainerIds,
+    getToken: () =>
+      sessionStorage.getItem('fitpeso-customer-session') ??
+      sessionStorage.getItem('fitpeso-google-session') ??
+      '',
+    onOpen: () => {
+      viewMode.value = 'customer-requests'
+    },
+    onStatus: (message) => {
+      status.value = message
+    },
+  })
   const pendingHomeTrainerIds = ref<string[]>([])
 
   function searchHomeTrainers() {
@@ -238,82 +259,6 @@ export function useFitpesoApp() {
     window.scrollTo(0, 0)
   }
 
-  async function refreshShareableRequests() {
-    if (!customerSignedInName.value) {
-      customerRequests.value = []
-      sharingRequestId.value = ''
-      customerRequestsLookupError.value = ''
-      return
-    }
-    checkingCustomerRequests.value = true
-    customerRequestsLookupError.value = ''
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session') ??
-        ''
-      if (!token) throw new Error('Entre novamente para consultar sua solicitação.')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/customers/requests', {
-        headers: { authorization: 'Bearer ' + token },
-        cache: 'no-store',
-      })
-      const body = (await response.json()) as { requests?: CustomerRequest[] }
-      if (!response.ok || !Array.isArray(body.requests))
-        throw new Error('Não foi possível consultar sua solicitação.')
-      customerRequests.value = body.requests
-      sharingRequestId.value = activeCustomerRequest.value?.requestId ?? ''
-    } catch {
-      customerRequestsLookupError.value =
-        'Não foi possível consultar sua solicitação. Tente novamente.'
-    } finally {
-      checkingCustomerRequests.value = false
-    }
-  }
-
-  async function sendRequestToSelectedTrainers() {
-    if (!sharingRequestId.value || sharingRequestBusy.value) return
-    if (!homeSelectedTrainerIds.value.length) {
-      sharingRequestMessage.value = 'Selecione pelo menos um personal.'
-      return
-    }
-    sharingRequestBusy.value = true
-    sharingRequestMessage.value = ''
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session') ??
-        ''
-      if (!token) throw new Error('Entre na sua conta para enviar a solicitação.')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        endpoint +
-          '/api/requests/' +
-          encodeURIComponent(sharingRequestId.value) +
-          '/send-to-trainers',
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-          body: JSON.stringify({ trainerIds: homeSelectedTrainerIds.value }),
-        },
-      )
-      const body = (await response.json()) as { sent?: boolean; added?: number; error?: string }
-      if (!response.ok || !body.sent)
-        throw new Error(body.error || 'Não foi possível enviar a solicitação.')
-      sharingRequestMessage.value = body.added
-        ? 'Solicitação enviada para ' +
-          body.added +
-          (body.added === 1 ? ' personal!' : ' personais!')
-        : 'Estes profissionais já receberam sua solicitação.'
-      homeSelectedTrainerIds.value = []
-      await refreshShareableRequests()
-    } catch (error) {
-      sharingRequestMessage.value =
-        error instanceof Error ? error.message : 'Não foi possível enviar a solicitação.'
-    } finally {
-      sharingRequestBusy.value = false
-    }
-  }
   const publicTrainersLoading = ref(false)
   const publicTrainersError = ref('')
   let publicLookupId = 0
@@ -393,19 +338,69 @@ export function useFitpesoApp() {
     }),
   )
 
-  const customerRequests = ref<CustomerRequest[]>([])
-  const customerRequestsStatus = ref('')
-  const changingRequestId = ref('')
-  const requestActionDialog = ref<{
-    request: CustomerRequest
-    action: 'deactivate' | 'reactivate'
-  } | null>(null)
-  const requestActionError = ref('')
   const requestVerificationLink = ref('')
   const showTrainerSignup = ref(window.location.hash === '#cadastro-personal')
   const showCustomerSignup = ref(window.location.hash === '#cadastro-cliente')
-  const showCustomerLogin = ref(false)
-  const loginAsTrainer = ref(readNavigationPreference(NAV_ROLE) === 'trainer')
+
+  const {
+    showCustomerLogin,
+    loginAsTrainer,
+    customerLoginStatus,
+    customerLoginError,
+    customerLoginMethod,
+    loginIdentifier,
+    loginStep,
+    loginIdentifierKind,
+    emailLoginPending,
+    emailLoginSubmitting,
+    emailLoginError,
+    emailLoginSessionToken,
+    customerLoginWhatsApp,
+    customerLoginCode,
+    customerLoginSessionToken,
+    customerLoginVerificationLink,
+    showCustomerLoginDialog,
+    customerLoginSubmitting,
+    trainerLoginCode,
+    trainerLoginToken,
+    trainerLoginStatus,
+    trainerLoginError,
+    trainerLoginLink,
+    trainerLoginDialog,
+    trainerLoginSubmitting,
+    requestLoginReturn,
+    whatsappChecking,
+    whatsappConfirmed,
+    whatsappNetworkError,
+    whatsappProgressStartedAt,
+    whatsappProgress,
+    whatsappSecondsRemaining,
+    clearPendingWhatsAppLogin,
+    markWhatsAppOpened,
+    changeLoginProfile,
+    pollTrainerWhatsAppLogin,
+    pollCustomerLogin,
+    continueLoginIdentifier,
+    returnToLoginIdentifier,
+    submitIdentityLogin,
+    pollEmailLogin,
+    closeCustomerLogin,
+    finishEmailLoginFromLink,
+    stopEmailLoginPoll,
+    startAuthentication,
+  } = useAuthentication({
+    initialRole: readNavigationPreference(NAV_ROLE),
+    showCustomerSignup,
+    showTrainerSignup,
+    saveRole: (role) => saveNavigationPreference(NAV_ROLE, role),
+    normalizeBrazilianPhone,
+    applyCustomerProfile,
+    applyTrainerSession,
+    renderGoogleButton,
+    goHome,
+    returnToRequestFormAfterLogin,
+    replaceUrl: (url) => router.replace(url),
+  })
   const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
   const signupContact = ref('')
   const signupStep = ref<1 | 2>(1)
@@ -433,24 +428,7 @@ export function useFitpesoApp() {
   const trainerVerificationLink = ref('')
   const trainerSubmitting = ref(false)
   const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
-  const customerLoginStatus = ref('')
-  const customerLoginError = ref('')
-  const customerLoginMethod = ref<'google' | 'whatsapp'>('google')
-  const loginIdentifier = ref('')
-  const loginStep = ref<1 | 2>(1)
-  const loginIdentifierKind = ref<'whatsapp' | 'email'>('whatsapp')
-  const emailLoginPending = ref(false)
-  const emailLoginSubmitting = ref(false)
-  const emailLoginError = ref('')
-  const emailLoginSessionToken = ref('')
-  let emailLoginPollTimer: number | undefined
-  let emailLoginStartedAt = 0
-  const customerLoginWhatsApp = ref('')
-  const customerLoginCode = ref('')
-  const customerLoginSessionToken = ref('')
-  const customerLoginVerificationLink = ref('')
-  const showCustomerLoginDialog = ref(false)
-  const customerLoginSubmitting = ref(false)
+
   const {
     adminTrainerForm,
     adminTrainerStatus,
@@ -491,17 +469,11 @@ export function useFitpesoApp() {
   const editingProfileStatus = ref('')
   const editingProfileLoading = ref(false)
   const editingProfileSaving = ref(false)
-  const trainerLoginCode = ref('')
-  const trainerLoginToken = ref('')
-  const trainerLoginStatus = ref('')
-  const trainerLoginError = ref('')
-  const trainerLoginLink = ref('')
-  const trainerLoginDialog = ref(false)
-  const trainerLoginSubmitting = ref(false)
+
   const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
   const trainerRequestsStatus = ref('')
   let sessionGeneration = 0
-  const requestLoginReturn = ref(false)
+
   const trainingDayOptions = [
     { label: 'Seg', value: 'Segunda-feira' },
     { label: 'Ter', value: 'Terça-feira' },
@@ -767,30 +739,6 @@ export function useFitpesoApp() {
     }
   }
 
-  async function loadCustomerProfile(token: string, signal?: AbortSignal) {
-    const endpoint = await getRequestApiEndpoint(signal)
-    const response = await fetch(`${endpoint}/api/customers/profile`, {
-      signal,
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}` },
-    })
-    const body = (await response.json()) as {
-      authenticated?: boolean
-      profile?: {
-        name: string
-        whatsapp: string
-        email: string
-        dateOfBirth?: string
-        isAdmin?: boolean
-      }
-      error?: string
-    }
-    if (!response.ok || body.authenticated !== true || !body.profile) {
-      throw new Error(body.error || 'Não foi possível carregar seu cadastro.')
-    }
-    return body.profile
-  }
-
   function loadGoogleIdentityScript() {
     if (window.google?.accounts.id) return Promise.resolve()
     if (googleIdentityScriptPromise) return googleIdentityScriptPromise
@@ -935,8 +883,7 @@ export function useFitpesoApp() {
     emailLoginPending.value = false
     emailLoginError.value = ''
     emailLoginSessionToken.value = ''
-    if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
-    emailLoginPollTimer = undefined
+    stopEmailLoginPoll()
     customerLoginWhatsApp.value = ''
     customerLoginCode.value = ''
     customerLoginSessionToken.value = ''
@@ -1026,8 +973,7 @@ export function useFitpesoApp() {
     loginStep.value = 1
     emailLoginPending.value = false
     emailLoginError.value = ''
-    if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
-    emailLoginPollTimer = undefined
+    stopEmailLoginPoll()
     trainerLoginDialog.value = false
     showRequestForm.value = false
     viewMode.value = 'home'
@@ -1868,150 +1814,6 @@ export function useFitpesoApp() {
     return openCustomerRequests()
   }
 
-  async function openCustomerRequests() {
-    viewMode.value = 'customer-requests'
-    customerRequestsStatus.value = 'Carregando suas solicitações…'
-    await nextTick()
-    window.scrollTo(0, 0)
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session') ??
-        ''
-      if (!token) {
-        customerRequestsStatus.value = 'Entre na sua conta para consultar suas propostas.'
-        return
-      }
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/customers/requests`, {
-        headers: { authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      })
-      const body = (await response.json()) as { requests?: CustomerRequest[]; error?: string }
-      if (!response.ok || !Array.isArray(body.requests))
-        throw new Error(body.error || 'Não foi possível carregar suas solicitações.')
-      customerRequests.value = body.requests.filter(
-        (request) =>
-          !request.requestExpired &&
-          request.validUntil * 1000 > Date.now() &&
-          request.lifecycle === 'OPEN',
-      )
-      customerRequestsStatus.value = customerRequests.value.length
-        ? ''
-        : 'Você não possui solicitações ativas.'
-    } catch (error) {
-      customerRequestsStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível carregar suas solicitações.'
-    }
-  }
-
-  async function changeRequestVisibility(
-    request: CustomerRequest,
-    action: 'deactivate' | 'reactivate',
-  ) {
-    if (
-      changingRequestId.value ||
-      request.requestExpired ||
-      request.validUntil * 1000 <= Date.now()
-    )
-      return
-    if (
-      action === 'deactivate' &&
-      (request.lifecycle !== 'OPEN' ||
-        request.proposalCount !== 0 ||
-        request.proposals.length !== 0)
-    )
-      return
-    if (action === 'reactivate' && request.lifecycle !== 'INACTIVE') return
-    requestActionError.value = ''
-    requestActionDialog.value = { request, action }
-  }
-
-  async function confirmRequestVisibilityChange() {
-    const pending = requestActionDialog.value
-    if (!pending || changingRequestId.value) return
-    const { request, action } = pending
-    changingRequestId.value = request.requestId
-    customerRequestsStatus.value = ''
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session') ??
-        ''
-      if (!token) throw new Error('Sua sessão expirou. Entre novamente.')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        `${endpoint}/api/requests/${encodeURIComponent(request.requestId)}/visibility`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-          body: JSON.stringify({ action }),
-        },
-      )
-      const body = (await response.json()) as { updated?: boolean; error?: string }
-      if (!response.ok || !body.updated)
-        throw new Error(body.error || 'Não foi possível atualizar a solicitação.')
-      requestActionDialog.value = null
-      await openCustomerRequests()
-      customerRequestsStatus.value =
-        action === 'deactivate'
-          ? 'Solicitação inativada. Você pode reativá-la até o vencimento.'
-          : 'Solicitação reativada.'
-    } catch (error) {
-      requestActionError.value =
-        error instanceof Error ? error.message : 'Não foi possível atualizar a solicitação.'
-    } finally {
-      changingRequestId.value = ''
-    }
-  }
-
-  async function acceptProposal(request: CustomerRequest, proposal: CustomerProposal) {
-    if (proposal.expired || proposal.status !== 'OPEN') return
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session') ??
-        ''
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        `${endpoint}/api/requests/${encodeURIComponent(request.requestId)}/accept`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-          body: JSON.stringify({ trainerId: proposal.trainerId }),
-        },
-      )
-      const body = (await response.json()) as { accepted?: boolean; error?: string }
-      if (!response.ok || body.accepted !== true)
-        throw new Error(body.error || 'Não foi possível aceitar esta proposta.')
-      await openCustomerRequests()
-      status.value = `Proposta de ${proposal.name} aceita. O profissional será avisado.`
-    } catch (error) {
-      status.value = error instanceof Error ? error.message : 'Não foi possível aceitar a proposta.'
-    }
-  }
-
-  async function loadTrainerSession(
-    token: string,
-    signal?: AbortSignal,
-  ): Promise<TrainerAccountProfile> {
-    const endpoint = await getRequestApiEndpoint(signal)
-    const response = await fetch(endpoint + '/api/trainers/profile', {
-      signal,
-      method: 'POST',
-      headers: { authorization: 'Bearer ' + token },
-      cache: 'no-store',
-    })
-    const body = (await response.json()) as {
-      authenticated?: boolean
-      profile?: TrainerAccountProfile
-      error?: string
-    }
-    if (!response.ok || body.authenticated !== true || !body.profile?.trainerId)
-      throw new Error(body.error || 'Sessão inválida.')
-    return body.profile
-  }
-
   function applyTrainerSession(profile: TrainerAccountProfile) {
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
@@ -2162,353 +1964,10 @@ export function useFitpesoApp() {
     }
   }
 
-  // The progress measures a fifteen-second waiting window, never authentication success.
-
-  const pendingWhatsAppKey = 'fitpeso-pending-whatsapp-login'
-  const whatsappProgressDurationMs = 15_000
-  const pendingWhatsAppLogin = ref<PendingWhatsAppLogin | null>(null)
-  const whatsappClock = ref(Date.now())
-  const whatsappChecking = ref(false)
-  const whatsappConfirmed = ref(false)
-  const whatsappNetworkError = ref(false)
-  const whatsappProgressStartedAt = computed(
-    () => pendingWhatsAppLogin.value?.progressStartedAt ?? 0,
-  )
-  const whatsappProgress = computed(() =>
-    whatsappConfirmed.value
-      ? 100
-      : whatsappProgressStartedAt.value
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              Math.floor(
-                ((whatsappClock.value - whatsappProgressStartedAt.value) /
-                  whatsappProgressDurationMs) *
-                  100,
-              ),
-            ),
-          )
-        : 0,
-  )
-  const whatsappSecondsRemaining = computed(() =>
-    Math.max(
-      0,
-      Math.ceil(
-        (whatsappProgressDurationMs - (whatsappClock.value - whatsappProgressStartedAt.value)) /
-          1000,
-      ),
-    ),
-  )
-  let whatsappCheckTimer: number | undefined
-  let whatsappClockTimer: number | undefined
-  let whatsappRequest: AbortController | undefined
-  let whatsappAttemptGeneration = 0
-  let whatsappLeftPage = false
-
-  function persistWhatsAppAttempt() {
-    try {
-      if (pendingWhatsAppLogin.value)
-        sessionStorage.setItem(pendingWhatsAppKey, JSON.stringify(pendingWhatsAppLogin.value))
-      else sessionStorage.removeItem(pendingWhatsAppKey)
-    } catch {
-      /* The current attempt still works when storage is unavailable. */
-    }
-  }
-
-  function stopWhatsAppTimers() {
-    window.clearTimeout(whatsappCheckTimer)
-    window.clearInterval(whatsappClockTimer)
-    whatsappCheckTimer = undefined
-    whatsappClockTimer = undefined
-  }
-
-  function clearPendingWhatsAppLogin() {
-    whatsappAttemptGeneration += 1
-    stopWhatsAppTimers()
-    whatsappRequest?.abort()
-    whatsappRequest = undefined
-    pendingWhatsAppLogin.value = null
-    whatsappChecking.value = false
-    whatsappConfirmed.value = false
-    whatsappNetworkError.value = false
-    whatsappLeftPage = false
-    persistWhatsAppAttempt()
-  }
-
-  function saveNewWhatsAppAttempt(
-    role: PendingWhatsAppLogin['role'],
-    whatsapp: string,
-    code: string,
-    token: string,
-    expiresAt?: number,
-  ) {
-    clearPendingWhatsAppLogin()
-    pendingWhatsAppLogin.value = {
-      role,
-      whatsapp,
-      code,
-      token,
-      expiresAt: expiresAt ? expiresAt * 1000 : Date.now() + 15 * 60_000,
-      progressStartedAt: 0,
-      awaitingReturn: false,
-    }
-    persistWhatsAppAttempt()
-    startWhatsAppClock()
-  }
-
-  function expireWhatsAppAttempt() {
-    const role = pendingWhatsAppLogin.value?.role
-    clearPendingWhatsAppLogin()
-    if (role === 'trainer') {
-      trainerLoginCode.value = ''
-      trainerLoginToken.value = ''
-      trainerLoginDialog.value = false
-      trainerLoginError.value = 'O código expirou. Inicie o login novamente.'
-    } else {
-      customerLoginCode.value = ''
-      customerLoginSessionToken.value = ''
-      showCustomerLoginDialog.value = false
-      customerLoginError.value = 'O código expirou. Inicie o login novamente.'
-    }
-  }
-
-  function startWhatsAppClock() {
-    window.clearInterval(whatsappClockTimer)
-    whatsappClock.value = Date.now()
-    if (document.hidden) return
-    whatsappClockTimer = window.setInterval(() => {
-      whatsappClock.value = Date.now()
-      if (pendingWhatsAppLogin.value && Date.now() >= pendingWhatsAppLogin.value.expiresAt)
-        expireWhatsAppAttempt()
-    }, 100)
-  }
-
-  function scheduleWhatsAppLoginCheck(delay = 3000) {
-    window.clearTimeout(whatsappCheckTimer)
-    if (!pendingWhatsAppLogin.value || document.hidden) return
-    whatsappCheckTimer = window.setTimeout(() => void checkPendingWhatsAppLogin(), delay)
-  }
-
-  function markWhatsAppOpened() {
-    if (!pendingWhatsAppLogin.value) return
-    pendingWhatsAppLogin.value.awaitingReturn = true
-    whatsappLeftPage = false
-    persistWhatsAppAttempt()
-  }
-  function onWhatsAppBlur() {
-    if (pendingWhatsAppLogin.value?.awaitingReturn) whatsappLeftPage = true
-  }
-  function onWhatsAppVisibilityChange() {
-    if (document.hidden) {
-      onWhatsAppBlur()
-      stopWhatsAppTimers()
-    } else onWhatsAppReturn()
-  }
-  function onWhatsAppReturn() {
-    const attempt = pendingWhatsAppLogin.value
-    if (!attempt || document.hidden) return
-    if (attempt.awaitingReturn && whatsappLeftPage) {
-      attempt.progressStartedAt = Date.now()
-      attempt.awaitingReturn = false
-      whatsappLeftPage = false
-      persistWhatsAppAttempt()
-    }
-    startWhatsAppClock()
-    void checkPendingWhatsAppLogin()
-  }
-
-  function restoreWhatsAppAttempt() {
-    try {
-      const raw = sessionStorage.getItem(pendingWhatsAppKey)
-      if (!raw) return
-      const a = JSON.parse(raw) as PendingWhatsAppLogin
-      if (
-        !a ||
-        !['customer', 'trainer'].includes(a.role) ||
-        !/^\+55\d{10,11}$/.test(a.whatsapp) ||
-        !/^[A-Za-z0-9_-]{22}$/.test(a.code) ||
-        !/^[A-Za-z0-9_-]{43}$/.test(a.token) ||
-        !Number.isFinite(a.expiresAt) ||
-        !Number.isFinite(a.progressStartedAt) ||
-        a.progressStartedAt < 0 ||
-        a.progressStartedAt > Date.now() ||
-        typeof a.awaitingReturn !== 'boolean' ||
-        a.expiresAt > Date.now() + 15 * 60_000
-      ) {
-        sessionStorage.removeItem(pendingWhatsAppKey)
-        return
-      }
-      pendingWhatsAppLogin.value = a
-      showCustomerLogin.value = true
-      showCustomerSignup.value = false
-      showTrainerSignup.value = false
-      loginAsTrainer.value = a.role === 'trainer'
-      loginIdentifierKind.value = 'whatsapp'
-      loginIdentifier.value = a.whatsapp
-      customerLoginWhatsApp.value = a.whatsapp
-      loginStep.value = 2
-      customerLoginMethod.value = 'whatsapp'
-      const link =
-        'https://wa.me/5521971118383?text=' +
-        encodeURIComponent(`Confirmar login FitPeso ${a.code}\nWhatsApp: ${a.whatsapp}`)
-      if (a.role === 'trainer') {
-        trainerLoginCode.value = a.code
-        trainerLoginToken.value = a.token
-        trainerLoginLink.value = link
-        trainerLoginDialog.value = true
-      } else {
-        customerLoginCode.value = a.code
-        customerLoginSessionToken.value = a.token
-        customerLoginVerificationLink.value = link
-        showCustomerLoginDialog.value = true
-      }
-      if (Date.now() >= a.expiresAt) {
-        expireWhatsAppAttempt()
-        return
-      }
-      // Reloading after opening WhatsApp is also a return; an existing timer is preserved.
-      whatsappLeftPage = a.awaitingReturn
-      onWhatsAppReturn()
-    } catch {
-      clearPendingWhatsAppLogin()
-    }
-  }
-
-  async function checkPendingWhatsAppLogin() {
-    const attempt = pendingWhatsAppLogin.value
-    if (!attempt || document.hidden || whatsappChecking.value || whatsappConfirmed.value) return
-    if (Date.now() >= attempt.expiresAt) {
-      expireWhatsAppAttempt()
-      return
-    }
-    window.clearTimeout(whatsappCheckTimer)
-    const controller = new AbortController()
-    whatsappRequest = controller
-    whatsappChecking.value = true
-    const isCurrent = () => pendingWhatsAppLogin.value === attempt && !controller.signal.aborted
-    const timeout = window.setTimeout(() => controller.abort(), 12_000)
-    try {
-      const endpoint = await getRequestApiEndpoint(controller.signal)
-      if (!isCurrent()) return
-      const response = await fetch(
-        `${endpoint}/api/${attempt.role === 'trainer' ? 'trainers' : 'customers'}/login-status`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            whatsapp: attempt.whatsapp,
-            code: attempt.code,
-            sessionToken: attempt.token,
-          }),
-        },
-      )
-      const body = (await response.json()) as {
-        authenticated?: boolean
-        expired?: boolean
-        confirmed?: boolean
-      }
-      if (!isCurrent()) return
-      if (!response.ok) throw new Error('Status unavailable')
-      whatsappNetworkError.value = false
-      if (body.expired) {
-        expireWhatsAppAttempt()
-        return
-      }
-      if (body.authenticated) {
-        whatsappConfirmed.value = true
-        window.clearInterval(whatsappClockTimer)
-        if (attempt.role === 'trainer') {
-          const profile = await loadTrainerSession(attempt.token, controller.signal)
-          if (!isCurrent()) return
-          try {
-            sessionStorage.setItem('fitpeso-trainer-session', attempt.token)
-          } catch {
-            /* Session remains in memory. */
-          }
-          applyTrainerSession(profile)
-          trainerLoginDialog.value = false
-          showCustomerLogin.value = false
-          clearPendingWhatsAppLogin()
-          trainerLoginCode.value = ''
-          trainerLoginToken.value = ''
-          goHome()
-        } else {
-          const profile = await loadCustomerProfile(attempt.token, controller.signal)
-          if (!isCurrent()) return
-          try {
-            sessionStorage.setItem('fitpeso-customer-session', attempt.token)
-            sessionStorage.removeItem('fitpeso-google-session')
-          } catch {
-            /* Session remains in memory. */
-          }
-          applyCustomerProfile(profile)
-          customerLoginError.value = ''
-          customerLoginStatus.value = 'WhatsApp confirmado! Seus dados foram carregados.'
-          showCustomerLoginDialog.value = false
-          showCustomerLogin.value = false
-          clearPendingWhatsAppLogin()
-          customerLoginCode.value = ''
-          customerLoginSessionToken.value = ''
-          await returnToRequestFormAfterLogin()
-        }
-      } else if (body.confirmed) {
-        returnToLoginIdentifier()
-        customerLoginError.value =
-          'Não foi possível confirmar o login. Confira o WhatsApp e tente novamente.'
-      }
-    } catch {
-      if (pendingWhatsAppLogin.value === attempt) {
-        whatsappNetworkError.value = true
-        whatsappConfirmed.value = false
-        startWhatsAppClock()
-      }
-    } finally {
-      window.clearTimeout(timeout)
-      if (whatsappRequest === controller) {
-        whatsappRequest = undefined
-        whatsappChecking.value = false
-        if (pendingWhatsAppLogin.value === attempt && controller.signal.aborted) {
-          whatsappNetworkError.value = true
-          whatsappConfirmed.value = false
-          startWhatsAppClock()
-        }
-        scheduleWhatsAppLoginCheck()
-      }
-    }
-  }
-
   onUnmounted(() => {
     document.removeEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.removeEventListener('click', closeHamburgerOnSelection)
-    stopWhatsAppTimers()
-    whatsappRequest?.abort()
-    document.removeEventListener('visibilitychange', onWhatsAppVisibilityChange)
-    window.removeEventListener('focus', onWhatsAppReturn)
-    window.removeEventListener('blur', onWhatsAppBlur)
   })
-
-  function changeLoginProfile() {
-    if (!requestLoginReturn.value)
-      saveNavigationPreference(NAV_ROLE, loginAsTrainer.value ? 'trainer' : 'customer')
-    clearPendingWhatsAppLogin()
-    loginStep.value = 1
-    emailLoginPending.value = false
-    emailLoginError.value = ''
-    if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
-    emailLoginPollTimer = undefined
-    // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
-    customerLoginMethod.value = 'whatsapp'
-    customerLoginError.value = ''
-    customerLoginStatus.value = ''
-    trainerLoginError.value = ''
-    trainerLoginStatus.value = ''
-    showCustomerLoginDialog.value = false
-    trainerLoginDialog.value = false
-    customerLoginCode.value = ''
-    trainerLoginCode.value = ''
-  }
 
   function isValidLoginBirthDate(date: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
@@ -2519,63 +1978,6 @@ export function useFitpesoApp() {
       date >= '1900-01-01' &&
       date <= new Date().toISOString().slice(0, 10)
     )
-  }
-
-  async function startTrainerWhatsAppLogin() {
-    if (trainerLoginSubmitting.value) return
-    const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
-    if (!whatsapp) {
-      trainerLoginError.value = 'Informe um WhatsApp válido com DDD.'
-      return
-    }
-    trainerLoginSubmitting.value = true
-    trainerLoginError.value = ''
-    trainerLoginStatus.value = 'Preparando acesso…'
-    const generation = whatsappAttemptGeneration
-    try {
-      const bytes = crypto.getRandomValues(new Uint8Array(32))
-      const token = btoa(String.fromCharCode(...bytes))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/trainers/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ whatsapp, sessionToken: token }),
-      })
-      const body = (await response.json()) as {
-        started?: boolean
-        verificationCode?: string
-        expiresAt?: number
-        error?: string
-      }
-      if (generation !== whatsappAttemptGeneration) return
-      if (!response.ok || !body.started || !body.verificationCode)
-        throw new Error(body.error || 'Não foi possível iniciar o login.')
-      trainerLoginCode.value = body.verificationCode
-      trainerLoginToken.value = token
-      trainerLoginLink.value =
-        'https://wa.me/5521971118383?text=' +
-        encodeURIComponent(
-          'Confirmar login FitPeso ' + body.verificationCode + '\nWhatsApp: ' + whatsapp,
-        )
-      trainerLoginDialog.value = true
-      saveNewWhatsAppAttempt('trainer', whatsapp, body.verificationCode, token, body.expiresAt)
-      trainerLoginStatus.value =
-        'Toque no botão da janela para enviar a mensagem à Beta pelo WhatsApp. Depois, aguarde a confirmação automática.'
-      scheduleWhatsAppLoginCheck(1000)
-    } catch (error) {
-      trainerLoginError.value =
-        error instanceof Error ? error.message : 'Não foi possível iniciar o login.'
-      trainerLoginStatus.value = ''
-    } finally {
-      trainerLoginSubmitting.value = false
-    }
-  }
-
-  async function pollTrainerWhatsAppLogin() {
-    await checkPendingWhatsAppLogin()
   }
 
   async function openTrainerReceivedRequests() {
@@ -2608,222 +2010,6 @@ export function useFitpesoApp() {
     }
   }
 
-  function scheduleCustomerLoginPoll(delayMs = 3_000) {
-    scheduleWhatsAppLoginCheck(delayMs)
-  }
-
-  async function pollCustomerLogin() {
-    await checkPendingWhatsAppLogin()
-  }
-
-  async function startCustomerWhatsAppLogin() {
-    if (customerLoginSubmitting.value) return
-    customerLoginStatus.value = ''
-    customerLoginError.value = ''
-    const whatsapp = normalizeBrazilianPhone(customerLoginWhatsApp.value)
-    if (!whatsapp) {
-      customerLoginError.value = 'Informe um WhatsApp válido com DDD.'
-      return
-    }
-    customerLoginSubmitting.value = true
-    customerLoginStatus.value = 'Preparando o acesso…'
-    const generation = whatsappAttemptGeneration
-    try {
-      const randomBytes = crypto.getRandomValues(new Uint8Array(32))
-      const sessionToken = btoa(
-        Array.from(randomBytes, (byte) => String.fromCharCode(byte)).join(''),
-      )
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/customers/login`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ whatsapp, sessionToken }),
-      })
-      const body = (await response.json()) as {
-        started?: boolean
-        verificationCode?: string
-        expiresAt?: number
-        error?: string
-      }
-      if (generation !== whatsappAttemptGeneration) return
-      if (!response.ok || body.started !== true || !body.verificationCode)
-        throw new Error(body.error || 'Não foi possível iniciar o login agora.')
-      customerLoginWhatsApp.value = whatsapp
-      customerLoginCode.value = body.verificationCode
-      customerLoginSessionToken.value = sessionToken
-      customerLoginVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(`Confirmar login FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}`)}`
-      saveNewWhatsAppAttempt(
-        'customer',
-        whatsapp,
-        body.verificationCode,
-        sessionToken,
-        body.expiresAt,
-      )
-      customerLoginStatus.value =
-        'Envie o código pelo WhatsApp. Depois, mantenha esta tela aberta: o login será confirmado automaticamente.'
-      showCustomerLoginDialog.value = true
-      scheduleCustomerLoginPoll(1_000)
-    } catch (error) {
-      customerLoginError.value =
-        error instanceof Error ? error.message : 'Não foi possível iniciar o login agora.'
-      customerLoginStatus.value = ''
-    } finally {
-      customerLoginSubmitting.value = false
-    }
-  }
-
-  function continueLoginIdentifier() {
-    emailLoginError.value = ''
-    customerLoginError.value = ''
-    trainerLoginError.value = ''
-    const typed = loginIdentifier.value.trim()
-    if (typed.includes('@')) {
-      const email = typed.toLowerCase()
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        emailLoginError.value = 'Informe um endereço de e-mail válido.'
-        return
-      }
-      loginIdentifier.value = email
-      loginIdentifierKind.value = 'email'
-    } else {
-      const phone = normalizeBrazilianPhone(typed)
-      if (!phone) {
-        emailLoginError.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
-        return
-      }
-      loginIdentifierKind.value = 'whatsapp'
-      customerLoginWhatsApp.value = phone
-      loginIdentifier.value = phone
-    }
-    loginStep.value = 2
-    void nextTick(() => document.getElementById('login-confirm-action')?.focus())
-  }
-
-  function returnToLoginIdentifier() {
-    clearPendingWhatsAppLogin()
-    loginStep.value = 1
-    emailLoginPending.value = false
-    emailLoginError.value = ''
-    customerLoginError.value = ''
-    trainerLoginError.value = ''
-    if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
-    emailLoginPollTimer = undefined
-    showCustomerLoginDialog.value = false
-    trainerLoginDialog.value = false
-    emailLoginSessionToken.value = ''
-    customerLoginCode.value = ''
-    trainerLoginCode.value = ''
-    void nextTick(() => {
-      document.getElementById('login-identifier')?.focus()
-      void renderGoogleButton('client')
-    })
-  }
-
-  async function submitIdentityLogin() {
-    if (loginIdentifierKind.value === 'email') {
-      await startEmailLogin()
-    } else if (loginAsTrainer.value) {
-      await startTrainerWhatsAppLogin()
-    } else {
-      await startCustomerWhatsAppLogin()
-    }
-  }
-
-  async function startEmailLogin() {
-    if (emailLoginSubmitting.value || emailLoginPending.value) return
-    emailLoginError.value = ''
-    emailLoginSubmitting.value = true
-    try {
-      const bytes = crypto.getRandomValues(new Uint8Array(32))
-      const token = btoa(String.fromCharCode(...bytes))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/customers/start-email-login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          email: loginIdentifier.value,
-          sessionToken: token,
-          asTrainer: loginAsTrainer.value,
-        }),
-      })
-      const body = (await response.json()) as { started?: boolean; error?: string }
-      if (!response.ok || body.started !== true)
-        throw new Error(body.error || 'Não foi possível enviar a confirmação.')
-      emailLoginSessionToken.value = token
-      emailLoginPending.value = true
-      emailLoginStartedAt = Date.now()
-      scheduleEmailLoginPoll(1500)
-    } catch (error) {
-      emailLoginError.value =
-        error instanceof Error ? error.message : 'Não foi possível iniciar o login por e-mail.'
-    } finally {
-      emailLoginSubmitting.value = false
-    }
-  }
-
-  function scheduleEmailLoginPoll(delayMs = 3000) {
-    if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
-    emailLoginPollTimer = window.setTimeout(() => void pollEmailLogin(), delayMs)
-  }
-
-  async function pollEmailLogin() {
-    if (!showCustomerLogin.value || !emailLoginPending.value || !emailLoginSessionToken.value)
-      return
-    const token = emailLoginSessionToken.value
-    const trainer = loginAsTrainer.value
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/customers/email-login-status', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ sessionToken: token, role: trainer ? 'trainer' : 'customer' }),
-      })
-      const body = (await response.json()) as { authenticated?: boolean; error?: string }
-      if (response.ok && body.authenticated === true) {
-        if (trainer) {
-          const profile = await loadTrainerSession(token)
-          sessionStorage.setItem('fitpeso-trainer-session', token)
-          applyTrainerSession(profile)
-        } else {
-          const profile = await loadCustomerProfile(token)
-          sessionStorage.setItem('fitpeso-customer-session', token)
-          sessionStorage.removeItem('fitpeso-google-session')
-          applyCustomerProfile(profile)
-        }
-        emailLoginPending.value = false
-        emailLoginPollTimer = undefined
-        showCustomerLogin.value = false
-        if (!trainer && requestLoginReturn.value) {
-          await returnToRequestFormAfterLogin()
-        } else {
-          goHome()
-        }
-        return
-      }
-    } catch {
-      // Erros transitórios não interrompem a confirmação.
-    }
-    if (Date.now() - emailLoginStartedAt > 15 * 60 * 1000) {
-      emailLoginPending.value = false
-      emailLoginError.value = 'O link expirou. Volte e solicite outro acesso por e-mail.'
-      emailLoginPollTimer = undefined
-      return
-    }
-    scheduleEmailLoginPoll()
-  }
-
-  function closeCustomerLogin() {
-    showCustomerLoginDialog.value = false
-    goHome()
-  }
-
   function openCustomerSignupFromLogin() {
     clearPendingWhatsAppLogin()
     signupStep.value = 1
@@ -2831,51 +2017,6 @@ export function useFitpesoApp() {
     showCustomerLogin.value = false
     showCustomerSignup.value = true
     void router.replace(`${window.location.pathname}#cadastro-cliente`)
-  }
-
-  async function finishEmailLoginFromLink() {
-    const url = new URL(window.location.href)
-    const code = url.searchParams.get('emailLoginCode')
-    if (!code) return
-    // Remove the one-time code from history before making network requests.
-    url.searchParams.delete('emailLoginCode')
-    void router.replace(url.pathname + url.search + url.hash)
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        endpoint + '/api/customers/verify-email-login?code=' + encodeURIComponent(code),
-        {
-          method: 'POST',
-          cache: 'no-store',
-        },
-      )
-      const result = (await response.json()) as {
-        authenticated?: boolean
-        sessionToken?: string
-        role?: string
-        error?: string
-      }
-      if (!response.ok || !result.authenticated || !result.sessionToken)
-        throw new Error(result.error || 'Não foi possível confirmar o e-mail.')
-      const token = result.sessionToken
-      if (result.role === 'trainer') {
-        const profile = await loadTrainerSession(token)
-        sessionStorage.setItem('fitpeso-trainer-session', token)
-        applyTrainerSession(profile)
-      } else {
-        const profile = await loadCustomerProfile(token)
-        sessionStorage.setItem('fitpeso-customer-session', token)
-        sessionStorage.removeItem('fitpeso-google-session')
-        applyCustomerProfile(profile)
-      }
-      emailLoginPending.value = false
-      showCustomerLogin.value = false
-      goHome()
-    } catch (error) {
-      emailLoginError.value =
-        error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
-      showCustomerLogin.value = true
-    }
   }
 
   function closeHamburgerOnOutsideClick(event: PointerEvent) {
@@ -2984,10 +2125,7 @@ export function useFitpesoApp() {
     } catch {
       /* Sessão temporária indisponível; ainda é possível entrar novamente. */
     }
-    restoreWhatsAppAttempt()
-    document.addEventListener('visibilitychange', onWhatsAppVisibilityChange)
-    window.addEventListener('focus', onWhatsAppReturn)
-    window.addEventListener('blur', onWhatsAppBlur)
+    startAuthentication()
   })
 
   async function sendResult() {

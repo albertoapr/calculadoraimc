@@ -13,6 +13,9 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 - `src/views/layout/`: cabeçalhos e rodapé.
 - `src/composables/useFitpesoApp.ts`: coordenação dos fluxos, sessão e operações ainda compartilhadas. Instanciado uma vez pelo shell e fornecido por um contexto tipado; as telas consomem referências reativas, sem copiar o estado.
 - `src/composables/useTheme.ts`: tema e persistência da preferência.
+- `src/composables/useAuthentication.ts`: estado de login, confirmação por WhatsApp/e-mail e ciclo de vida dos temporizadores; recebe callbacks de perfil e navegação, sem depender do controlador principal.
+- `src/composables/useCustomerRequests.ts`: consulta de solicitações do cliente, envio para profissionais, inativação/reativação e aceite de propostas.
+- `src/services/authenticationService.ts` e `customerRequestsService.ts`: transporte HTTP e contratos desses fluxos; recebem tokens explicitamente e não alteram a sessão ou a navegação.
 - `src/composables/useAdminTrainers.ts`: cadastro, pesquisa e edição de profissionais pelo administrador.
 - `src/composables/useTrainerProposal.ts`: consulta da solicitação recebida por token e envio de proposta pelo personal.
 - `src/services/adminTrainersService.ts` e `trainerProposalService.ts`: contratos HTTP desses módulos; não acessam estado de tela nem armazenamento de sessão.
@@ -40,6 +43,8 @@ npm run check
 ```
 
 `check` executa ESLint, Prettier, TypeScript, build e testes. Os testes cobrem o controlador de espera do WhatsApp, seleção, cache, navegação e montagem dos componentes reais em DOM simulado.
+
+Os testes de autenticação executam o módulo extraído e seus serviços com relógio, armazenamento e rede controlados. Incluem retomada de login, expiração, confirmação de e-mail para cliente e personal e limpeza dos recursos ao desmontar. Os testes de solicitações verificam as regras de visibilidade, seleção obrigatória, envio duplicado e respostas de aceite da API.
 
 Para conferir visualmente com Chromium:
 

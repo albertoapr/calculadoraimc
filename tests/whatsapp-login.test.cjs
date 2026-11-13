@@ -43,6 +43,8 @@ function harness() {
     ].map((k) => [k, ref('')]),
   )
   let applied = false
+  const requests = []
+  const replacedUrls = []
   const context = {
     ...state,
     ref,
@@ -56,6 +58,9 @@ function harness() {
     JSON,
     Math,
     AbortController,
+    URL,
+    crypto: require('node:crypto').webcrypto,
+    btoa,
     sessionStorage: {
       getItem: (k) => storage.get(k) ?? null,
       setItem: (k, v) => storage.set(k, v),
@@ -78,12 +83,13 @@ function harness() {
     onUnmounted: (fn) => listeners.set('unmount', fn),
     getRequestApiEndpoint: async () => 'https://example.test',
     fetch: async (_, options) => {
+      requests.push({ url: _, options })
       calls++
       active++
       maxActive = Math.max(maxActive, active)
       try {
         if (deferred) await deferred
-        if (options.signal.aborted) throw Error('Aborted')
+        if (options.signal?.aborted) throw Error('Aborted')
         if (networkFailure) throw Error('Offline')
         return { ok: true, json: async () => reply }
       } finally {
@@ -104,31 +110,55 @@ function harness() {
       context.api.clearPendingWhatsAppLogin()
     },
   }
-  const source = fs
-    .readFileSync('src/composables/useFitpesoApp.ts', 'utf8')
-    .split('// The progress measures')[1]
-    .split('function changeLoginProfile()')[0]
-  const names = [
-    'saveNewWhatsAppAttempt',
-    'restoreWhatsAppAttempt',
-    'checkPendingWhatsAppLogin',
-    'clearPendingWhatsAppLogin',
-    'markWhatsAppOpened',
-    'onWhatsAppBlur',
-    'onWhatsAppReturn',
-    'onWhatsAppVisibilityChange',
-    'pendingWhatsAppLogin',
-    'whatsappProgress',
-    'whatsappProgressStartedAt',
-    'whatsappSecondsRemaining',
-    'whatsappNetworkError',
-  ]
-  const code = ts.transpile('//' + source + '\nglobalThis.api = {' + names.join(',') + '}', {
-    target: ts.ScriptTarget.ES2022,
+  function loadModule(file, dependencies) {
+    const sandbox = {
+      ...context,
+      exports: {},
+      require: (name) => {
+        if (!(name in dependencies)) throw new Error('Unexpected import: ' + name)
+        return dependencies[name]
+      },
+    }
+    const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText
+    vm.createContext(sandbox)
+    vm.runInContext(code, sandbox)
+    return sandbox.exports
+  }
+  const service = loadModule('src/services/authenticationService.ts', {
+    './api': { getRequestApiEndpoint: context.getRequestApiEndpoint },
   })
-  vm.createContext(context)
-  vm.runInContext(code, context)
-  const api = context.api
+  const { useAuthentication } = loadModule('src/composables/useAuthentication.ts', {
+    vue: {
+      ref,
+      computed: context.computed,
+      nextTick: async (fn) => fn?.(),
+      onUnmounted: context.onUnmounted,
+    },
+    '../services/authenticationService': {
+      ...service,
+      loadCustomerProfile: context.loadCustomerProfile,
+      loadTrainerSession: context.loadTrainerSession,
+    },
+  })
+  const api = useAuthentication({
+    initialRole: '',
+    showCustomerSignup: state.showCustomerSignup,
+    showTrainerSignup: state.showTrainerSignup,
+    saveRole() {},
+    normalizeBrazilianPhone: (value) => value,
+    applyCustomerProfile: context.applyCustomerProfile,
+    applyTrainerSession: context.applyTrainerSession,
+    renderGoogleButton: async () => {},
+    goHome: context.goHome,
+    returnToRequestFormAfterLogin: context.returnToRequestFormAfterLogin,
+    replaceUrl(url) {
+      replacedUrls.push(url)
+    },
+  })
+  context.api = api
+  Object.assign(state, api)
   const flush = async () => {
     for (let i = 0; i < 20; i++) await Promise.resolve()
   }
@@ -137,6 +167,9 @@ function harness() {
     storage,
     state,
     context,
+    requests,
+    replacedUrls,
+    unmount: () => listeners.get('unmount')(),
     flush,
     get applied() {
       return applied
@@ -257,4 +290,70 @@ test('a new WhatsApp visit starts a new window, duplicate return events do not',
   h.api.onWhatsAppBlur()
   h.api.onWhatsAppReturn()
   assert.equal(h.api.whatsappProgress.value, 0)
+})
+
+for (const role of ['customer', 'trainer'])
+  test(`${role}: email confirmation restores the correct profile and session`, async () => {
+    const h = harness()
+    h.state.showCustomerLogin.value = true
+    h.state.loginAsTrainer.value = role === 'trainer'
+    h.state.loginIdentifier.value = 'cliente@example.test'
+    h.reply = { started: true }
+    await h.api.startEmailLogin()
+    assert.match(h.requests[0].url, /\/api\/customers\/start-email-login$/)
+    assert.equal(JSON.parse(h.requests[0].options.body).asTrainer, role === 'trainer')
+    assert.equal(h.state.emailLoginPending.value, true)
+    assert.equal(h.state.emailLoginSubmitting.value, false)
+    const token = h.state.emailLoginSessionToken.value
+    assert.equal(token.length, 43)
+    h.reply = { authenticated: true }
+    await h.api.pollEmailLogin()
+    assert.equal(JSON.parse(h.requests[1].options.body).role, role)
+    assert.equal(h.applied, true)
+    assert.equal(h.storage.get(`fitpeso-${role}-session`), token)
+    assert.equal(h.state.emailLoginPending.value, false)
+    assert.equal(h.state.showCustomerLogin.value, false)
+    h.unmount()
+  })
+
+test('email waiting expires and module disposal cancels remaining timers and late WhatsApp success', async () => {
+  const h = harness()
+  h.state.showCustomerLogin.value = true
+  h.reply = { started: true }
+  await h.api.startEmailLogin()
+  h.reply = { authenticated: false }
+  await h.advance(900001)
+  assert.equal(h.state.emailLoginPending.value, false)
+  assert.match(h.state.emailLoginError.value, /expirou/)
+
+  begin(h)
+  let release
+  h.deferred = new Promise((resolve) => {
+    release = resolve
+  })
+  h.api.onWhatsAppReturn()
+  await h.flush()
+  h.unmount()
+  h.reply = { authenticated: true }
+  release()
+  await h.flush()
+  const calls = h.calls
+  await h.advance(30000)
+  assert.equal(h.applied, false)
+  assert.equal(h.calls, calls)
+})
+
+test('email callback removes the one-time code before verifying and restores the returned role', async () => {
+  const h = harness()
+  h.context.window.location = {
+    href: 'https://fitpeso.test/?emailLoginCode=one%2Ftime&keep=1#section',
+  }
+  h.reply = { authenticated: true, sessionToken: 'verified-session', role: 'trainer' }
+  await h.api.finishEmailLoginFromLink()
+  assert.equal(h.replacedUrls[0], '/?keep=1#section')
+  assert.match(h.requests[0].url, /verify-email-login\?code=one%2Ftime$/)
+  assert.equal(h.requests[0].options.method, 'POST')
+  assert.equal(h.requests[0].options.cache, 'no-store')
+  assert.equal(h.storage.get('fitpeso-trainer-session'), 'verified-session')
+  assert.equal(h.applied, true)
 })

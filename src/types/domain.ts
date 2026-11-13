@@ -71,6 +71,14 @@ export type CustomerProposal = {
   expired: boolean
 }
 
+export type CustomerAccountProfile = {
+  name: string
+  whatsapp: string
+  email: string
+  dateOfBirth?: string
+  isAdmin?: boolean
+}
+
 export type TrainerReceivedRequest = {
   requestId: string
   clientName: string
