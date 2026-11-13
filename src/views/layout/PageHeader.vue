@@ -113,7 +113,7 @@ const {
 .academy-page-brand {
   display: inline-flex;
   align-items: baseline;
-  justify-content: flex-start;
+  justify-content: center;
   flex-wrap: nowrap;
   column-gap: 0.3em;
   row-gap: 0;
