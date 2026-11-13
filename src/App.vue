@@ -263,9 +263,10 @@ const {
               ><small>Encontre profissionais na sua cidade</small></span
             >
           </button>
-          <nav aria-label="Links da página inicial" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 12px; flex-wrap: wrap">
-            <a href="#cadastro-personal" class="home-personal-signup-link" style="color: var(--blue)">Sou personal trainer</a>
-            <a href="#sobre" class="home-personal-signup-link" style="color: var(--blue)" @click.prevent="viewMode = 'about'">Sobre</a>
+          <nav class="header-auth-links" aria-label="Links da página inicial" style="display: flex; justify-content: center; margin-top: 12px">
+            <a href="#cadastro-personal" class="header-login-link">Sou personal trainer</a>
+            <span class="header-auth-divider" aria-hidden="true">|</span>
+            <a href="#sobre" class="header-signup-link" @click.prevent="viewMode = 'about'">Sobre</a>
           </nav>
         </div>
       </div>
