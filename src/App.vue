@@ -267,8 +267,7 @@ const {
             <a href="#cadastro-personal" class="header-login-link">Sou personal trainer</a>
             <span class="header-auth-divider" aria-hidden="true">|</span>
             <button type="button" class="header-signup-link" @click="viewMode = 'assessment'">Avaliação corporal</button>
-            <span class="header-auth-divider" aria-hidden="true">|</span>
-            <a href="#sobre" class="header-signup-link" @click.prevent="viewMode = 'about'">Sobre</a>
+
           </nav>
         </div>
       </div>
