@@ -3,6 +3,7 @@ import { useTrainerSignup } from './useTrainerSignup'
 import { normalizeBrazilianPhone, isValidBirthDate } from '../utils/signupValidation'
 import { useAuthentication } from './useAuthentication'
 import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
+import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
 import { useTrainerProposal } from './useTrainerProposal'
@@ -11,7 +12,7 @@ import { createFitpesoRequest } from '../services/atendimentoService'
 import { useRouter } from 'vue-router'
 import { useTrainingDraft } from '../stores/trainingDraft'
 import { useTheme } from './useTheme'
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { updatePageSeo } from '../services/seo'
 import ConsultarProfissionaisView from '../views/profissionais/ConsultarProfissionaisView.vue'
 import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissionaisView.vue'
@@ -34,7 +35,6 @@ import type {
   ImcResult,
   EligibleTrainer,
   TrainerReceivedRequest,
-  EditableProfile,
   TrainerAccountProfile,
   CustomerRequest,
 } from '../types/domain'
@@ -467,20 +467,42 @@ export function useFitpesoApp() {
     },
   })
 
-  const editingProfile = reactive<EditableProfile>({
-    name: '',
-    whatsapp: '',
-    email: '',
-    dateOfBirth: '',
-    instagram: '',
-    cref: '',
-    slug: '',
-    academias: [],
+  const {
+    editingProfile,
+    editingProfileType,
+    editingProfileStatus,
+    editingProfileLoading,
+    editingProfileSaving,
+    openMyProfile,
+    saveMyProfile,
+    resetAccountProfile,
+  } = useAccountProfile({
+    isTrainer: () => Boolean(trainerSignedInId.value),
+    getToken: (type) =>
+      type === 'trainer'
+        ? (sessionStorage.getItem('fitpeso-trainer-session') ?? '')
+        : (sessionStorage.getItem('fitpeso-customer-session') ??
+          sessionStorage.getItem('fitpeso-google-session') ??
+          ''),
+    openView: () => {
+      viewMode.value = 'my-profile'
+    },
+    isViewOpen: () => viewMode.value === 'my-profile',
+    applyCustomerProfile,
+    applyTrainerSession,
+    afterCustomerSave: async () => {
+      if (
+        requestStep.value === 5 &&
+        showRequestForm.value &&
+        isValidBirthDate(customerForm.dateOfBirth)
+      ) {
+        viewMode.value = 'contact'
+        status.value = 'Cadastro completo. Agora você pode confirmar sua solicitação.'
+        await nextTick()
+        window.scrollTo(0, 0)
+      }
+    },
   })
-  const editingProfileType = ref<'customer' | 'trainer'>('customer')
-  const editingProfileStatus = ref('')
-  const editingProfileLoading = ref(false)
-  const editingProfileSaving = ref(false)
 
   const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
   const trainerRequestsStatus = ref('')
@@ -911,17 +933,7 @@ export function useFitpesoApp() {
     customerRequestsStatus.value = ''
     trainerReceivedRequests.value = []
     trainerRequestsStatus.value = ''
-    editingProfileStatus.value = ''
-    editingProfileLoading.value = false
-    editingProfileSaving.value = false
-    editingProfile.name = ''
-    editingProfile.whatsapp = ''
-    editingProfile.email = ''
-    editingProfile.dateOfBirth = ''
-    editingProfile.instagram = ''
-    editingProfile.cref = ''
-    editingProfile.slug = ''
-    editingProfile.academias = []
+    resetAccountProfile()
     customerForm.name = ''
     customerForm.whatsapp = ''
     customerForm.email = ''
@@ -1540,144 +1552,6 @@ export function useFitpesoApp() {
       sessionStorage.removeItem('fitpeso-google-session')
     } catch {
       /* armazenamento indisponível */
-    }
-  }
-
-  function applyProfileForEditing(profile: {
-    name: string
-    whatsapp: string
-    email?: string
-    dateOfBirth?: string
-    instagram?: string
-    cref?: string
-    slug?: string
-    academias?: string[]
-  }) {
-    editingProfile.name = profile.name ?? ''
-    editingProfile.whatsapp = profile.whatsapp ?? ''
-    editingProfile.email = profile.email ?? ''
-    editingProfile.dateOfBirth = profile.dateOfBirth ?? ''
-    editingProfile.instagram = profile.instagram ?? ''
-    editingProfile.cref = profile.cref ?? ''
-    editingProfile.slug = profile.slug ?? ''
-    editingProfile.academias = [...(profile.academias ?? [])]
-  }
-
-  async function openMyProfile() {
-    const trainer = Boolean(trainerSignedInId.value)
-    editingProfileType.value = trainer ? 'trainer' : 'customer'
-    editingProfileStatus.value = ''
-    editingProfileLoading.value = true
-    viewMode.value = 'my-profile'
-    await nextTick()
-    window.scrollTo(0, 0)
-    const generation = sessionGeneration
-    try {
-      const token = trainer
-        ? sessionStorage.getItem('fitpeso-trainer-session')
-        : (sessionStorage.getItem('fitpeso-customer-session') ??
-          sessionStorage.getItem('fitpeso-google-session'))
-      if (!token) throw new Error('Entre na sua conta para consultar o cadastro.')
-      const profile = trainer ? await loadTrainerSession(token) : await loadCustomerProfile(token)
-      if (sessionGeneration !== generation || viewMode.value !== 'my-profile') return
-      applyProfileForEditing(profile)
-      editingProfileStatus.value = ''
-    } catch (error) {
-      if (sessionGeneration === generation) {
-        editingProfileStatus.value =
-          error instanceof Error ? error.message : 'Não foi possível carregar seu cadastro.'
-      }
-    } finally {
-      if (sessionGeneration === generation) editingProfileLoading.value = false
-    }
-  }
-
-  async function saveMyProfile() {
-    if (editingProfileSaving.value || editingProfileLoading.value) return
-    const name = editingProfile.name.trim().replace(/\s+/g, ' ')
-    const birth = editingProfile.dateOfBirth
-    if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
-      editingProfileStatus.value = 'Informe um nome válido.'
-      return
-    }
-    if (birth && !isValidBirthDate(birth)) {
-      editingProfileStatus.value =
-        'Informe uma data de nascimento válida ou deixe em branco até solicitar atendimento.'
-      return
-    }
-    const trainer = editingProfileType.value === 'trainer'
-    const cref = editingProfile.cref.trim().toUpperCase()
-    const instagram = editingProfile.instagram.trim()
-    if (trainer && cref && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) {
-      editingProfileStatus.value = 'Informe um CREF no formato 072573-G/RJ ou deixe em branco.'
-      return
-    }
-    if (
-      trainer &&
-      instagram &&
-      (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) ||
-        instagram.includes('..') ||
-        instagram.endsWith('.'))
-    ) {
-      editingProfileStatus.value = 'Informe o Instagram no formato @usuario.'
-      return
-    }
-    editingProfileSaving.value = true
-    editingProfileStatus.value = 'Salvando alterações…'
-    const generation = sessionGeneration
-    try {
-      const token = trainer
-        ? sessionStorage.getItem('fitpeso-trainer-session')
-        : (sessionStorage.getItem('fitpeso-customer-session') ??
-          sessionStorage.getItem('fitpeso-google-session'))
-      if (!token) throw new Error('Sua sessão expirou. Entre novamente.')
-      const endpoint = await getRequestApiEndpoint()
-      const resource = trainer ? 'trainers' : 'customers'
-      const response = await fetch(endpoint + '/api/' + resource + '/update-profile', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-        cache: 'no-store',
-        body: JSON.stringify(
-          trainer
-            ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias }
-            : { name, ...(birth ? { dateOfBirth: birth } : {}) },
-        ),
-      })
-      const body = (await response.json()) as {
-        authenticated?: boolean
-        profile?: TrainerAccountProfile & { dateOfBirth?: string; email?: string }
-        error?: string
-      }
-      if (!response.ok || !body.authenticated || !body.profile)
-        throw new Error(body.error || 'Não foi possível salvar o cadastro.')
-      if (sessionGeneration !== generation || viewMode.value !== 'my-profile') return
-      applyProfileForEditing(body.profile)
-      if (trainer) applyTrainerSession(body.profile)
-      else
-        applyCustomerProfile({
-          name: body.profile.name,
-          whatsapp: body.profile.whatsapp,
-          email: body.profile.email ?? '',
-          dateOfBirth: body.profile.dateOfBirth,
-        })
-      editingProfileStatus.value = 'Cadastro atualizado com sucesso.'
-      if (
-        !trainer &&
-        requestStep.value === 5 &&
-        showRequestForm.value &&
-        isValidBirthDate(customerForm.dateOfBirth)
-      ) {
-        viewMode.value = 'contact'
-        status.value = 'Cadastro completo. Agora você pode confirmar sua solicitação.'
-        await nextTick()
-        window.scrollTo(0, 0)
-      }
-    } catch (error) {
-      if (sessionGeneration === generation)
-        editingProfileStatus.value =
-          error instanceof Error ? error.message : 'Não foi possível salvar o cadastro.'
-    } finally {
-      if (sessionGeneration === generation) editingProfileSaving.value = false
     }
   }
 

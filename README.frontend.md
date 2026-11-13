@@ -15,7 +15,9 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 - `src/composables/useTheme.ts`: tema e persistência da preferência.
 - `src/composables/useCustomerSignup.ts`: contato inicial, dados do cliente e confirmação automática pela Beta, com cancelamento de consultas e temporizadores.
 - `src/composables/useTrainerSignup.ts`: formulário do personal, cidades de atuação, sugestão de subdomínio e link de confirmação.
+- `src/composables/useAccountProfile.ts`: carregamento, edição e salvamento do cadastro do cliente ou personal.
 - `src/services/signupService.ts`: registro de cliente/personal e consulta da confirmação do cliente, sem estado de interface.
+- `src/services/accountProfileService.ts`: consulta e atualização do cadastro da conta autenticada.
 - `src/utils/signupValidation.ts`: normalização de WhatsApp/Instagram e validação de data compartilhadas com os fluxos existentes.
 - `src/composables/useAuthentication.ts`: estado de login, confirmação por WhatsApp/e-mail e ciclo de vida dos temporizadores; recebe callbacks de perfil e navegação, sem depender do controlador principal.
 - `src/composables/useCustomerRequests.ts`: consulta de solicitações do cliente, envio para profissionais, inativação/reativação e aceite de propostas.
