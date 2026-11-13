@@ -30,12 +30,13 @@ const emit = defineEmits<{
   'open-requests': []
   'refresh-requests': []
   retry: []
+  'request-trainer': [id: string]
 }>()
 </script>
 
 <template>
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
-    <div class="home-trainer-controls">
+    <div v-if="selectingForDraft" class="home-trainer-controls">
       <label class="home-academy-select">
         <span class="sr-only">Filtrar por academia</span>
         <select
@@ -123,6 +124,8 @@ const emit = defineEmits<{
         {{ trainers.length }} {{ trainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
       </p>
       <ProfissionaisListView
+        :show-request-link="!selectingForDraft"
+        @request-trainer="(id) => emit('request-trainer', id)"
         :trainers="trainers"
         :selected-ids="selectedIds"
         :selectable="
@@ -140,6 +143,15 @@ const emit = defineEmits<{
         Nenhum profissional encontrado para os critérios selecionados.
       </p>
     </template>
+    <button
+      v-if="!selectingForDraft && city && !loading && !error"
+      class="primary-button home-proposal-button"
+      type="button"
+      :disabled="sharingBusy || checkingRequests || !!requestsError || (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))"
+      @click="emit('request-proposal')"
+    >
+      {{ sharingBusy ? 'Enviando…' : checkingRequests ? 'Consultando…' : activeRequest ? 'Enviar solicitação' : 'Solicitar atendimento' }}
+    </button>
   </section>
 </template>
 
