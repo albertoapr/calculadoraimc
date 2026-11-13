@@ -66,6 +66,7 @@ const {
   openSentRequests,
   openCustomerRequests,
   confirmRequestVisibilityChange,
+  rootHomePersonalImage,
 } = context
 </script>
 
@@ -90,6 +91,7 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
+      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
@@ -264,6 +266,17 @@ const {
               ><small>Encontre profissionais na sua cidade</small></span
             >
           </button>
+          <div class="root-home-photo home-training-photo">
+            <img
+              class="root-home-personal-image"
+              :src="rootHomePersonalImage"
+              width="1069"
+              height="594"
+              alt="Personal trainer acompanhando uma aluna durante o treinamento"
+              decoding="async"
+            />
+            <p class="root-home-tagline-subtitle">Treine com um personal</p>
+          </div>
           <nav class="header-auth-links" aria-label="Links da página inicial" style="display: flex; justify-content: center; margin-top: 12px">
             <a href="#cadastro-personal" class="header-login-link">Sou personal trainer</a>
             <span class="header-auth-divider" aria-hidden="true">|</span>
