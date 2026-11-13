@@ -12,6 +12,7 @@ const {
   form,
   result,
   goBackFromTitle,
+  publicTrainerAcademy,
 } = useFitpesoContext()
 </script>
 
@@ -77,7 +78,7 @@ const {
           : viewMode === 'about'
             ? 'Sobre o FitPeso'
             : viewMode === 'public-trainers'
-            ? 'Profissionais'
+            ? (publicTrainerAcademy.split(/\s+[—–-]\s+/)[0] || 'Profissionais')
             : viewMode === 'trainer-request'
               ? 'Solicitação de atendimento'
               : viewMode === 'customer-requests'
@@ -93,6 +94,7 @@ const {
                         : 'Avaliar meu peso'
       }}</span>
     </h1>
+    <p v-if="viewMode === 'public-trainers' && /\s+[—–-]\s+/.test(publicTrainerAcademy)" class="intro">{{ publicTrainerAcademy.split(/\s+[—–-]\s+/).slice(1).join(' — ') }}</p>
     <p v-if="viewMode === 'assessment' && !result" class="intro">
       Informe suas medidas para fazer uma avaliação.
     </p>
