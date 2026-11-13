@@ -2991,3 +2991,164 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
 .request-edit-actions { display: flex; gap: 12px; justify-content: flex-end; }
 .request-edit-actions button { min-height: 44px; }
 .request-edit-error { color: #bd3d38; font-weight: 700; }
+
+
+/* Solicitar atendimento: formulário sanfona com edição no próprio painel. */
+.request-accordion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.request-accordion-intro {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.request-accordion-item {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card-bg);
+}
+.request-accordion-item.request-accordion-open {
+  border-color: var(--blue);
+}
+.request-accordion-heading { margin: 0; font-size: inherit; }
+.request-accordion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  padding: 12px 14px;
+  border: none;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.request-accordion-open .request-accordion-toggle {
+  background: color-mix(in srgb, var(--blue) 8%, var(--card-bg));
+}
+.request-accordion-icon {
+  display: inline-grid;
+  flex: 0 0 28px;
+  width: 28px;
+  place-items: center;
+  font-size: 21px;
+}
+.request-accordion-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: clamp(15px, 2.5vw, 18px);
+  font-weight: 800;
+}
+.request-accordion-preview {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.request-accordion-chevron {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  margin: 0 5px;
+  border-right: 2px solid var(--blue-dark);
+  border-bottom: 2px solid var(--blue-dark);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 150ms ease;
+}
+.request-accordion-open .request-accordion-chevron {
+  transform: translateY(2px) rotate(225deg);
+}
+.request-accordion-toggle:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: -4px;
+}
+.request-accordion-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 18px;
+  border-top: 1px solid var(--line);
+}
+.request-accordion-label {
+  display: block;
+  margin: 5px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.request-accordion-label strong { color: var(--blue-dark); }
+.request-accordion-age {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  accent-color: var(--blue);
+}
+.request-accordion-limits {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+.request-accordion-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+.request-accordion-panel .request-choice {
+  margin: 0;
+  cursor: pointer;
+}
+.request-accordion-select, .request-accordion-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--card-bg);
+  font: inherit;
+}
+.request-accordion-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.request-accordion-check input { width: 18px; height: 18px; accent-color: var(--blue); }
+.request-accordion-professionals-action { align-self: flex-start; min-height: 44px; }
+.request-accordion-subtext { margin: 0; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.request-accordion-estimate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--blue) 8%, var(--card-bg));
+}
+.request-accordion-estimate-icon { font-size: 27px; }
+.request-accordion-estimate-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.request-accordion-estimate-text span { color: var(--muted); font-size: 14px; }
+.request-accordion-estimate-text strong { color: var(--blue-dark); font-size: clamp(19px, 4vw, 24px); overflow-wrap: anywhere; }
+.request-accordion-warning { margin: 0; color: #bd3d38; font-size: 13px; font-weight: 600; }
+.request-accordion-submit { margin-top: 4px; }
+@media (max-width: 420px) {
+  .request-accordion-toggle { gap: 8px; padding: 12px 10px; }
+  .request-accordion-title { font-size: 15px; }
+  .request-accordion-preview { font-size: 12px; }
+  .request-accordion-panel { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .request-accordion-chevron { transition: none; }
+}
