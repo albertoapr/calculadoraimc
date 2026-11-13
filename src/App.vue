@@ -270,7 +270,6 @@ const {
           >Sou personal trainer</a>
         </div>
       </div>
-      <PageHeader v-if="viewMode === 'home' && !result && isRootHome" />
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openRequestForm">
