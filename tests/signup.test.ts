@@ -296,7 +296,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
           new URL(p.trainerVerificationLink.value).searchParams.get('text'),
           'Confirmar personal Fitpeso trainer-code\nWhatsApp: +5521999999999\nNome: José da Silva',
         )
-        assert.match(p.trainerStatus.value, /canonical-slug.fitpeso.com.br/)
+        assert.match(p.trainerStatus.value, /fitpeso.com.br\/personal\/canonical-slug/)
         assert.equal(timers.size, 0)
         scope.stop()
       },
@@ -308,7 +308,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
         const { value: p, scope } = trainer()
         const before = calls.length
         for (const [field, value, expected] of [
-          ['slug', 'develop', /subdomínio/],
+          ['slug', 'develop', /endereço do perfil/],
           ['phone', '123', /WhatsApp/],
           ['dateOfBirth', '2020-02-30', /nascimento/],
           ['cities', [], /cidades/],

@@ -55,8 +55,8 @@ export function useFitpesoApp() {
 
   const { theme } = useTheme()
 
-  function getTrainerIdFromPath() {
-    const match = window.location.pathname.match(/^\/p\/([^/]+)\/?$/)
+  function getTrainerIdFromPath(path: string) {
+    const match = path.match(/^\/p\/([^/]+)\/?$/)
     if (!match) return ''
     try {
       const id = decodeURIComponent(match[1]).trim()
@@ -66,31 +66,15 @@ export function useFitpesoApp() {
     }
   }
 
-  function getTrainerSlugFromHost() {
-    const hostname = window.location.hostname.toLowerCase()
-    const suffix = '.fitpeso.com.br'
-    if (!hostname.endsWith(suffix)) return ''
-    const slug = hostname.slice(0, -suffix.length)
-    if (
-      slug.includes('.') ||
-      [
-        'www',
-        'api',
-        'mail',
-        'ftp',
-        'admin',
-        'app',
-        'beta',
-        'fitpeso',
-        'suporte',
-        'ajuda',
-        'develop',
-        'test',
-        'homologacao',
-      ].includes(slug)
-    )
+  function getTrainerSlugFromPath(path: string) {
+    const match = path.match(/^\/personal\/([^/]+)\/?$/)
+    if (!match) return ''
+    try {
+      const slug = decodeURIComponent(match[1]).trim().toLowerCase()
+      return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
+    } catch {
       return ''
-    return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
+    }
   }
 
   const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
@@ -103,11 +87,9 @@ export function useFitpesoApp() {
     loadTrainerRequest,
     submitTrainerProposal,
   } = useTrainerProposal(trainerRequestToken)
-  const trainerIdFromPath = getTrainerIdFromPath()
-  const trainerSlugFromHost = getTrainerSlugFromHost()
-  const isRootHome = computed(
-    () => router.currentRoute.value.path === '/' && !trainerIdFromPath && !trainerSlugFromHost,
-  )
+  const trainerIdFromPath = computed(() => getTrainerIdFromPath(router.currentRoute.value.path))
+  const trainerSlugFromPath = computed(() => getTrainerSlugFromPath(router.currentRoute.value.path))
+  const isRootHome = computed(() => router.currentRoute.value.path === '/')
   const personalName = ref('FitPeso')
   const personalBrandFirstName = computed(() =>
     personalName.value.endsWith(' Personal Trainer')
@@ -115,6 +97,7 @@ export function useFitpesoApp() {
       : '',
   )
   const trainerProfileFailed = ref(false)
+  let trainerProfileLookupId = 0
 
   const viewMode = ref<
     | 'home'
@@ -990,6 +973,7 @@ export function useFitpesoApp() {
 
   function goHome() {
     const leavingPublicDirectory = router.currentRoute.value.path === '/profissionais'
+    const leavingPersonalProfile = Boolean(trainerIdFromPath.value || trainerSlugFromPath.value)
     clearPendingWhatsAppLogin()
     showTrainerSignup.value = false
     showCustomerSignup.value = false
@@ -1012,8 +996,9 @@ export function useFitpesoApp() {
     stopTrainerRegistration()
     showCustomerLoginDialog.value = false
     // The public-navigation watcher owns the /profissionais -> / transition.
-    // Other screens only need their temporary hash removed.
-    if (!leavingPublicDirectory) void router.replace(router.currentRoute.value.path)
+    // Personalized pages must return to the main URL; other screens only clear the hash.
+    if (leavingPersonalProfile) void router.replace('/')
+    else if (!leavingPublicDirectory) void router.replace(router.currentRoute.value.path)
     void nextTick(() => window.scrollTo(0, 0))
   }
 
@@ -1121,23 +1106,33 @@ export function useFitpesoApp() {
   }
 
   async function loadTrainerProfile() {
-    if (!trainerIdFromPath && !trainerSlugFromHost) return
+    const lookupId = ++trainerProfileLookupId
+    personalName.value = 'FitPeso'
+    trainerProfileFailed.value = false
+    const trainerId = trainerIdFromPath.value
+    const trainerSlug = trainerSlugFromPath.value
+    if (!trainerId && !trainerSlug) return
     try {
       const endpoint = await getRequestApiEndpoint()
-      const profilePath = trainerSlugFromHost
-        ? `/api/trainers/by-slug/${encodeURIComponent(trainerSlugFromHost)}`
-        : `/api/trainers/${encodeURIComponent(trainerIdFromPath)}`
+      const profilePath = trainerSlug
+        ? `/api/trainers/by-slug/${encodeURIComponent(trainerSlug)}`
+        : `/api/trainers/${encodeURIComponent(trainerId)}`
       const response = await fetch(`${endpoint}${profilePath}`, { cache: 'no-store' })
       if (!response.ok) throw new Error('Trainer profile unavailable')
       const body = (await response.json()) as { trainer?: { name?: unknown } }
       const name = typeof body.trainer?.name === 'string' ? body.trainer.name.trim() : ''
       if (!name) throw new Error('Invalid trainer profile')
+      if (lookupId !== trainerProfileLookupId) return
       const firstName = name.split(/\s+/)[0]
       personalName.value = `${firstName} Personal Trainer`
     } catch {
-      trainerProfileFailed.value = true
+      if (lookupId === trainerProfileLookupId) trainerProfileFailed.value = true
     }
   }
+
+  watch([trainerIdFromPath, trainerSlugFromPath], () => void loadTrainerProfile(), {
+    immediate: true,
+  })
 
   const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'] as const
   const detectingRequestCity = ref(false)
@@ -1654,7 +1649,6 @@ export function useFitpesoApp() {
     window.scrollTo(0, 0)
     if (trainerRequestToken)
       void router.replace(`${window.location.pathname}${window.location.hash}`)
-    void loadTrainerProfile()
     void loadTrainerRequest()
     if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
     if (homeCity.value) void loadHomeTrainerCount(homeCity.value)
@@ -1992,7 +1986,7 @@ export function useFitpesoApp() {
     openMyProfile,
     rootHomePersonalImage,
     trainerIdFromPath,
-    trainerSlugFromHost,
+    trainerSlugFromPath,
     personalBrandFirstName,
     trainerProfileFailed,
   }

@@ -3,7 +3,7 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   rootHomePersonalImage,
   trainerIdFromPath,
-  trainerSlugFromHost,
+  trainerSlugFromPath,
   isRootHome,
   personalBrandFirstName,
   trainerProfileFailed,
@@ -19,7 +19,7 @@ const {
 <template>
   <header class="hero">
     <p
-      v-if="(trainerIdFromPath || trainerSlugFromHost) && trainerProfileFailed"
+      v-if="(trainerIdFromPath || trainerSlugFromPath) && trainerProfileFailed"
       class="trainer-profile-status"
       role="status"
     >
@@ -38,7 +38,7 @@ const {
     </h2>
     <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
       <span
-        v-if="trainerSlugFromHost && personalBrandFirstName"
+        v-if="trainerSlugFromPath && personalBrandFirstName"
         class="personal-trainer-brand personal-trainer-home-title"
       >
         <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>

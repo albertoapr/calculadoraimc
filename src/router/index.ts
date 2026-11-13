@@ -8,6 +8,7 @@ export const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: application },
     { path: '/profissionais', name: 'profissionais', component: application },
+    { path: '/personal/:slug', name: 'personal-profile', component: application },
     { path: '/:pathMatch(.*)*', name: 'legacy', component: application },
   ],
 })

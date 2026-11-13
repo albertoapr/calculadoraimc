@@ -131,7 +131,7 @@ html[data-theme='dark'] .root-home-tagline-subtitle {
   align-items: center;
   gap: 1px;
 }
-/* Marca de personal em subdomínio: nome em verde nos dois temas. */
+/* Marca da página personalizada do personal: nome em verde nos dois temas. */
 .personal-trainer-brand {
   display: inline-flex;
   max-width: 100%;

@@ -14,7 +14,7 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 - `src/composables/useFitpesoApp.ts`: coordenação dos fluxos, sessão e operações ainda compartilhadas. Instanciado uma vez pelo shell e fornecido por um contexto tipado; as telas consomem referências reativas, sem copiar o estado.
 - `src/composables/useTheme.ts`: tema e persistência da preferência.
 - `src/composables/useCustomerSignup.ts`: contato inicial, dados do cliente e confirmação automática pela Beta, com cancelamento de consultas e temporizadores.
-- `src/composables/useTrainerSignup.ts`: formulário do personal, cidades de atuação, sugestão de subdomínio e link de confirmação.
+- `src/composables/useTrainerSignup.ts`: formulário do personal, cidades de atuação, sugestão do endereço interno e link de confirmação.
 - `src/composables/useAccountProfile.ts`: carregamento, edição e salvamento do cadastro do cliente ou personal.
 - `src/services/signupService.ts`: registro de cliente/personal e consulta da confirmação do cliente, sem estado de interface.
 - `src/services/accountProfileService.ts`: consulta e atualização do cadastro da conta autenticada.
@@ -35,7 +35,7 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 O Router controla a renderização do shell e as URLs públicas `/` e `/profissionais`.
 O shell persiste entre essas rotas para preservar login pendente, seleção e dados do formulário.
 Os passos internos e as telas privadas usam estado de fluxo; não possuem URLs próprias nesta entrega.
-O fallback mantém os endereços personalizados `/p/:id`, tokens e links de confirmação.
+As páginas personalizadas usam `/personal/:slug`. O fallback mantém os endereços legados `/p/:id`, tokens e links de confirmação.
 A sincronização pública usa o Router, sem registrar um segundo listener de histórico.
 
 O rascunho contém informações pessoais e permanece apenas em memória. O mecanismo existente de sessão e verificação é preservado. Não persistir esses dados em localStorage.

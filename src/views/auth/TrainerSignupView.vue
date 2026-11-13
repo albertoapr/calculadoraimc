@@ -102,9 +102,10 @@ const {
           required
         />
         <small
-          >Seu perfil será ativado em https://{{
+          >Seu perfil será ativado em https://fitpeso.com.br/personal/{{
             trainerForm.slug || 'seu-identificador'
-          }}.fitpeso.com.br após a confirmação do WhatsApp.</small
+          }}
+          após a confirmação do WhatsApp.</small
         >
       </label>
       <label class="field field-wide" for="trainer-phone"

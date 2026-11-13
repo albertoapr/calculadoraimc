@@ -140,7 +140,7 @@ const {
           </fieldset>
           <input
             id="profile-slug"
-            :value="editingProfile.slug"
+            :value="`https://fitpeso.com.br/personal/${editingProfile.slug}`"
             type="text"
             readonly
             aria-readonly="true"

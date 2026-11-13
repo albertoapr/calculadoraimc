@@ -1572,7 +1572,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         eligibleTrainers: selectedTrainers.map(trainer => ({
           ...trainer,
           sex: undefined,
-          requestUrl: `https://${trainer.slug}.fitpeso.com.br/?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
+          requestUrl: `https://fitpeso.com.br/personal/${encodeURIComponent(trainer.slug)}?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
         })),
       }
     }))
@@ -2491,7 +2491,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
       }
       if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
-        return response(409, { error: 'Esse endereço já está reservado. Escolha outro subdomínio.' })
+        return response(409, { error: 'Esse endereço já está reservado. Escolha outro endereço para o perfil.' })
       }
       console.error('[imc-submit] Trainer registration failed', {
         errorClass: error instanceof Error ? error.name : typeof error,

@@ -36,17 +36,19 @@ test('extracted screens preserve login, request age between steps and theme chan
       JSON.stringify(
         url === '/amplify_outputs.json'
           ? { custom: { imcApi: { endpoint: 'http://localhost/mock' } } }
-          : {
-              trainers: [
-                {
-                  trainerId: 'p1',
-                  name: 'Personal Teste',
-                  slug: 'teste',
-                  academias: ['Academia Teste'],
-                },
-              ],
-              count: 1,
-            },
+          : url.endsWith('/api/trainers/by-slug/vinicius')
+            ? { trainer: { name: 'Vinícius Alves' } }
+            : {
+                trainers: [
+                  {
+                    trainerId: 'p1',
+                    name: 'Personal Teste',
+                    slug: 'teste',
+                    academias: ['Academia Teste'],
+                  },
+                ],
+                count: 1,
+              },
       ),
       { headers: { 'content-type': 'application/json' } },
     )
@@ -142,6 +144,18 @@ test('extracted screens preserve login, request age between steps and theme chan
     await nextTick()
     assert.ok(document.querySelector('.root-home-photo'))
     assert.doesNotMatch(document.body.textContent!, /Solicitar Proposta/)
+
+    app.unmount()
+    app = await mount('/personal/vinicius')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    assert.ok(requestCalls.some((url) => url.endsWith('/api/trainers/by-slug/vinicius')))
+    assert.match(document.body.textContent!, /Vinícius\s*Personal Trainer/)
+    ;(document.querySelector('.fitpeso-home-brand') as HTMLElement).click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    assert.ok(document.querySelector('.root-home-photo'))
+    assert.doesNotMatch(document.body.textContent!, /Vinícius\s*Personal Trainer/)
 
     await click(/^Cadastre-se$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)

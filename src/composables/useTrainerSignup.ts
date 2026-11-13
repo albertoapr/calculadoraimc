@@ -97,7 +97,7 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
       validationError = 'Informe uma data de nascimento válida ou deixe em branco.'
     else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
       validationError =
-        'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
+        'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
     } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
     } else if (!instagram) {
@@ -135,7 +135,7 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
       if (disposed || controller.signal.aborted) return
       const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
       trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://${body.slug || slug}.fitpeso.com.br.`
+      trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
     } catch (error) {
       if (disposed || controller.signal.aborted) return
       trainerStatus.value =
