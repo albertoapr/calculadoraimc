@@ -148,7 +148,7 @@ const instagramUrl = computed(() =>
 .trainer-details-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
 .trainer-cref { font-size: .9rem; }
 .trainer-cref-search { margin-left: 5px; text-decoration: none; }
-.trainer-social-links { display: flex; flex-direction: column; flex-shrink: 0; align-items: center; gap: 2px; }
+.trainer-social-links { display: flex; flex-direction: row; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: 4px; }
 .trainer-whatsapp-link, .trainer-instagram-link {
   display: inline-flex;
   align-items: center;
