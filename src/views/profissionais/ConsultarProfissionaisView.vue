@@ -28,6 +28,7 @@ const emit = defineEmits<{
   'open-requests': []
   'refresh-requests': []
   retry: []
+  'request-trainer': [id: string]
 }>()
 </script>
 
@@ -54,6 +55,7 @@ const emit = defineEmits<{
     @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
     @continue="emit('continue')"
     @request-proposal="emit('request-proposal')"
+    @request-trainer="(id) => emit('request-trainer', id)"
     @open-requests="emit('open-requests')"
     @refresh-requests="emit('refresh-requests')"
     @retry="emit('retry')"
