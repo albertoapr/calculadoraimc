@@ -253,11 +253,6 @@ const {
             >
           </button>
         </div>
-        <div class="home-action home-assessment-link">
-          <button type="button" class="secondary-button" @click="viewMode = 'assessment'">
-            Avaliar meu peso
-          </button>
-        </div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action">
@@ -266,14 +261,11 @@ const {
           </button>
         </div>
       </div>
-      <div
-        v-if="viewMode === 'home' && !result && !isRootHome"
-        class="home-action home-assessment-link"
-      >
-        <button type="button" class="secondary-button" @click="viewMode = 'assessment'">
-          Avaliar meu peso
-        </button>
-      </div>
+
+      <section v-if="viewMode === 'about'" class="fitpeso-about-page" aria-labelledby="page-title">
+        <p>O FitPeso conecta pessoas que desejam treinar a profissionais de Educação Física.</p>
+        <p>Encontre profissionais na sua cidade, informe suas preferências de atendimento e solicite propostas para escolher a opção mais adequada.</p>
+      </section>
 
       <AssessmentFormView v-if="viewMode === 'assessment' && !result" />
 
