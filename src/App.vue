@@ -252,6 +252,11 @@ const {
               ><small>Encontre profissionais na sua cidade</small></span
             >
           </button>
+          <a
+            href="#cadastro-personal"
+            class="header-signup-link"
+            style="display: block; margin-top: 16px; text-align: center"
+          >Sou personal</a>
         </div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
