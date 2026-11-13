@@ -341,7 +341,7 @@ export function useFitpesoApp() {
     selectingTrainersForDraft.value = false
     publicTrainerCity.value = homeCity.value || ''
     publicTrainerName.value = ''
-    publicTrainerAcademy.value = ''
+    // Preserva a academia escolhida na tela inicial.
     homeSelectedTrainerIds.value = []
     viewMode.value = 'public-trainers'
     sharingRequestId.value = ''
@@ -1755,6 +1755,10 @@ export function useFitpesoApp() {
   watch(homeCity, (city) => {
     homeSelectedTrainerIds.value = []
     if (city && viewMode.value === 'public-trainers') searchHomeTrainers()
+    else if (city && viewMode.value === 'home' && isRootHome.value) {
+      publicTrainerCity.value = city
+      void loadPublicTrainers()
+    }
   })
 
   let requestCityLookupId = 0
@@ -3103,6 +3107,10 @@ export function useFitpesoApp() {
   )
 
   onMounted(() => {
+    if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
+      publicTrainerCity.value = homeCity.value
+      void loadPublicTrainers()
+    }
     if (viewMode.value === 'public-trainers') {
       publicTrainerCity.value = homeCity.value
       if (publicTrainerCity.value) void loadPublicTrainers()
