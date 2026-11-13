@@ -142,6 +142,34 @@ test('extracted screens preserve login, request age between steps and theme chan
     await nextTick()
     assert.ok(document.querySelector('.root-home-photo'))
     assert.doesNotMatch(document.body.textContent!, /Solicitar Proposta/)
+
+    await click(/^Cadastre-se$/)
+    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
+    const signupContact = document.querySelector('#signup-contact') as HTMLInputElement
+    assert.ok(signupContact)
+    signupContact.value = 'cliente@example.test'
+    signupContact.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    document
+      .querySelector('form')!
+      .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+    await nextTick()
+    assert.ok(document.querySelector('#customer-name'))
+    await click(/^Início$/)
+    await click(/^Sou personal trainer$/)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await nextTick()
+    const trainerName = document.querySelector('#trainer-name') as HTMLInputElement
+    assert.ok(trainerName)
+    trainerName.value = 'João da Silva'
+    trainerName.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    trainerName.dispatchEvent(new dom.window.Event('blur'))
+    await nextTick()
+    assert.equal(
+      (document.querySelector('#trainer-slug') as HTMLInputElement).value,
+      'joao-da-silva',
+    )
+    await click(/^Início$/)
+    assert.ok(document.querySelector('.root-home-photo'))
   } finally {
     app.unmount()
     dom.window.close()

@@ -1,3 +1,6 @@
+import { useCustomerSignup } from './useCustomerSignup'
+import { useTrainerSignup } from './useTrainerSignup'
+import { normalizeBrazilianPhone, isValidBirthDate } from '../utils/signupValidation'
 import { useAuthentication } from './useAuthentication'
 import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
 import { useCustomerRequests } from './useCustomerRequests'
@@ -112,7 +115,7 @@ export function useFitpesoApp() {
       : '',
   )
   const trainerProfileFailed = ref(false)
-  const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+
   const viewMode = ref<
     | 'home'
     | 'about'
@@ -151,8 +154,7 @@ export function useFitpesoApp() {
     list.push(name)
     return true
   }
-  const signupAcademyChoice = ref('')
-  const signupOtherAcademy = ref('')
+
   const profileAcademyChoice = ref('')
   const profileOtherAcademy = ref('')
   function readNavigationPreference(key: string): string {
@@ -401,32 +403,42 @@ export function useFitpesoApp() {
     returnToRequestFormAfterLogin,
     replaceUrl: (url) => router.replace(url),
   })
-  const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
-  const signupContact = ref('')
-  const signupStep = ref<1 | 2>(1)
-  const requestBirthDate = ref('')
-  const customerStatus = ref('')
-  const customerVerificationLink = ref('')
-  const customerVerificationCode = ref('')
-  const customerVerificationComplete = ref(false)
-  const customerSubmitting = ref(false)
-  let customerVerificationPollTimer: number | undefined
-  let customerVerificationPollStartedAt = 0
-  const trainerForm = reactive({
-    name: '',
-    sex: '' as '' | 'masculino' | 'feminino',
-    slug: '',
-    phone: '',
-    email: '',
-    dateOfBirth: '',
-    cities: [] as string[],
-    instagram: '',
-    cref: '',
-    academias: [] as string[],
+
+  const {
+    customerForm,
+    signupContact,
+    signupStep,
+    customerStatus,
+    customerVerificationLink,
+    customerVerificationComplete,
+    customerSubmitting,
+    pollCustomerVerification,
+    continueSignupContact,
+    sendCustomerSignup,
+    closeCustomerSignup,
+    stopCustomerVerification,
+  } = useCustomerSignup({
+    onClose: onCustomerSignupClosed,
+    active: computed(
+      () => showCustomerSignup.value && !showTrainerSignup.value && !showCustomerLogin.value,
+    ),
   })
-  const trainerStatus = ref('')
-  const trainerVerificationLink = ref('')
-  const trainerSubmitting = ref(false)
+  const {
+    availableCities,
+    signupAcademyChoice,
+    signupOtherAcademy,
+    trainerForm,
+    trainerStatus,
+    trainerVerificationLink,
+    trainerSubmitting,
+    closeTrainerSignup,
+    toggleTrainerCity,
+    suggestTrainerSlug,
+    sendTrainerSignup,
+    stopTrainerRegistration,
+  } = useTrainerSignup({ onClose: goHome, active: showTrainerSignup })
+  const requestBirthDate = ref('')
+
   const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
 
   const {
@@ -984,9 +996,8 @@ export function useFitpesoApp() {
     status.value = ''
     customerLoginStatus.value = ''
     googleProfileStatus.value = ''
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    customerVerificationPollTimer = undefined
+    stopCustomerVerification()
+    stopTrainerRegistration()
     showCustomerLoginDialog.value = false
     // The public-navigation watcher owns the /profissionais -> / transition.
     // Other screens only need their temporary hash removed.
@@ -994,15 +1005,8 @@ export function useFitpesoApp() {
     void nextTick(() => window.scrollTo(0, 0))
   }
 
-  function closeCustomerSignup() {
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    customerVerificationPollTimer = undefined
-    customerStatus.value = ''
-    customerVerificationLink.value = ''
-    customerVerificationCode.value = ''
-    if (requestLoginReturn.value && customerVerificationComplete.value) {
-      customerVerificationComplete.value = false
+  function onCustomerSignupClosed(confirmed: boolean) {
+    if (requestLoginReturn.value && confirmed) {
       showCustomerSignup.value = false
       showCustomerLogin.value = true
       showRequestForm.value = true
@@ -1015,294 +1019,7 @@ export function useFitpesoApp() {
       void nextTick(() => window.scrollTo(0, 0))
       return
     }
-    customerVerificationComplete.value = false
     goHome()
-  }
-
-  function scheduleCustomerVerificationPoll(delayMs = 10_000) {
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    customerVerificationPollTimer = window.setTimeout(
-      () => void pollCustomerVerification(),
-      delayMs,
-    )
-  }
-
-  async function pollCustomerVerification() {
-    if (
-      !customerVerificationCode.value ||
-      !customerForm.whatsapp ||
-      customerVerificationComplete.value
-    )
-      return
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/customers/verification-status`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          code: customerVerificationCode.value,
-          whatsapp: customerForm.whatsapp,
-        }),
-      })
-      const body = (await response.json()) as {
-        verified?: boolean
-        expired?: boolean
-        name?: string
-        error?: string
-      }
-      if (response.ok && body.verified === true) {
-        customerVerificationComplete.value = true
-        if (body.name?.trim()) customerForm.name = body.name.trim()
-        customerStatus.value = `WhatsApp confirmado! ${body.name?.trim() ? `Bem-vindo(a), ${body.name.trim().split(/\s+/)[0]}!` : 'Cadastro ativo.'}`
-        return
-      }
-      if (response.ok && body.expired) {
-        customerStatus.value =
-          'O link de confirmação expirou. Volte ao formulário e inicie o cadastro novamente.'
-        customerVerificationLink.value = ''
-        return
-      }
-    } catch {
-      // Falhas momentâneas de rede não interrompem a verificação automática.
-    }
-    if (Date.now() - customerVerificationPollStartedAt >= 15 * 60 * 1000) {
-      customerStatus.value =
-        'O prazo de confirmação terminou. Confira seus dados e envie um novo cadastro para gerar outro link.'
-      customerVerificationLink.value = ''
-      return
-    }
-    scheduleCustomerVerificationPoll()
-  }
-
-  async function continueSignupContact() {
-    customerStatus.value = ''
-    const contact = signupContact.value.trim()
-    if (contact.includes('@')) {
-      const email = contact.toLowerCase()
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        customerStatus.value = 'Informe um e-mail válido.'
-        return
-      }
-      customerForm.email = email
-    } else {
-      const phone = normalizeBrazilianPhone(contact)
-      if (!phone) {
-        customerStatus.value = 'Informe um WhatsApp com DDD ou um e-mail válido.'
-        return
-      }
-      customerForm.whatsapp = phone
-      customerForm.name = ''
-      customerForm.email = ''
-      // O nome vem da confirmação realizada pela Beta.
-      await sendCustomerSignup()
-      return
-    }
-    signupStep.value = 2
-    void nextTick(() => document.getElementById('customer-name')?.focus())
-  }
-
-  async function sendCustomerSignup() {
-    if (customerSubmitting.value) return
-    customerStatus.value = ''
-    customerVerificationLink.value = ''
-    customerVerificationCode.value = ''
-    customerVerificationComplete.value = false
-    customerVerificationPollStartedAt = 0
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    const name = customerForm.name.trim().replace(/\s+/g, ' ')
-    const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
-    const email = customerForm.email.trim().toLowerCase()
-    if (name && (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name))) {
-      customerStatus.value = 'Informe um nome válido.'
-      return
-    }
-    if (!whatsapp) {
-      customerStatus.value = 'Informe um WhatsApp válido com DDD.'
-      return
-    }
-    if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) {
-      customerStatus.value = 'Informe um e-mail válido.'
-      return
-    }
-
-    customerSubmitting.value = true
-    customerStatus.value = 'Registrando seu cadastro…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/customers/register`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, whatsapp, email }),
-      })
-      const body = (await response.json()) as {
-        registered?: boolean
-        verificationCode?: string
-        error?: string
-      }
-      if (!response.ok || body.registered !== true || !body.verificationCode) {
-        throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
-      }
-      const message = `Confirmar cadastro FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}${name ? `\nNome: ${name}` : ''}`
-      customerVerificationCode.value = body.verificationCode
-      customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      customerStatus.value = name
-        ? 'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.'
-        : 'Envie a mensagem para a Beta. Ela identificará o nome exibido no seu WhatsApp e o encaminhará com o número e o código para concluir o cadastro.'
-      customerVerificationPollStartedAt = Date.now()
-      scheduleCustomerVerificationPoll(1_000)
-    } catch (error) {
-      customerStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível registrar o cadastro agora.'
-    } finally {
-      customerSubmitting.value = false
-    }
-  }
-
-  function closeTrainerSignup() {
-    trainerStatus.value = ''
-    goHome()
-  }
-
-  function toggleTrainerCity(city: string) {
-    const index = trainerForm.cities.indexOf(city)
-    if (index >= 0) {
-      trainerForm.cities.splice(index, 1)
-    } else if (trainerForm.cities.length < 2) {
-      trainerForm.cities.push(city)
-    }
-  }
-
-  function normalizeBrazilianPhone(value: string) {
-    let digits = value.replace(/\D/g, '').replace(/^0/, '')
-    if (!digits.startsWith('55')) digits = `55${digits}`
-    return /^55[1-9]{2}9?\d{8}$/.test(digits) ? `+${digits}` : ''
-  }
-
-  function normalizeInstagramHandle(value: string) {
-    let handle = value.trim()
-    if (!handle) return ''
-    if (/^(?:www\.)?instagram\.com\//i.test(handle)) handle = `https://${handle}`
-    if (/^https?:\/\//i.test(handle)) {
-      try {
-        const profileUrl = new URL(handle)
-        if (!['instagram.com', 'www.instagram.com'].includes(profileUrl.hostname.toLowerCase()))
-          return ''
-        handle = profileUrl.pathname.replace(/^\/+|\/+$/g, '')
-      } catch {
-        return ''
-      }
-    }
-    handle = handle.replace(/^@/, '')
-    return /^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : ''
-  }
-
-  function suggestTrainerSlug() {
-    if (trainerForm.slug.trim()) return
-    trainerForm.slug = trainerForm.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40)
-      .replace(/-+$/g, '')
-  }
-
-  async function sendTrainerSignup() {
-    if (trainerSubmitting.value) return
-    trainerStatus.value = ''
-    trainerVerificationLink.value = ''
-    const name = trainerForm.name.trim().replace(/\s+/g, ' ')
-    const sex = trainerForm.sex
-    const slug = trainerForm.slug.trim().toLowerCase()
-    const phone = normalizeBrazilianPhone(trainerForm.phone)
-    const email = trainerForm.email.trim().toLowerCase()
-    const dateOfBirth = trainerForm.dateOfBirth
-    const instagram = normalizeInstagramHandle(trainerForm.instagram)
-    const cref = trainerForm.cref.trim()
-    const reservedSlugs = [
-      'www',
-      'api',
-      'mail',
-      'ftp',
-      'admin',
-      'app',
-      'beta',
-      'fitpeso',
-      'suporte',
-      'ajuda',
-      'develop',
-      'test',
-      'homologacao',
-    ]
-    let validationError = ''
-    if (!name) validationError = 'Informe seu nome completo.'
-    else if (sex !== 'masculino' && sex !== 'feminino')
-      validationError = 'Selecione Masculino ou Feminino.'
-    else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
-    else if (dateOfBirth && !isValidLoginBirthDate(dateOfBirth))
-      validationError = 'Informe uma data de nascimento válida ou deixe em branco.'
-    else if (!/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) || reservedSlugs.includes(slug)) {
-      validationError =
-        'O subdomínio deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
-    } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
-      validationError = 'Escolha uma ou duas cidades de atuação.'
-    } else if (!instagram) {
-      validationError = 'Informe um Instagram válido: @usuario, usuario ou instagram.com/usuario.'
-    } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'
-    } else if (cref && !/^[\p{L}\p{M}0-9 ./-]{1,40}$/u.test(cref)) {
-      validationError = 'Confira o CREF ou deixe o campo vazio.'
-    }
-    if (validationError) {
-      trainerStatus.value = validationError
-      return
-    }
-
-    trainerSubmitting.value = true
-    trainerStatus.value = 'Salvando seu cadastro…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/trainers/register`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          sex,
-          slug,
-          whatsapp: phone,
-          ...(dateOfBirth ? { dateOfBirth } : {}),
-          ...(email ? { email } : {}),
-          cities: trainerForm.cities,
-          academias: trainerForm.academias,
-          instagram,
-          ...(cref ? { cref } : {}),
-        }),
-      })
-      const body = (await response.json()) as {
-        registered?: boolean
-        error?: string
-        slug?: string
-        verificationCode?: string
-      }
-      if (!response.ok || body.registered !== true) {
-        throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
-      }
-      if (!body.verificationCode)
-        throw new Error(
-          'Cadastro recebido, mas não foi possível gerar o código de confirmação. Tente novamente.',
-        )
-      const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
-      trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://${body.slug || slug}.fitpeso.com.br.`
-    } catch (error) {
-      trainerStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível registrar seu cadastro agora.'
-    } finally {
-      trainerSubmitting.value = false
-    }
   }
 
   function adjustMeasurement(field: 'weight' | 'height' | 'waist', amount: number) {
@@ -1883,7 +1600,7 @@ export function useFitpesoApp() {
       editingProfileStatus.value = 'Informe um nome válido.'
       return
     }
-    if (birth && !isValidLoginBirthDate(birth)) {
+    if (birth && !isValidBirthDate(birth)) {
       editingProfileStatus.value =
         'Informe uma data de nascimento válida ou deixe em branco até solicitar atendimento.'
       return
@@ -1948,7 +1665,7 @@ export function useFitpesoApp() {
         !trainer &&
         requestStep.value === 5 &&
         showRequestForm.value &&
-        isValidLoginBirthDate(customerForm.dateOfBirth)
+        isValidBirthDate(customerForm.dateOfBirth)
       ) {
         viewMode.value = 'contact'
         status.value = 'Cadastro completo. Agora você pode confirmar sua solicitação.'
@@ -1968,17 +1685,6 @@ export function useFitpesoApp() {
     document.removeEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.removeEventListener('click', closeHamburgerOnSelection)
   })
-
-  function isValidLoginBirthDate(date: string) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
-    const parsed = new Date(date + 'T00:00:00.000Z')
-    return (
-      !Number.isNaN(parsed.getTime()) &&
-      parsed.toISOString().slice(0, 10) === date &&
-      date >= '1900-01-01' &&
-      date <= new Date().toISOString().slice(0, 10)
-    )
-  }
 
   async function openTrainerReceivedRequests() {
     viewMode.value = 'trainer-requests'
