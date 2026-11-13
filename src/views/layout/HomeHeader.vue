@@ -54,7 +54,7 @@ const {
             }}</span
           >
         </span>
-        <span v-if="!trainerSignedInId && !customerSignedInName" class="header-auth-links">
+        <span v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'home'" class="header-auth-links">
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a
           ><span class="header-auth-divider" aria-hidden="true">|</span
           ><a
@@ -66,6 +66,7 @@ const {
         </span>
         <details
           v-if="
+            viewMode === 'home' ||
             trainerSignedInId ||
             customerSignedInName ||
             (viewMode !== 'home' &&
@@ -86,7 +87,8 @@ const {
             >
               Entrar
             </button>
-            <button type="button" @click="viewMode = 'assessment'">Avaliação corporal</button>
+            <button type="button" @click="viewMode = 'assessment'">Avaliar meu peso</button>
+            <button type="button" @click="viewMode = 'about'">Sobre</button>
             <button type="button" @click="openProfessionalRegistration">
               Consultar Registro profissional
             </button>
