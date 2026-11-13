@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useFitpesoContext } from '../../composables/fitpesoContext'
-const { theme } = useFitpesoContext()
+const { theme, viewMode } = useFitpesoContext()
 </script>
 
 <template>
@@ -14,7 +14,7 @@ const { theme } = useFitpesoContext()
       class="box-contact-link"
       aria-label="Fale conosco pelo WhatsApp"
       title="Fale conosco pelo WhatsApp"
-      style="margin-right: auto; margin-left: 0; justify-self: start"
+      style="margin-left: 0; justify-self: start"
       href="https://wa.me/5521971118383?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso."
       target="_blank"
       rel="noopener noreferrer"
@@ -25,7 +25,13 @@ const { theme } = useFitpesoContext()
         />
       </svg>
     </a>
-    <div class="box-theme-actions">
+    <span class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
+    <a
+      href="#sobre"
+      class="box-contact-link"
+      @click.prevent="viewMode = 'about'"
+    >Sobre</a>
+    <div class="box-theme-actions" style="margin-left: auto">
       <button
         type="button"
         class="theme-mode-toggle"
