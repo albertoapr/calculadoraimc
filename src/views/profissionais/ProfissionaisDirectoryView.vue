@@ -79,7 +79,7 @@ const emit = defineEmits<{
               ? 'Consultando…'
               : activeRequest
                 ? 'Enviar solicitação'
-                : 'Solicitar Atendimento'
+                : 'Solicitar treinamento com personal'
         }}
       </button>
     </div>
@@ -143,7 +143,7 @@ const emit = defineEmits<{
       :disabled="sharingBusy || checkingRequests || !!requestsError || (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))"
       @click="emit('request-proposal')"
     >
-      {{ sharingBusy ? 'Enviando…' : checkingRequests ? 'Consultando…' : activeRequest ? 'Enviar solicitação' : 'Solicitar atendimento' }}
+      {{ sharingBusy ? 'Enviando…' : checkingRequests ? 'Consultando…' : activeRequest ? 'Enviar solicitação' : 'Solicitar treinamento com personal' }}
     </button>
   </section>
 </template>
