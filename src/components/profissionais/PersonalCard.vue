@@ -163,6 +163,36 @@ const instagramUrl = computed(() =>
 .trainer-whatsapp-link { color: #188b51; }
 .trainer-whatsapp-link svg { width: 25px; height: 25px; }
 .trainer-instagram-link svg { width: 24px; height: 24px; }
+/* Mantém o sanfonado com a mesma paleta da tela de atendimento. */
+:global(html[data-theme='dark']) .home-trainer-card {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .home-trainer-card.is-selected {
+  border-color: #f2a04b;
+  box-shadow: inset 0 0 0 1px #f2a04b;
+}
+:global(html[data-theme='dark']) .trainer-accordion-toggle {
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .trainer-accordion-header:has(.trainer-accordion-toggle[aria-expanded='true']) {
+  background: #29372d;
+}
+:global(html[data-theme='dark']) .trainer-accordion-chevron {
+  border-color: #f2a04b;
+}
+:global(html[data-theme='dark']) .trainer-accordion-panel {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .trainer-select-checkbox {
+  accent-color: #f2a04b;
+}
+:global(html[data-theme='dark']) .trainer-whatsapp-link {
+  color: #55d6a3;
+}
 @media (prefers-reduced-motion: reduce) {
   .trainer-accordion-chevron { transition: none; }
 }
