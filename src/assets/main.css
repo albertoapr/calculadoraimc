@@ -2928,3 +2928,66 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   outline: 3px solid #f3a446;
   outline-offset: 3px;
 }
+
+/* Edição pontual dos dados do atendimento pelo resumo. */
+.request-summary-table td { position: relative; }
+.request-edit-pencil {
+  float: right;
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: -7px -5px 0 10px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--blue-dark);
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+}
+.request-edit-pencil:focus-visible, .request-edit-close:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+.request-edit-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0,0,0,.6);
+}
+.request-edit-dialog {
+  width: min(100%, 510px);
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card-bg);
+  color: var(--ink);
+  box-shadow: 0 14px 48px rgba(0,0,0,.25);
+}
+.request-edit-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 20px; }
+.request-edit-heading h3 { margin: 0; font-size: 20px; color: var(--ink); }
+.request-edit-close { flex: 0 0 44px; height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 28px; cursor: pointer; }
+.request-edit-body { display: flex; flex-direction: column; gap: 13px; margin: 12px 0 24px; }
+.request-edit-body.request-choice-row { flex-direction: row; flex-wrap: wrap; }
+.request-edit-body select, .request-edit-body input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--ink);
+}
+.request-edit-body input[type='range'] { width: 100%; accent-color: var(--blue); }
+.request-edit-body .request-age-limits { display: flex; justify-content: space-between; }
+.request-edit-actions { display: flex; gap: 12px; justify-content: flex-end; }
+.request-edit-actions button { min-height: 44px; }
+.request-edit-error { color: #bd3d38; font-weight: 700; }
