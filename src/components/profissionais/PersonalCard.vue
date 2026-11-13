@@ -24,11 +24,6 @@ const displayName = computed(() => trainerDisplayName(props.trainer.name))
 const instagramUrl = computed(() =>
   props.trainer.instagram ? trainerInstagramUrl(props.trainer.instagram) : '',
 )
-const academies = computed(() =>
-  [...(props.trainer.academias ?? []), props.trainer.gymName ?? '', props.trainer.academy ?? '']
-    .filter(Boolean)
-    .join(', '),
-)
 </script>
 
 <template>
@@ -82,7 +77,6 @@ const academies = computed(() =>
         </a>
         </span>
       </span>
-      <small v-if="academies">{{ academies }}</small>
       <small v-if="alreadySent">Solicitação já enviada</small>
     </span>
   </label>
