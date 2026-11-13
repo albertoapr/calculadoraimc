@@ -321,8 +321,21 @@ export function useFitpesoApp() {
       requestGender: computed(() => form.trainerGenderPreference),
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
-  watch(publicTrainerCity, (city, previousCity) => {
-    if (city !== previousCity && viewMode.value !== 'public-trainers') publicTrainerAcademy.value = ''
+  // A tela inicial sempre mostra uma academia válida quando a lista da cidade está disponível.
+  watch([publicTrainerAcademies, publicTrainerCity], ([academies, city], [, previousCity]) => {
+    if (city !== previousCity) publicTrainerAcademy.value = ''
+    if (!academies.length || !city) return
+    if (academies.includes(publicTrainerAcademy.value)) return
+    const preferred = readNavigationPreference(NAV_ACADEMY)
+    publicTrainerAcademy.value =
+      academies.find((name) => name === preferred) ??
+      (isMesquita(city)
+        ? academies.find((name) => /aquatic\\s*center/i.test(name) && /vila\\s*emil/i.test(name))
+        : undefined) ??
+      academies[0]
+  }, { immediate: true })
+  watch(publicTrainerAcademy, (academy) => {
+    if (academy) saveNavigationPreference(NAV_ACADEMY, academy)
   })
   async function loadPublicTrainers() {
     const id = ++publicLookupId
