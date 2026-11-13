@@ -128,14 +128,7 @@ const emit = defineEmits<{
         @request-trainer="(id) => emit('request-trainer', id)"
         :trainers="trainers"
         :selected-ids="selectedIds"
-        :selectable="
-          selectingForDraft ||
-          (!selectingForDraft &&
-            !!signedInName &&
-            !!activeRequest &&
-            !checkingRequests &&
-            !requestsError)
-        "
+        :selectable="true"
         :sent-ids="sentIds"
         @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
       />
