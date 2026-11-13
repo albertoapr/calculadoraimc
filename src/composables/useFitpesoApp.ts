@@ -1128,7 +1128,7 @@ export function useFitpesoApp() {
     }
     if (viewMode.value === 'contact' && showRequestForm.value) {
       if (requestStep.value === 5) {
-        void selectTrainersForDraft()
+        goHome()
         return
       }
       if (requestStep.value > 1) requestStep.value -= 1
@@ -1137,7 +1137,7 @@ export function useFitpesoApp() {
       if (selectingTrainersForDraft.value) {
         selectingTrainersForDraft.value = false
         viewMode.value = 'contact'
-        requestStep.value = 3
+        requestStep.value = 5
       } else {
         goHome()
       }
@@ -1850,7 +1850,7 @@ export function useFitpesoApp() {
   async function openRequestForm() {
     status.value = ''
     showRequestForm.value = true
-    requestStep.value = 1
+    requestStep.value = 5
     selectingTrainersForDraft.value = false
     ++requestCityLookupId
     form.city = homeCity.value
@@ -1933,7 +1933,7 @@ export function useFitpesoApp() {
   watch(
     () => form.city,
     (city) => {
-      if (viewMode.value !== 'contact' || requestStep.value > 3) return
+      if (viewMode.value !== 'contact') return
       form.gymName = defaultAcademyForCity(city)
       form.attendsGym = Boolean(form.gymName)
       otherGymName.value = ''
@@ -2003,7 +2003,7 @@ export function useFitpesoApp() {
   async function selectTrainersForDraft() {
     if (!matchSupportedRequestCity(form.city)) {
       status.value = 'Selecione uma cidade atendida antes de escolher os profissionais.'
-      requestStep.value = 2
+      requestStep.value = 5
       return
     }
     status.value = ''
