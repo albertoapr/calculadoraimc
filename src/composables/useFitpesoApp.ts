@@ -1153,12 +1153,13 @@ export function useFitpesoApp() {
       return
     }
     if (viewMode.value === 'contact' && showRequestForm.value) {
-      if (requestStep.value === 5) {
-        goHome()
-        return
-      }
-      if (requestStep.value > 1) requestStep.value -= 1
-      else goHome()
+      // Retorna à listagem sem perder a academia ou o filtro escolhido.
+      showRequestForm.value = false
+      selectingTrainersForDraft.value = false
+      viewMode.value = 'public-trainers'
+      status.value = ''
+      sharingRequestMessage.value = ''
+      if (publicTrainerCity.value) void loadPublicTrainers()
     } else if (viewMode.value === 'select-trainers') {
       if (selectingTrainersForDraft.value) {
         selectingTrainersForDraft.value = false
