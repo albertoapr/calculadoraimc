@@ -29,7 +29,10 @@ const instagramUrl = computed(() =>
 </script>
 
 <template>
-  <article class="home-trainer-card" :class="{ 'is-selected': selectable && selected, 'is-disabled': selectable && disabled }">
+  <article
+    class="home-trainer-card"
+    :class="{ 'is-selected': selectable && selected, 'is-disabled': selectable && disabled }"
+  >
     <div class="trainer-accordion-header">
       <input
         v-if="selectable"
@@ -51,20 +54,66 @@ const instagramUrl = computed(() =>
         <span class="trainer-accordion-chevron" :class="{ expanded }" aria-hidden="true"></span>
       </button>
     </div>
-    <div v-if="expanded" :id="'trainer-details-' + trainer.trainerId" class="trainer-accordion-panel">
+    <div
+      v-if="expanded"
+      :id="'trainer-details-' + trainer.trainerId"
+      class="trainer-accordion-panel"
+    >
       <div class="trainer-details-text">
         <span v-if="trainer.cref?.trim()" class="trainer-cref">
           CREF: {{ trainer.cref }}
-          <a href="https://www.confef.org.br/registrados/" target="_blank" rel="noopener noreferrer" class="trainer-cref-search" :aria-label="'Consultar CREF de ' + displayName + ' no CONFEF'" title="Consultar registro no CONFEF">🔎</a>
+          <a
+            href="https://www.confef.org.br/registrados/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="trainer-cref-search"
+            :aria-label="'Consultar CREF de ' + displayName + ' no CONFEF'"
+            title="Consultar registro no CONFEF"
+            >🔎</a
+          >
         </span>
         <small v-if="alreadySent">Solicitação já enviada</small>
       </div>
       <span class="trainer-social-links">
-        <button v-if="showRequestLink" type="button" class="trainer-whatsapp-link" :aria-label="'Solicitar atendimento com ' + displayName" title="Solicitar atendimento" @click="emit('request-trainer')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.8a8.5 8.5 0 0 1-12.4 7.5L3 21l1.8-4.9a8.5 8.5 0 1 1 15.7-4.3Z"/><path d="M9 8.7c-.5.3-.7 1.1-.4 1.9.6 1.7 2.2 3.3 3.9 3.9.8.3 1.6.1 1.9-.4l.5-.8-1.8-1-1 .9c-.9-.4-1.6-1.1-2-2l.9-1-1-1.8-.9.3Z"/></svg>
+        <button
+          v-if="showRequestLink"
+          type="button"
+          class="trainer-whatsapp-link"
+          :aria-label="'Solicitar atendimento com ' + displayName"
+          title="Solicitar atendimento"
+          @click="emit('request-trainer')"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20.5 11.8a8.5 8.5 0 0 1-12.4 7.5L3 21l1.8-4.9a8.5 8.5 0 1 1 15.7-4.3Z" />
+            <path
+              d="M9 8.7c-.5.3-.7 1.1-.4 1.9.6 1.7 2.2 3.3 3.9 3.9.8.3 1.6.1 1.9-.4l.5-.8-1.8-1-1 .9c-.9-.4-1.6-1.1-2-2l.9-1-1-1.8-.9.3Z"
+            />
+          </svg>
         </button>
-        <a v-if="instagramUrl" :href="instagramUrl" target="_blank" rel="noopener noreferrer" class="trainer-instagram-link" :aria-label="'Instagram de ' + displayName" title="Instagram">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <a
+          v-if="instagramUrl"
+          :href="instagramUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="trainer-instagram-link"
+          :aria-label="'Instagram de ' + displayName"
+          title="Instagram"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
             <rect x="3" y="3" width="18" height="18" rx="5" />
             <circle cx="12" cy="12" r="4" />
             <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
@@ -104,7 +153,10 @@ const instagramUrl = computed(() =>
   accent-color: var(--blue, #286b4e);
   cursor: pointer;
 }
-.trainer-select-checkbox:disabled { cursor: not-allowed; opacity: .55; }
+.trainer-select-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .trainer-accordion-toggle {
   display: flex;
   flex: 1;
@@ -120,7 +172,10 @@ const instagramUrl = computed(() =>
   border: 0;
   cursor: pointer;
 }
-.trainer-accordion-toggle strong { font-size: 1.05rem; overflow-wrap: anywhere; }
+.trainer-accordion-toggle strong {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
 .trainer-accordion-chevron {
   flex: 0 0 9px;
   width: 9px;
@@ -131,8 +186,11 @@ const instagramUrl = computed(() =>
   transform: rotate(45deg);
   transition: transform 150ms ease;
 }
-.trainer-accordion-chevron.expanded { transform: rotate(225deg); }
-.trainer-accordion-toggle:focus-visible, .trainer-select-checkbox:focus-visible {
+.trainer-accordion-chevron.expanded {
+  transform: rotate(225deg);
+}
+.trainer-accordion-toggle:focus-visible,
+.trainer-select-checkbox:focus-visible {
   outline: 2px solid var(--blue, currentColor);
   outline-offset: 2px;
 }
@@ -145,11 +203,30 @@ const instagramUrl = computed(() =>
   border-top: 1px solid var(--line, #86978f);
   color: var(--ink, inherit);
 }
-.trainer-details-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
-.trainer-cref { font-size: .9rem; }
-.trainer-cref-search { margin-left: 5px; text-decoration: none; }
-.trainer-social-links { display: flex; flex-direction: row; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: 4px; }
-.trainer-whatsapp-link, .trainer-instagram-link {
+.trainer-details-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.trainer-cref {
+  font-size: 0.9rem;
+}
+.trainer-cref-search {
+  margin-left: 5px;
+  text-decoration: none;
+}
+.trainer-social-links {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.trainer-whatsapp-link,
+.trainer-instagram-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -160,9 +237,17 @@ const instagramUrl = computed(() =>
   color: inherit;
   cursor: pointer;
 }
-.trainer-whatsapp-link { color: #188b51; }
-.trainer-whatsapp-link svg { width: 25px; height: 25px; }
-.trainer-instagram-link svg { width: 24px; height: 24px; }
+.trainer-whatsapp-link {
+  color: #188b51;
+}
+.trainer-whatsapp-link svg {
+  width: 25px;
+  height: 25px;
+}
+.trainer-instagram-link svg {
+  width: 24px;
+  height: 24px;
+}
 /* Mantém o sanfonado com a mesma paleta da tela de atendimento. */
 :global(html[data-theme='dark']) .home-trainer-card {
   background: #1b2720;
@@ -176,7 +261,8 @@ const instagramUrl = computed(() =>
 :global(html[data-theme='dark']) .trainer-accordion-toggle {
   color: #f4f5f0;
 }
-:global(html[data-theme='dark']) .trainer-accordion-header:has(.trainer-accordion-toggle[aria-expanded='true']) {
+:global(html[data-theme='dark'])
+  .trainer-accordion-header:has(.trainer-accordion-toggle[aria-expanded='true']) {
   background: #29372d;
 }
 :global(html[data-theme='dark']) .trainer-accordion-chevron {
@@ -194,6 +280,8 @@ const instagramUrl = computed(() =>
   color: #55d6a3;
 }
 @media (prefers-reduced-motion: reduce) {
-  .trainer-accordion-chevron { transition: none; }
+  .trainer-accordion-chevron {
+    transition: none;
+  }
 }
 </style>

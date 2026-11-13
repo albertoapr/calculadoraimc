@@ -13,6 +13,9 @@ Vue 3, TypeScript e Vite, com Vue Router e Pinia.
 - `src/views/layout/`: cabeçalhos e rodapé.
 - `src/composables/useFitpesoApp.ts`: coordenação dos fluxos, sessão e operações ainda compartilhadas. Instanciado uma vez pelo shell e fornecido por um contexto tipado; as telas consomem referências reativas, sem copiar o estado.
 - `src/composables/useTheme.ts`: tema e persistência da preferência.
+- `src/composables/useAdminTrainers.ts`: cadastro, pesquisa e edição de profissionais pelo administrador.
+- `src/composables/useTrainerProposal.ts`: consulta da solicitação recebida por token e envio de proposta pelo personal.
+- `src/services/adminTrainersService.ts` e `trainerProposalService.ts`: contratos HTTP desses módulos; não acessam estado de tela nem armazenamento de sessão.
 - `src/stores/`: seleção de profissionais e rascunho de treinamento em memória.
 - `src/services/`: descoberta do endpoint, consulta de profissionais, criação de solicitações e SEO.
 - `src/types/`: contratos e modelos do frontend.

@@ -26,11 +26,7 @@ const { theme, viewMode } = useFitpesoContext()
       </svg>
     </a>
     <span class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
-    <a
-      href="#sobre"
-      class="box-contact-link"
-      @click.prevent="viewMode = 'about'"
-    >Sobre</a>
+    <a href="#sobre" class="box-contact-link" @click.prevent="viewMode = 'about'">Sobre</a>
     <div class="box-theme-actions" style="margin-left: auto">
       <button
         type="button"
@@ -47,7 +43,9 @@ const { theme, viewMode } = useFitpesoContext()
           </svg>
           <svg v-else viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="3.5" />
-            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+            <path
+              d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"
+            />
           </svg>
         </span>
       </button>

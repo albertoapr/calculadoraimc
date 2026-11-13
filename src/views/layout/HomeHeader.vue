@@ -25,7 +25,12 @@ const {
 
 <template>
   <div class="fitpeso-home-topbar">
-    <button type="button" class="fitpeso-home-brand fitpeso-home-brand-link" aria-label="FitPeso — voltar para a tela inicial" @click="goHome">
+    <button
+      type="button"
+      class="fitpeso-home-brand fitpeso-home-brand-link"
+      aria-label="FitPeso — voltar para a tela inicial"
+      @click="goHome"
+    >
       <div class="fitpeso-home-brand-main">
         <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
           <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
@@ -55,7 +60,10 @@ const {
             }}</span
           >
         </span>
-        <span v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'assessment'" class="header-auth-links">
+        <span
+          v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'assessment'"
+          class="header-auth-links"
+        >
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a
           ><span class="header-auth-divider" aria-hidden="true">|</span
           ><a
@@ -67,7 +75,9 @@ const {
         </span>
         <details
           v-if="
-            (trainerSignedInId || customerSignedInName) && viewMode !== 'home' && viewMode !== 'assessment'
+            (trainerSignedInId || customerSignedInName) &&
+            viewMode !== 'home' &&
+            viewMode !== 'assessment'
           "
           class="account-dropdown main-hamburger-menu"
         >
@@ -111,23 +121,6 @@ const {
               </button>
               <button type="button" @click="logout">Sair</button>
             </template>
-
-<style scoped>
-.fitpeso-home-brand-link {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: inherit;
-  font: inherit;
-}
-.fitpeso-home-brand-link:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 5px;
-  border-radius: 6px;
-}
-</style>
           </div>
         </details>
       </nav>

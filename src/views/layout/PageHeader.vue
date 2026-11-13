@@ -58,7 +58,11 @@ const {
       />
       <p class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
     </div>
-    <h1 v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)" id="page-title" :class="{ 'academy-page-title': viewMode === 'public-trainers' }">
+    <h1
+      v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)"
+      id="page-title"
+      :class="{ 'academy-page-title': viewMode === 'public-trainers' }"
+    >
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
@@ -73,7 +77,9 @@ const {
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
       </svg>
       <span v-if="viewMode === 'public-trainers'" class="academy-page-brand">
-        <span class="brand-peso">{{ publicTrainerAcademy.split(/\s+[—–-]\s+/)[0] || 'Profissionais' }}</span>
+        <span class="brand-peso">{{
+          publicTrainerAcademy.split(/\s+[—–-]\s+/)[0] || 'Profissionais'
+        }}</span>
       </span>
       <span v-else>{{
         viewMode === 'select-trainers'
@@ -95,7 +101,17 @@ const {
                         : 'Avaliar meu peso'
       }}</span>
     </h1>
-    <p v-if="viewMode === 'public-trainers' && /\s+[—–-]\s+/.test(publicTrainerAcademy)" class="academy-page-neighborhood">{{ publicTrainerAcademy.split(/\s+[—–-]\s+/).slice(1).join(' — ') }}</p>
+    <p
+      v-if="viewMode === 'public-trainers' && /\s+[—–-]\s+/.test(publicTrainerAcademy)"
+      class="academy-page-neighborhood"
+    >
+      {{
+        publicTrainerAcademy
+          .split(/\s+[—–-]\s+/)
+          .slice(1)
+          .join(' — ')
+      }}
+    </p>
     <p v-if="viewMode === 'assessment' && !result" class="intro">
       Informe suas medidas para fazer uma avaliação.
     </p>

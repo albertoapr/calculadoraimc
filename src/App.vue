@@ -248,9 +248,14 @@ const {
         @refresh-requests="refreshShareableRequests"
         @retry="searchHomeTrainers"
       />
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-actions root-home-actions">
+      <div
+        v-if="viewMode === 'home' && !result && isRootHome"
+        class="home-actions root-home-actions"
+      >
         <div class="home-action">
-          <h1 class="home-gym-title"><span class="brand-fit">Minha</span> <span class="brand-peso">academia</span></h1>
+          <h1 class="home-gym-title">
+            <span class="brand-fit">Minha</span> <span class="brand-peso">academia</span>
+          </h1>
           <select
             id="home-academy"
             v-model="publicTrainerAcademy"
@@ -258,7 +263,9 @@ const {
             aria-label="Minha academia"
             :disabled="!publicTrainerCity || publicTrainersLoading"
           >
-            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
+            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
+              {{ academy }}
+            </option>
           </select>
           <button class="primary-button" type="button" @click="openPublicTrainers">
             <span class="home-action-copy"
@@ -277,11 +284,16 @@ const {
             />
             <p class="root-home-tagline-subtitle">Treine com um personal</p>
           </div>
-          <nav class="header-auth-links" aria-label="Links da página inicial" style="display: flex; justify-content: center; margin-top: 12px">
+          <nav
+            class="header-auth-links"
+            aria-label="Links da página inicial"
+            style="display: flex; justify-content: center; margin-top: 12px"
+          >
             <a href="#cadastro-personal" class="header-login-link">Sou personal trainer</a>
             <span class="header-auth-divider" aria-hidden="true">|</span>
-            <button type="button" class="header-signup-link" @click="viewMode = 'assessment'">Avaliação corporal</button>
-
+            <button type="button" class="header-signup-link" @click="viewMode = 'assessment'">
+              Avaliação corporal
+            </button>
           </nav>
         </div>
       </div>
@@ -295,7 +307,10 @@ const {
 
       <section v-if="viewMode === 'about'" class="fitpeso-about-page" aria-labelledby="page-title">
         <p>O FitPeso conecta pessoas que desejam treinar a profissionais de Educação Física.</p>
-        <p>Encontre profissionais na sua cidade, informe suas preferências de atendimento e solicite propostas para escolher a opção mais adequada.</p>
+        <p>
+          Encontre profissionais na sua cidade, informe suas preferências de atendimento e solicite
+          propostas para escolher a opção mais adequada.
+        </p>
       </section>
 
       <AssessmentFormView v-if="viewMode === 'assessment' && !result" />

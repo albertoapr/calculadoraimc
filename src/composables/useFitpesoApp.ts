@@ -1,3 +1,5 @@
+import { useAdminTrainers } from './useAdminTrainers'
+import { useTrainerProposal } from './useTrainerProposal'
 import { useAccountSession } from '../stores/accountSession'
 import { createFitpesoRequest } from '../services/atendimentoService'
 import { useRouter } from 'vue-router'
@@ -24,13 +26,11 @@ import type {
   GoogleCredentialResponse,
   GoogleIdentityApi,
   ImcResult,
-  TrainerRequestDetails,
   EligibleTrainer,
   CustomerProposal,
   TrainerReceivedRequest,
   EditableProfile,
   TrainerAccountProfile,
-  AdminTrainer,
   CustomerRequest,
   PendingWhatsAppLogin,
 } from '../types/domain'
@@ -90,6 +90,15 @@ export function useFitpesoApp() {
   }
 
   const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
+  const {
+    trainerRequest,
+    trainerProposalPrice,
+    trainerProposalMessage,
+    trainerProposalSubmitting,
+    trainerRequestStatus,
+    loadTrainerRequest,
+    submitTrainerProposal,
+  } = useTrainerProposal(trainerRequestToken)
   const trainerIdFromPath = getTrainerIdFromPath()
   const trainerSlugFromHost = getTrainerSlugFromHost()
   const isRootHome = computed(
@@ -124,11 +133,6 @@ export function useFitpesoApp() {
         ? 'public-trainers'
         : 'home',
   )
-  const trainerRequest = ref<TrainerRequestDetails | null>(null)
-  const trainerProposalPrice = ref('')
-  const trainerProposalMessage = ref('')
-  const trainerProposalSubmitting = ref(false)
-  const trainerRequestStatus = ref(trainerRequestToken ? 'Carregando solicitação…' : '')
   const showRequestForm = ref(false)
   const requestSent = ref(false)
   const requestStep = ref(1)
@@ -324,19 +328,23 @@ export function useFitpesoApp() {
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
   // A tela inicial sempre mostra uma academia válida quando a lista da cidade está disponível.
-  watch([publicTrainerAcademies, publicTrainerCity], ([academies, city], previousValues) => {
-    const previousCity = previousValues?.[1]
-    if (city !== previousCity) publicTrainerAcademy.value = ''
-    if (!academies.length || !city) return
-    if (academies.includes(publicTrainerAcademy.value)) return
-    const preferred = readNavigationPreference(NAV_ACADEMY)
-    publicTrainerAcademy.value =
-      academies.find((name) => name === preferred) ??
-      (isMesquita(city)
-        ? academies.find((name) => /aquatic\\s*center/i.test(name) && /vila\\s*emil/i.test(name))
-        : undefined) ??
-      academies[0]
-  }, { immediate: true })
+  watch(
+    [publicTrainerAcademies, publicTrainerCity],
+    ([academies, city], previousValues) => {
+      const previousCity = previousValues?.[1]
+      if (city !== previousCity) publicTrainerAcademy.value = ''
+      if (!academies.length || !city) return
+      if (academies.includes(publicTrainerAcademy.value)) return
+      const preferred = readNavigationPreference(NAV_ACADEMY)
+      publicTrainerAcademy.value =
+        academies.find((name) => name === preferred) ??
+        (isMesquita(city)
+          ? academies.find((name) => /aquatic\\s*center/i.test(name) && /vila\\s*emil/i.test(name))
+          : undefined) ??
+        academies[0]
+    },
+    { immediate: true },
+  )
   watch(publicTrainerAcademy, (academy) => {
     if (academy) saveNavigationPreference(NAV_ACADEMY, academy)
   })
@@ -443,200 +451,31 @@ export function useFitpesoApp() {
   const customerLoginVerificationLink = ref('')
   const showCustomerLoginDialog = ref(false)
   const customerLoginSubmitting = ref(false)
-  const adminTrainerForm = reactive({
-    name: '',
-    whatsapp: '',
-    email: '',
-    dateOfBirth: '',
-    sex: 'feminino',
-    cref: '',
-    instagram: '@',
-    slug: '',
-    city: 'Mesquita',
-    academias: '',
-  })
-  const adminTrainerStatus = ref('')
-  const adminTrainerBusy = ref(false)
-  async function saveAdminTrainer() {
-    if (!customerIsAdmin.value || adminTrainerBusy.value) return
-    const token =
+  const {
+    adminTrainerForm,
+    adminTrainerStatus,
+    adminTrainerBusy,
+    saveAdminTrainer,
+    adminTrainerSearch,
+    selectedAdminTrainerId,
+    adminTrainersStatus,
+    adminTrainersLoading,
+    adminTrainerEditBusy,
+    adminTrainerEditForm,
+    filteredAdminTrainers,
+    selectAdminTrainer,
+    openAdminTrainers,
+    saveAdminTrainerEdit,
+  } = useAdminTrainers({
+    isAdmin: customerIsAdmin,
+    getToken: () =>
       sessionStorage.getItem('fitpeso-customer-session') ??
       sessionStorage.getItem('fitpeso-google-session') ??
-      ''
-    if (!token) {
-      adminTrainerStatus.value = 'Entre novamente como administrador.'
-      return
-    }
-    adminTrainerBusy.value = true
-    adminTrainerStatus.value = 'Salvando profissional…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/admin/trainers', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          ...adminTrainerForm,
-          cities: [adminTrainerForm.city],
-          academias: adminTrainerForm.academias
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean),
-        }),
-      })
-      const body = (await response.json()) as { registered?: boolean; error?: string }
-      if (!response.ok || !body.registered)
-        throw new Error(body.error || 'Não foi possível cadastrar o profissional.')
-      adminTrainerStatus.value = 'Personal cadastrado e ativado com sucesso.'
-    } catch (error) {
-      adminTrainerStatus.value =
-        error instanceof Error ? error.message : 'Falha ao cadastrar profissional.'
-    } finally {
-      adminTrainerBusy.value = false
-    }
-  }
-
-  const adminTrainers = ref<AdminTrainer[]>([])
-  const adminTrainerSearch = ref('')
-  const selectedAdminTrainerId = ref('')
-  const adminTrainersStatus = ref('')
-  const adminTrainersLoading = ref(false)
-  const adminTrainerEditBusy = ref(false)
-  const adminTrainerEditForm = reactive({
-    name: '',
-    whatsapp: '',
-    email: '',
-    dateOfBirth: '',
-    sex: 'feminino',
-    cref: '',
-    instagram: '',
-    slug: '',
-    cities: [] as string[],
-    academias: '',
-    active: true,
+      '',
+    onOpen: () => {
+      viewMode.value = 'admin-trainers'
+    },
   })
-  const filteredAdminTrainers = computed(() => {
-    const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
-    if (!search) return adminTrainers.value
-    return adminTrainers.value.filter((trainer) =>
-      [trainer.name, trainer.cref, trainer.whatsapp].some((value) =>
-        value.toLocaleLowerCase('pt-BR').includes(search),
-      ),
-    )
-  })
-
-  function selectAdminTrainer(trainer: AdminTrainer) {
-    selectedAdminTrainerId.value = trainer.trainerId
-    Object.assign(adminTrainerEditForm, {
-      name: trainer.name,
-      whatsapp: trainer.whatsapp,
-      email: trainer.email,
-      dateOfBirth: trainer.dateOfBirth,
-      sex: trainer.sex || 'feminino',
-      cref: trainer.cref,
-      instagram: trainer.instagram,
-      slug: trainer.slug,
-      cities: [...trainer.cities],
-      academias: trainer.academias.join(', '),
-      active: trainer.active,
-    })
-    adminTrainersStatus.value = ''
-    void nextTick(() =>
-      document
-        .querySelector<HTMLElement>('#admin-trainer-edit-form')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-    )
-  }
-
-  async function loadAdminTrainers() {
-    if (!customerIsAdmin.value || adminTrainersLoading.value) return
-    const token =
-      sessionStorage.getItem('fitpeso-customer-session') ??
-      sessionStorage.getItem('fitpeso-google-session') ??
-      ''
-    if (!token) {
-      adminTrainersStatus.value = 'Entre novamente como administrador.'
-      return
-    }
-    adminTrainersLoading.value = true
-    adminTrainersStatus.value = 'Carregando profissionais…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/admin/trainers', {
-        headers: { authorization: 'Bearer ' + token },
-        cache: 'no-store',
-      })
-      const body = (await response.json()) as { trainers?: AdminTrainer[]; error?: string }
-      if (!response.ok || !Array.isArray(body.trainers))
-        throw new Error(body.error || 'Não foi possível carregar os profissionais.')
-      adminTrainers.value = body.trainers
-      adminTrainersStatus.value = body.trainers.length ? '' : 'Nenhum profissional cadastrado.'
-      if (selectedAdminTrainerId.value) {
-        const selected = body.trainers.find(
-          (trainer) => trainer.trainerId === selectedAdminTrainerId.value,
-        )
-        if (selected) selectAdminTrainer(selected)
-      }
-    } catch (error) {
-      adminTrainersStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível carregar os profissionais.'
-    } finally {
-      adminTrainersLoading.value = false
-    }
-  }
-
-  function openAdminTrainers() {
-    viewMode.value = 'admin-trainers'
-    selectedAdminTrainerId.value = ''
-    adminTrainerSearch.value = ''
-    void loadAdminTrainers()
-    void nextTick(() => window.scrollTo(0, 0))
-  }
-
-  async function saveAdminTrainerEdit() {
-    if (!customerIsAdmin.value || !selectedAdminTrainerId.value || adminTrainerEditBusy.value)
-      return
-    if (!adminTrainerEditForm.cities.length) {
-      adminTrainersStatus.value = 'Selecione pelo menos uma cidade.'
-      return
-    }
-    const token =
-      sessionStorage.getItem('fitpeso-customer-session') ??
-      sessionStorage.getItem('fitpeso-google-session') ??
-      ''
-    if (!token) {
-      adminTrainersStatus.value = 'Entre novamente como administrador.'
-      return
-    }
-    adminTrainerEditBusy.value = true
-    adminTrainersStatus.value = 'Salvando profissional…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        endpoint + '/api/admin/trainers/' + encodeURIComponent(selectedAdminTrainerId.value),
-        {
-          method: 'PUT',
-          headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            ...adminTrainerEditForm,
-            academias: adminTrainerEditForm.academias
-              .split(',')
-              .map((name) => name.trim())
-              .filter(Boolean),
-          }),
-        },
-      )
-      const body = (await response.json()) as { updated?: boolean; error?: string }
-      if (!response.ok || !body.updated)
-        throw new Error(body.error || 'Não foi possível salvar o profissional.')
-      await loadAdminTrainers()
-      adminTrainersStatus.value = 'Dados do profissional atualizados com sucesso.'
-    } catch (error) {
-      adminTrainersStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível salvar o profissional.'
-    } finally {
-      adminTrainerEditBusy.value = false
-    }
-  }
 
   const editingProfile = reactive<EditableProfile>({
     name: '',
@@ -1622,62 +1461,6 @@ export function useFitpesoApp() {
       personalName.value = `${firstName} Personal Trainer`
     } catch {
       trainerProfileFailed.value = true
-    }
-  }
-
-  async function loadTrainerRequest() {
-    if (!trainerRequestToken) return
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(
-        `${endpoint}/api/requests/trainer-view?token=${encodeURIComponent(trainerRequestToken)}`,
-        { cache: 'no-store' },
-      )
-      const body = (await response.json()) as {
-        request?: TrainerRequestDetails
-        expired?: boolean
-        error?: string
-      }
-      if (response.status === 410 || body.expired) {
-        trainerRequestStatus.value = 'Esta solicitação expirou e não pode mais ser visualizada.'
-        return
-      }
-      if (!response.ok || !body.request) throw new Error(body.error || 'Solicitação indisponível.')
-      trainerRequest.value = body.request
-      trainerRequestStatus.value = ''
-    } catch (error) {
-      trainerRequestStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível carregar esta solicitação.'
-    }
-  }
-
-  async function submitTrainerProposal() {
-    if (!trainerRequestToken || !trainerProposalPrice.value || trainerProposalSubmitting.value)
-      return
-    trainerProposalSubmitting.value = true
-    trainerRequestStatus.value = 'Enviando proposta…'
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(`${endpoint}/api/requests/proposals`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          token: trainerRequestToken,
-          monthlyPrice: Number(trainerProposalPrice.value),
-          message: trainerProposalMessage.value,
-        }),
-      })
-      const body = (await response.json()) as { submitted?: boolean; error?: string }
-      if (!response.ok || body.submitted !== true)
-        throw new Error(body.error || 'Não foi possível enviar a proposta.')
-      if (trainerRequest.value) trainerRequest.value.proposalAlreadySent = true
-      trainerRequestStatus.value =
-        'Proposta enviada. O usuário poderá conversar com os profissionais e escolher uma proposta pelo painel.'
-    } catch (error) {
-      trainerRequestStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível enviar a proposta agora.'
-    } finally {
-      trainerProposalSubmitting.value = false
     }
   }
 

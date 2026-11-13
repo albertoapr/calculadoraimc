@@ -1288,7 +1288,9 @@ h2 {
   border-radius: 999px;
   background: var(--card-bg);
   cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
 }
 .box-footer .theme-mode-toggle-thumb {
   display: grid;
@@ -1300,7 +1302,9 @@ h2 {
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
   transform: translateX(0);
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease;
 }
 .box-footer .theme-mode-toggle-thumb svg {
   width: 20px;
@@ -2930,7 +2934,9 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
 }
 
 /* Edição pontual dos dados do atendimento pelo resumo. */
-.request-summary-table td { position: relative; }
+.request-summary-table td {
+  position: relative;
+}
 .request-edit-pencil {
   float: right;
   display: inline-grid;
@@ -2947,7 +2953,8 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   line-height: 1;
   cursor: pointer;
 }
-.request-edit-pencil:focus-visible, .request-edit-close:focus-visible {
+.request-edit-pencil:focus-visible,
+.request-edit-close:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 2px;
 }
@@ -2959,7 +2966,7 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0,0,0,.6);
+  background: rgba(0, 0, 0, 0.6);
 }
 .request-edit-dialog {
   width: min(100%, 510px);
@@ -2970,14 +2977,41 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   border-radius: 18px;
   background: var(--card-bg);
   color: var(--ink);
-  box-shadow: 0 14px 48px rgba(0,0,0,.25);
+  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.25);
 }
-.request-edit-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 20px; }
-.request-edit-heading h3 { margin: 0; font-size: 20px; color: var(--ink); }
-.request-edit-close { flex: 0 0 44px; height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 28px; cursor: pointer; }
-.request-edit-body { display: flex; flex-direction: column; gap: 13px; margin: 12px 0 24px; }
-.request-edit-body.request-choice-row { flex-direction: row; flex-wrap: wrap; }
-.request-edit-body select, .request-edit-body input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+.request-edit-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.request-edit-heading h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--ink);
+}
+.request-edit-close {
+  flex: 0 0 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 28px;
+  cursor: pointer;
+}
+.request-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin: 12px 0 24px;
+}
+.request-edit-body.request-choice-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.request-edit-body select,
+.request-edit-body input:not([type='checkbox']):not([type='radio']):not([type='range']) {
   width: 100%;
   min-height: 44px;
   padding: 10px;
@@ -2986,12 +3020,26 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   background: var(--card-bg);
   color: var(--ink);
 }
-.request-edit-body input[type='range'] { width: 100%; accent-color: var(--blue); }
-.request-edit-body .request-age-limits { display: flex; justify-content: space-between; }
-.request-edit-actions { display: flex; gap: 12px; justify-content: flex-end; }
-.request-edit-actions button { min-height: 44px; }
-.request-edit-error { color: #bd3d38; font-weight: 700; }
-
+.request-edit-body input[type='range'] {
+  width: 100%;
+  accent-color: var(--blue);
+}
+.request-edit-body .request-age-limits {
+  display: flex;
+  justify-content: space-between;
+}
+.request-edit-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.request-edit-actions button {
+  min-height: 44px;
+}
+.request-edit-error {
+  color: #bd3d38;
+  font-weight: 700;
+}
 
 /* Solicitar atendimento: formulário sanfona com edição no próprio painel. */
 .request-accordion-form {
@@ -3014,7 +3062,10 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
 .request-accordion-item.request-accordion-open {
   border-color: var(--blue);
 }
-.request-accordion-heading { margin: 0; font-size: inherit; }
+.request-accordion-heading {
+  margin: 0;
+  font-size: inherit;
+}
 .request-accordion-toggle {
   display: flex;
   align-items: center;
@@ -3088,7 +3139,9 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   font-size: 15px;
   font-weight: 600;
 }
-.request-accordion-label strong { color: var(--blue-dark); }
+.request-accordion-label strong {
+  color: var(--blue-dark);
+}
 .request-accordion-age {
   display: block;
   width: 100%;
@@ -3111,7 +3164,8 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   margin: 0;
   cursor: pointer;
 }
-.request-accordion-select, .request-accordion-input {
+.request-accordion-select,
+.request-accordion-input {
   display: block;
   width: 100%;
   min-width: 0;
@@ -3123,10 +3177,27 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   background: var(--card-bg);
   font: inherit;
 }
-.request-accordion-check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
-.request-accordion-check input { width: 18px; height: 18px; accent-color: var(--blue); }
-.request-accordion-professionals-action { align-self: flex-start; min-height: 44px; }
-.request-accordion-subtext { margin: 0; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.request-accordion-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.request-accordion-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+}
+.request-accordion-professionals-action {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.request-accordion-subtext {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
 .request-accordion-estimate {
   display: flex;
   align-items: center;
@@ -3137,20 +3208,52 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
   border-radius: 14px;
   background: color-mix(in srgb, var(--blue) 8%, var(--card-bg));
 }
-.request-accordion-estimate-icon { font-size: 27px; }
-.request-accordion-estimate-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.request-accordion-estimate-text span { color: var(--muted); font-size: 14px; }
-.request-accordion-estimate-text strong { color: var(--blue-dark); font-size: clamp(19px, 4vw, 24px); overflow-wrap: anywhere; }
-.request-accordion-warning { margin: 0; color: #bd3d38; font-size: 13px; font-weight: 600; }
-.request-accordion-submit { margin-top: 4px; }
+.request-accordion-estimate-icon {
+  font-size: 27px;
+}
+.request-accordion-estimate-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.request-accordion-estimate-text span {
+  color: var(--muted);
+  font-size: 14px;
+}
+.request-accordion-estimate-text strong {
+  color: var(--blue-dark);
+  font-size: clamp(19px, 4vw, 24px);
+  overflow-wrap: anywhere;
+}
+.request-accordion-warning {
+  margin: 0;
+  color: #bd3d38;
+  font-size: 13px;
+  font-weight: 600;
+}
+.request-accordion-submit {
+  margin-top: 4px;
+}
 @media (max-width: 420px) {
-  .request-accordion-toggle { gap: 8px; padding: 12px 10px; }
-  .request-accordion-title { font-size: 15px; }
-  .request-accordion-preview { font-size: 12px; }
-  .request-accordion-panel { padding: 14px; }
+  .request-accordion-toggle {
+    gap: 8px;
+    padding: 12px 10px;
+  }
+  .request-accordion-title {
+    font-size: 15px;
+  }
+  .request-accordion-preview {
+    font-size: 12px;
+  }
+  .request-accordion-panel {
+    padding: 14px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .request-accordion-chevron { transition: none; }
+  .request-accordion-chevron {
+    transition: none;
+  }
 }
 
 /* Contraste próprio das opções do formulário sanfonado no tema escuro. */
@@ -3221,8 +3324,15 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
 .root-home-photo.home-training-photo {
   margin: 20px auto 12px;
 }
-.root-home-actions { margin: 24px 0 18px; }
-.home-gym-title { gap: 0.3em; font-size: clamp(26px, 6vw, 34px); line-height: 1.2; margin-bottom: 8px; }
+.root-home-actions {
+  margin: 24px 0 18px;
+}
+.home-gym-title {
+  gap: 0.3em;
+  font-size: clamp(26px, 6vw, 34px);
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
 .home-academy-select {
   width: 100%;
   min-height: 52px;
@@ -3233,9 +3343,18 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
   color: var(--ink);
   cursor: pointer;
 }
-.home-academy-select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.root-home-actions + .hero .root-home-photo { margin-top: 0; }
-html[data-theme='dark'] .home-academy-select { background: #1b2720; border-color: #3b4b40; color: #f4f5f0; }
+.home-academy-select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.root-home-actions + .hero .root-home-photo {
+  margin-top: 0;
+}
+html[data-theme='dark'] .home-academy-select {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
 
 /* O botão de avaliação na faixa de links tem o mesmo estilo dos links de acesso. */
 .header-auth-links button.header-signup-link {

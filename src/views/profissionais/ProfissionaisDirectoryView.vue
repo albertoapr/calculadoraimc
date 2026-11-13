@@ -140,10 +140,23 @@ const emit = defineEmits<{
       v-if="!selectingForDraft && city && !loading && !error"
       class="primary-button home-proposal-button"
       type="button"
-      :disabled="sharingBusy || checkingRequests || !!requestsError || (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))"
+      :disabled="
+        sharingBusy ||
+        checkingRequests ||
+        !!requestsError ||
+        (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))
+      "
       @click="emit('request-proposal')"
     >
-      {{ sharingBusy ? 'Enviando…' : checkingRequests ? 'Consultando…' : activeRequest ? 'Enviar solicitação' : 'Solicitar treinamento com personal' }}
+      {{
+        sharingBusy
+          ? 'Enviando…'
+          : checkingRequests
+            ? 'Consultando…'
+            : activeRequest
+              ? 'Enviar solicitação'
+              : 'Solicitar treinamento com personal'
+      }}
     </button>
   </section>
 </template>

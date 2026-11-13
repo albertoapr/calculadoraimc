@@ -10,7 +10,10 @@ const props = defineProps<{
   maxSelection?: number
   showRequestLink?: boolean
 }>()
-const emit = defineEmits<{ 'update:selectedIds': [ids: string[]]; 'request-trainer': [id: string] }>()
+const emit = defineEmits<{
+  'update:selectedIds': [ids: string[]]
+  'request-trainer': [id: string]
+}>()
 
 function updateSelection(trainerId: string, checked: boolean) {
   const ids = checked
