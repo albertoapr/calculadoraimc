@@ -73,7 +73,7 @@ const {
       </svg>
       <span>{{
         viewMode === 'select-trainers'
-          ? 'Solicitar atendimento'
+          ? 'Selecionar profissional'
           : viewMode === 'public-trainers'
             ? 'Profissionais'
             : viewMode === 'trainer-request'
