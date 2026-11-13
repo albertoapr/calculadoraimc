@@ -73,7 +73,6 @@ const {
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
       </svg>
       <span v-if="viewMode === 'public-trainers'" class="academy-page-brand">
-        <span class="brand-fit">Academia</span>
         <span class="brand-peso">{{ publicTrainerAcademy.split(/\s+[—–-]\s+/)[0] || 'Profissionais' }}</span>
       </span>
       <span v-else>{{
@@ -123,7 +122,7 @@ const {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: clamp(11px, 3.8vw, 30px);
+  font-size: clamp(20px, 5.5vw, 32px);
   letter-spacing: -0.045em;
 }
 .academy-page-brand .brand-fit,
