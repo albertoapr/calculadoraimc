@@ -3152,3 +3152,20 @@ html[data-theme='dark'] .header-auth-links .header-signup-link {
 @media (prefers-reduced-motion: reduce) {
   .request-accordion-chevron { transition: none; }
 }
+
+/* Busca por academia antes da foto motivadora na home. */
+.root-home-actions { margin: 24px 0 18px; }
+.home-gym-title { gap: 0.3em; font-size: clamp(26px, 6vw, 34px); line-height: 1.2; margin-bottom: 8px; }
+.home-academy-select {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--card-bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.home-academy-select:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.root-home-actions + .hero .root-home-photo { margin-top: 0; }
+html[data-theme='dark'] .home-academy-select { background: #1b2720; border-color: #3b4b40; color: #f4f5f0; }
