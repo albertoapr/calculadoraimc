@@ -2,6 +2,7 @@
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
+  goHome,
   showRequestForm,
   publicTrainerCity,
   customerSignedInName,
@@ -24,7 +25,7 @@ const {
 
 <template>
   <div class="fitpeso-home-topbar">
-    <div class="fitpeso-home-brand" aria-label="FitPeso — Rede de treinadores">
+    <button type="button" class="fitpeso-home-brand fitpeso-home-brand-link" aria-label="FitPeso — voltar para a tela inicial" @click="goHome">
       <div class="fitpeso-home-brand-main">
         <svg class="dumbbell-icon" viewBox="0 0 40 40" aria-hidden="true">
           <path d="M6 15v10m5-14v18m18-18v18m5-14v10M11 20h18" />
@@ -35,7 +36,7 @@ const {
         >
       </div>
       <small class="brand-tagline">Rede de treinadores</small>
-    </div>
+    </button>
     <div
       style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0"
     >
@@ -110,6 +111,23 @@ const {
               </button>
               <button type="button" @click="logout">Sair</button>
             </template>
+
+<style scoped>
+.fitpeso-home-brand-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  font: inherit;
+}
+.fitpeso-home-brand-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 5px;
+  border-radius: 6px;
+}
+</style>
           </div>
         </details>
       </nav>
