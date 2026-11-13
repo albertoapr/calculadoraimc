@@ -106,15 +106,34 @@ const {
 <style scoped>
 .academy-page-title {
   margin-bottom: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
 }
 .academy-page-brand {
   display: inline-flex;
   align-items: baseline;
-  justify-content: center;
-  flex-wrap: wrap;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
   column-gap: 0.3em;
   row-gap: 0;
   min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(11px, 3.8vw, 30px);
+  letter-spacing: -0.045em;
+}
+.academy-page-brand .brand-fit,
+.academy-page-brand .brand-peso {
+  white-space: nowrap;
+}
+.academy-page-brand .brand-peso {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .academy-page-neighborhood {
   margin: 2px auto 12px;
