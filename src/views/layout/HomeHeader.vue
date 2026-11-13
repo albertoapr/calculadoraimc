@@ -176,3 +176,28 @@ const {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* A marca continua clicável, mas sem aparência ou destaque de link/botão. */
+.fitpeso-home-brand-link,
+.fitpeso-home-brand-link:hover,
+.fitpeso-home-brand-link:active {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.fitpeso-home-brand-link:focus:not(:focus-visible) {
+  outline: none;
+}
+.fitpeso-home-brand-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+</style>
