@@ -77,6 +77,11 @@ const instagramUrl = computed(() =>
 
 <style scoped>
 .home-trainer-card {
+  /* Sobrescreve o display:flex herdado da listagem antiga:
+     cabeçalho e conteúdo do sanfonado devem ficar um abaixo do outro. */
+  display: block;
+  width: 100%;
+  padding: 0;
   border: 1px solid var(--line, #86978f);
   border-radius: 14px;
   background: var(--card-bg, #f2f4ee);
