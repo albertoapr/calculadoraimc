@@ -105,6 +105,7 @@ export function useFitpesoApp() {
   const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
   const viewMode = ref<
     | 'home'
+    | 'about'
     | 'assessment'
     | 'contact'
     | 'trainer-request'
