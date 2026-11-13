@@ -39,6 +39,7 @@ const {
   customerRequestsLookupError,
   searchHomeTrainers,
   requestProposalFromHome,
+  openRequestForTrainer,
   refreshShareableRequests,
   publicTrainersLoading,
   publicTrainersError,
@@ -200,6 +201,7 @@ const {
         "
         @continue="returnToDraftSummary"
         @request-proposal="requestProposalFromHome"
+        @request-trainer="openRequestForTrainer"
         @open-requests="openCustomerRequests"
         @refresh-requests="refreshShareableRequests"
         @retry="searchHomeTrainers"
