@@ -7,6 +7,7 @@ const {
   publicTrainerCity,
   supportedRequestCities,
   homeCity,
+  form,
   selectHomeCity,
 } = useFitpesoContext()
 </script>
@@ -16,6 +17,7 @@ const {
     v-if="
       viewMode === 'home' ||
       viewMode === 'public-trainers' ||
+      viewMode === 'select-trainers' ||
       (viewMode === 'contact' && showRequestForm)
     "
     class="home-city-selector"
@@ -29,8 +31,9 @@ const {
     <select
       id="home-city"
       class="home-city-select"
-      :value="viewMode === 'public-trainers' ? publicTrainerCity : homeCity"
-      aria-label="Alterar cidade"
+      :value="viewMode === 'select-trainers' ? form.city : viewMode === 'public-trainers' ? publicTrainerCity : homeCity"
+       :aria-label="viewMode === 'select-trainers' ? 'Cidade da solicitação (não editável)' : 'Alterar cidade'"
+      :disabled="viewMode === 'select-trainers'"
       @change="selectHomeCity"
     >
       <option value="" disabled>Escolha sua cidade</option>
