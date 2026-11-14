@@ -264,6 +264,7 @@ const {
         class="home-actions root-home-actions"
       >
         <div class="home-action">
+          <label for="home-academy" class="home-academy-label">Sua academia</label>
           <select
             id="home-academy"
             v-model="publicTrainerAcademy"
