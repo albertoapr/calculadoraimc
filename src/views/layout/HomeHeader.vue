@@ -151,4 +151,17 @@ const {
   outline-offset: 4px;
   border-radius: 4px;
 }
+
+.header-personal-link {
+  align-self: flex-end;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  text-decoration: none;
+  color: var(--ink);
+}
+.header-personal-link:hover,
+.header-personal-link:focus-visible {
+  text-decoration: underline;
+}
 </style>
