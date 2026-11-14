@@ -272,7 +272,7 @@ const {
             aria-label="Escolha sua academia"
             :disabled="!publicTrainerCity || publicTrainersLoading"
           >
-            <option value="" disabled>Escolha sua academia</option>
+            <option value="">Todas</option>
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
               {{ academy }}
             </option>
