@@ -270,6 +270,9 @@ const {
               ><small>Encontre profissionais na sua cidade</small></span
             >
           </button>
+          <button class="secondary-button" type="button" @click="viewMode = 'assessment'">
+            Avaliação corporal
+          </button>
           <div class="root-home-photo home-training-photo">
             <img
               class="root-home-personal-image"
