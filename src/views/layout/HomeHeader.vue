@@ -67,6 +67,7 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClic
             </template>
             <button type="button" @click="closeMenu(); viewMode = 'assessment'">Avaliação corporal</button>
             <button type="button" @click="closeMenu(); viewMode = 'about'">Sobre</button>
+            <a href="https://wa.me/5521971118383?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer" @click="closeMenu()">Fale conosco</a>
             <button type="button" @click="closeMenu(); openProfessionalRegistration()">
               Consultar registro profissional
             </button>
@@ -91,7 +92,8 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClic
           </div>
         </details>
       </nav>
-    </div>  </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
