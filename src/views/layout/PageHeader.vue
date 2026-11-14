@@ -33,7 +33,7 @@ const {
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      Solicitar atendimento
+      Solicitar treinamento
     </h2>
     <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
       <span
@@ -81,7 +81,7 @@ const {
       </span>
       <span v-else>{{
         viewMode === 'select-trainers'
-          ? 'Selecionar profissional'
+          ? 'Solicitar treinamento'
           : viewMode === 'about'
             ? 'Sobre o FitPeso'
             : viewMode === 'trainer-request'
@@ -99,6 +99,7 @@ const {
                         : 'Avaliar meu peso'
       }}</span>
     </h1>
+    <p v-if="viewMode === 'select-trainers'" class="trainer-selection-subtitle">Selecionar profissional</p>
     <p v-if="viewMode === 'assessment' && !result" class="intro">
       Informe suas medidas para fazer uma avaliação.
     </p>
