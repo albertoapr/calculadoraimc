@@ -189,9 +189,9 @@ const emit = defineEmits<{
 .home-list-message {
   margin: 0;
 }
-@media (max-width: 700px) {
+@media (max-width: 520px) {
   .home-trainer-controls {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .home-trainer-controls .home-proposal-button {
     grid-column: 1 / -1;
