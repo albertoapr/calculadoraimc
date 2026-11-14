@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import ProfissionaisListView from './ProfissionaisListView.vue'
 import type { PublicTrainer } from '../../services/profissionaisService'
 
-const props = defineProps<{
+defineProps<{
   selectingForDraft: boolean
   academy: string
   academies: string[]
@@ -23,19 +22,6 @@ const props = defineProps<{
   error: string
 }>()
 
-const nameFilter = ref('')
-const visibleTrainers = computed(() => {
-  const query = nameFilter.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
-  if (!query || props.selectingForDraft) return props.trainers
-  return props.trainers.filter((trainer) =>
-    trainer.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLocaleLowerCase('pt-BR')
-      .includes(query),
-  )
-})
-
 const emit = defineEmits<{
   'update:academy': [value: string]
   'update:selectedIds': [ids: string[]]
@@ -52,7 +38,6 @@ const emit = defineEmits<{
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
     <div class="home-trainer-controls">
       <label class="home-academy-select">
-        <span class="sr-only">Filtrar por academia</span>
         <select
           :value="academy"
           @change="emit('update:academy', ($event.target as HTMLSelectElement).value)"
@@ -63,10 +48,6 @@ const emit = defineEmits<{
             {{ academy }}
           </option>
         </select>
-      </label>
-      <label v-if="!selectingForDraft" class="home-name-filter">
-        <span class="sr-only">Filtrar por nome</span>
-        <input v-model="nameFilter" type="search" autocomplete="off" placeholder="Buscar por nome" aria-label="Filtrar personal por nome" />
       </label>
       <button
         v-if="selectingForDraft"
@@ -109,7 +90,7 @@ const emit = defineEmits<{
       {{ sharingMessage }}
     </p>
     <p v-if="!city" class="home-list-message">
-      Selecione sua cidade na tela inicial para encontrar profissionais.
+      Selecione uma cidade no cabeçalho para encontrar profissionais.
     </p>
     <p v-else-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
     <p v-else-if="error" class="home-list-message" role="alert">
@@ -117,18 +98,18 @@ const emit = defineEmits<{
     </p>
     <template v-else>
       <p class="home-list-heading">
-        {{ visibleTrainers.length }} {{ visibleTrainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
+        {{ trainers.length }} {{ trainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
       </p>
       <ProfissionaisListView
         :show-request-link="!selectingForDraft"
         @request-trainer="(id) => emit('request-trainer', id)"
-        :trainers="visibleTrainers"
+        :trainers="trainers"
         :selected-ids="selectedIds"
         :selectable="true"
         :sent-ids="sentIds"
         @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
       />
-      <p v-if="!visibleTrainers.length" class="home-list-message">
+      <p v-if="!trainers.length" class="home-list-message">
         Nenhum profissional encontrado para os critérios selecionados.
       </p>
     </template>
@@ -165,20 +146,18 @@ const emit = defineEmits<{
 }
 .home-trainer-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   align-items: stretch;
 }
 .home-trainer-controls button,
-.home-academy-select select,
-.home-name-filter input {
+.home-academy-select select {
   min-width: 0;
   width: 100%;
   min-height: 48px;
   font: inherit;
 }
-.home-academy-select select,
-.home-name-filter input {
+.home-academy-select select {
   color: inherit;
   background: var(--input-bg, transparent);
   border: 1px solid currentColor;
