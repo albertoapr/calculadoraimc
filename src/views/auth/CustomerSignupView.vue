@@ -136,6 +136,13 @@ const {
     <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">
       {{ customerStatus }}
     </p>
+    <a
+      v-if="!customerVerificationLink"
+      href="#cadastro-personal"
+      class="secondary-button field-wide customer-signup-trainer-link"
+    >
+      Cadastrar-me como personal
+    </a>
     <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
     <div
       class="box-footer"
@@ -195,3 +202,16 @@ const {
     </div>
   </section>
 </template>
+
+<style scoped>
+.customer-signup-trainer-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+</style>
