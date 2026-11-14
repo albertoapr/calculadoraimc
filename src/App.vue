@@ -96,7 +96,6 @@ const {
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
-        <span class="home-training-eyebrow">Encontre seu</span>
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
           <span class="brand-fit">Trainer</span>
