@@ -124,9 +124,7 @@ export function useFitpesoApp() {
   >(
     trainerRequestToken
       ? 'trainer-request'
-      : router.currentRoute.value.path.replace(/\/$/, '') === '/profissionais'
-        ? 'public-trainers'
-        : 'home',
+      : 'home',
   )
   const showRequestForm = ref(false)
   const requestSent = ref(false)
@@ -321,17 +319,8 @@ export function useFitpesoApp() {
     }
   }
   function openPublicTrainers() {
-    selectingTrainersForDraft.value = false
-    publicTrainerCity.value = homeCity.value || ''
-    publicTrainerName.value = ''
-    // Sem seletor de academia na home, a busca começa com todas as academias.
-    publicTrainerAcademy.value = ''
-    homeSelectedTrainerIds.value = []
-    viewMode.value = 'public-trainers'
-    sharingRequestId.value = ''
-    sharingRequestMessage.value = ''
-    if (publicTrainerCity.value) void loadPublicTrainers()
-    void refreshShareableRequests()
+    // A listagem pública agora está integrada à página inicial.
+    goHome()
   }
   const eligibleTrainers = ref<EligibleTrainer[]>([])
   const selectedTrainerIds = ref<string[]>([])
@@ -1637,11 +1626,10 @@ export function useFitpesoApp() {
   usePublicNavigation(
     viewMode,
     () => {
+      // URLs antigas de /profissionais voltam para a consulta na home.
       selectingTrainersForDraft.value = false
-      publicTrainerCity.value = homeCity.value || ''
-      publicTrainerAcademy.value = ''
-      viewMode.value = 'public-trainers'
-      if (publicTrainerCity.value) void loadPublicTrainers()
+      viewMode.value = 'home'
+      void router.replace('/')
     },
     () => {
       viewMode.value = 'home'
@@ -1659,6 +1647,7 @@ export function useFitpesoApp() {
   )
 
   onMounted(() => {
+    if (router.currentRoute.value.path === '/profissionais') void router.replace('/')
     if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
       publicTrainerCity.value = homeCity.value
       void loadPublicTrainers()
