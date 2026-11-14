@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
@@ -20,6 +21,7 @@ const {
 
 <template>
   <div class="fitpeso-home-topbar">
+    <div class="fitpeso-home-brand-column">
     <button
       type="button"
       class="fitpeso-home-brand fitpeso-home-brand-link"
@@ -37,6 +39,8 @@ const {
       </div>
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
+    <CitySelector v-if="viewMode === 'home'" />
+    </div>
     <div
       style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0"
     >
@@ -129,6 +133,13 @@ const {
 </template>
 
 <style scoped>
+.fitpeso-home-brand-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
 /* A marca continua clicável, mas sem aparência ou destaque de link/botão. */
 .fitpeso-home-brand-link,
 .fitpeso-home-brand-link:hover,
