@@ -161,8 +161,15 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClic
   outline-offset: 4px;
   border-radius: 4px;
 }
-@media (max-width: 390px) {
-  .fitpeso-home-header-actions { gap: 2px; }
-  .fitpeso-home-header-actions :deep(.home-city-select) { padding-right: 18px; font-size: 12px; }
+@media (max-width: 520px) {
+  .fitpeso-home-header-actions {
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 2px;
+  }
+  .fitpeso-home-header-actions :deep(.home-city-select) {
+    padding-right: 18px;
+    font-size: 13px;
+  }
 }
 </style>
