@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import ProfissionaisListView from './ProfissionaisListView.vue'
 import type { PublicTrainer } from '../../services/profissionaisService'
 
-defineProps<{
+const props = defineProps<{
   selectingForDraft: boolean
   academy: string
   academies: string[]
@@ -22,6 +23,21 @@ defineProps<{
   error: string
 }>()
 
+const nameFilter = ref('')
+const visibleTrainers = computed(() => {
+  const query = nameFilter.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+  if (!query || props.selectingForDraft) return props.trainers
+  return props.trainers.filter((trainer) =>
+    [trainer.name, trainer.fullName, trainer.firstName, trainer.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('pt-BR')
+      .includes(query),
+  )
+})
+
 const emit = defineEmits<{
   'update:academy': [value: string]
   'update:selectedIds': [ids: string[]]
@@ -36,7 +52,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
-    <div v-if="selectingForDraft" class="home-trainer-controls">
+    <div class="home-trainer-controls">
       <label class="home-academy-select">
         <span class="sr-only">Filtrar por academia</span>
         <select
@@ -50,6 +66,10 @@ const emit = defineEmits<{
           </option>
         </select>
       </label>
+      <label v-if="!selectingForDraft" class="home-name-filter">
+        <span class="sr-only">Filtrar por nome</span>
+        <input v-model="nameFilter" type="search" autocomplete="off" placeholder="Buscar por nome" aria-label="Filtrar personal por nome" />
+      </label>
       <button
         v-if="selectingForDraft"
         class="primary-button home-proposal-button"
@@ -59,28 +79,6 @@ const emit = defineEmits<{
       >
         Continuar com {{ selectedIds.length }}
         {{ selectedIds.length === 1 ? 'personal' : 'personais' }} →
-      </button>
-      <button
-        v-else-if="!selectingForDraft"
-        class="primary-button home-proposal-button"
-        type="button"
-        :disabled="
-          sharingBusy ||
-          checkingRequests ||
-          !!requestsError ||
-          (!!activeRequest && (activeRequest.city !== city || activeRequest.proposalCount >= 5))
-        "
-        @click="emit('request-proposal')"
-      >
-        {{
-          sharingBusy
-            ? 'Enviando…'
-            : checkingRequests
-              ? 'Consultando…'
-              : activeRequest
-                ? 'Enviar solicitação'
-                : 'Solicitar treinamento com personal'
-        }}
       </button>
     </div>
     <p v-if="selectingForDraft" class="home-list-message">
@@ -121,18 +119,18 @@ const emit = defineEmits<{
     </p>
     <template v-else>
       <p class="home-list-heading">
-        {{ trainers.length }} {{ trainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
+        {{ visibleTrainers.length }} {{ visibleTrainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
       </p>
       <ProfissionaisListView
         :show-request-link="!selectingForDraft"
         @request-trainer="(id) => emit('request-trainer', id)"
-        :trainers="trainers"
+        :trainers="visibleTrainers"
         :selected-ids="selectedIds"
         :selectable="true"
         :sent-ids="sentIds"
         @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
       />
-      <p v-if="!trainers.length" class="home-list-message">
+      <p v-if="!visibleTrainers.length" class="home-list-message">
         Nenhum profissional encontrado para os critérios selecionados.
       </p>
     </template>
@@ -174,13 +172,15 @@ const emit = defineEmits<{
   align-items: stretch;
 }
 .home-trainer-controls button,
-.home-academy-select select {
+.home-academy-select select,
+.home-name-filter input {
   min-width: 0;
   width: 100%;
   min-height: 48px;
   font: inherit;
 }
-.home-academy-select select {
+.home-academy-select select,
+.home-name-filter input {
   color: inherit;
   background: var(--input-bg, transparent);
   border: 1px solid currentColor;
