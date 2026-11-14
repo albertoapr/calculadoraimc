@@ -8,7 +8,7 @@ import CustomerSignupView from './views/auth/CustomerSignupView.vue'
 import HomeHeader from './views/layout/HomeHeader.vue'
 import PageHeader from './views/layout/PageHeader.vue'
 import CitySelector from './views/layout/CitySelector.vue'
-import ProfissionaisListView from './views/profissionais/ProfissionaisListView.vue'
+import HomeTrainersTable from './views/profissionais/HomeTrainersTable.vue'
 import MyProfileView from './views/account/MyProfileView.vue'
 import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
@@ -26,6 +26,7 @@ const {
   ConsultarProfissionaisView,
   SelecionarProfissionaisView,
   isRootHome,
+  theme,
   viewMode,
   showRequestForm,
   requestSent,
@@ -93,9 +94,27 @@ const {
       "
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-theme-top">
+        <button type="button" class="theme-mode-toggle" role="switch"
+          :aria-checked="theme === 'dark'"
+          :aria-label="theme === 'dark' ? 'Tema escuro ativado. Alternar aparência' : 'Tema claro ativado. Alternar aparência'"
+          :title="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
+          @click="theme = theme === 'dark' ? 'light' : 'dark'">
+          <span class="theme-mode-toggle-thumb" aria-hidden="true">
+            <svg v-if="theme === 'dark'" viewBox="0 0 24 24">
+              <path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3.5" />
+              <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+            </svg>
+          </span>
+        </button>
+      </div>
       <HomeHeader />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector v-if="viewMode !== 'public-trainers'" />
+      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
@@ -285,15 +304,7 @@ const {
             <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }}</p>
             <template v-else>
               <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ homeCity }}</p>
-              <ProfissionaisListView
-                :trainers="publicFilteredTrainers"
-                :selected-ids="homeSelectedTrainerIds"
-                :sent-ids="[]"
-                :selectable="false"
-                :show-request-link="true"
-                @update:selected-ids="(ids) => homeSelectedTrainerIds = ids"
-                @request-trainer="openRequestForTrainer"
-              />
+              <HomeTrainersTable :trainers="publicFilteredTrainers" />
             </template>
           </section>
         </div>
@@ -355,3 +366,9 @@ const {
     </section>
   </main>
 </template>
+
+<style scoped>
+.home-theme-top { display: flex; justify-content: flex-end; margin: -22px -26px 8px 0; }
+.home-city-divider { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px 0 18px; }
+@media (max-width: 520px) { .home-theme-top { margin: -24px -24px 8px 0; } }
+</style>
