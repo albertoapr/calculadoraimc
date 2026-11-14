@@ -3360,15 +3360,27 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
 .home-training-title {
   display: flex;
   width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 6px;
+  line-height: 1.15;
+  text-align: center;
+}
+.home-training-eyebrow {
+  color: var(--ink);
+  font-size: clamp(14px, 3.5vw, 16px);
+  font-weight: 500;
+}
+.home-training-heading {
+  display: flex;
   align-items: baseline;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.25em;
-  margin: 0 0 8px;
-  font-size: clamp(26px, 6vw, 34px);
-  line-height: 1.15;
-  text-align: center;
-  text-wrap: balance;
+  gap: 0.24em;
+  font-size: clamp(30px, 7vw, 46px);
+  font-weight: 800;
+  line-height: 1.12;
 }
 html[data-theme='dark'] .home-city-select {
   color: #f4f5f0;
