@@ -22,6 +22,19 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:selected': [value: boolean]; 'request-trainer': [] }>()
 const expanded = ref(false)
+const crefCopyMessage = ref('')
+
+async function copyCref() {
+  const cref = props.trainer.cref?.trim()
+  if (!cref) return
+  try {
+    await navigator.clipboard.writeText(cref)
+    crefCopyMessage.value = 'CREF copiado! Cole o número na consulta do CONFEF.'
+  } catch {
+    crefCopyMessage.value = 'Não foi possível copiar automaticamente. Selecione o número para copiá-lo.'
+  }
+}
+
 const displayName = computed(() => trainerDisplayName(props.trainer.name))
 const instagramUrl = computed(() =>
   props.trainer.instagram ? trainerInstagramUrl(props.trainer.instagram) : '',
@@ -61,43 +74,26 @@ const instagramUrl = computed(() =>
     >
       <div class="trainer-details-text">
         <span v-if="trainer.cref?.trim()" class="trainer-cref">
-          CREF: {{ trainer.cref }}
+          <button
+            type="button"
+            class="trainer-cref-copy"
+            :aria-label="'Copiar CREF de ' + displayName"
+            title="Copiar CREF para consultar no CONFEF"
+            @click="copyCref"
+          >CREF: {{ trainer.cref }} <span aria-hidden="true">⧉</span></button>
           <a
             href="https://www.confef.org.br/registrados/"
             target="_blank"
             rel="noopener noreferrer"
             class="trainer-cref-search"
-            :aria-label="'Consultar CREF de ' + displayName + ' no CONFEF'"
+            :aria-label="'Abrir consulta de registro profissional no CONFEF'"
             title="Consultar registro no CONFEF"
-            >🔎</a
-          >
+          >🔎</a>
         </span>
+        <small v-if="crefCopyMessage" class="trainer-cref-feedback" role="status">{{ crefCopyMessage }}</small>
         <small v-if="alreadySent">Solicitação já enviada</small>
       </div>
       <span class="trainer-social-links">
-        <button
-          v-if="showRequestLink"
-          type="button"
-          class="trainer-whatsapp-link"
-          :aria-label="'Solicitar atendimento com ' + displayName"
-          title="Solicitar atendimento"
-          @click="emit('request-trainer')"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M20.5 11.8a8.5 8.5 0 0 1-12.4 7.5L3 21l1.8-4.9a8.5 8.5 0 1 1 15.7-4.3Z" />
-            <path
-              d="M9 8.7c-.5.3-.7 1.1-.4 1.9.6 1.7 2.2 3.3 3.9 3.9.8.3 1.6.1 1.9-.4l.5-.8-1.8-1-1 .9c-.9-.4-1.6-1.1-2-2l.9-1-1-1.8-.9.3Z"
-            />
-          </svg>
-        </button>
         <a
           v-if="instagramUrl"
           :href="instagramUrl"
@@ -217,6 +213,26 @@ const instagramUrl = computed(() =>
   margin-left: 5px;
   text-decoration: none;
 }
+.trainer-cref-copy {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.trainer-cref-copy:hover {
+  text-decoration: underline;
+}
+.trainer-cref-copy:focus-visible {
+  outline: 2px solid var(--blue, currentColor);
+  outline-offset: 3px;
+}
+.trainer-cref-feedback {
+  color: var(--muted, inherit);
+  font-size: 0.8rem;
+}
 .trainer-social-links {
   display: flex;
   flex-direction: row;
@@ -225,7 +241,6 @@ const instagramUrl = computed(() =>
   justify-content: flex-end;
   gap: 4px;
 }
-.trainer-whatsapp-link,
 .trainer-instagram-link {
   display: inline-flex;
   align-items: center;
@@ -236,13 +251,6 @@ const instagramUrl = computed(() =>
   border: 0;
   color: inherit;
   cursor: pointer;
-}
-.trainer-whatsapp-link {
-  color: #188b51;
-}
-.trainer-whatsapp-link svg {
-  width: 25px;
-  height: 25px;
 }
 .trainer-instagram-link svg {
   width: 24px;
@@ -275,9 +283,6 @@ const instagramUrl = computed(() =>
 }
 :global(html[data-theme='dark']) .trainer-select-checkbox {
   accent-color: #f2a04b;
-}
-:global(html[data-theme='dark']) .trainer-whatsapp-link {
-  color: #55d6a3;
 }
 @media (prefers-reduced-motion: reduce) {
   .trainer-accordion-chevron {
