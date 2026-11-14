@@ -68,11 +68,6 @@ const {
             >Cadastre-se</a
           >
         </span>
-        <a
-          v-if="viewMode === 'home' && !trainerSignedInId && !customerSignedInName"
-          href="#cadastro-personal"
-          class="header-personal-link header-login-link"
-        >Sou personal trainer</a>
         <details
           v-if="
             (trainerSignedInId || customerSignedInName) &&
@@ -124,6 +119,11 @@ const {
           </div>
         </details>
       </nav>
+      <a
+        v-if="viewMode === 'home' && !trainerSignedInId && !customerSignedInName"
+        href="#cadastro-personal"
+        class="header-personal-link header-login-link"
+      >Sou personal trainer</a>
     </div>
   </div>
 </template>
@@ -153,7 +153,10 @@ const {
 }
 
 .header-personal-link {
+  display: inline-block;
   align-self: flex-end;
+  margin: 0;
+  padding: 0;
   font-size: 13px;
   font-weight: 700;
   text-align: right;
