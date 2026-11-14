@@ -94,7 +94,7 @@ const {
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
-      <CitySelector />
+      <CitySelector v-if="viewMode !== 'home'" />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
