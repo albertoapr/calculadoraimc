@@ -39,7 +39,7 @@ const {
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
     <div class="fitpeso-home-header-actions">
-      <CitySelector v-if="viewMode === 'home'" />
+      <CitySelector v-if="viewMode === 'home' || viewMode === 'public-trainers'" />
       <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
         Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}
       </span>
