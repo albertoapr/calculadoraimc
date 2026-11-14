@@ -28,9 +28,7 @@ const visibleTrainers = computed(() => {
   const query = nameFilter.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
   if (!query || props.selectingForDraft) return props.trainers
   return props.trainers.filter((trainer) =>
-    [trainer.name, trainer.fullName, trainer.firstName, trainer.lastName]
-      .filter(Boolean)
-      .join(' ')
+    trainer.name
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('pt-BR')
