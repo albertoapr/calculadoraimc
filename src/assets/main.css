@@ -3401,13 +3401,21 @@ html[data-theme='dark'] .home-city-selector svg {
   line-height: 1.2;
   margin-bottom: 8px;
 }
+.home-academy-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
 .home-academy-select {
   width: 100%;
   min-height: 52px;
   border: 0;
   border-radius: 0;
   padding: 10px 14px;
-  background: var(--card-bg);
+  background: transparent;
+  box-shadow: none;
   color: var(--ink);
   font-size: 16px;
   cursor: pointer;
@@ -3420,9 +3428,10 @@ html[data-theme='dark'] .home-city-selector svg {
   margin-top: 0;
 }
 html[data-theme='dark'] .home-academy-select {
-  background: #1b2720;
-  border-color: #3b4b40;
+  background: transparent;
+  box-shadow: none;
   color: #f4f5f0;
+  color-scheme: dark;
 }
 
 /* O botão de avaliação na faixa de links tem o mesmo estilo dos links de acesso. */
