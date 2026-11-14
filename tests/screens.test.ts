@@ -110,8 +110,9 @@ test('extracted screens preserve login, request age between steps and theme chan
     )
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
-      /Treine.*personal/s,
+      /Encontre seu.*Personal/s,
     )
+    assert.equal(document.querySelector('.home-training-title .brand-fit')?.textContent, 'Personal')
     assert.equal(document.querySelector('.home-training-photo .root-home-tagline-subtitle'), null)
     await click(/^Entrar$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)

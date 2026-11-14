@@ -96,8 +96,8 @@ const {
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
-        <span class="brand-fit">Treine</span>
-        <span class="brand-peso">com um personal</span>
+        <span class="brand-peso">Encontre seu</span>
+        <span class="brand-fit">Personal</span>
       </h1>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
