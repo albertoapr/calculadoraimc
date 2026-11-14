@@ -3475,4 +3475,6 @@ html[data-theme='dark'] .home-training-subtitle {
   width: auto;
   max-width: 100%;
   padding-right: 30px;
+  text-align: right;
+  text-align-last: right;
 }
