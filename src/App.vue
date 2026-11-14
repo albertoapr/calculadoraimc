@@ -70,7 +70,6 @@ const {
   openSentRequests,
   openCustomerRequests,
   confirmRequestVisibilityChange,
-  rootHomePersonalImage,
 } = context
 </script>
 
@@ -95,7 +94,6 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
-      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector v-if="viewMode !== 'public-trainers'" />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
@@ -281,16 +279,6 @@ const {
           <button class="primary-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
             Solicitar treinamento
           </button>
-          <div class="root-home-photo home-training-photo">
-            <img
-              class="root-home-personal-image"
-              :src="rootHomePersonalImage"
-              width="1069"
-              height="594"
-              alt="Personal trainer acompanhando uma aluna durante o treinamento"
-              decoding="async"
-            />
-          </div>
           <section class="home-trainer-preview" aria-label="Profissionais disponíveis">
             <p v-if="!homeCity" class="home-list-message">Selecione uma cidade para consultar os profissionais.</p>
             <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
