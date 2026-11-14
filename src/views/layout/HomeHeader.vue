@@ -68,6 +68,11 @@ const {
             >Cadastre-se</a
           >
         </span>
+        <a
+          v-if="viewMode === 'home' && !trainerSignedInId && !customerSignedInName"
+          href="#cadastro-personal"
+          class="header-personal-link header-login-link"
+        >Sou personal trainer</a>
         <details
           v-if="
             (trainerSignedInId || customerSignedInName) &&
