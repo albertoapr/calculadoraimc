@@ -280,15 +280,6 @@ const {
               decoding="async"
             />
           </div>
-          <nav
-            class="header-auth-links"
-            aria-label="Links da página inicial"
-            style="display: flex; justify-content: center; margin-top: 12px"
-          >
-            <button type="button" class="header-signup-link" @click="viewMode = 'assessment'">
-              Avaliação corporal
-            </button>
-          </nav>
         </div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
