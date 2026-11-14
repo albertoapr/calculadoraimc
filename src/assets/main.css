@@ -3430,3 +3430,16 @@ html[data-theme='dark'] .home-academy-select {
 html[data-theme='dark'] .header-auth-links button.header-signup-link {
   color: #f1f5f3;
 }
+
+.home-training-subtitle {
+  width: 100%;
+  margin: 0 0 18px;
+  color: var(--text-muted, #66736b);
+  font-size: clamp(14px, 3.5vw, 16px);
+  line-height: 1.45;
+  text-align: center;
+  text-wrap: balance;
+}
+html[data-theme='dark'] .home-training-subtitle {
+  color: #c6d0c9;
+}
