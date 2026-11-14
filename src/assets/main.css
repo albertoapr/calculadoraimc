@@ -3378,7 +3378,7 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.24em;
-  font-size: clamp(30px, 7vw, 46px);
+  font-size: clamp(27.33px, calc(7vw - 2.67px), 43.33px);
   font-weight: 800;
   line-height: 1.12;
 }
@@ -3432,6 +3432,39 @@ html[data-theme='dark'] .home-academy-select {
   box-shadow: none;
   color: #f4f5f0;
   color-scheme: dark;
+}
+
+/* Cidade na home, academia imediatamente após o subtítulo e profissionais abaixo da foto. */
+.root-home-actions {
+  margin-top: 0;
+}
+.root-home-actions .home-action {
+  min-width: 0;
+}
+.root-home-actions .home-academy-select {
+  display: block;
+  width: 100%;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--ink);
+  text-align: left;
+}
+html[data-theme='dark'] .root-home-actions .home-academy-select {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+.home-trainer-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  text-align: left;
+}
+.home-trainer-preview .home-list-heading {
+  font-weight: 650;
+  color: var(--muted);
 }
 
 /* O botão de avaliação na faixa de links tem o mesmo estilo dos links de acesso. */
