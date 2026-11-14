@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
 import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
@@ -17,11 +18,20 @@ const {
   openTrainerReceivedRequests,
   openCustomerSignupFromLogin,
 } = useFitpesoContext()
+
+const menu = ref<HTMLDetailsElement | null>(null)
+function closeMenu() {
+  if (menu.value) menu.value.open = false
+}
+function closeOnOutsideClick(event: PointerEvent) {
+  if (menu.value && !menu.value.contains(event.target as Node)) closeMenu()
+}
+onMounted(() => document.addEventListener('pointerdown', closeOnOutsideClick))
+onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClick))
 </script>
 
 <template>
   <div class="fitpeso-home-topbar">
-    <div class="fitpeso-home-brand-column">
     <button
       type="button"
       class="fitpeso-home-brand fitpeso-home-brand-link"
@@ -39,108 +49,98 @@ const {
       </div>
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
-    <CitySelector v-if="viewMode === 'home'" />
-    </div>
-    <div
-      style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0"
-    >
+    <div class="fitpeso-home-header-actions">
+      <CitySelector v-if="viewMode === 'home'" />
+      <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
+        Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}
+      </span>
       <nav class="customer-account-links" aria-label="Menu principal">
-        <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.5" />
-            <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
-          </svg>
-          <span
-            >Olá,
-            {{
-              (trainerSignedInId ? trainerSignedInName : customerSignedInName)
-                .trim()
-                .split(/\s+/)[0]
-            }}</span
-          >
-        </span>
-        <span
-          v-if="!trainerSignedInId && !customerSignedInName && viewMode !== 'assessment'"
-          class="header-auth-links"
-        >
-          <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a
-          ><span class="header-auth-divider" aria-hidden="true">|</span
-          ><a
-            href="#cadastro-cliente"
-            class="header-signup-link"
-            @click.prevent="openCustomerSignupFromLogin()"
-            >Cadastre-se</a
-          >
-        </span>
-        <details
-          v-if="
-            (trainerSignedInId || customerSignedInName) &&
-            viewMode !== 'home' &&
-            viewMode !== 'assessment'
-          "
-          class="account-dropdown main-hamburger-menu"
-        >
+        <details ref="menu" class="account-dropdown main-hamburger-menu">
           <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </summary>
           <div class="account-dropdown-panel">
-            <button
-              v-if="!trainerSignedInId && !customerSignedInName"
-              type="button"
-              @click="openCustomerLogin()"
-            >
-              Entrar
-            </button>
-            <button type="button" @click="viewMode = 'assessment'">Avaliar meu peso</button>
-            <button type="button" @click="viewMode = 'about'">Sobre</button>
-            <button type="button" @click="openProfessionalRegistration">
-              Consultar Registro profissional
+            <template v-if="!trainerSignedInId && !customerSignedInName">
+              <button type="button" @click="closeMenu(); openCustomerLogin()">Entrar</button>
+              <button type="button" @click="closeMenu(); openCustomerSignupFromLogin()">Cadastre-se</button>
+              <a href="#cadastro-personal" @click="closeMenu()">Sou personal trainer</a>
+            </template>
+            <button type="button" @click="closeMenu(); viewMode = 'assessment'">Avaliação corporal</button>
+            <button type="button" @click="closeMenu(); viewMode = 'about'">Sobre</button>
+            <button type="button" @click="closeMenu(); openProfessionalRegistration()">
+              Consultar registro profissional
             </button>
             <template v-if="trainerSignedInId || customerSignedInName">
               <button
                 type="button"
-                @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()"
-              >
-                {{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}
-              </button>
-              <button type="button" @click="openMyProfile">Meu cadastro</button>
+                @click="closeMenu(); trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()"
+              >{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
+              <button type="button" @click="closeMenu(); openMyProfile()">Meu cadastro</button>
               <button
                 v-if="customerIsAdmin && !trainerSignedInId"
                 type="button"
-                @click="viewMode = 'admin-trainer'"
-              >
-                Cadastrar Personal
-              </button>
+                @click="closeMenu(); viewMode = 'admin-trainer'"
+              >Cadastrar Personal</button>
               <button
                 v-if="customerIsAdmin && !trainerSignedInId"
                 type="button"
-                @click="openAdminTrainers"
-              >
-                Editar profissionais
-              </button>
-              <button type="button" @click="logout">Sair</button>
+                @click="closeMenu(); openAdminTrainers()"
+              >Editar profissionais</button>
+              <button type="button" @click="closeMenu(); logout()">Sair</button>
             </template>
           </div>
         </details>
       </nav>
-      <a
-        v-if="viewMode === 'home' && !trainerSignedInId && !customerSignedInName"
-        href="#cadastro-personal"
-        class="header-personal-link header-login-link"
-      >Sou personal trainer</a>
-    </div>
-  </div>
+    </div>  </div>
 </template>
 
 <style scoped>
-.fitpeso-home-brand-column {
+.fitpeso-home-header-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   min-width: 0;
 }
-
-/* A marca continua clicável, mas sem aparência ou destaque de link/botão. */
+.fitpeso-home-header-actions :deep(.home-city-selector--right) {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+.fitpeso-home-header-actions :deep(.home-city-select) {
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 23px 6px 28px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  text-align-last: right;
+}
+.fitpeso-home-header-actions :deep(.home-city-selector svg) {
+  left: 3px;
+  width: 16px;
+  height: 16px;
+}
+.main-hamburger-menu .account-dropdown-panel {
+  right: 0;
+}
+.main-hamburger-menu .account-dropdown-panel a {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 13px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.main-hamburger-menu .account-dropdown-panel a:hover {
+  background: color-mix(in srgb, var(--blue) 9%, transparent);
+}
 .fitpeso-home-brand-link,
 .fitpeso-home-brand-link:hover,
 .fitpeso-home-brand-link:active {
@@ -154,28 +154,13 @@ const {
   color: inherit;
   cursor: pointer;
 }
-.fitpeso-home-brand-link:focus:not(:focus-visible) {
-  outline: none;
-}
 .fitpeso-home-brand-link:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 4px;
   border-radius: 4px;
 }
-
-.header-personal-link {
-  display: inline-block;
-  align-self: flex-end;
-  margin: 0;
-  padding: 0;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: right;
-  text-decoration: none;
-  color: var(--ink);
-}
-.header-personal-link:hover,
-.header-personal-link:focus-visible {
-  text-decoration: underline;
+@media (max-width: 390px) {
+  .fitpeso-home-header-actions { gap: 2px; }
+  .fitpeso-home-header-actions :deep(.home-city-select) { padding-right: 18px; font-size: 12px; }
 }
 </style>
