@@ -307,7 +307,8 @@ export function useFitpesoApp() {
     selectingTrainersForDraft.value = false
     publicTrainerCity.value = homeCity.value || ''
     publicTrainerName.value = ''
-    // Preserva a academia escolhida na tela inicial.
+    // Sem seletor de academia na home, a busca começa com todas as academias.
+    publicTrainerAcademy.value = ''
     homeSelectedTrainerIds.value = []
     viewMode.value = 'public-trainers'
     sharingRequestId.value = ''
