@@ -10,7 +10,6 @@ const {
   trainerSignedInName,
   trainerSignedInId,
   logout,
-  openProfessionalRegistration,
   openCustomerLogin,
   openCustomerRequests,
   openMyProfile,
