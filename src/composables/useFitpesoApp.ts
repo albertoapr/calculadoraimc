@@ -289,8 +289,12 @@ export function useFitpesoApp() {
     },
     { immediate: true },
   )
-  watch(publicTrainerAcademy, (academy) => {
+  watch(publicTrainerAcademy, (academy, previousAcademy) => {
     if (academy) saveNavigationPreference(NAV_ACADEMY, academy)
+    // Não manter profissionais de outra academia selecionados na home.
+    if (viewMode.value === 'home' && academy !== previousAcademy) {
+      homeSelectedTrainerIds.value = []
+    }
   })
   async function loadPublicTrainers() {
     const id = ++publicLookupId
