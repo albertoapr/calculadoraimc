@@ -289,7 +289,7 @@ const {
                 :trainers="publicFilteredTrainers"
                 :selected-ids="homeSelectedTrainerIds"
                 :sent-ids="[]"
-                :selectable="true"
+                :selectable="false"
                 :show-request-link="true"
                 @update:selected-ids="(ids) => homeSelectedTrainerIds = ids"
                 @request-trainer="openRequestForTrainer"
