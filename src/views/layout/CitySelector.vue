@@ -14,6 +14,7 @@ const {
 <template>
   <label
     v-if="
+      viewMode === 'home' ||
       viewMode === 'public-trainers' ||
       (viewMode === 'contact' && showRequestForm)
     "
