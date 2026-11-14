@@ -3350,6 +3350,7 @@ html[data-theme='dark'] .request-accordion-estimate-text strong {
   color: var(--ink);
   background: transparent;
   font: inherit;
+  font-size: 16px;
   cursor: pointer;
   color-scheme: light;
 }
@@ -3397,6 +3398,7 @@ html[data-theme='dark'] .home-city-selector svg {
   padding: 10px 14px;
   background: var(--card-bg);
   color: var(--ink);
+  font-size: 16px;
   cursor: pointer;
 }
 .home-academy-select:focus-visible {

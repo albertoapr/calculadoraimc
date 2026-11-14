@@ -34,7 +34,7 @@ const {
     >
       <option value="" disabled>Escolha sua cidade</option>
       <option v-for="city in supportedRequestCities" :key="city" :value="city">
-        {{ city }},RJ
+        {{ city }}, RJ
       </option>
     </select>
   </label>

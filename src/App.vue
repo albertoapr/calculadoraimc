@@ -259,16 +259,14 @@ const {
         class="home-actions root-home-actions"
       >
         <div class="home-action">
-          <h1 class="home-gym-title">
-            <span class="brand-fit">Minha</span> <span class="brand-peso">academia</span>
-          </h1>
           <select
             id="home-academy"
             v-model="publicTrainerAcademy"
             class="home-academy-select"
-            aria-label="Minha academia"
+            aria-label="Escolha sua academia"
             :disabled="!publicTrainerCity || publicTrainersLoading"
           >
+            <option value="" disabled>Escolha sua academia</option>
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
               {{ academy }}
             </option>

@@ -102,6 +102,12 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.ok(citySelector)
     assert.equal(citySelector.closest('.fitpeso-home-topbar'), null)
     assert.ok(document.querySelector('.home-header-divider + .home-city-selector'))
+    assert.match((citySelector as HTMLSelectElement).options[1]?.text ?? '', /, RJ$/)
+    assert.equal(document.querySelector('.home-gym-title'), null)
+    assert.equal(
+      (document.querySelector('#home-academy option[value=""]') as HTMLOptionElement)?.text,
+      'Escolha sua academia',
+    )
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
       /Treine.*personal/s,
