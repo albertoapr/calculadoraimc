@@ -3478,3 +3478,21 @@ html[data-theme='dark'] .home-training-subtitle {
   text-align: right;
   text-align-last: right;
 }
+
+/* Cidade dentro do cabeçalho, diretamente abaixo da assinatura da marca. */
+.fitpeso-home-brand-column .home-city-selector--right {
+  width: max-content;
+  max-width: 100%;
+  margin: 4px 0 0;
+}
+.fitpeso-home-brand-column .home-city-selector--right .home-city-select {
+  width: auto;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 22px 6px 32px;
+  text-align: left;
+  text-align-last: left;
+}
+.fitpeso-home-brand-column .home-city-selector svg {
+  left: 4px;
+}
