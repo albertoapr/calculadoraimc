@@ -40,10 +40,7 @@ const {
       class="form login-step-form"
       @submit.prevent="continueSignupContact"
     >
-      <p class="field-wide intro">
-        Informe apenas seu WhatsApp ou e-mail. Pelo WhatsApp, a Beta confirma seu número e informa
-        seu nome automaticamente.
-      </p>
+      <p class="field-wide intro">Informe seu WhatsApp ou e-mail para iniciar o cadastro.</p>
       <label class="field field-wide" for="signup-contact"
         ><span class="field-label">WhatsApp ou e-mail</span>
         <input
@@ -63,8 +60,8 @@ const {
     </form>
     <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
       <p class="field-wide intro">
-        Para continuar pelo e-mail, informe seu nome e WhatsApp. O número será confirmado com a
-        Beta. A data de nascimento será solicitada apenas quando pedir atendimento.
+        Informe seu nome e WhatsApp. O número será confirmado com a Beta e, ao concluir, você já
+        estará conectado. A data de nascimento será solicitada apenas quando pedir atendimento.
       </p>
       <label class="field field-wide" for="customer-name"
         ><span class="field-label">Seu nome</span>
@@ -132,9 +129,8 @@ const {
         Concluir cadastro
       </button>
       <small
-        >O botão abre uma conversa com a Beta e prepara o número e o código. A Beta deverá enviar
-        também o nome exibido no WhatsApp à rota de confirmação. Esse nome não comprova titularidade
-        da linha.</small
+        >O botão abre uma conversa com a Beta e prepara o número, o código e o nome informados para
+        concluir a confirmação.</small
       >
     </div>
     <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">

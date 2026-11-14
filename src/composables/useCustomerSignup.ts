@@ -11,6 +11,16 @@ import {
 
 export function useCustomerSignup(options: {
   onClose: (confirmed: boolean) => void
+  onAuthenticated?: (
+    sessionToken: string,
+    profile: {
+      name: string
+      whatsapp: string
+      email: string
+      dateOfBirth?: string
+      isAdmin?: boolean
+    },
+  ) => void
   active?: Ref<boolean>
 }) {
   let disposed = false
@@ -30,6 +40,8 @@ export function useCustomerSignup(options: {
   const customerVerificationCode = ref('')
 
   const customerVerificationComplete = ref(false)
+
+  const customerSessionToken = ref('')
 
   const customerSubmitting = ref(false)
 
@@ -67,12 +79,22 @@ export function useCustomerSignup(options: {
       const { ok, body } = await queryCustomerSignup(
         customerVerificationCode.value,
         customerForm.whatsapp,
+        customerSessionToken.value,
         controller.signal,
       )
       if (!isCurrent()) return
       if (ok && body.verified === true) {
         customerVerificationComplete.value = true
         if (body.name?.trim()) customerForm.name = body.name.trim()
+        if (body.authenticated === true && customerSessionToken.value) {
+          options.onAuthenticated?.(customerSessionToken.value, {
+            name: body.name?.trim() ?? customerForm.name,
+            whatsapp: body.whatsapp ?? customerForm.whatsapp,
+            email: body.email ?? customerForm.email,
+            dateOfBirth: body.dateOfBirth,
+            isAdmin: body.isAdmin,
+          })
+        }
         customerStatus.value = `WhatsApp confirmado! ${body.name?.trim() ? `Bem-vindo(a), ${body.name.trim().split(/\s+/)[0]}!` : 'Cadastro ativo.'}`
         return
       }
@@ -110,11 +132,7 @@ export function useCustomerSignup(options: {
       customerForm.email = contact.value
     } else {
       customerForm.whatsapp = contact.value
-      customerForm.name = ''
       customerForm.email = ''
-      // O nome vem da confirmação realizada pela Beta.
-      await sendCustomerSignup()
-      return
     }
     signupStep.value = 2
     void nextTick(() => document.getElementById('customer-name')?.focus())
@@ -133,7 +151,7 @@ export function useCustomerSignup(options: {
     const name = normalizePersonName(customerForm.name)
     const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
     const email = normalizeEmail(customerForm.email)
-    if (!isValidPersonName(name, true)) {
+    if (!isValidPersonName(name)) {
       customerStatus.value = 'Informe um nome válido.'
       return
     }
@@ -154,14 +172,22 @@ export function useCustomerSignup(options: {
     customerSubmitting.value = true
     customerStatus.value = 'Registrando seu cadastro…'
     try {
-      const verificationCode = await registerCustomer({ name, whatsapp, email }, controller.signal)
+      const bytes = crypto.getRandomValues(new Uint8Array(32))
+      const sessionToken = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '')
+      const verificationCode = await registerCustomer(
+        { name, whatsapp, email, sessionToken },
+        controller.signal,
+      )
       if (!isCurrent()) return
+      customerSessionToken.value = sessionToken
       const message = `Confirmar cadastro FitPeso ${verificationCode}\nWhatsApp: ${whatsapp}${name ? `\nNome: ${name}` : ''}`
       customerVerificationCode.value = verificationCode
       customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      customerStatus.value = name
-        ? 'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.'
-        : 'Envie a mensagem para a Beta. Ela identificará o nome exibido no seu WhatsApp e o encaminhará com o número e o código para concluir o cadastro.'
+      customerStatus.value =
+        'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.'
       customerVerificationPollStartedAt = Date.now()
       scheduleCustomerVerificationPoll(1_000)
     } catch (error) {

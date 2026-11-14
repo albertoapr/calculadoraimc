@@ -409,6 +409,14 @@ export function useFitpesoApp() {
     stopCustomerVerification,
   } = useCustomerSignup({
     onClose: onCustomerSignupClosed,
+    onAuthenticated: (sessionToken, profile) => {
+      try {
+        sessionStorage.setItem('fitpeso-customer-session', sessionToken)
+      } catch {
+        /* armazenamento indisponível */
+      }
+      applyCustomerProfile(profile)
+    },
     active: computed(
       () => showCustomerSignup.value && !showTrainerSignup.value && !showCustomerLogin.value,
     ),
@@ -1012,13 +1020,18 @@ export function useFitpesoApp() {
   function onCustomerSignupClosed(confirmed: boolean) {
     if (requestLoginReturn.value && confirmed) {
       showCustomerSignup.value = false
-      showCustomerLogin.value = true
       showRequestForm.value = true
       viewMode.value = 'contact'
       requestStep.value = 5
-      customerLoginMethod.value = 'whatsapp'
-      customerLoginStatus.value =
-        'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+      if (customerSignedInName.value) {
+        showCustomerLogin.value = false
+        customerLoginStatus.value = 'Cadastro confirmado. Você já está conectado.'
+      } else {
+        showCustomerLogin.value = true
+        customerLoginMethod.value = 'whatsapp'
+        customerLoginStatus.value =
+          'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+      }
       void router.replace(window.location.pathname)
       void nextTick(() => window.scrollTo(0, 0))
       return

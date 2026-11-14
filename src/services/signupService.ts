@@ -1,6 +1,11 @@
 import { getRequestApiEndpoint } from './api'
 
-export type CustomerSignupInput = { name: string; whatsapp: string; email: string }
+export type CustomerSignupInput = {
+  name: string
+  whatsapp: string
+  email: string
+  sessionToken: string
+}
 export type TrainerSignupInput = {
   name: string
   sex: string
@@ -32,18 +37,28 @@ export async function registerCustomer(payload: CustomerSignupInput, signal?: Ab
   return body.verificationCode
 }
 
-export async function queryCustomerSignup(code: string, whatsapp: string, signal?: AbortSignal) {
+export async function queryCustomerSignup(
+  code: string,
+  whatsapp: string,
+  sessionToken: string,
+  signal?: AbortSignal,
+) {
   const endpoint = await getRequestApiEndpoint(signal)
   const response = await fetch(`${endpoint}/api/customers/verification-status`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     signal,
-    body: JSON.stringify({ code, whatsapp }),
+    body: JSON.stringify({ code, whatsapp, sessionToken }),
   })
   const body = (await response.json()) as {
     verified?: boolean
     expired?: boolean
+    authenticated?: boolean
     name?: string
+    whatsapp?: string
+    email?: string
+    dateOfBirth?: string
+    isAdmin?: boolean
     error?: string
   }
   return { ok: response.ok, body }

@@ -49,10 +49,13 @@ test('signup modules preserve registration contracts, validation and confirmatio
     return Response.json(reply, { status })
   }
   const scopes: ReturnType<typeof effectScope>[] = []
-  const customer = (onClose = (_confirmed: boolean) => {}) => {
+  const customer = (
+    onClose = (_confirmed: boolean) => {},
+    onAuthenticated?: Parameters<typeof useCustomerSignup>[0]['onAuthenticated'],
+  ) => {
     const scope = effectScope()
     scopes.push(scope)
-    return { value: scope.run(() => useCustomerSignup({ onClose }))!, scope }
+    return { value: scope.run(() => useCustomerSignup({ onClose, onAuthenticated }))!, scope }
   }
   const trainer = () => {
     const scope = effectScope()
@@ -101,21 +104,34 @@ test('signup modules preserve registration contracts, validation and confirmatio
         const registration = calls.at(-1)!
         assert.match(registration.url, /\/api\/customers\/register$/)
         assert.equal(registration.init?.method, 'POST')
-        assert.deepEqual(JSON.parse(String(registration.init?.body)), {
-          name: 'Ana Silva',
-          whatsapp: '+5521999999999',
-          email: 'ana@example.test',
-        })
+        const registrationBody = JSON.parse(String(registration.init?.body))
+        assert.deepEqual(
+          { ...registrationBody, sessionToken: undefined },
+          {
+            name: 'Ana Silva',
+            whatsapp: '+5521999999999',
+            email: 'ana@example.test',
+            sessionToken: undefined,
+          },
+        )
+        assert.match(registrationBody.sessionToken, /^[A-Za-z0-9_-]{43}$/)
         assert.equal(
           new URL(c.customerVerificationLink.value).searchParams.get('text'),
           'Confirmar cadastro FitPeso customer-code\nWhatsApp: +5521999999999\nNome: Ana Silva',
         )
-        reply = { verified: true, name: ' Ana Silva ' }
+        reply = {
+          verified: true,
+          authenticated: true,
+          name: ' Ana Silva ',
+          whatsapp: '+5521999999999',
+          email: 'ana@example.test',
+        }
         await advance(1000)
         assert.equal(c.customerVerificationComplete.value, true)
         assert.deepEqual(JSON.parse(String(calls.at(-1)!.init?.body)), {
           code: 'customer-code',
           whatsapp: '+5521999999999',
+          sessionToken: registrationBody.sessionToken,
         })
         c.closeCustomerSignup()
         assert.equal(closed, true)
@@ -127,29 +143,36 @@ test('signup modules preserve registration contracts, validation and confirmatio
     )
 
     await t.test(
-      'WhatsApp-only signup clears old details and retries transient verification failures',
+      'WhatsApp contact advances to required details and retries transient verification failures',
       async () => {
-        const { value: c, scope } = customer()
+        let authenticated: { token: string; name: string } | undefined
+        const { value: c, scope } = customer(undefined, (token, profile) => {
+          authenticated = { token, name: profile.name }
+        })
         Object.assign(c.customerForm, { name: 'Anterior', email: 'anterior@example.test' })
         c.signupContact.value = '21999999999'
-        reply = { registered: true, verificationCode: 'phone-code' }
         await c.continueSignupContact()
-        assert.equal(c.signupStep.value, 1)
-        assert.deepEqual(JSON.parse(String(calls.at(-1)!.init?.body)), {
-          name: '',
-          whatsapp: '+5521999999999',
-          email: '',
-        })
+        assert.equal(c.signupStep.value, 2)
+        assert.equal(c.customerForm.whatsapp, '+5521999999999')
+        assert.equal(c.customerForm.email, '')
+        c.customerForm.name = 'Joana Lima'
+        reply = { registered: true, verificationCode: 'phone-code' }
+        await c.sendCustomerSignup()
+        const registrationBody = JSON.parse(String(calls.at(-1)!.init?.body))
         failNetwork = true
         await advance(1000)
         assert.equal(c.customerVerificationComplete.value, false)
         assert.equal(timers.size, 1)
         failNetwork = false
-        reply = { verified: true, name: 'Joana Lima' }
+        reply = { verified: true, authenticated: true, name: 'Joana Lima' }
         await advance(10000)
         assert.equal(c.customerForm.name, 'Joana Lima')
         assert.match(c.customerStatus.value, /Joana/)
         assert.equal(c.customerVerificationComplete.value, true)
+        assert.deepEqual(authenticated, {
+          token: registrationBody.sessionToken,
+          name: 'Joana Lima',
+        })
         assert.equal(timers.size, 0)
         scope.stop()
       },
@@ -177,6 +200,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
 
     await t.test('double registration is blocked and closing discards late results', async () => {
       const { value: c, scope } = customer()
+      c.customerForm.name = 'Cliente Teste'
       c.customerForm.whatsapp = '+5521999999999'
       reply = { registered: true, verificationCode: 'late-code' }
       let release!: () => void
@@ -203,6 +227,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
       'manual and automatic verification share one request and disposal prevents late confirmation',
       async () => {
         const { value: c, scope } = customer()
+        c.customerForm.name = 'Cliente Teste'
         c.customerForm.whatsapp = '+5521999999999'
         reply = { registered: true, verificationCode: 'poll-code' }
         await c.sendCustomerSignup()
@@ -221,13 +246,14 @@ test('signup modules preserve registration contracts, validation and confirmatio
         await checking
         blocked = undefined
         assert.equal(c.customerVerificationComplete.value, false)
-        assert.equal(c.customerForm.name, '')
+        assert.equal(c.customerForm.name, 'Cliente Teste')
         assert.equal(timers.size, 0)
       },
     )
 
     await t.test('server expiry and the fifteen-minute timeout stop verification', async () => {
       const { value: c, scope } = customer()
+      c.customerForm.name = 'Cliente Teste'
       c.customerForm.whatsapp = '+5521999999999'
       reply = { registered: true, verificationCode: 'expiry-code' }
       await c.sendCustomerSignup()
@@ -251,6 +277,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
         const scope = effectScope()
         scopes.push(scope)
         const c = scope.run(() => useCustomerSignup({ active, onClose() {} }))!
+        c.customerForm.name = 'Cliente Teste'
         c.customerForm.whatsapp = '+5521999999999'
         reply = { registered: true, verificationCode: 'navigation-code' }
         await c.sendCustomerSignup()
@@ -329,6 +356,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
       'backend rejections and missing confirmation codes are shown without success links',
       async () => {
         const { value: c, scope: cs } = customer()
+        c.customerForm.name = 'Cliente Teste'
         c.customerForm.whatsapp = '+5521999999999'
         status = 409
         reply = { error: 'WhatsApp já cadastrado' }
