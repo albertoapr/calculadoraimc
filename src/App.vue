@@ -264,19 +264,6 @@ const {
         class="home-actions root-home-actions"
       >
         <div class="home-action">
-          <label for="home-academy" class="home-academy-label">Sua academia</label>
-          <select
-            id="home-academy"
-            v-model="publicTrainerAcademy"
-            class="home-academy-select"
-            aria-label="Escolha sua academia"
-            :disabled="!publicTrainerCity || publicTrainersLoading"
-          >
-            <option value="">Todas</option>
-            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
-              {{ academy }}
-            </option>
-          </select>
           <button class="primary-button" type="button" @click="openPublicTrainers">
             <span class="home-action-copy"
               ><strong>Buscar Personal</strong
