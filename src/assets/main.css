@@ -3278,7 +3278,6 @@ html[data-theme='dark'] .request-accordion-chevron {
 }
 html[data-theme='dark'] .request-accordion-panel {
   background: #1b2720;
-  border-color: #3b4b40;
   color: #f4f5f0;
 }
 html[data-theme='dark'] .request-accordion-panel .request-choice span,
@@ -3393,8 +3392,8 @@ html[data-theme='dark'] .home-city-selector svg {
 .home-academy-select {
   width: 100%;
   min-height: 52px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 0;
   padding: 10px 14px;
   background: var(--card-bg);
   color: var(--ink);
@@ -3442,4 +3441,17 @@ html[data-theme='dark'] .header-auth-links button.header-signup-link {
 }
 html[data-theme='dark'] .home-training-subtitle {
   color: #c6d0c9;
+}
+
+/* Na home, o seletor de cidade fica alinhado à direita. */
+.home-city-selector--right {
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: 0;
+}
+.home-city-selector--right .home-city-select {
+  width: auto;
+  max-width: 100%;
+  padding-right: 30px;
 }
