@@ -14,12 +14,11 @@ const {
 <template>
   <label
     v-if="
-      viewMode === 'home' ||
       viewMode === 'public-trainers' ||
       (viewMode === 'contact' && showRequestForm)
     "
     class="home-city-selector"
-    :class="{ 'home-city-selector--right': viewMode === 'home' || viewMode === 'public-trainers' }"
+    :class="{ 'home-city-selector--right': viewMode === 'public-trainers' }"
     for="home-city"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
