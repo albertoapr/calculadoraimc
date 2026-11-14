@@ -96,11 +96,14 @@ const {
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
-        <span class="brand-peso">Encontre seu</span>
-        <span class="brand-fit">Personal</span>
+        <span class="home-training-eyebrow">Encontre seu</span>
+        <span class="home-training-heading">
+          <span class="brand-peso">Personal</span>
+          <span class="brand-fit">Trainer</span>
+        </span>
       </h1>
       <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
-        Contrate um profissional ideal para sua rotina e orçamento.
+        ideal para sua rotina e orçamento
       </p>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
