@@ -295,8 +295,6 @@ const {
             aria-label="Links da página inicial"
             style="display: flex; justify-content: center; margin-top: 12px"
           >
-            <a href="#cadastro-personal" class="header-login-link">Sou personal trainer</a>
-            <span class="header-auth-divider" aria-hidden="true">|</span>
             <button type="button" class="header-signup-link" @click="viewMode = 'assessment'">
               Avaliação corporal
             </button>
