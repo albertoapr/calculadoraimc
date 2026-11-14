@@ -182,9 +182,11 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
-  return (name === '' || (name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name))) && Boolean(whatsapp) &&
+  const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
-    (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth))
+    (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
+    (sessionToken === '' || /^[A-Za-z0-9_-]{43}$/.test(sessionToken))
 }
 
 async function registerCustomer(data: Record<string, unknown>) {
@@ -195,6 +197,7 @@ async function registerCustomer(data: Record<string, unknown>) {
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
+  const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
     Key: { whatsapp: { S: whatsapp } },
@@ -233,6 +236,7 @@ async function registerCustomer(data: Record<string, unknown>) {
             codeHash: { S: hashCode(code) },
             flow: { S: 'fitpeso-customer-whatsapp' },
             whatsapp: { S: whatsapp },
+            ...(sessionToken ? { sessionTokenHash: { S: hashCode(sessionToken) } } : {}),
             expiresAt: { N: String(expiresAt) },
           },
           ConditionExpression: 'attribute_not_exists(codeHash)',
@@ -274,6 +278,8 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
     // Nome declarado à Beta por um remetente que concluiu a verificação do número; não é titularidade certificada.
     const acceptedName = getBetaDisplayName(data) || getBetaDisplayName({ name: customer?.name?.S })
     if (!acceptedName) return response(422, { verified: false, error: 'A Beta precisa enviar um nome válido junto com o WhatsApp e o código para concluir o cadastro.' })
+    const sessionHash = challenge.sessionTokenHash?.S ?? ''
+    const sessionExpiry = now + 12 * 60 * 60
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         {
@@ -307,6 +313,18 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
             },
           },
         },
+        ...(/^[a-f0-9]{64}$/.test(sessionHash) ? [{
+          Put: {
+            TableName: codesTable,
+            Item: {
+              codeHash: { S: sessionHash },
+              flow: { S: 'fitpeso-customer-login-session' },
+              whatsapp: { S: whatsapp },
+              expiresAt: { N: String(sessionExpiry) },
+            },
+            ConditionExpression: 'attribute_not_exists(codeHash)',
+          },
+        }] : []),
       ],
     }))
     return response(200, { verified: true, whatsapp, name: acceptedName })
@@ -330,7 +348,10 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
 async function getCustomerVerificationStatus(data: Record<string, unknown> | null) {
   const code = typeof data?.code === 'string' ? data.code.trim() : ''
   const whatsapp = normalizePhone(data?.whatsapp)
-  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp) return response(200, { verified: false })
+  const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !whatsapp || (sessionToken && !/^[A-Za-z0-9_-]{43}$/.test(sessionToken))) {
+    return response(200, { verified: false })
+  }
   const codesTable = process.env.IMC_REQUESTS_TABLE
   if (!codesTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   try {
@@ -344,10 +365,26 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
       return response(200, { verified: false })
     }
     if (challenge.consumedAt?.N) {
+      const tokenMatches = Boolean(sessionToken) && challenge.sessionTokenHash?.S === hashCode(sessionToken)
+      const session = tokenMatches ? await dynamodb.send(new GetItemCommand({
+        TableName: codesTable,
+        Key: { codeHash: { S: hashCode(sessionToken) } },
+        ConsistentRead: true,
+      })) : null
+      const authenticated = session?.Item?.flow?.S === 'fitpeso-customer-login-session' &&
+        session.Item.whatsapp?.S === whatsapp && Number(session.Item.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000)
       const customer = await dynamodb.send(new GetItemCommand({
         TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
       }))
-      return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+      return response(200, {
+        verified: true,
+        authenticated,
+        whatsapp,
+        name: customer.Item?.name?.S ?? '',
+        email: customer.Item?.email?.S ?? '',
+        dateOfBirth: customer.Item?.dateOfBirth?.S ?? '',
+        isAdmin: customer.Item?.isAdmin?.BOOL === true,
+      })
     }
     return response(200, { verified: false, expired: Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000) })
   } catch (error) {
@@ -2382,7 +2419,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
     const registration = parseBody(event)
-    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o WhatsApp e os dados informados. O nome será obtido na confirmação com a Beta.' })
+    if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o nome, o WhatsApp e os dados informados.' })
     try {
       const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
       return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })

@@ -315,6 +315,7 @@ const customerStatus = ref('')
 const customerVerificationLink = ref('')
 const customerVerificationCode = ref('')
 const customerVerificationComplete = ref(false)
+const customerSessionToken = ref('')
 const customerSubmitting = ref(false)
 let customerVerificationPollTimer: number | undefined
 let customerVerificationPollStartedAt = 0
@@ -948,12 +949,17 @@ function closeCustomerSignup() {
   if (requestLoginReturn.value && customerVerificationComplete.value) {
     customerVerificationComplete.value = false
     showCustomerSignup.value = false
-    showCustomerLogin.value = true
     showRequestForm.value = true
     viewMode.value = 'contact'
     requestStep.value = 4
-    customerLoginMethod.value = 'whatsapp'
-    customerLoginStatus.value = 'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+    if (customerSignedInName.value) {
+      showCustomerLogin.value = false
+      customerLoginStatus.value = 'Cadastro confirmado. Você já está conectado.'
+    } else {
+      showCustomerLogin.value = true
+      customerLoginMethod.value = 'whatsapp'
+      customerLoginStatus.value = 'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+    }
     history.replaceState(null, '', window.location.pathname)
     void nextTick(() => window.scrollTo(0, 0))
     return
@@ -974,12 +980,22 @@ async function pollCustomerVerification() {
     const response = await fetch(`${endpoint}/api/customers/verification-status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: customerVerificationCode.value, whatsapp: customerForm.whatsapp }),
+      body: JSON.stringify({ code: customerVerificationCode.value, whatsapp: customerForm.whatsapp, sessionToken: customerSessionToken.value }),
     })
-    const body = await response.json() as { verified?: boolean; expired?: boolean; name?: string; error?: string }
+    const body = await response.json() as { verified?: boolean; expired?: boolean; authenticated?: boolean; name?: string; whatsapp?: string; email?: string; dateOfBirth?: string; isAdmin?: boolean; error?: string }
     if (response.ok && body.verified === true) {
       customerVerificationComplete.value = true
       if (body.name?.trim()) customerForm.name = body.name.trim()
+      if (body.authenticated === true && customerSessionToken.value) {
+        try { sessionStorage.setItem('fitpeso-customer-session', customerSessionToken.value) } catch { /* armazenamento indisponível */ }
+        applyCustomerProfile({
+          name: body.name?.trim() || customerForm.name,
+          whatsapp: body.whatsapp || customerForm.whatsapp,
+          email: body.email || customerForm.email,
+          dateOfBirth: body.dateOfBirth,
+          isAdmin: body.isAdmin,
+        })
+      }
       customerStatus.value = `WhatsApp confirmado! ${body.name?.trim() ? `Bem-vindo(a), ${body.name.trim().split(/\s+/)[0]}!` : 'Cadastro ativo.'}`
       return
     }
@@ -1016,11 +1032,7 @@ async function continueSignupContact() {
       return
     }
     customerForm.whatsapp = phone
-    customerForm.name = ''
     customerForm.email = ''
-    // O nome vem da confirmação realizada pela Beta.
-    await sendCustomerSignup()
-    return
   }
   signupStep.value = 2
   void nextTick(() => document.getElementById('customer-name')?.focus())
@@ -1037,7 +1049,7 @@ async function sendCustomerSignup() {
   const name = customerForm.name.trim().replace(/\s+/g, ' ')
   const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
   const email = customerForm.email.trim().toLowerCase()
-  if (name && (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name))) {
+  if (name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name)) {
     customerStatus.value = 'Informe um nome válido.'
     return
   }
@@ -1053,20 +1065,26 @@ async function sendCustomerSignup() {
   customerSubmitting.value = true
   customerStatus.value = 'Registrando seu cadastro…'
   try {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32))
+    const sessionToken = btoa(Array.from(randomBytes, byte => String.fromCharCode(byte)).join(''))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '')
     const endpoint = await getRequestApiEndpoint()
     const response = await fetch(`${endpoint}/api/customers/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, whatsapp, email }),
+      body: JSON.stringify({ name, whatsapp, email, sessionToken }),
     })
     const body = await response.json() as { registered?: boolean; verificationCode?: string; error?: string }
     if (!response.ok || body.registered !== true || !body.verificationCode) {
       throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
     }
+    customerSessionToken.value = sessionToken
     const message = `Confirmar cadastro FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}${name ? `\nNome: ${name}` : ''}`
     customerVerificationCode.value = body.verificationCode
     customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-    customerStatus.value = name ? 'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.' : 'Envie a mensagem para a Beta. Ela identificará o nome exibido no seu WhatsApp e o encaminhará com o número e o código para concluir o cadastro.'
+    customerStatus.value = 'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.'
     customerVerificationPollStartedAt = Date.now()
     scheduleCustomerVerificationPoll(1_000)
   } catch (error) {
@@ -2744,14 +2762,14 @@ async function sendResult() {
         <h1 id="customer-signup-title"><button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">&lt;</button> Cadastro de cliente</h1>
       </header>
       <form v-if="!customerVerificationLink && signupStep === 1" class="form login-step-form" @submit.prevent="continueSignupContact">
-        <p class="field-wide intro">Informe apenas seu WhatsApp ou e-mail. Pelo WhatsApp, a Beta confirma seu número e informa seu nome automaticamente.</p>
+        <p class="field-wide intro">Informe seu WhatsApp ou e-mail para iniciar o cadastro.</p>
         <label class="field field-wide" for="signup-contact"><span class="field-label">WhatsApp ou e-mail</span>
           <input id="signup-contact" v-model="signupContact" name="signupContact" autocomplete="username" type="text" maxlength="254" placeholder="(21) 99999-9999 ou seu@email.com" required>
         </label>
         <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">{{ customerSubmitting ? "Preparando confirmação…" : "Continuar" }}</button>
       </form>
       <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
-        <p class="field-wide intro">Para continuar pelo e-mail, informe seu nome e WhatsApp. O número será confirmado com a Beta. A data de nascimento será solicitada apenas quando pedir atendimento.</p>
+        <p class="field-wide intro">Informe seu nome e WhatsApp. O número será confirmado com a Beta e, ao concluir, você já estará conectado. A data de nascimento será solicitada apenas quando pedir atendimento.</p>
         <label class="field field-wide" for="customer-name"><span class="field-label">Seu nome</span>
           <input id="customer-name" v-model="customerForm.name" name="customerName" type="text" autocomplete="name" minlength="2" maxlength="80" placeholder="Como podemos chamar você?" required>
         </label>
@@ -2768,7 +2786,7 @@ async function sendResult() {
         <a v-if="!customerVerificationComplete" class="primary-button customer-verification-link" :href="customerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp</a>
         <button v-if="!customerVerificationComplete" class="secondary-button" type="button" @click="pollCustomerVerification">Código já enviado</button>
         <button v-else class="primary-button" type="button" @click="closeCustomerSignup">Concluir cadastro</button>
-        <small>O botão abre uma conversa com a Beta e prepara o número e o código. A Beta deverá enviar também o nome exibido no WhatsApp à rota de confirmação. Esse nome não comprova titularidade da linha.</small>
+        <small>O botão abre uma conversa com a Beta e prepara o número, o código e o nome informados para concluir a confirmação.</small>
       </div>
       <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">{{ customerStatus }}</p>
       <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
