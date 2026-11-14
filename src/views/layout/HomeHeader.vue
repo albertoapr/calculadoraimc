@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
 import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
@@ -19,15 +18,6 @@ const {
   openCustomerSignupFromLogin,
 } = useFitpesoContext()
 
-const menu = ref<HTMLDetailsElement | null>(null)
-function closeMenu() {
-  if (menu.value) menu.value.open = false
-}
-function closeOnOutsideClick(event: PointerEvent) {
-  if (menu.value && !menu.value.contains(event.target as Node)) closeMenu()
-}
-onMounted(() => document.addEventListener('pointerdown', closeOnOutsideClick))
-onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClick))
 </script>
 
 <template>
@@ -54,43 +44,19 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClic
       <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
         Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}
       </span>
-      <nav class="customer-account-links" aria-label="Menu principal">
-        <details ref="menu" class="account-dropdown main-hamburger-menu">
-          <summary aria-label="Abrir menu principal" title="Menu" aria-haspopup="menu">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </summary>
-          <div class="account-dropdown-panel">
-            <template v-if="!trainerSignedInId && !customerSignedInName">
-              <button type="button" @click="closeMenu(); openCustomerLogin()">Entrar</button>
-              <button type="button" @click="closeMenu(); openCustomerSignupFromLogin()">Cadastre-se</button>
-              <a href="#cadastro-personal" @click="closeMenu()">Sou personal trainer</a>
-            </template>
-            <button type="button" @click="closeMenu(); viewMode = 'assessment'">Avaliação corporal</button>
-            <button type="button" @click="closeMenu(); viewMode = 'about'">Sobre</button>
-            <a href="https://wa.me/5521971118383?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20equipe%20do%20FitPeso." target="_blank" rel="noopener noreferrer" @click="closeMenu()">Fale conosco</a>
-            <button type="button" @click="closeMenu(); openProfessionalRegistration()">
-              Consultar registro profissional
-            </button>
-            <template v-if="trainerSignedInId || customerSignedInName">
-              <button
-                type="button"
-                @click="closeMenu(); trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()"
-              >{{ trainerSignedInId ? 'Solicitações recebidas' : 'Minhas solicitações' }}</button>
-              <button type="button" @click="closeMenu(); openMyProfile()">Meu cadastro</button>
-              <button
-                v-if="customerIsAdmin && !trainerSignedInId"
-                type="button"
-                @click="closeMenu(); viewMode = 'admin-trainer'"
-              >Cadastrar Personal</button>
-              <button
-                v-if="customerIsAdmin && !trainerSignedInId"
-                type="button"
-                @click="closeMenu(); openAdminTrainers()"
-              >Editar profissionais</button>
-              <button type="button" @click="closeMenu(); logout()">Sair</button>
-            </template>
-          </div>
-        </details>
+      <nav class="customer-account-links header-inline-links" aria-label="Menu principal">
+        <template v-if="!trainerSignedInId && !customerSignedInName">
+          <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
+          <span class="header-auth-divider" aria-hidden="true">|</span>
+          <a href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
+        </template>
+        <template v-else>
+          <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">Solicitações</button>
+          <button type="button" @click="openMyProfile()">Meu cadastro</button>
+          <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="viewMode = 'admin-trainer'">Cadastrar Personal</button>
+          <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="openAdminTrainers()">Editar profissionais</button>
+          <button type="button" @click="logout()">Sair</button>
+        </template>
       </nav>
     </div>
   </div>
@@ -124,24 +90,28 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOnOutsideClic
   width: 16px;
   height: 16px;
 }
-.main-hamburger-menu .account-dropdown-panel {
-  right: 0;
+.header-inline-links {
+  flex-wrap: wrap;
+  column-gap: 5px;
+  row-gap: 0;
+  font-size: 13px;
 }
-.main-hamburger-menu .account-dropdown-panel a {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 46px;
-  padding: 10px 13px;
-  border-radius: 8px;
-  color: var(--ink);
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
+.header-inline-links a,
+.header-inline-links button {
+  font-size: 13px;
+  font-weight: 800;
 }
-.main-hamburger-menu .account-dropdown-panel a:hover {
-  background: color-mix(in srgb, var(--blue) 9%, transparent);
+.header-inline-links .header-login-link {
+  color: #286b4e;
+}
+.header-inline-links .header-signup-link {
+  color: #263f33;
+}
+html[data-theme='dark'] .header-inline-links .header-login-link {
+  color: #55d6a3;
+}
+html[data-theme='dark'] .header-inline-links .header-signup-link {
+  color: #f1f5f3;
 }
 .fitpeso-home-brand-link,
 .fitpeso-home-brand-link:hover,
