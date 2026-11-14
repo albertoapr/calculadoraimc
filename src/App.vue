@@ -99,6 +99,9 @@ const {
         <span class="brand-peso">Encontre seu</span>
         <span class="brand-fit">Personal</span>
       </h1>
+      <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
+        Contrate um profissional ideal para sua rotina e orçamento.
+      </p>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
