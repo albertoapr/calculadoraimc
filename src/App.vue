@@ -98,11 +98,11 @@ const {
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
-          <span class="brand-fit">Trainer</span>
+          <span class="brand-fit">Trainers</span>
         </span>
       </h1>
       <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
-        ideal para sua rotina e orçamento
+        Para qualquer rotina e orçamento
       </p>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
