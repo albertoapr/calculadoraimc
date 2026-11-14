@@ -19,6 +19,7 @@ const {
       (viewMode === 'contact' && showRequestForm)
     "
     class="home-city-selector"
+    :class="{ 'home-city-selector--right': viewMode === 'home' }"
     for="home-city"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
