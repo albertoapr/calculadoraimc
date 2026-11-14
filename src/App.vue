@@ -2883,7 +2883,8 @@ async function sendResult() {
             <rect x="12" y="9" width="16" height="8" rx="2" />
             <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
           </svg>
-          <span>{{ viewMode === 'select-trainers' ? 'Selecionar profissionais' : viewMode === 'public-trainers' ? 'Profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
+          <span v-if="viewMode === 'public-trainers'" class="directory-personal-title"><span class="brand-peso">Personal</span> <span class="brand-fit">Trainers</span></span>
+          <span v-else>{{ viewMode === 'select-trainers' ? 'Selecionar profissionais' : viewMode === 'trainer-request' ? 'Solicitação de atendimento' : viewMode === 'customer-requests' ? 'Minhas solicitações' : viewMode === 'trainer-requests' ? 'Solicitações recebidas' : viewMode === 'my-profile' ? 'Meu cadastro' : result ? 'Resultado da avaliação' : form.calculateBodyFat ? 'IMC e gordura corporal' : 'Avaliar meu peso' }}</span>
         </h1>
         <p v-if="viewMode === 'assessment' && !result" class="intro">Informe suas medidas para fazer uma avaliação.</p>
       </header>
@@ -3464,6 +3465,7 @@ async function sendResult() {
   min-height: 1.5em;
 }
 .title-back-button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+.directory-personal-title { display: inline-flex; align-items: baseline; justify-content: center; gap: .25em; flex-wrap: wrap; font-size: clamp(20px, 5.5vw, 32px); line-height: 1.2; }
 </style>
 
 <style scoped>
