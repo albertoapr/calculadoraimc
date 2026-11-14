@@ -8,6 +8,7 @@ import CustomerSignupView from './views/auth/CustomerSignupView.vue'
 import HomeHeader from './views/layout/HomeHeader.vue'
 import PageHeader from './views/layout/PageHeader.vue'
 import CitySelector from './views/layout/CitySelector.vue'
+import ProfissionaisListView from './views/profissionais/ProfissionaisListView.vue'
 import MyProfileView from './views/account/MyProfileView.vue'
 import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
@@ -46,6 +47,8 @@ const {
   publicTrainersError,
   publicTrainerAcademies,
   publicFilteredTrainers,
+  homeCity,
+  startTrainingRequestFromHome,
   openPublicTrainers,
   customerRequests,
   changingRequestId,
@@ -94,7 +97,7 @@ const {
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-header-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
-      <CitySelector v-if="viewMode !== 'home' && viewMode !== 'public-trainers'" />
+      <CitySelector v-if="viewMode !== 'public-trainers'" />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
@@ -264,14 +267,19 @@ const {
         class="home-actions root-home-actions"
       >
         <div class="home-action">
-          <button class="primary-button" type="button" @click="openPublicTrainers">
-            <span class="home-action-copy"
-              ><strong>Buscar Personal</strong
-              ><small>Encontre profissionais na sua cidade</small></span
-            >
-          </button>
-          <button class="secondary-button" type="button" @click="viewMode = 'assessment'">
-            Avaliação corporal
+          <label class="sr-only" for="home-academy">Academia</label>
+          <select
+            id="home-academy"
+            v-model="publicTrainerAcademy"
+            class="home-academy-select"
+            aria-label="Filtrar profissionais por academia"
+            :disabled="!homeCity || publicTrainersLoading"
+          >
+            <option value="">Todas as academias</option>
+            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
+          </select>
+          <button class="primary-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
+            Solicitar treinamento
           </button>
           <div class="root-home-photo home-training-photo">
             <img
@@ -283,6 +291,23 @@ const {
               decoding="async"
             />
           </div>
+          <section class="home-trainer-preview" aria-label="Profissionais disponíveis">
+            <p v-if="!homeCity" class="home-list-message">Selecione uma cidade para consultar os profissionais.</p>
+            <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
+            <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }}</p>
+            <template v-else>
+              <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ homeCity }}</p>
+              <ProfissionaisListView
+                :trainers="publicFilteredTrainers"
+                :selected-ids="homeSelectedTrainerIds"
+                :sent-ids="[]"
+                :selectable="true"
+                :show-request-link="true"
+                @update:selected-ids="(ids) => homeSelectedTrainerIds = ids"
+                @request-trainer="openRequestForTrainer"
+              />
+            </template>
+          </section>
         </div>
       </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
