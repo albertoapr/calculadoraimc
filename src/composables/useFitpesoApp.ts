@@ -265,21 +265,14 @@ export function useFitpesoApp() {
       requestGender: computed(() => form.trainerGenderPreference),
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
-  // A tela inicial sempre mostra uma academia válida quando a lista da cidade está disponível.
+  // A opção padrão é "Todas" (valor vazio), sem filtrar por academia.
   watch(
     [publicTrainerAcademies, publicTrainerCity],
     ([academies, city], previousValues) => {
       const previousCity = previousValues?.[1]
-      if (city !== previousCity) publicTrainerAcademy.value = ''
-      if (!academies.length || !city) return
-      if (academies.includes(publicTrainerAcademy.value)) return
-      const preferred = readNavigationPreference(NAV_ACADEMY)
-      publicTrainerAcademy.value =
-        academies.find((name) => name === preferred) ??
-        (isMesquita(city)
-          ? academies.find((name) => /aquatic\\s*center/i.test(name) && /vila\\s*emil/i.test(name))
-          : undefined) ??
-        academies[0]
+      if (city !== previousCity || (publicTrainerAcademy.value && !academies.includes(publicTrainerAcademy.value))) {
+        publicTrainerAcademy.value = ''
+      }
     },
     { immediate: true },
   )
