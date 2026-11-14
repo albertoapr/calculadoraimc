@@ -229,6 +229,19 @@ export function useFitpesoApp() {
     }
   }
 
+  async function startTrainingRequestFromHome() {
+    // A home usa os mesmos filtros e a mesma seleção de profissionais da listagem.
+    const chosenTrainers = [...homeSelectedTrainerIds.value]
+    await openRequestForm()
+    selectedTrainerIds.value = chosenTrainers
+    homeSelectedTrainerIds.value = chosenTrainers
+    // Em "Todas as academias", o local é definido pelo cliente na solicitação.
+    if (!publicTrainerAcademy.value) {
+      form.gymName = ''
+      form.attendsGym = false
+    }
+  }
+
   async function requestProposalFromHome() {
     if (sharingRequestId.value) {
       void sendRequestToSelectedTrainers()
@@ -1840,6 +1853,7 @@ export function useFitpesoApp() {
     publicTrainersError,
     publicTrainerAcademies,
     publicFilteredTrainers,
+    startTrainingRequestFromHome,
     openPublicTrainers,
     selectedTrainerIds,
     customerRequests,
