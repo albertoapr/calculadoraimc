@@ -3,7 +3,20 @@ import { computed, ref, watch } from 'vue'
 import { trainerDisplayName, trainerInstagramUrl } from '../../utils/trainer'
 import type { PublicTrainer } from '../../services/profissionaisService'
 
-const props = defineProps<{ trainers: PublicTrainer[] }>()
+const props = defineProps<{
+  trainers: PublicTrainer[]
+  selectable?: boolean
+  selectedIds?: string[]
+  sentIds?: string[]
+}>()
+const emit = defineEmits<{ 'update:selectedIds': [ids: string[]] }>()
+const chosenIds = computed(() => props.selectedIds ?? [])
+function updateSelection(id: string, checked: boolean) {
+  const next = checked
+    ? [...new Set([...chosenIds.value, id])].slice(0, 20)
+    : chosenIds.value.filter((value) => value !== id)
+  emit('update:selectedIds', next)
+}
 const visibleCount = ref(10)
 watch(
   () => props.trainers,
@@ -25,7 +38,19 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
       </thead>
       <tbody>
         <tr v-for="trainer in visibleTrainers" :key="trainer.trainerId">
-          <td>{{ trainerDisplayName(trainer.name) }}</td>
+          <td>
+            <label v-if="selectable" class="trainer-table-choice">
+              <input
+                type="checkbox"
+                :checked="chosenIds.includes(trainer.trainerId)"
+                :disabled="(sentIds ?? []).includes(trainer.trainerId) || (!chosenIds.includes(trainer.trainerId) && chosenIds.length >= 20)"
+                :aria-label="'Selecionar ' + trainerDisplayName(trainer.name)"
+                @change="updateSelection(trainer.trainerId, ($event.target as HTMLInputElement).checked)"
+              />
+              <span>{{ trainerDisplayName(trainer.name) }}</span>
+            </label>
+            <template v-else>{{ trainerDisplayName(trainer.name) }}</template>
+          </td>
           <td class="home-simple-social-cell">
             <a
               v-if="trainer.instagram && trainerInstagramUrl(trainer.instagram)"
@@ -79,6 +104,17 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
 }
 .home-simple-trainers-table th {
   font-weight: 700;
+}
+.trainer-table-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.trainer-table-choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
 }
 .home-simple-social-heading,
 .home-simple-social-cell {
