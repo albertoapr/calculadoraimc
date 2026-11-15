@@ -12,6 +12,7 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
 <template>
   <div class="home-simple-trainers">
     <table v-if="trainers.length" class="home-simple-trainers-table">
+      <thead><tr><th scope="col">Personal trainer</th><th scope="col" class="home-simple-social-heading">Instagram</th></tr></thead>
       <tbody>
         <tr v-for="trainer in visibleTrainers" :key="trainer.trainerId">
           <td>{{ trainerDisplayName(trainer.name) }}</td>
@@ -47,14 +48,14 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
 </template>
 
 <style scoped>
-.home-simple-trainers-table { width: 100%; border-collapse: collapse; color: var(--ink); text-align: left; }
+.home-simple-trainers-table { width: auto; max-width: 100%; margin: 0 auto; border-collapse: collapse; color: var(--ink); text-align: left; table-layout: auto; }
 .home-simple-trainers-table th, .home-simple-trainers-table td {
-  padding: 11px 8px; border-bottom: 1px solid var(--line);
+  padding: 6px 9px; border-bottom: 1px solid var(--line);
 }
 .home-simple-trainers-table th { font-weight: 700; }
-.home-simple-social-heading, .home-simple-social-cell { width: 72px; text-align: center; }
-.home-simple-social-cell a { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; color: inherit; }
-.home-simple-social-cell svg { width: 23px; height: 23px; }
+.home-simple-social-heading, .home-simple-social-cell { width: 66px; text-align: center; }
+.home-simple-social-cell a { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; color: inherit; }
+.home-simple-social-cell svg { width: 21px; height: 21px; }
 .home-more-results { display: block; margin: 12px auto 0; padding: 8px; border: 0; background: transparent; color: var(--blue-dark, var(--ink)); text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
 :global(html[data-theme='dark']) .home-more-results { color: #55d6a3; }
 .home-simple-empty { margin: 0; color: var(--muted); }
