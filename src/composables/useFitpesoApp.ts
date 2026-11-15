@@ -1841,6 +1841,7 @@ export function useFitpesoApp() {
     publicTrainersError,
     publicTrainerAcademies,
     publicFilteredTrainers,
+    publicTrainers,
     startTrainingRequestFromHome,
     openPublicTrainers,
     selectedTrainerIds,
