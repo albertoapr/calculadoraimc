@@ -32,7 +32,7 @@ const { theme, viewMode } = useFitpesoContext()
         href="#avaliacao"
         class="box-contact-link"
         @click.prevent="viewMode = 'assessment'"
-        >Avaliação corporal</a
+        >Avaliação</a
       >
       <span
         v-if="viewMode === 'home'"
