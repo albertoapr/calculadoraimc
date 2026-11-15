@@ -1391,7 +1391,7 @@ export function useFitpesoApp() {
     trainingStartMinutes.value = 1080
     trainingEndMinutes.value = 1260
     form.desiredDuration = '1 mês'
-    form.singleLesson = false
+    form.singleLesson = true
     form.withCompanion = false
     eligibleTrainers.value = []
     selectedTrainerIds.value = []
