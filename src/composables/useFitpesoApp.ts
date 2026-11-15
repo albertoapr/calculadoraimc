@@ -1246,10 +1246,6 @@ export function useFitpesoApp() {
 
   onMounted(() => {
     if (router.currentRoute.value.path === '/profissionais') void router.replace('/personal')
-    if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
-      publicTrainerCity.value = homeCity.value
-      void loadPublicTrainers()
-    }
     if (viewMode.value === 'public-trainers') {
       publicTrainerCity.value = homeCity.value
       if (publicTrainerCity.value) void loadPublicTrainers()
