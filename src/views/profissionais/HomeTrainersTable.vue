@@ -12,7 +12,7 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
 <template>
   <div class="home-simple-trainers">
     <table v-if="trainers.length" class="home-simple-trainers-table">
-      <thead><tr><th scope="col">Profissional</th><th scope="col" class="home-simple-social-heading"><span class="sr-only">Instagram</span></th></tr></thead>
+      <thead><tr><th scope="col">Profissional</th><th scope="col" class="home-simple-social-heading"></th></tr></thead>
       <tbody>
         <tr v-for="trainer in visibleTrainers" :key="trainer.trainerId">
           <td>{{ trainerDisplayName(trainer.name) }}</td>
