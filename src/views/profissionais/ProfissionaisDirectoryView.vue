@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ProfissionaisListView from './ProfissionaisListView.vue'
+import HomeTrainersTable from './HomeTrainersTable.vue'
 import type { PublicTrainer } from '../../services/profissionaisService'
 
 defineProps<{
@@ -98,10 +99,11 @@ const emit = defineEmits<{
       {{ error }} <button type="button" @click="emit('retry')">Tentar novamente</button>
     </p>
     <template v-else>
-      <p class="home-list-heading">
+      <p v-if="selectingForDraft" class="home-list-heading">
         {{ trainers.length }} profissionais encontrados
       </p>
       <ProfissionaisListView
+        v-if="selectingForDraft"
         :show-request-link="!selectingForDraft"
         @request-trainer="(id) => emit('request-trainer', id)"
         :trainers="trainers"
@@ -110,6 +112,16 @@ const emit = defineEmits<{
         :sent-ids="sentIds"
         @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
       />
+      <template v-else>
+        <HomeTrainersTable
+          :trainers="trainers"
+          :selectable="Boolean(signedInName && activeRequest && activeRequest.city === city && activeRequest.proposalCount < 5)"
+          :selected-ids="selectedIds"
+          :sent-ids="sentIds"
+          @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
+        />
+        <p class="home-list-heading">{{ trainers.length }} profissionais encontrados</p>
+      </template>
       <p v-if="selectingForDraft && !trainers.length" class="home-list-message">
         Nenhum profissional encontrado para os critérios selecionados.
       </p>
