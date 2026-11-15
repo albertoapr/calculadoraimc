@@ -31,7 +31,7 @@ type AccordionSection =
   | 'duration'
   | 'professionals'
 
-const expandedSection = ref<AccordionSection | null>('profile')
+const expandedSection = ref<AccordionSection | null>(null)
 
 // Uma aula avulsa corresponde sempre a uma única aula, sem frequência semanal múltipla.
 watch(
