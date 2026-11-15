@@ -26,7 +26,6 @@ const {
   ConsultarProfissionaisView,
   SelecionarProfissionaisView,
   isRootHome,
-  theme,
   viewMode,
   showRequestForm,
   requestSent,
@@ -49,10 +48,8 @@ const {
   publicTrainersError,
   publicTrainerAcademies,
   publicFilteredTrainers,
-  publicTrainers,
   homeCity,
   startTrainingRequestFromHome,
-  openPublicTrainers,
   customerRequests,
   changingRequestId,
   requestActionDialog,
@@ -109,7 +106,10 @@ const {
       <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
         para todos os bolsos e rotinas
       </p>
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="root-home-photo home-training-photo">
+      <div
+        v-if="viewMode === 'home' && !result && isRootHome"
+        class="root-home-photo home-training-photo"
+      >
         <img
           class="root-home-personal-image"
           src="https://images.unsplash.com/photo-1776710669928-e49471c63af5?auto=format&amp;fit=crop&amp;w=1200&amp;q=85"
@@ -117,7 +117,13 @@ const {
           loading="lazy"
         />
       </div>
-      <button v-if="viewMode === 'home' && !result && isRootHome" class="primary-button home-training-request-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
+      <button
+        v-if="viewMode === 'home' && !result && isRootHome"
+        class="primary-button home-training-request-button"
+        type="button"
+        :disabled="!homeCity"
+        @click="startTrainingRequestFromHome"
+      >
         Solicitar treinamento
       </button>
 
@@ -289,13 +295,25 @@ const {
             :disabled="!homeCity || publicTrainersLoading"
           >
             <option value="">Selecione uma academia</option>
-            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
+            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
+              {{ academy }}
+            </option>
           </select>
 
-          <section v-if="homeAcademySelected" class="home-trainer-preview" aria-label="Profissionais disponíveis">
-            <p v-if="!homeCity" class="home-list-message">Selecione uma cidade para consultar os profissionais.</p>
-            <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
-            <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }}</p>
+          <section
+            v-if="homeAcademySelected"
+            class="home-trainer-preview"
+            aria-label="Profissionais disponíveis"
+          >
+            <p v-if="!homeCity" class="home-list-message">
+              Selecione uma cidade para consultar os profissionais.
+            </p>
+            <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">
+              Carregando profissionais…
+            </p>
+            <p v-else-if="publicTrainersError" class="home-list-message" role="alert">
+              {{ publicTrainersError }}
+            </p>
             <template v-else>
               <HomeTrainersTable :trainers="publicFilteredTrainers" />
               <p class="home-list-heading home-city-trainers-total">

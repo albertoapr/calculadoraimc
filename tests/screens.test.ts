@@ -101,18 +101,18 @@ test('extracted screens preserve login, request age between steps and theme chan
     const citySelector = document.querySelector('#home-city')
     assert.ok(citySelector)
     assert.equal(citySelector.closest('.fitpeso-home-topbar'), null)
-    assert.ok(document.querySelector('.home-header-divider + .home-city-selector'))
+    assert.ok(document.querySelector('.home-city-divider + .home-city-selector'))
     assert.match((citySelector as HTMLSelectElement).options[1]?.text ?? '', /, RJ$/)
     assert.equal(document.querySelector('.home-gym-title'), null)
     assert.equal(
       (document.querySelector('#home-academy option[value=""]') as HTMLOptionElement)?.text,
-      'Escolha sua academia',
+      'Selecione uma academia',
     )
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
-      /Encontre seu.*Personal/s,
+      /Personal.*Trainer/s,
     )
-    assert.equal(document.querySelector('.home-training-title .brand-fit')?.textContent, 'Personal')
+    assert.equal(document.querySelector('.home-training-title .brand-fit')?.textContent, 'Trainer')
     assert.equal(document.querySelector('.home-training-photo .root-home-tagline-subtitle'), null)
     await click(/^Entrar$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
@@ -133,17 +133,16 @@ test('extracted screens preserve login, request age between steps and theme chan
     ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
     await nextTick()
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
-    await click(/Buscar Personal/)
-    assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
-    await click(/Solicitar treinamento com personal/)
+    await click(/^Solicitar treinamento$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     assert.ok(document.querySelector('.request-accordion-form'))
+    await click(/Meu perfil/)
     const age = document.querySelector('#accordion-age') as HTMLInputElement
     age.value = '45'
     age.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     await click(/Objetivo/)
     assert.equal(document.querySelector('#accordion-age'), null)
-    await click(/Perfil/)
+    await click(/Meu perfil/)
     assert.equal((document.querySelector('#accordion-age') as HTMLInputElement).value, '45')
     ;(document.querySelector('[role="switch"]') as HTMLElement).click()
     await nextTick()
@@ -153,11 +152,9 @@ test('extracted screens preserve login, request age between steps and theme chan
 
     app.unmount()
     app = await mount('/profissionais')
-    assert.ok(document.querySelector('.public-directory'))
-    ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
-    await nextTick()
     await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
+    assert.equal(document.querySelector('.public-directory'), null)
     assert.ok(document.querySelector('.root-home-photo'))
     assert.doesNotMatch(document.body.textContent!, /Solicitar Proposta/)
 
@@ -184,8 +181,7 @@ test('extracted screens preserve login, request age between steps and theme chan
       .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
     await nextTick()
     assert.ok(document.querySelector('#customer-name'))
-    await click(/^Início$/)
-    await click(/^Sou personal trainer$/)
+    await click(/^Cadastrar-me como personal$/)
     await new Promise((resolve) => setTimeout(resolve, 10))
     await nextTick()
     const trainerName = document.querySelector('#trainer-name') as HTMLInputElement

@@ -31,7 +31,8 @@ async function copyCref() {
     await navigator.clipboard.writeText(cref)
     crefCopyMessage.value = 'CREF copiado! Cole o número na consulta do CONFEF.'
   } catch {
-    crefCopyMessage.value = 'Não foi possível copiar automaticamente. Selecione o número para copiá-lo.'
+    crefCopyMessage.value =
+      'Não foi possível copiar automaticamente. Selecione o número para copiá-lo.'
   }
 }
 
@@ -80,7 +81,9 @@ const instagramUrl = computed(() =>
             :aria-label="'Copiar CREF de ' + displayName"
             title="Copiar CREF para consultar no CONFEF"
             @click="copyCref"
-          >CREF: {{ trainer.cref }} <span aria-hidden="true">⧉</span></button>
+          >
+            CREF: {{ trainer.cref }} <span aria-hidden="true">⧉</span>
+          </button>
           <a
             href="https://www.confef.org.br/registrados/"
             target="_blank"
@@ -88,9 +91,12 @@ const instagramUrl = computed(() =>
             class="trainer-cref-search"
             :aria-label="'Abrir consulta de registro profissional no CONFEF'"
             title="Consultar registro no CONFEF"
-          >🔎</a>
+            >🔎</a
+          >
         </span>
-        <small v-if="crefCopyMessage" class="trainer-cref-feedback" role="status">{{ crefCopyMessage }}</small>
+        <small v-if="crefCopyMessage" class="trainer-cref-feedback" role="status">{{
+          crefCopyMessage
+        }}</small>
         <small v-if="alreadySent">Solicitação já enviada</small>
       </div>
       <span class="trainer-social-links">

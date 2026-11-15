@@ -456,8 +456,6 @@ const professionalGenderLabel = computed(() =>
       </div>
     </section>
 
-
-
     <section
       class="request-accordion-item"
       :class="{ 'request-accordion-open': expandedSection === 'professionals' }"
@@ -520,8 +518,6 @@ const professionalGenderLabel = computed(() =>
         </button>
       </div>
     </section>
-
-
 
     <p
       v-if="

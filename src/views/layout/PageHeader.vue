@@ -99,7 +99,9 @@ const {
                         : 'Avaliar meu peso'
       }}</span>
     </h1>
-    <p v-if="viewMode === 'select-trainers'" class="trainer-selection-subtitle">Selecionar profissional</p>
+    <p v-if="viewMode === 'select-trainers'" class="trainer-selection-subtitle">
+      Selecionar profissional
+    </p>
     <p v-if="viewMode === 'assessment' && !result" class="intro">
       Informe suas medidas para fazer uma avaliação.
     </p>

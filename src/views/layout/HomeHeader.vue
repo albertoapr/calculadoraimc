@@ -16,7 +16,6 @@ const {
   openTrainerReceivedRequests,
   openCustomerSignupFromLogin,
 } = useFitpesoContext()
-
 </script>
 
 <template>
@@ -41,19 +40,46 @@ const {
     <div class="fitpeso-home-header-actions">
       <CitySelector v-if="viewMode === 'public-trainers'" />
       <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
-        Olá, {{ (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0] }}
+        Olá,
+        {{
+          (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
+        }}
       </span>
       <nav class="customer-account-links header-inline-links" aria-label="Menu principal">
         <template v-if="!trainerSignedInId && !customerSignedInName">
-          <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
+          <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()"
+            >Entrar</a
+          >
           <span class="header-auth-divider" aria-hidden="true">|</span>
-          <a href="#cadastro-cliente" class="header-signup-link" @click.prevent="openCustomerSignupFromLogin()">Cadastre-se</a>
+          <a
+            href="#cadastro-cliente"
+            class="header-signup-link"
+            @click.prevent="openCustomerSignupFromLogin()"
+            >Cadastre-se</a
+          >
         </template>
         <template v-else>
-          <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">Solicitações</button>
+          <button
+            type="button"
+            @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()"
+          >
+            Solicitações
+          </button>
           <button type="button" @click="openMyProfile()">Meu cadastro</button>
-          <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="viewMode = 'admin-trainer'">Cadastrar Personal</button>
-          <button v-if="customerIsAdmin && !trainerSignedInId" type="button" @click="openAdminTrainers()">Editar profissionais</button>
+          <button
+            v-if="customerIsAdmin && !trainerSignedInId"
+            type="button"
+            @click="viewMode = 'admin-trainer'"
+          >
+            Cadastrar Personal
+          </button>
+          <button
+            v-if="customerIsAdmin && !trainerSignedInId"
+            type="button"
+            @click="openAdminTrainers()"
+          >
+            Editar profissionais
+          </button>
           <button type="button" @click="logout()">Sair</button>
         </template>
       </nav>

@@ -121,11 +121,7 @@ export function useFitpesoApp() {
     | 'professional-registration'
     | 'admin-trainer'
     | 'admin-trainers'
-  >(
-    trainerRequestToken
-      ? 'trainer-request'
-      : 'home',
-  )
+  >(trainerRequestToken ? 'trainer-request' : 'home')
   const showRequestForm = ref(false)
   const requestSent = ref(false)
   const requestStep = ref(1)
@@ -167,13 +163,15 @@ export function useFitpesoApp() {
 
   const publicTrainers = ref<EligibleTrainer[]>([])
   const publicTrainerCity = ref('')
-  const publicTrainerName = ref('')
   const publicTrainerAcademy = ref('')
   // A escolha da academia na home dura apenas a sessão atual do navegador.
   const HOME_ACADEMY_SESSION = 'fitpeso:home-academy-session:v1'
   const HOME_ACADEMY_CITY_SESSION = 'fitpeso:home-academy-city-session:v1'
   const homeAcademySelected = computed(() =>
-    Boolean(publicTrainerAcademy.value && publicTrainerAcademies.value.includes(publicTrainerAcademy.value)),
+    Boolean(
+      publicTrainerAcademy.value &&
+      publicTrainerAcademies.value.includes(publicTrainerAcademy.value),
+    ),
   )
   function restoreHomeAcademy(city: string, academies: string[]) {
     if (!city || !academies.length || publicTrainerAcademy.value) return
@@ -297,7 +295,12 @@ export function useFitpesoApp() {
     [publicTrainerAcademies, publicTrainerCity],
     ([academies, city], previousValues) => {
       const previousCity = previousValues?.[1]
-      if (city !== previousCity || (publicTrainerAcademy.value && academies.length && !academies.includes(publicTrainerAcademy.value))) {
+      if (
+        city !== previousCity ||
+        (publicTrainerAcademy.value &&
+          academies.length &&
+          !academies.includes(publicTrainerAcademy.value))
+      ) {
         publicTrainerAcademy.value = ''
       }
       if (viewMode.value === 'home' && isRootHome.value) restoreHomeAcademy(city, academies)
