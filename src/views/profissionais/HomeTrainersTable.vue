@@ -35,7 +35,6 @@ const visibleTrainers = computed(() => props.trainers.slice(0, visibleCount.valu
         </tr>
       </tbody>
     </table>
-    <p v-else class="home-simple-empty">Nenhum profissional encontrado.</p>
     <button
       v-if="trainers.length > visibleCount"
       type="button"
