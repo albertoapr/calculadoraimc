@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
-    <div class="home-trainer-controls">
+    <div v-if="selectingForDraft" class="home-trainer-controls">
       <label class="home-academy-select">
         <select
           :value="academy"
@@ -60,6 +60,7 @@ const emit = defineEmits<{
         {{ selectedIds.length === 1 ? 'personal' : 'personais' }} →
       </button>
     </div>
+    <template v-if="selectingForDraft || academy">
     <p v-if="selectingForDraft" class="home-list-message">
       Profissionais de {{ requestCity }} · Gênero:
       {{ requestGender === 'indiferente' ? 'sem preferência' : requestGender }}
@@ -90,7 +91,7 @@ const emit = defineEmits<{
       {{ sharingMessage }}
     </p>
     <p v-if="!city" class="home-list-message">
-      Selecione uma cidade no cabeçalho para encontrar profissionais.
+      Selecione uma cidade para encontrar profissionais.
     </p>
     <p v-else-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
     <p v-else-if="error" class="home-list-message" role="alert">
@@ -98,7 +99,7 @@ const emit = defineEmits<{
     </p>
     <template v-else>
       <p class="home-list-heading">
-        {{ trainers.length }} {{ trainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
+        {{ trainers.length }} profissionais encontrados
       </p>
       <ProfissionaisListView
         :show-request-link="!selectingForDraft"
@@ -109,7 +110,7 @@ const emit = defineEmits<{
         :sent-ids="sentIds"
         @update:selected-ids="(ids) => emit('update:selectedIds', ids)"
       />
-      <p v-if="!trainers.length" class="home-list-message">
+      <p v-if="selectingForDraft && !trainers.length" class="home-list-message">
         Nenhum profissional encontrado para os critérios selecionados.
       </p>
     </template>
@@ -135,6 +136,7 @@ const emit = defineEmits<{
               : 'Solicitar treinamento com personal'
       }}
     </button>
+    </template>
   </section>
 </template>
 
