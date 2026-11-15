@@ -3395,6 +3395,10 @@ html[data-theme='dark'] .home-city-selector svg {
   aspect-ratio: 1069 / 475.2;
   overflow: hidden;
 }
+/* A foto da home fica sem a sobreposição de degradê em ambos os temas. */
+.root-home-photo.home-training-photo::after {
+  content: none;
+}
 .root-home-photo.home-training-photo .root-home-personal-image {
   width: 100%;
   height: 100%;
