@@ -96,9 +96,9 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
+      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector v-if="viewMode !== 'public-trainers'" />
-      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
@@ -360,7 +360,7 @@ const {
   border: 0;
   border-top: 1px solid var(--line);
   width: 100%;
-  margin: 4px 0 18px;
+  margin: 10px 0 18px;
 }
 .home-training-request-button {
   display: block;
