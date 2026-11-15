@@ -66,10 +66,7 @@ export function useSupportedCity<T extends string>(options: {
   watch(homeCity, (city) => {
     options.selectedTrainerIds.value = []
     if (city && options.viewMode.value === 'public-trainers') options.searchHomeTrainers()
-    else if (city && options.viewMode.value === 'home' && options.isRootHome.value) {
-      options.publicTrainerCity.value = city
-      void options.loadPublicTrainers()
-    }
+    // Na tela inicial, a cidade é mantida, sem iniciar a busca de profissionais.
   })
 
   function cancelRequestCityDetection() {
