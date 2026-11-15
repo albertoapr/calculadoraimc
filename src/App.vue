@@ -20,6 +20,7 @@ import AssessmentFormView from './views/assessment/AssessmentFormView.vue'
 import AssessmentResultView from './views/assessment/AssessmentResultView.vue'
 import ServiceRequestView from './views/atendimento/ServiceRequestView.vue'
 import AppFooter from './views/layout/AppFooter.vue'
+import rootHomePersonalImage from './assets/root-home-personal.jpg'
 const context = useFitpesoApp()
 provide(fitpesoKey, context)
 const {
@@ -112,7 +113,7 @@ const {
       >
         <img
           class="root-home-personal-image"
-          src="https://images.unsplash.com/photo-1776710669928-e49471c63af5?auto=format&amp;fit=crop&amp;w=1200&amp;q=85"
+          :src="rootHomePersonalImage"
           alt="Personal trainer orientando uma aluna durante um exercício na academia"
           loading="lazy"
         />
