@@ -8,8 +8,9 @@ const { theme, viewMode } = useFitpesoContext()
     class="box-footer"
     role="group"
     aria-label="Aparência e contato"
-    style="display: flex; justify-content: space-between; align-items: center"
+    style="display: flex; justify-content: flex-start; align-items: center"
   >
+    <nav class="footer-menu-links" aria-label="Links do rodapé">
     <a
       class="box-contact-link"
       aria-label="Fale conosco pelo WhatsApp"
@@ -29,6 +30,7 @@ const { theme, viewMode } = useFitpesoContext()
     <a v-if="viewMode === 'home'" href="#avaliacao" class="box-contact-link" @click.prevent="viewMode = 'assessment'">Avaliação corporal</a>
     <span v-if="viewMode === 'home'" class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
     <a href="#sobre" class="box-contact-link" @click.prevent="viewMode = 'about'">Sobre</a>
+    </nav>
     <div class="box-theme-actions" style="margin-left: auto">
       <button
         type="button"
@@ -54,3 +56,18 @@ const { theme, viewMode } = useFitpesoContext()
     </div>
   </div>
 </template>
+
+<style scoped>
+.footer-menu-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0;
+  min-width: 0;
+  text-align: left;
+}
+.footer-menu-links .box-contact-link {
+  justify-self: auto;
+}
+</style>
