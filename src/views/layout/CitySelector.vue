@@ -3,7 +3,6 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 
 const {
   viewMode,
-  showRequestForm,
   publicTrainerCity,
   supportedRequestCities,
   homeCity,
@@ -17,8 +16,7 @@ const {
     v-if="
       viewMode === 'home' ||
       viewMode === 'public-trainers' ||
-      viewMode === 'select-trainers' ||
-      (viewMode === 'contact' && showRequestForm)
+      viewMode === 'select-trainers'
     "
     class="home-city-selector"
     :class="{ 'home-city-selector--right': viewMode === 'public-trainers' }"
