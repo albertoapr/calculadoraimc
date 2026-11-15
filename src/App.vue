@@ -33,6 +33,7 @@ const {
   selectingTrainersForDraft,
   publicTrainerCity,
   publicTrainerAcademy,
+  homeAcademySelected,
   homeSelectedTrainerIds,
   sharingRequestId,
   sharingRequestMessage,
@@ -283,7 +284,7 @@ const {
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
           </select>
 
-          <section class="home-trainer-preview" aria-label="Profissionais disponíveis">
+          <section v-if="homeAcademySelected" class="home-trainer-preview" aria-label="Profissionais disponíveis">
             <p v-if="!homeCity" class="home-list-message">Selecione uma cidade para consultar os profissionais.</p>
             <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
             <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }}</p>
