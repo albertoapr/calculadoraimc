@@ -90,7 +90,7 @@ export function useFitpesoApp() {
     | 'professional-registration'
     | 'admin-trainer'
     | 'admin-trainers'
-  >(trainerRequestToken ? 'trainer-request' : 'home')
+  >(trainerRequestToken ? 'trainer-request' : router.currentRoute.value.path === '/personal' ? 'public-trainers' : 'home')
   const showRequestForm = ref(false)
   const requestSent = ref(false)
   const requestStep = ref(1)
@@ -272,12 +272,14 @@ export function useFitpesoApp() {
       ) {
         publicTrainerAcademy.value = ''
       }
-      if (viewMode.value === 'home' && isRootHome.value) restoreHomeAcademy(city, academies)
+      if ((viewMode.value === 'home' && isRootHome.value) || viewMode.value === 'public-trainers') {
+        restoreHomeAcademy(city, academies)
+      }
     },
     { immediate: true },
   )
   watch(publicTrainerAcademy, (academy, previousAcademy) => {
-    if (viewMode.value === 'home' && isRootHome.value && academy) {
+    if ((viewMode.value === 'home' && isRootHome.value || viewMode.value === 'public-trainers') && academy) {
       try {
         sessionStorage.setItem(HOME_ACADEMY_SESSION, academy)
         sessionStorage.setItem(HOME_ACADEMY_CITY_SESSION, publicTrainerCity.value)
@@ -285,7 +287,7 @@ export function useFitpesoApp() {
         /* navegação privada */
       }
     }
-    if (viewMode.value === 'home' && academy !== previousAcademy) {
+    if ((viewMode.value === 'home' || viewMode.value === 'public-trainers') && academy !== previousAcademy) {
       homeSelectedTrainerIds.value = []
     }
   })
@@ -314,8 +316,10 @@ export function useFitpesoApp() {
     }
   }
   function openPublicTrainers() {
-    // A listagem pública agora está integrada à página inicial.
-    goHome()
+    selectingTrainersForDraft.value = false
+    viewMode.value = 'public-trainers'
+    if (homeCity.value) searchHomeTrainers()
+    void nextTick(() => window.scrollTo(0, 0))
   }
   const eligibleTrainers = ref<EligibleTrainer[]>([])
   const selectedTrainerIds = ref<string[]>([])
@@ -856,7 +860,7 @@ export function useFitpesoApp() {
   }
 
   function goHome() {
-    const leavingPublicDirectory = router.currentRoute.value.path === '/profissionais'
+    const leavingPublicDirectory = router.currentRoute.value.path === '/personal'
     const leavingPersonalProfile = Boolean(trainerIdFromPath.value || trainerSlugFromPath.value)
     clearPendingWhatsAppLogin()
     showTrainerSignup.value = false
@@ -879,7 +883,7 @@ export function useFitpesoApp() {
     stopCustomerVerification()
     stopTrainerRegistration()
     showCustomerLoginDialog.value = false
-    // The public-navigation watcher owns the /profissionais -> / transition.
+    // The public-navigation watcher owns the /personal -> / transition.
     // Personalized pages must return to the main URL; other screens only clear the hash.
     if (leavingPersonalProfile) void router.replace('/')
     else if (!leavingPublicDirectory) void router.replace(router.currentRoute.value.path)
@@ -1221,10 +1225,9 @@ export function useFitpesoApp() {
   usePublicNavigation(
     viewMode,
     () => {
-      // URLs antigas de /profissionais voltam para a consulta na home.
       selectingTrainersForDraft.value = false
-      viewMode.value = 'home'
-      void router.replace('/')
+      viewMode.value = 'public-trainers'
+      if (homeCity.value) searchHomeTrainers()
     },
     () => {
       viewMode.value = 'home'
@@ -1242,7 +1245,7 @@ export function useFitpesoApp() {
   )
 
   onMounted(() => {
-    if (router.currentRoute.value.path === '/profissionais') void router.replace('/')
+    if (router.currentRoute.value.path === '/profissionais') void router.replace('/personal')
     if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
       publicTrainerCity.value = homeCity.value
       void loadPublicTrainers()
