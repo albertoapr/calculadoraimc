@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
@@ -38,7 +37,6 @@ const {
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
     <div class="fitpeso-home-header-actions">
-      <CitySelector v-if="viewMode === 'public-trainers'" />
       <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
         Olá,
         {{
