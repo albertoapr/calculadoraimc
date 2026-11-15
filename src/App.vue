@@ -97,7 +97,9 @@ const {
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
-      <CitySelector v-if="viewMode !== 'public-trainers'" />
+      <CitySelector
+        v-if="viewMode !== 'public-trainers' && !(viewMode === 'home' && !result && isRootHome)"
+      />
       <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
         <span class="home-training-heading">
           <span class="brand-peso">Personal</span>
@@ -127,6 +129,7 @@ const {
       >
         Solicitar treinamento
       </button>
+      <CitySelector v-if="viewMode === 'home' && !result && isRootHome" />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
