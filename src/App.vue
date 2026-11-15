@@ -48,6 +48,7 @@ const {
   publicTrainersError,
   publicTrainerAcademies,
   publicFilteredTrainers,
+  publicTrainers,
   homeCity,
   startTrainingRequestFromHome,
   openPublicTrainers,
@@ -94,23 +95,6 @@ const {
       "
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-theme-top">
-        <button type="button" class="theme-mode-toggle" role="switch"
-          :aria-checked="theme === 'dark'"
-          :aria-label="theme === 'dark' ? 'Tema escuro ativado. Alternar aparência' : 'Tema claro ativado. Alternar aparência'"
-          :title="theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'"
-          @click="theme = theme === 'dark' ? 'light' : 'dark'">
-          <span class="theme-mode-toggle-thumb" aria-hidden="true">
-            <svg v-if="theme === 'dark'" viewBox="0 0 24 24">
-              <path d="M20.2 15.2A8.5 8.5 0 0 1 8.8 3.8 8.5 8.5 0 1 0 20.2 15.2Z" />
-            </svg>
-            <svg v-else viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="3.5" />
-              <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
-            </svg>
-          </span>
-        </button>
-      </div>
       <HomeHeader />
       <PageHeader v-if="!(viewMode === 'home' && !result && isRootHome)" />
       <CitySelector v-if="viewMode !== 'public-trainers'" />
@@ -304,8 +288,11 @@ const {
             <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
             <p v-else-if="publicTrainersError" class="home-list-message" role="alert">{{ publicTrainersError }}</p>
             <template v-else>
-              <p class="home-list-heading">{{ publicFilteredTrainers.length }} {{ publicFilteredTrainers.length === 1 ? 'personal' : 'personais' }} em {{ homeCity }}</p>
               <HomeTrainersTable :trainers="publicFilteredTrainers" />
+              <p class="home-list-heading home-city-trainers-total">
+                Total em {{ homeCity }}: {{ publicTrainers.length }}
+                {{ publicTrainers.length === 1 ? 'profissional' : 'profissionais' }}
+              </p>
             </template>
           </section>
         </div>
@@ -369,63 +356,6 @@ const {
 </template>
 
 <style scoped>
-/* O seletor fica inteiramente dentro do box e mantém o formato original de chave. */
-.home-theme-top {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  margin: 0 0 8px;
-}
-.home-theme-top .theme-mode-toggle {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex: 0 0 76px;
-  width: 76px;
-  height: 44px;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-.home-theme-top .theme-mode-toggle-thumb {
-  display: grid;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--blue-dark);
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  transform: translateX(0);
-  transition: transform 0.2s, background-color 0.2s;
-}
-.home-theme-top .theme-mode-toggle-thumb svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-.home-theme-top .theme-mode-toggle:focus-visible {
-  outline: 3px solid var(--blue);
-  outline-offset: 2px;
-}
-:global(html[data-theme='dark']) .home-theme-top .theme-mode-toggle {
-  border-color: #3b4b40;
-  background: #314336;
-}
-:global(html[data-theme='dark']) .home-theme-top .theme-mode-toggle-thumb {
-  color: #e9d56a;
-  background: #19271e;
-  transform: translateX(32px);
-}
 .home-city-divider {
   border: 0;
   border-top: 1px solid var(--line);
@@ -436,9 +366,5 @@ const {
   display: block;
   width: 100%;
   margin: 12px 0 20px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .home-theme-top .theme-mode-toggle,
-  .home-theme-top .theme-mode-toggle-thumb { transition: none; }
 }
 </style>
