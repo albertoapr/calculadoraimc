@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import rootHomePersonalImage from '../../assets/root-home-personal.jpg'
 const {
-  rootHomePersonalImage,
   trainerIdFromPath,
   trainerSlugFromPath,
   isRootHome,

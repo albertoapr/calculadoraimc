@@ -10,7 +10,7 @@ import {
   normalizePersonName,
 } from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
-import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
+import { loadCustomerProfile } from '../services/authenticationService'
 import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
@@ -27,20 +27,19 @@ import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissi
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
 import { useTrainerDirectory } from './useTrainerDirectory'
 import { usePublicNavigation } from './usePublicNavigation'
+import { useAssessment } from './useAssessment'
+import { usePublicTrainerProfile } from './usePublicTrainerProfile'
+import { useSupportedCity } from './useSupportedCity'
+import { useSessionBootstrap } from './useSessionBootstrap'
 import { useTrainerSelection } from '../stores/trainerSelection'
 import { storeToRefs } from 'pinia'
 import { getRequestApiEndpoint } from '../services/api'
 import { trainerDisplayName } from '../utils/trainer'
 import { minutesToTime } from '../utils/time'
 import { trainingTimeRanges } from '../constants/training'
-import silhouetteScaleImage from '../assets/female-bmi-silhouette-scale.jpg'
-import maleSilhouetteScaleImage from '../assets/male-bmi-silhouette-scale.jpg'
-import rootHomePersonalImage from '../assets/root-home-personal.jpg'
 import type {
-  Sex,
   GoogleCredentialResponse,
   GoogleIdentityApi,
-  ImcResult,
   EligibleTrainer,
   TrainerReceivedRequest,
   TrainerAccountProfile,
@@ -63,28 +62,6 @@ export function useFitpesoApp() {
 
   const { theme } = useTheme()
 
-  function getTrainerIdFromPath(path: string) {
-    const match = path.match(/^\/p\/([^/]+)\/?$/)
-    if (!match) return ''
-    try {
-      const id = decodeURIComponent(match[1]).trim()
-      return /^[A-Za-z0-9_-]{1,80}$/.test(id) ? id : ''
-    } catch {
-      return ''
-    }
-  }
-
-  function getTrainerSlugFromPath(path: string) {
-    const match = path.match(/^\/personal\/([^/]+)\/?$/)
-    if (!match) return ''
-    try {
-      const slug = decodeURIComponent(match[1]).trim().toLowerCase()
-      return /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) ? slug : ''
-    } catch {
-      return ''
-    }
-  }
-
   const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
   const {
     trainerRequest,
@@ -95,17 +72,9 @@ export function useFitpesoApp() {
     loadTrainerRequest,
     submitTrainerProposal,
   } = useTrainerProposal(trainerRequestToken)
-  const trainerIdFromPath = computed(() => getTrainerIdFromPath(router.currentRoute.value.path))
-  const trainerSlugFromPath = computed(() => getTrainerSlugFromPath(router.currentRoute.value.path))
+  const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, trainerProfileFailed } =
+    usePublicTrainerProfile(router)
   const isRootHome = computed(() => router.currentRoute.value.path === '/')
-  const personalName = ref('FitPeso')
-  const personalBrandFirstName = computed(() =>
-    personalName.value.endsWith(' Personal Trainer')
-      ? personalName.value.slice(0, -' Personal Trainer'.length)
-      : '',
-  )
-  const trainerProfileFailed = ref(false)
-  let trainerProfileLookupId = 0
 
   const viewMode = ref<
     | 'home'
@@ -558,7 +527,47 @@ export function useFitpesoApp() {
     ]
   })
 
-  const result = ref<ImcResult | null>(null)
+  const status = ref('')
+  const submittingRequest = ref(false)
+  const googleButtonContainer = ref<HTMLDivElement | null>(null)
+  function setGoogleButtonContainer(element: unknown) {
+    googleButtonContainer.value = element instanceof HTMLDivElement ? element : null
+  }
+  const googleProfileStatus = ref('')
+  let googleIdentityScriptPromise: Promise<void> | null = null
+  const contactAge = computed(() => {
+    if (!showRequestForm.value || form.age === '') return undefined
+    const age = Number(String(form.age))
+    return Number.isInteger(age) ? age : undefined
+  })
+  const {
+    result,
+    evaluating,
+    evaluationProgress,
+    adjustMeasurement,
+    calculateImc,
+    classification,
+    classificationEmoji,
+    silhouetteImage,
+    silhouettePositions,
+    silhouetteGenderLabel,
+    bmiScale,
+    scalePosition,
+    bodyFatReference,
+    bmiSilhouettes,
+    activeSilhouette,
+    weightGoalAmount,
+    referenceWeightRange,
+    editMeasurement,
+  } = useAssessment({
+    form,
+    contactAge,
+    status,
+    resetContactDetails: clearContactDetails,
+    openAssessment: () => {
+      viewMode.value = 'assessment'
+    },
+  })
 
   // Cada tela lógica começa no topo, inclusive ao voltar ou alternar cadastros.
   // Não interfere na rolagem durante a interação com a mesma tela.
@@ -581,167 +590,6 @@ export function useFitpesoApp() {
     { flush: 'post' },
   )
 
-  const evaluating = ref(false)
-  const evaluationProgress = ref(0)
-  const status = ref('')
-  const submittingRequest = ref(false)
-  const googleButtonContainer = ref<HTMLDivElement | null>(null)
-  function setGoogleButtonContainer(element: unknown) {
-    googleButtonContainer.value = element instanceof HTMLDivElement ? element : null
-  }
-  const googleProfileStatus = ref('')
-  let googleIdentityScriptPromise: Promise<void> | null = null
-  const contactAge = computed(() => {
-    if (!showRequestForm.value || form.age === '') return undefined
-    const age = Number(String(form.age))
-    return Number.isInteger(age) ? age : undefined
-  })
-
-  function category(imc: number) {
-    if (imc < 18.5)
-      return ['Baixo peso', 'Converse com um profissional de saúde para uma avaliação individual.']
-    if (imc < 25)
-      return ['Peso adequado', 'Esta faixa é considerada adequada como referência para adultos.']
-    if (imc < 30)
-      return [
-        'Sobrepeso',
-        'Uma orientação profissional pode ajudar a definir hábitos e metas saudáveis.',
-      ]
-    if (imc < 35)
-      return [
-        'Obesidade I',
-        'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.',
-      ]
-    if (imc < 40)
-      return [
-        'Obesidade II',
-        'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.',
-      ]
-    return [
-      'Obesidade mórbida',
-      'Uma avaliação profissional pode ajudar a definir metas seguras e personalizadas.',
-    ]
-  }
-
-  function classifyBodyFat(percent: number, sex: Sex, age: number) {
-    // Faixas gerais de referência por sexo e idade, para adultos de 20 a 79 anos.
-    const referenceBands =
-      sex === 'masculino'
-        ? [
-            { from: 20, to: 40, minimum: 8, maximum: 20 },
-            { from: 40, to: 60, minimum: 11, maximum: 22 },
-            { from: 60, to: 80, minimum: 13, maximum: 25 },
-          ]
-        : [
-            { from: 20, to: 40, minimum: 21, maximum: 33 },
-            { from: 40, to: 60, minimum: 23, maximum: 34 },
-            { from: 60, to: 80, minimum: 24, maximum: 36 },
-          ]
-    const reference = referenceBands.find((band) => age >= band.from && age < band.to)
-
-    if (!reference) return 'Faixa de referência indisponível para esta idade'
-    if (percent < reference.minimum) return 'Baixo'
-    if (percent <= reference.maximum) return 'Adequado'
-    if (percent <= reference.maximum + 5) return 'Alto'
-    return 'Muito alto'
-  }
-
-  const classification = computed(() => (result.value ? category(result.value.imc)[0] : ''))
-  const classificationEmoji = computed(() =>
-    result.value && result.value.imc >= 18.5 && result.value.imc < 25 ? '😎' : '😕',
-  )
-  const silhouetteImage = computed(() =>
-    form.sex === 'masculino' ? maleSilhouetteScaleImage : silhouetteScaleImage,
-  )
-  const silhouettePositions = computed(() =>
-    form.sex === 'masculino' ? ['0%', '33.333%', '66.667%', '100%'] : ['0%', '25%', '50%', '75%'],
-  )
-  const silhouetteGenderLabel = computed(() =>
-    form.sex === 'masculino' ? 'MASCULINAS' : 'FEMININAS',
-  )
-  const bmiScale = [
-    { label: 'Magreza', range: '<18,5', from: 12, to: 18.5, color: '#60a5fa' },
-    { label: 'Peso adequado', range: '18,5–24,9', from: 18.5, to: 25, color: '#34d399' },
-    { label: 'Sobrepeso', range: '25–29,9', from: 25, to: 30, color: '#fbbf24' },
-    { label: 'Obesidade I', range: '30–34,9', from: 30, to: 35, color: '#fb923c' },
-  ]
-  const scalePosition = computed(() =>
-    result.value ? `${Math.max(0, Math.min(100, ((result.value.imc - 12) / 23) * 100))}%` : '0%',
-  )
-  const bodyFatReference = computed(() => {
-    const current = result.value
-    if (
-      current?.bodyFatPercent === undefined ||
-      current.bodyFatAge === undefined ||
-      !current.bodyFatSex
-    )
-      return null
-    const bands =
-      current.bodyFatSex === 'masculino'
-        ? [
-            { from: 20, to: 40, minimum: 8, maximum: 20 },
-            { from: 40, to: 60, minimum: 11, maximum: 22 },
-            { from: 60, to: 80, minimum: 13, maximum: 25 },
-          ]
-        : [
-            { from: 20, to: 40, minimum: 21, maximum: 33 },
-            { from: 40, to: 60, minimum: 23, maximum: 34 },
-            { from: 60, to: 80, minimum: 24, maximum: 36 },
-          ]
-    const band = bands.find(
-      (item) => current.bodyFatAge! >= item.from && current.bodyFatAge! < item.to,
-    )
-    if (!band) return null
-    const domain = 70
-    const highLimit = Math.min(domain, band.maximum + 5)
-    return {
-      ...band,
-      domain,
-      highLimit,
-      sexLabel: current.bodyFatSex === 'masculino' ? 'homens' : 'mulheres',
-      ageLabel: `${band.from}–${band.to - 1} anos`,
-      marker: `${(Math.max(0, Math.min(domain, current.bodyFatPercent)) / domain) * 100}%`,
-      widths: [
-        (band.minimum / domain) * 100,
-        ((band.maximum - band.minimum) / domain) * 100,
-        ((highLimit - band.maximum) / domain) * 100,
-        ((domain - highLimit) / domain) * 100,
-      ],
-    }
-  })
-  const bmiSilhouettes = [
-    { label: 'Magreza', range: 'IMC < 18,5', position: 0 },
-    { label: 'Peso adequado', range: 'IMC 18,5–24,9', position: 25 },
-    { label: 'Sobrepeso', range: 'IMC 25–29,9', position: 50 },
-    { label: 'Obesidade I', range: 'IMC 30–34,9', position: 75 },
-  ]
-  const activeSilhouette = computed(() => {
-    if (!result.value) return -1
-    if (result.value.imc < 18.5) return 0
-    if (result.value.imc < 25) return 1
-    if (result.value.imc < 30) return 2
-    return 3
-  })
-  const weightGoalAmount = computed(() => {
-    if (!result.value || (contactAge.value !== undefined && contactAge.value < 18)) return null
-    const heightMetersSquared = (result.value.heightCm / 100) ** 2
-    if (result.value.imc < 18.5) {
-      return Number(Math.max(0, 18.5 * heightMetersSquared - result.value.weight).toFixed(1))
-    }
-    if (result.value.imc >= 25) {
-      const adultReferenceWeight = 24.9 * heightMetersSquared
-      return Number(Math.max(0, result.value.weight - adultReferenceWeight).toFixed(1))
-    }
-    return null
-  })
-  const referenceWeightRange = computed(() => {
-    if (!result.value) return null
-    const heightMetersSquared = (result.value.heightCm / 100) ** 2
-    return {
-      minimum: Number((18.5 * heightMetersSquared).toFixed(1)),
-      maximum: Number((24.9 * heightMetersSquared).toFixed(1)),
-    }
-  })
   function clearContactDetails() {
     showRequestForm.value = false
     form.shareContactConsent = false
@@ -1060,332 +908,43 @@ export function useFitpesoApp() {
     goHome()
   }
 
-  function adjustMeasurement(field: 'weight' | 'height' | 'waist', amount: number) {
-    const minimum = field === 'weight' ? 50 : field === 'height' ? 140 : 40
-    const maximum = field === 'weight' ? 150 : field === 'height' ? 190 : 160
-    const nextValue = Math.max(minimum, Math.min(maximum, Number(form[field]) + amount))
-    form[field] = String(nextValue)
-  }
-
-  function calculateImc() {
-    if (evaluating.value) return
-    status.value = ''
-
-    clearContactDetails()
-
-    const weight = Number(form.weight)
-    const heightCm = Number(form.height)
-    if (
-      !Number.isInteger(weight) ||
-      weight < 50 ||
-      weight > 150 ||
-      !Number.isInteger(heightCm) ||
-      heightCm < 140 ||
-      heightCm > 190
-    ) {
-      status.value = 'Confira o peso e a altura informados.'
-      return
-    }
-
-    const nextResult: ImcResult = {
-      weight,
-      heightCm,
-      imc: Number((weight / (heightCm / 100) ** 2).toFixed(1)),
-    }
-    if (form.calculateBodyFat) {
-      const waistCm = Number(form.waist)
-      const age = Number(form.bodyFatAge)
-      if (
-        !Number.isInteger(waistCm) ||
-        waistCm < 40 ||
-        waistCm > 160 ||
-        !Number.isInteger(age) ||
-        age < 20 ||
-        age > 120
-      ) {
-        status.value =
-          'Para calcular a gordura corporal, confira a cintura e informe a idade (mínimo de 20 anos).'
-        return
-      }
-      const bodyFatPercent = Number(
-        ((form.sex === 'masculino' ? 64 : 76) - 20 * (heightCm / waistCm)).toFixed(1),
-      )
-      if (bodyFatPercent < 0 || bodyFatPercent > 70) {
-        status.value = 'Confira as medidas de altura e cintura informadas.'
-        return
-      }
-      nextResult.waistCm = waistCm
-      nextResult.bodyFatPercent = bodyFatPercent
-      nextResult.bodyFatClassification = classifyBodyFat(bodyFatPercent, form.sex, age)
-      nextResult.bodyFatSex = form.sex === 'masculino' ? 'masculino' : 'feminino'
-      nextResult.bodyFatAge = age
-    }
-
-    evaluating.value = true
-    evaluationProgress.value = 0
-    const startedAt = performance.now()
-    const duration = 2000
-
-    function animate(now: number) {
-      evaluationProgress.value = Math.min(100, Math.round(((now - startedAt) / duration) * 100))
-      if (evaluationProgress.value < 100) {
-        requestAnimationFrame(animate)
-      } else {
-        result.value = nextResult
-        evaluating.value = false
-      }
-    }
-
-    requestAnimationFrame(animate)
-  }
-
-  function editMeasurement() {
-    result.value = null
-    clearContactDetails()
-    status.value = ''
-    viewMode.value = 'assessment'
-  }
-
-  async function loadTrainerProfile() {
-    const lookupId = ++trainerProfileLookupId
-    personalName.value = 'FitPeso'
-    trainerProfileFailed.value = false
-    const trainerId = trainerIdFromPath.value
-    const trainerSlug = trainerSlugFromPath.value
-    if (!trainerId && !trainerSlug) return
-    try {
-      const endpoint = await getRequestApiEndpoint()
-      const profilePath = trainerSlug
-        ? `/api/trainers/by-slug/${encodeURIComponent(trainerSlug)}`
-        : `/api/trainers/${encodeURIComponent(trainerId)}`
-      const response = await fetch(`${endpoint}${profilePath}`, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Trainer profile unavailable')
-      const body = (await response.json()) as { trainer?: { name?: unknown } }
-      const name = typeof body.trainer?.name === 'string' ? body.trainer.name.trim() : ''
-      if (!name) throw new Error('Invalid trainer profile')
-      if (lookupId !== trainerProfileLookupId) return
-      const firstName = name.split(/\s+/)[0]
-      personalName.value = `${firstName} Personal Trainer`
-    } catch {
-      if (lookupId === trainerProfileLookupId) trainerProfileFailed.value = true
-    }
-  }
-
-  watch([trainerIdFromPath, trainerSlugFromPath], () => void loadTrainerProfile(), {
-    immediate: true,
+  const {
+    supportedRequestCities,
+    homeCity,
+    homeCityManuallySelected,
+    matchSupportedRequestCity,
+    selectHomeCity,
+    detectRequestCity,
+    cancelRequestCityDetection,
+  } = useSupportedCity({
+    viewMode,
+    isRootHome,
+    publicTrainerCity,
+    sharingRequestMessage,
+    selectedTrainerIds: homeSelectedTrainerIds,
+    showRequestForm,
+    requestStep,
+    form,
+    readPreference: readNavigationPreference,
+    savePreference: saveNavigationPreference,
+    cityPreferenceKey: NAV_CITY,
+    loadPublicTrainers,
+    searchHomeTrainers,
   })
-
-  const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'] as const
-  const detectingRequestCity = ref(false)
-  const requestCityLocationMessage = ref('')
-  const homeCity = ref('')
-  const storedHomeCity = readNavigationPreference(NAV_CITY)
-  const homeCityManuallySelected = ref(
-    storedHomeCity !== '' && supportedRequestCities.some((city) => city === storedHomeCity),
-  )
-  if (homeCityManuallySelected.value) homeCity.value = storedHomeCity
-  const homeTrainerCount = ref<number | null>(null)
-  const homeTrainerCountLoading = ref(false)
-  let homeCityCountLookupId = 0
-
-  const HOME_TRAINER_COUNT_TTL_MS = 24 * 60 * 60 * 1000
-  const homeTrainerCountRequests = new Map<string, Promise<number>>()
-
-  async function loadHomeTrainerCount(city: string) {
-    const lookupId = ++homeCityCountLookupId
-    const cacheKey = `fitpeso:trainer-count:v1:${city}`
-    try {
-      const stored = localStorage.getItem(cacheKey)
-      if (stored) {
-        const cached = JSON.parse(stored) as { count?: number; expiresAt?: number }
-        if (
-          Number.isInteger(cached.count) &&
-          Number(cached.count) >= 0 &&
-          Number(cached.expiresAt) > Date.now()
-        ) {
-          homeTrainerCount.value = Number(cached.count)
-          homeTrainerCountLoading.value = false
-          return
-        }
-      }
-    } catch {
-      /* Storage may be unavailable; fall back to the API. */
-    }
-
-    homeTrainerCount.value = null
-    homeTrainerCountLoading.value = true
-    try {
-      let pending = homeTrainerCountRequests.get(city)
-      if (!pending) {
-        pending = (async () => {
-          const endpoint = await getRequestApiEndpoint()
-          const query = new URLSearchParams({ city, gender: 'indiferente' })
-          const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`)
-          const body = (await response.json()) as { count?: number; trainers?: EligibleTrainer[] }
-          if (!response.ok) throw new Error('Unavailable')
-          const count = Number.isInteger(body.count)
-            ? Number(body.count)
-            : Array.isArray(body.trainers)
-              ? body.trainers.length
-              : NaN
-          if (!Number.isInteger(count) || count < 0) throw new Error('Invalid count')
-          try {
-            localStorage.setItem(
-              cacheKey,
-              JSON.stringify({ count, expiresAt: Date.now() + HOME_TRAINER_COUNT_TTL_MS }),
-            )
-          } catch {
-            /* Optional cache */
-          }
-          return count
-        })().finally(() => homeTrainerCountRequests.delete(city))
-        homeTrainerCountRequests.set(city, pending)
-      }
-      const count = await pending
-      if (lookupId === homeCityCountLookupId) homeTrainerCount.value = count
-    } catch {
-      if (lookupId === homeCityCountLookupId) homeTrainerCount.value = null
-    } finally {
-      if (lookupId === homeCityCountLookupId) homeTrainerCountLoading.value = false
-    }
-  }
-
-  function updateHomeCity(city: string) {
-    if (homeCityManuallySelected.value) return
-    if (homeCity.value === city) return
-    homeCity.value = city
-    if (viewMode.value === 'public-trainers') {
-      if (publicTrainerCity.value !== city) sharingRequestMessage.value = ''
-      publicTrainerCity.value = city
-      homeSelectedTrainerIds.value = []
-      void loadPublicTrainers()
-    }
-    void loadHomeTrainerCount(city)
-  }
-
-  function selectHomeCity(event: Event) {
-    const city = (event.target as HTMLSelectElement).value
-    if (!supportedRequestCities.some((item) => item === city)) return
-    homeCityManuallySelected.value = true
-    homeCity.value = city
-    saveNavigationPreference(NAV_CITY, city)
-    void loadHomeTrainerCount(city)
-  }
 
   watch(homeAcademy, (academy) => saveNavigationPreference(NAV_ACADEMY, academy))
-
-  watch(homeCity, (city) => {
-    homeSelectedTrainerIds.value = []
-    if (city && viewMode.value === 'public-trainers') searchHomeTrainers()
-    else if (city && viewMode.value === 'home' && isRootHome.value) {
-      publicTrainerCity.value = city
-      void loadPublicTrainers()
-    }
-  })
-
-  let requestCityLookupId = 0
-
-  function matchSupportedRequestCity(value: string): string {
-    const normalized = value
-      .normalize('NFD')
-      .replace(/[\\u0300-\\u036f]/g, '')
-      .trim()
-      .toLowerCase()
-    return (
-      supportedRequestCities.find(
-        (city) =>
-          city
-            .normalize('NFD')
-            .replace(/[\\u0300-\\u036f]/g, '')
-            .toLowerCase() === normalized,
-      ) ?? ''
-    )
-  }
-
-  async function detectRequestCity(cityDetectionScope: 'request' | 'home' = 'request') {
-    if (!navigator.geolocation) {
-      requestCityLocationMessage.value = 'Selecione sua cidade na lista.'
-      return
-    }
-    const lookupId = ++requestCityLookupId
-    if (cityDetectionScope === 'request') detectingRequestCity.value = true
-    if (cityDetectionScope === 'request')
-      requestCityLocationMessage.value = 'Identificando sua cidade…'
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          // Reverse geocoding is used only to obtain the municipality; coordinates are not stored.
-          const params = new URLSearchParams({
-            latitude: String(position.coords.latitude),
-            longitude: String(position.coords.longitude),
-            localityLanguage: 'pt',
-          })
-          const response = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?${params}`,
-            {
-              signal: AbortSignal.timeout(8000),
-            },
-          )
-          if (!response.ok) throw new Error('Geocoding unavailable')
-          const location = (await response.json()) as {
-            city?: string
-            locality?: string
-            localityInfo?: { administrative?: Array<{ name?: string; adminLevel?: number }> }
-          }
-          if (
-            cityDetectionScope === 'request' &&
-            (lookupId !== requestCityLookupId || !showRequestForm.value || requestStep.value > 3)
-          )
-            return
-          const candidates = [
-            location.city ?? '',
-            location.locality ?? '',
-            ...(location.localityInfo?.administrative ?? []).map((item) => item.name ?? ''),
-          ]
-          const city = candidates.map(matchSupportedRequestCity).find(Boolean) ?? ''
-          if (city) {
-            updateHomeCity(city)
-            if (cityDetectionScope === 'request') {
-              if (!form.city) form.city = city
-              requestCityLocationMessage.value =
-                'Cidade sugerida pela localização. Você pode alterá-la.'
-            }
-          } else if (cityDetectionScope === 'request') {
-            requestCityLocationMessage.value =
-              'Sua cidade não está entre as atendidas. Selecione uma cidade da lista.'
-          }
-        } catch {
-          if (cityDetectionScope === 'request' && lookupId === requestCityLookupId)
-            requestCityLocationMessage.value =
-              'Não foi possível identificar sua cidade. Selecione na lista.'
-        } finally {
-          if (cityDetectionScope === 'request' && lookupId === requestCityLookupId)
-            detectingRequestCity.value = false
-        }
-      },
-      () => {
-        if (cityDetectionScope === 'request' && lookupId !== requestCityLookupId) return
-        if (cityDetectionScope === 'request') detectingRequestCity.value = false
-        if (cityDetectionScope === 'request')
-          requestCityLocationMessage.value =
-            'Localização indisponível. Selecione sua cidade na lista.'
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
-    )
-  }
 
   async function openRequestForm() {
     status.value = ''
     showRequestForm.value = true
     requestStep.value = 5
     selectingTrainersForDraft.value = false
-    ++requestCityLookupId
+    cancelRequestCityDetection()
     form.city = homeCity.value
     // O controle deslizante precisa sempre começar com uma idade válida.
     if (!Number.isInteger(Number(form.age)) || Number(form.age) < 15 || Number(form.age) > 100) {
       form.age = '40'
     }
-    requestCityLocationMessage.value = ''
     form.clientGender = 'feminino'
     form.trainerGenderPreference = 'indiferente'
     form.sessionsPerWeek = '1'
@@ -1591,6 +1150,15 @@ export function useFitpesoApp() {
     }
   }
 
+  const { restoreSessions } = useSessionBootstrap({
+    getGeneration: () => sessionGeneration,
+    customerSignedInName,
+    trainerSignedInId,
+    trainerSignedInName,
+    applyCustomerProfile,
+    applyTrainerSession,
+  })
+
   onUnmounted(() => {
     document.removeEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.removeEventListener('click', closeHamburgerOnSelection)
@@ -1692,54 +1260,7 @@ export function useFitpesoApp() {
       void router.replace(`${window.location.pathname}${window.location.hash}`)
     void loadTrainerRequest()
     if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
-    if (homeCity.value) void loadHomeTrainerCount(homeCity.value)
-    try {
-      const trainerToken = sessionStorage.getItem('fitpeso-trainer-session')
-      if (trainerToken) {
-        const generation = sessionGeneration
-        void loadTrainerSession(trainerToken)
-          .then((profile) => {
-            if (
-              sessionGeneration === generation &&
-              sessionStorage.getItem('fitpeso-trainer-session') === trainerToken
-            ) {
-              applyTrainerSession(profile)
-            }
-          })
-          .catch(() => {
-            if (sessionGeneration !== generation) return
-            sessionStorage.removeItem('fitpeso-trainer-session')
-            trainerSignedInId.value = ''
-            trainerSignedInName.value = ''
-          })
-      }
-    } catch {
-      /* armazenamento indisponível */
-    }
-    try {
-      const token =
-        sessionStorage.getItem('fitpeso-customer-session') ??
-        sessionStorage.getItem('fitpeso-google-session')
-      if (token) {
-        const generation = sessionGeneration
-        void loadCustomerProfile(token)
-          .then((profile) => {
-            const storedToken =
-              sessionStorage.getItem('fitpeso-customer-session') ??
-              sessionStorage.getItem('fitpeso-google-session')
-            if (sessionGeneration === generation && storedToken === token)
-              applyCustomerProfile(profile)
-          })
-          .catch(() => {
-            if (sessionGeneration !== generation) return
-            sessionStorage.removeItem('fitpeso-google-session')
-            sessionStorage.removeItem('fitpeso-customer-session')
-            customerSignedInName.value = ''
-          })
-      }
-    } catch {
-      /* Sessão temporária indisponível; ainda é possível entrar novamente. */
-    }
+    restoreSessions()
     startAuthentication()
   })
 
@@ -2027,7 +1548,6 @@ export function useFitpesoApp() {
     selectHomeCity,
     openCustomerLogin,
     openMyProfile,
-    rootHomePersonalImage,
     trainerIdFromPath,
     trainerSlugFromPath,
     personalBrandFirstName,
