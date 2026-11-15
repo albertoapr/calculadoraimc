@@ -7,7 +7,8 @@ export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: application },
-    { path: '/profissionais', name: 'profissionais', component: application },
+    { path: '/personal', name: 'personal-directory', component: application },
+    { path: '/profissionais', redirect: '/personal' },
     { path: '/personal/:slug', name: 'personal-profile', component: application },
     { path: '/:pathMatch(.*)*', name: 'legacy', component: application },
   ],
