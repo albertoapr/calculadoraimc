@@ -124,6 +124,9 @@ const {
       <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
         para qualquer rotina e orçamento
       </p>
+      <button v-if="viewMode === 'home' && !result && isRootHome" class="primary-button home-training-request-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
+        Solicitar treinamento
+      </button>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
@@ -295,9 +298,7 @@ const {
             <option value="">Todas as academias</option>
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
           </select>
-          <button class="primary-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
-            Solicitar treinamento
-          </button>
+
           <section class="home-trainer-preview" aria-label="Profissionais disponíveis">
             <p v-if="!homeCity" class="home-list-message">Selecione uma cidade para consultar os profissionais.</p>
             <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">Carregando profissionais…</p>
@@ -371,4 +372,6 @@ const {
 .home-theme-top { display: flex; justify-content: flex-end; margin: -22px -26px 8px 0; }
 .home-city-divider { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 4px 0 18px; }
 @media (max-width: 520px) { .home-theme-top { margin: -24px -24px 8px 0; } }
+
+.home-training-request-button { display: block; width: 100%; margin: 12px 0 20px; }
 </style>
