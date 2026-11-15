@@ -3391,6 +3391,16 @@ html[data-theme='dark'] .home-city-selector svg {
 }
 .root-home-photo.home-training-photo {
   margin: 20px auto 12px;
+  /* Mostra os 80% superiores da foto original, sem alterar o arquivo. */
+  aspect-ratio: 1069 / 475.2;
+  overflow: hidden;
+}
+.root-home-photo.home-training-photo .root-home-personal-image {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: cover;
+  object-position: center top;
 }
 .root-home-actions {
   margin: 24px 0 18px;
