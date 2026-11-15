@@ -279,7 +279,7 @@ const {
             aria-label="Filtrar profissionais por academia"
             :disabled="!homeCity || publicTrainersLoading"
           >
-            <option value="">Todas as academias</option>
+            <option value="">Selecione uma academia</option>
             <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">{{ academy }}</option>
           </select>
 
@@ -290,8 +290,7 @@ const {
             <template v-else>
               <HomeTrainersTable :trainers="publicFilteredTrainers" />
               <p class="home-list-heading home-city-trainers-total">
-                Total em {{ homeCity }}: {{ publicTrainers.length }}
-                {{ publicTrainers.length === 1 ? 'profissional' : 'profissionais' }}
+                {{ publicFilteredTrainers.length }} profissionais encontrados
               </p>
             </template>
           </section>
