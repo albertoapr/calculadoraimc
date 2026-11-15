@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
 const {
@@ -32,6 +32,15 @@ type AccordionSection =
   | 'professionals'
 
 const expandedSection = ref<AccordionSection | null>('profile')
+
+// Uma aula avulsa corresponde sempre a uma única aula, sem frequência semanal múltipla.
+watch(
+  () => form.singleLesson,
+  (singleLesson) => {
+    if (singleLesson) form.sessionsPerWeek = '1'
+  },
+  { immediate: true },
+)
 
 function toggleSection(section: AccordionSection) {
   expandedSection.value = expandedSection.value === section ? null : section
@@ -66,6 +75,16 @@ const professionalGenderLabel = computed(() =>
     aria-labelledby="contact-form-title"
     @submit.prevent
   >
+    <div class="request-accordion-estimate" aria-live="polite">
+      <span class="request-accordion-estimate-icon" aria-hidden="true">💰</span>
+      <div class="request-accordion-estimate-text">
+        <span>Valor estimado</span>
+        <strong
+          >a partir de {{ estimatedValue }}{{ form.singleLesson ? ' / aula' : ' / mês' }}</strong
+        >
+      </div>
+    </div>
+
     <p class="request-accordion-intro">
       Confira os dados do seu atendimento. Toque em cada linha para alterar.
     </p>
@@ -83,7 +102,7 @@ const professionalGenderLabel = computed(() =>
           @click="toggleSection('profile')"
         >
           <span class="request-accordion-icon" aria-hidden="true">👤</span>
-          <span class="request-accordion-title">Perfil</span>
+          <span class="request-accordion-title">Meu perfil</span>
           <span class="request-accordion-preview">{{ form.age }} anos · {{ genderLabel }}</span>
           <span class="request-accordion-chevron" aria-hidden="true"></span>
         </button>
@@ -174,6 +193,54 @@ const professionalGenderLabel = computed(() =>
 
     <section
       class="request-accordion-item"
+      :class="{ 'request-accordion-open': expandedSection === 'duration' }"
+    >
+      <h3 class="request-accordion-heading">
+        <button
+          type="button"
+          class="request-accordion-toggle"
+          :aria-expanded="expandedSection === 'duration'"
+          aria-controls="request-panel-duration"
+          @click="toggleSection('duration')"
+        >
+          <span class="request-accordion-icon" aria-hidden="true">⏳</span>
+          <span class="request-accordion-title">Duração</span>
+          <span class="request-accordion-preview">{{
+            form.singleLesson ? 'Aula avulsa' : form.desiredDuration
+          }}</span>
+          <span class="request-accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h3>
+      <div
+        v-if="expandedSection === 'duration'"
+        id="request-panel-duration"
+        class="request-accordion-panel"
+      >
+        <label class="request-accordion-check"
+          ><input v-model="form.singleLesson" type="checkbox" /> Aula avulsa</label
+        >
+        <label for="accordion-duration" class="request-accordion-label"
+          >Duração do acompanhamento</label
+        >
+        <select
+          id="accordion-duration"
+          v-model="form.desiredDuration"
+          class="request-accordion-select"
+          :disabled="form.singleLesson"
+        >
+          <option
+            v-for="months in 6"
+            :key="months"
+            :value="months + (months === 1 ? ' mês' : ' meses')"
+          >
+            {{ months }} {{ months === 1 ? 'mês' : 'meses' }}
+          </option>
+        </select>
+      </div>
+    </section>
+
+    <section
+      class="request-accordion-item"
       :class="{ 'request-accordion-open': expandedSection === 'frequency' }"
     >
       <h3 class="request-accordion-heading">
@@ -211,6 +278,7 @@ const professionalGenderLabel = computed(() =>
               type="radio"
               name="accordion-sessions"
               :value="String(n)"
+              :disabled="form.singleLesson && n !== 1"
             />
             <span>{{ n }}</span>
           </label>
@@ -388,53 +456,7 @@ const professionalGenderLabel = computed(() =>
       </div>
     </section>
 
-    <section
-      class="request-accordion-item"
-      :class="{ 'request-accordion-open': expandedSection === 'duration' }"
-    >
-      <h3 class="request-accordion-heading">
-        <button
-          type="button"
-          class="request-accordion-toggle"
-          :aria-expanded="expandedSection === 'duration'"
-          aria-controls="request-panel-duration"
-          @click="toggleSection('duration')"
-        >
-          <span class="request-accordion-icon" aria-hidden="true">⏳</span>
-          <span class="request-accordion-title">Duração</span>
-          <span class="request-accordion-preview">{{
-            form.singleLesson ? 'Aula avulsa' : form.desiredDuration
-          }}</span>
-          <span class="request-accordion-chevron" aria-hidden="true"></span>
-        </button>
-      </h3>
-      <div
-        v-if="expandedSection === 'duration'"
-        id="request-panel-duration"
-        class="request-accordion-panel"
-      >
-        <label class="request-accordion-check"
-          ><input v-model="form.singleLesson" type="checkbox" /> Aula avulsa</label
-        >
-        <label for="accordion-duration" class="request-accordion-label"
-          >Duração do acompanhamento</label
-        >
-        <select
-          id="accordion-duration"
-          v-model="form.desiredDuration"
-          class="request-accordion-select"
-          :disabled="form.singleLesson"
-        >
-          <option
-            v-for="months in 6"
-            :key="months"
-            :value="months + (months === 1 ? ' mês' : ' meses')"
-          >
-            {{ months }} {{ months === 1 ? 'mês' : 'meses' }}
-          </option>
-        </select>
-      </div>
-    </section>
+
 
     <section
       class="request-accordion-item"
@@ -499,15 +521,7 @@ const professionalGenderLabel = computed(() =>
       </div>
     </section>
 
-    <div class="request-accordion-estimate" aria-live="polite">
-      <span class="request-accordion-estimate-icon" aria-hidden="true">💰</span>
-      <div class="request-accordion-estimate-text">
-        <span>Valor estimado</span>
-        <strong
-          >a partir de {{ estimatedValue }}{{ form.singleLesson ? ' / aula' : ' / mês' }}</strong
-        >
-      </div>
-    </div>
+
 
     <p
       v-if="
