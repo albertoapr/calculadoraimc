@@ -169,6 +169,22 @@ export function useFitpesoApp() {
   const publicTrainerCity = ref('')
   const publicTrainerName = ref('')
   const publicTrainerAcademy = ref('')
+  // A escolha da academia na home dura apenas a sessão atual do navegador.
+  const HOME_ACADEMY_SESSION = 'fitpeso:home-academy-session:v1'
+  const HOME_ACADEMY_CITY_SESSION = 'fitpeso:home-academy-city-session:v1'
+  const homeAcademySelected = computed(() =>
+    Boolean(publicTrainerAcademy.value && publicTrainerAcademies.value.includes(publicTrainerAcademy.value)),
+  )
+  function restoreHomeAcademy(city: string, academies: string[]) {
+    if (!city || !academies.length || publicTrainerAcademy.value) return
+    try {
+      if (sessionStorage.getItem(HOME_ACADEMY_CITY_SESSION) !== city) return
+      const saved = sessionStorage.getItem(HOME_ACADEMY_SESSION) ?? ''
+      if (saved && academies.includes(saved)) publicTrainerAcademy.value = saved
+    } catch {
+      /* navegação privada */
+    }
+  }
 
   const storedHomeAcademy = readNavigationPreference(NAV_ACADEMY)
 
@@ -276,20 +292,27 @@ export function useFitpesoApp() {
       requestGender: computed(() => form.trainerGenderPreference),
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
-  // A opção padrão é "Todas" (valor vazio), sem filtrar por academia.
+  // Sem seleção, a lista pode carregar opções para o combo, mas não exibe resultados.
   watch(
     [publicTrainerAcademies, publicTrainerCity],
     ([academies, city], previousValues) => {
       const previousCity = previousValues?.[1]
-      if (city !== previousCity || (publicTrainerAcademy.value && !academies.includes(publicTrainerAcademy.value))) {
+      if (city !== previousCity || (publicTrainerAcademy.value && academies.length && !academies.includes(publicTrainerAcademy.value))) {
         publicTrainerAcademy.value = ''
       }
+      if (viewMode.value === 'home' && isRootHome.value) restoreHomeAcademy(city, academies)
     },
     { immediate: true },
   )
   watch(publicTrainerAcademy, (academy, previousAcademy) => {
-    if (academy) saveNavigationPreference(NAV_ACADEMY, academy)
-    // Não manter profissionais de outra academia selecionados na home.
+    if (viewMode.value === 'home' && isRootHome.value && academy) {
+      try {
+        sessionStorage.setItem(HOME_ACADEMY_SESSION, academy)
+        sessionStorage.setItem(HOME_ACADEMY_CITY_SESSION, publicTrainerCity.value)
+      } catch {
+        /* navegação privada */
+      }
+    }
     if (viewMode.value === 'home' && academy !== previousAcademy) {
       homeSelectedTrainerIds.value = []
     }
@@ -1827,6 +1850,7 @@ export function useFitpesoApp() {
     selectingTrainersForDraft,
     publicTrainerCity,
     publicTrainerAcademy,
+    homeAcademySelected,
     openRequestForTrainer,
     homeSelectedTrainerIds,
     sharingRequestId,
