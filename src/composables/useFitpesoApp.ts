@@ -1357,9 +1357,10 @@ export function useFitpesoApp() {
     form.city = homeCity.value
     // O controle deslizante precisa sempre começar com uma idade válida.
     if (!Number.isInteger(Number(form.age)) || Number(form.age) < 15 || Number(form.age) > 100) {
-      form.age = '35'
+      form.age = '40'
     }
     requestCityLocationMessage.value = ''
+    form.clientGender = 'feminino'
     form.trainerGenderPreference = 'indiferente'
     form.sessionsPerWeek = '1'
     form.trainingDays = ['Segunda-feira']
