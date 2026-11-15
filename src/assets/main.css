@@ -3440,11 +3440,12 @@ html[data-theme='dark'] .home-academy-select {
 }
 .root-home-actions .home-action {
   min-width: 0;
+  gap: 0;
 }
 .root-home-actions .home-academy-select {
   display: block;
   width: 100%;
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--card-bg);
@@ -3459,7 +3460,7 @@ html[data-theme='dark'] .root-home-actions .home-academy-select {
 .home-trainer-preview {
   display: grid;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 0;
   text-align: left;
 }
 .home-trainer-preview .home-list-heading {
