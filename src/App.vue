@@ -107,8 +107,16 @@ const {
         </span>
       </h1>
       <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
-        para qualquer rotina e orçamento
+        para todos os bolsos e rotinas
       </p>
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="root-home-photo home-training-photo">
+        <img
+          class="root-home-personal-image"
+          src="https://images.unsplash.com/photo-1776710669928-e49471c63af5?auto=format&amp;fit=crop&amp;w=1200&amp;q=85"
+          alt="Personal trainer orientando uma aluna durante um exercício na academia"
+          loading="lazy"
+        />
+      </div>
       <button v-if="viewMode === 'home' && !result && isRootHome" class="primary-button home-training-request-button" type="button" :disabled="!homeCity" @click="startTrainingRequestFromHome">
         Solicitar treinamento
       </button>
