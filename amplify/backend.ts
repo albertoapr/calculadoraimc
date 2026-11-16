@@ -328,5 +328,9 @@ backend.addOutput({
       tableName: trainers.tableName,
       slugTableName: trainerSlugs.tableName,
     },
+    academyDirectory: {
+      tableName: academies.tableName,
+      trainerAcademiesTableName: trainerAcademies.tableName,
+    },
   },
 })
