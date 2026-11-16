@@ -8,7 +8,6 @@ import CustomerSignupView from './views/auth/CustomerSignupView.vue'
 import HomeHeader from './views/layout/HomeHeader.vue'
 import PageHeader from './views/layout/PageHeader.vue'
 import CitySelector from './views/layout/CitySelector.vue'
-import HomeTrainersTable from './views/profissionais/HomeTrainersTable.vue'
 import MyProfileView from './views/account/MyProfileView.vue'
 import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
@@ -33,7 +32,6 @@ const {
   selectingTrainersForDraft,
   publicTrainerCity,
   publicTrainerAcademy,
-  homeAcademySelected,
   homeSelectedTrainerIds,
   sharingRequestId,
   sharingRequestMessage,
@@ -284,48 +282,6 @@ const {
         @refresh-requests="refreshShareableRequests"
         @retry="searchHomeTrainers"
       />
-      <div
-        v-if="viewMode === 'home' && !result && isRootHome"
-        class="home-actions root-home-actions"
-      >
-        <div class="home-action">
-          <label class="sr-only" for="home-academy">Academia</label>
-          <select
-            id="home-academy"
-            v-model="publicTrainerAcademy"
-            class="home-academy-select"
-            aria-label="Filtrar profissionais por academia"
-            :disabled="!homeCity || publicTrainersLoading"
-          >
-            <option value="">Selecione uma academia</option>
-            <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
-              {{ academy }}
-            </option>
-          </select>
-
-          <section
-            v-if="homeAcademySelected"
-            class="home-trainer-preview"
-            aria-label="Profissionais disponíveis"
-          >
-            <p v-if="!homeCity" class="home-list-message">
-              Selecione uma cidade para consultar os profissionais.
-            </p>
-            <p v-else-if="publicTrainersLoading" class="home-list-message" role="status">
-              Carregando profissionais…
-            </p>
-            <p v-else-if="publicTrainersError" class="home-list-message" role="alert">
-              {{ publicTrainersError }}
-            </p>
-            <template v-else>
-              <HomeTrainersTable :trainers="publicFilteredTrainers" />
-              <p class="home-list-heading home-city-trainers-total">
-                {{ publicFilteredTrainers.length }} profissionais encontrados
-              </p>
-            </template>
-          </section>
-        </div>
-      </div>
       <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
         <div class="home-action">
           <button class="primary-button" type="button" @click="openRequestForm">
