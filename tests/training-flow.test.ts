@@ -26,7 +26,7 @@ test('home selection survives the training flow and submission preserves the req
     if (url.endsWith('/api/requests')) {
       assert.equal(
         (init?.headers as Record<string, string>).authorization,
-        '***',
+        'Bearer customer-session',
       )
       payloads.push(JSON.parse(String(init?.body)))
       return Response.json({ created: true, requestId: 'r1' })
@@ -125,7 +125,7 @@ test('home selection survives the training flow and submission preserves the req
     flow.homeSelectedTrainerIds.value = []
     await flow.request.returnToDraftSummary()
     assert.equal(flow.viewMode.value, 'select-trainers')
-    assert.match(flow.sharingRequestMessage.value, /./)
+    assert.match(flow.sharingRequestMessage.value, /Selecione pelo menos um personal/)
     flow.homeSelectedTrainerIds.value = ['p1']
     await flow.request.returnToDraftSummary()
     await flow.request.confirmServiceRequest()
