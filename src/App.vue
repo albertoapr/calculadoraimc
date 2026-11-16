@@ -162,7 +162,7 @@ const {
           <circle cx="17" cy="16.5" r="3.5" />
           <path d="m19.5 19 2.5 2.5" />
         </svg>
-        Buscar Personal
+        Buscar Profissionais
       </button>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
