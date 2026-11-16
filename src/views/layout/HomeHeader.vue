@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
@@ -19,6 +20,23 @@ const {
   openTrainerReceivedRequests,
   openCustomerSignupFromLogin,
 } = useFitpesoContext()
+const menuOpen = ref(false)
+const menuContainer = ref<HTMLElement | null>(null)
+const closeMenu = () => { menuOpen.value = false }
+const onOutsideClick = (event: MouseEvent) => {
+  if (menuOpen.value && !menuContainer.value?.contains(event.target as Node)) closeMenu()
+}
+const onEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeMenu()
+}
+onMounted(() => {
+  document.addEventListener('pointerdown', onOutsideClick)
+  document.addEventListener('keydown', onEscape)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onOutsideClick)
+  document.removeEventListener('keydown', onEscape)
+})
 </script>
 
 <template>
@@ -47,8 +65,8 @@ const {
           (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
         }}
       </span>
-      <nav class="customer-account-links header-inline-links" aria-label="Menu principal">
-        <template v-if="!trainerSignedInId && !customerSignedInName">
+      <nav v-if="!trainerSignedInId && !customerSignedInName" class="customer-account-links header-inline-links" aria-label="Menu principal">
+        <template>
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()"
             >Entrar</a
           >
@@ -60,37 +78,31 @@ const {
             >Cadastre-se</a
           >
         </template>
-        <template v-else>
-          <button
-            type="button"
-            @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()"
-          >
-            Solicitações
-          </button>
+      </nav>
+      <div v-if="trainerSignedInId || customerSignedInName" ref="menuContainer" class="signed-in-menu">
+        <button
+          type="button"
+          class="signed-in-menu-trigger"
+          aria-label="Abrir menu de navegação"
+          aria-controls="signed-in-menu-items"
+          :aria-expanded="menuOpen"
+          @click="menuOpen = !menuOpen"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <nav v-if="menuOpen" id="signed-in-menu-items" class="signed-in-menu-items" aria-label="Menu da conta" @click="closeMenu">
+          <button type="button" @click="trainerSignedInId ? openTrainerReceivedRequests() : openCustomerRequests()">Solicitações</button>
           <button type="button" @click="openMyProfile()">Meu cadastro</button>
-          <button
-            v-if="customerIsAdmin && !trainerSignedInId"
-            type="button"
-            @click="openAdminTrainer()"
-          >
-            Cadastrar Personal
-          </button>
-          <button
-            v-if="customerIsAdmin && !trainerSignedInId"
-            type="button"
-            @click="openAdminTrainers()"
-          >
-            Editar profissionais
-          </button>
-          <button
-            v-if="customerIsAdmin && !trainerSignedInId"
-            type="button"
-            @click="openAdminAcademies()"
-          >
-            Gerenciar academias
-          </button>
+          <template v-if="customerIsAdmin && !trainerSignedInId">
+            <button type="button" @click="openAdminTrainer()">Cadastrar Personal</button>
+            <button type="button" @click="openAdminTrainers()">Editar profissionais</button>
+            <button type="button" @click="openAdminAcademies()">Cadastro de academias</button>
+          </template>
           <button type="button" @click="logout()">Sair</button>
-        </template>
+        </nav>
+      </div>
       </nav>
       <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
     </div>
@@ -98,6 +110,29 @@ const {
 </template>
 
 <style scoped>
+.signed-in-menu { position: relative; align-self: flex-end; }
+.signed-in-menu-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 38px; padding: 7px; border: 1px solid var(--line);
+  border-radius: 8px; background: transparent; color: inherit; cursor: pointer;
+}
+.signed-in-menu-trigger svg { width: 24px; height: 24px; }
+.signed-in-menu-trigger:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.signed-in-menu-items {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 50;
+  min-width: 210px; max-width: calc(100vw - 30px);
+  display: flex; flex-direction: column; padding: 6px;
+  background: var(--card, var(--surface, #fff)); color: var(--text, inherit);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.18);
+}
+.signed-in-menu-items button {
+  width: 100%; padding: 11px 12px; background: transparent; color: inherit;
+  border: 0; border-radius: 6px; text-align: left; font: inherit; cursor: pointer;
+}
+.signed-in-menu-items button:hover,
+.signed-in-menu-items button:focus-visible { background: rgba(128,128,128,.14); }
+
 .fitpeso-home-header-actions {
   display: flex;
   flex-direction: column;
