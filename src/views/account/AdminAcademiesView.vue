@@ -97,7 +97,7 @@ async function save() {
     return
   }
   if (form.name.trim().length < 2 || form.neighborhood.trim().length < 2 ||
-      !supportedRequestCities.includes(form.city)) {
+      !supportedRequestCities.some((city) => city === form.city)) {
     status.value = 'Preencha nome, cidade e bairro válidos.'
     return
   }
