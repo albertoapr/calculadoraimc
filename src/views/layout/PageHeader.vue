@@ -33,7 +33,7 @@ const {
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      Solicitar treinamento
+      Treinar com Personal
     </h2>
     <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
       <span
