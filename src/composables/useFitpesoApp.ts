@@ -25,6 +25,7 @@ import { updatePageSeo } from '../services/seo'
 import ConsultarProfissionaisView from '../views/profissionais/ConsultarProfissionaisView.vue'
 import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissionaisView.vue'
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
+import { listAcademies, type Academy } from '../services/academiesService'
 import { useTrainerDirectory } from './useTrainerDirectory'
 import { usePublicNavigation } from './usePublicNavigation'
 import { useAssessment } from './useAssessment'
@@ -251,15 +252,46 @@ export function useFitpesoApp() {
   const publicTrainersError = ref('')
   let publicLookupId = 0
   const isMesquita = (city: string) => city.trim().toLocaleLowerCase('pt-BR') === 'mesquita'
-  const { academies: publicTrainerAcademies, filtered: publicFilteredTrainers } =
+  const registeredAcademies = ref<Academy[]>([])
+  let academyLookupId = 0
+  async function loadCityAcademies(city: string) {
+    const id = ++academyLookupId
+    if (!city) {
+      registeredAcademies.value = []
+      return
+    }
+    try {
+      const result = await listAcademies(city)
+      if (id === academyLookupId) registeredAcademies.value = result
+    } catch {
+      // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
+      if (id === academyLookupId) registeredAcademies.value = []
+    }
+  }
+  watch(publicTrainerCity, (city) => {
+    registeredAcademies.value = []
+    void loadCityAcademies(city)
+  }, { immediate: true })
+  const { academies: legacyTrainerAcademies, filtered: publicFilteredTrainers } =
     useTrainerDirectory({
       trainers: publicTrainers,
+      registeredAcademies,
       academy: publicTrainerAcademy,
       city: publicTrainerCity,
       requestCity: computed(() => form.city),
       requestGender: computed(() => form.trainerGenderPreference),
       selectingForRequest: computed(() => viewMode.value === 'select-trainers'),
     })
+  const publicTrainerAcademies = computed(() => {
+    const canonical = registeredAcademies.value.map((item) => `${item.name} — ${item.neighborhood}`)
+    const unregistered = legacyTrainerAcademies.value.filter((name) =>
+      !registeredAcademies.value.some((item) =>
+        name.toLocaleLowerCase('pt-BR') === item.name.toLocaleLowerCase('pt-BR')),
+    )
+    return [...new Set([...canonical, ...unregistered])].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR'),
+    )
+  })
   // Sem seleção, a lista pode carregar opções para o combo, mas não exibe resultados.
   watch(
     [publicTrainerAcademies, publicTrainerCity],
