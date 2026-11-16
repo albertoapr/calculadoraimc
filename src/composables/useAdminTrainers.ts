@@ -1,4 +1,4 @@
-import { computed, nextTick, reactive, ref, type Ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch, type Ref } from 'vue'
 import {
   registerAdminTrainer,
   listAdminTrainers,
@@ -84,6 +84,17 @@ export function useAdminTrainers(options: {
     academyIds: [] as string[],
     active: true,
   })
+  watch(() => adminTrainerForm.city, (city) => {
+    adminTrainerForm.academyIds = adminTrainerForm.academyIds.filter((id) =>
+      adminAcademies.value.some((academy) => academy.academyId === id && academy.city === city),
+    )
+  })
+  watch(() => [...adminTrainerEditForm.cities], (cities) => {
+    adminTrainerEditForm.academyIds = adminTrainerEditForm.academyIds.filter((id) =>
+      adminAcademies.value.some((academy) => academy.academyId === id && cities.includes(academy.city)),
+    )
+  })
+
   const filteredAdminTrainers = computed(() => {
     const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
     if (!search) return adminTrainers.value
