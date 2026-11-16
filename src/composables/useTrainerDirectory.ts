@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue'
 import type { PublicTrainer, TrainerGenderPreference } from '../services/profissionaisService'
+import type { Academy } from '../services/academiesService'
 
 /** Pure derived state for public lookup and request-specific trainer selection. */
 export function useTrainerDirectory(options: {
@@ -9,6 +10,7 @@ export function useTrainerDirectory(options: {
   requestCity: Ref<string>
   requestGender: Ref<TrainerGenderPreference>
   selectingForRequest: Ref<boolean>
+  registeredAcademies?: Ref<Academy[]>
 }) {
   const academies = computed(() =>
     [
@@ -30,14 +32,19 @@ export function useTrainerDirectory(options: {
         if (options.requestGender.value !== 'indiferente' && gender !== options.requestGender.value)
           return false
       }
-      return (
-        !options.academy.value ||
-        [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? ''].some(
-          (name) =>
-            name.trim().toLocaleLowerCase('pt-BR') ===
-            options.academy.value.toLocaleLowerCase('pt-BR'),
-        )
+      if (!options.academy.value) return true
+      const selected = options.academy.value.trim().toLocaleLowerCase('pt-BR')
+      const registered = options.registeredAcademies?.value.find(
+        (item) => `${item.name} — ${item.neighborhood}`.toLocaleLowerCase('pt-BR') === selected,
       )
+      const legacyNames = [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? '']
+      if (registered && trainer.academyIds?.includes(registered.academyId)) return true
+      // Nomes legados são mantidos durante a migração para IDs de academias.
+      return legacyNames.some((name) => {
+        const normalized = name.trim().toLocaleLowerCase('pt-BR')
+        return normalized === selected ||
+          (registered && normalized === registered.name.toLocaleLowerCase('pt-BR'))
+      })
     }),
   )
 
