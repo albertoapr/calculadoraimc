@@ -29,6 +29,8 @@ const empty = (): AcademyWrite => ({
   active: true,
 })
 const form = reactive<AcademyWrite>(empty())
+// AcademyWrite.city vem da API como string; as cidades suportadas são uma lista literal.
+const supportedCities = new Set<string>(supportedRequestCities)
 
 const visible = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('pt-BR')
@@ -97,7 +99,7 @@ async function save() {
     return
   }
   if (form.name.trim().length < 2 || form.neighborhood.trim().length < 2 ||
-      !supportedRequestCities.some((city) => city === form.city)) {
+      !supportedCities.has(form.city)) {
     status.value = 'Preencha nome, cidade e bairro válidos.'
     return
   }
