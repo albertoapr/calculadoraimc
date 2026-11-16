@@ -76,7 +76,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.withCompanion === undefined || typeof data.withCompanion === 'boolean') &&
     (data.singleLesson !== true || data.desiredDuration === 'Aula avulsa') &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
-    (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
+    (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 160)) &&
     (typeof data.sessionsPerWeek === 'number' && Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7) &&
     Array.isArray(trainingDays) && trainingDays.length > 0 && trainingDays.every(day => days.includes(String(day))) &&
     Array.isArray(trainingShifts) && trainingShifts.length > 0 && trainingShifts.every(shift => shifts.includes(String(shift)))
@@ -1947,7 +1947,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     withCompanion: { BOOL: requestData.withCompanion === true },
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
-    ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
+    ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 160) } } : {}),
     ...(typeof requestData.sessionsPerWeek === 'number' && Number.isInteger(requestData.sessionsPerWeek) && requestData.sessionsPerWeek >= 1 && requestData.sessionsPerWeek <= 7 ? { sessionsPerWeek: { N: String(requestData.sessionsPerWeek) } } : {}),
     ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
