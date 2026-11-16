@@ -14,6 +14,7 @@ import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
 import CustomerRequestsView from './views/account/CustomerRequestsView.vue'
 import AdminTrainerView from './views/account/AdminTrainerView.vue'
 import AdminTrainersView from './views/account/AdminTrainersView.vue'
+import AdminAcademiesView from './views/account/AdminAcademiesView.vue'
 import ProfessionalRegistrationView from './views/account/ProfessionalRegistrationView.vue'
 import AssessmentFormView from './views/assessment/AssessmentFormView.vue'
 import AssessmentResultView from './views/assessment/AssessmentResultView.vue'
@@ -237,6 +238,7 @@ const {
 
       <AdminTrainerView v-if="viewMode === 'admin-trainer' && customerIsAdmin" />
       <AdminTrainersView v-if="viewMode === 'admin-trainers' && customerIsAdmin" />
+      <AdminAcademiesView v-if="viewMode === 'admin-academies' && customerIsAdmin" />
       <ProfessionalRegistrationView v-if="viewMode === 'professional-registration'" />
 
       <ConsultarProfissionaisView
