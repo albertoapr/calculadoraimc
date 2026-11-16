@@ -45,11 +45,17 @@ export function useTrainerDirectory(options: {
       )
       const legacyNames = [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? '']
       if (registered && trainer.academyIds?.includes(registered.academyId)) return true
-      // Nomes legados são mantidos durante a migração para IDs de academias.
+      const sameNameUnits = registered
+        ? (options.registeredAcademies?.value ?? []).filter(
+            (item) => normalizeAcademyName(item.name) === normalizeAcademyName(registered.name),
+          ).length
+        : 0
+      // Um nome legado simples não identifica a unidade quando existem várias filiais.
       return legacyNames.some((name) => {
         const normalized = normalizeAcademyName(name)
         return normalized === selected ||
-          (registered && normalized === normalizeAcademyName(registered.name))
+          (registered && sameNameUnits === 1 &&
+            normalized === normalizeAcademyName(registered.name))
       })
     }),
   )
