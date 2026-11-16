@@ -66,7 +66,6 @@ onBeforeUnmount(() => {
         }}
       </span>
       <nav v-if="!trainerSignedInId && !customerSignedInName" class="customer-account-links header-auth-links header-inline-links" aria-label="Acesso de visitantes">
-        <template>
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()"
             >Entrar</a
           >
@@ -77,7 +76,6 @@ onBeforeUnmount(() => {
             @click.prevent="openCustomerSignupFromLogin()"
             >Cadastre-se</a
           >
-        </template>
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" ref="menuContainer" class="signed-in-menu">
         <button
@@ -233,7 +231,6 @@ html[data-theme='dark'] .header-inline-links .header-signup-link {
     font-size: 13px;
   }
 }
-</style>
 
 /* Keep visitor login and signup links visible beside the brand on all screen sizes. */
 .fitpeso-home-header-actions .header-auth-links {
@@ -246,3 +243,4 @@ html[data-theme='dark'] .header-inline-links .header-signup-link {
   width: max-content;
   max-width: 100%;
 }
+</style>
