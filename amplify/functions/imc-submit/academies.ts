@@ -211,8 +211,9 @@ export async function deactivateAcademy(event: Event) {
   try {
     await client.send(new UpdateItemCommand({
       TableName: tableName, Key: { academyId: { S: academyId } },
-      UpdateExpression: 'SET active = :inactive, updatedAt = :now',
+      UpdateExpression: 'SET #active = :inactive, #updated = :now',
       ConditionExpression: 'attribute_exists(academyId)',
+      ExpressionAttributeNames: { '#active': 'active', '#updated': 'updatedAt' },
       ExpressionAttributeValues: {
         ':inactive': { BOOL: false },
         ':now': { S: new Date().toISOString() },
