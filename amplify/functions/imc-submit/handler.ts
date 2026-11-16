@@ -1152,6 +1152,27 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
 
 const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 
+async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
+  const ids = raw === undefined ? [] : raw
+  if (!Array.isArray(ids) || ids.length > 20 ||
+    ids.some(id => typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) ||
+    new Set(ids).size !== ids.length) throw new Error('INVALID_ACADEMY_ASSOCIATIONS')
+  if (!ids.length) return { ids: [] as string[], names: [] as string[] }
+  const tableName = process.env.ACADEMIES_TABLE
+  if (!tableName) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  const rows = await Promise.all(ids.map((id: string) => dynamodb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { academyId: { S: id } },
+    ConsistentRead: true,
+  }))))
+  if (rows.some(result => !result.Item || result.Item.active?.BOOL !== true ||
+    !cities.includes(result.Item.city?.S ?? ''))) throw new Error('INVALID_ACADEMY_ASSOCIATIONS')
+  return {
+    ids: ids as string[],
+    names: rows.map(result => `${result.Item!.name?.S ?? ''} — ${result.Item!.neighborhood?.S ?? ''}`),
+  }
+}
+
 async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth
@@ -1214,6 +1235,7 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
         slug: item.slug?.S ?? '',
         cities: [...new Set(trainerRows.map(row => row.city?.S ?? '').filter(Boolean))],
         academias: (item.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean),
+        academyIds: (item.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean),
         active: item.active?.BOOL === true,
       }
     }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
@@ -1254,7 +1276,13 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
         return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
       }
     }
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
     const first = existingRows[0]
+    const oldAcademyIds = (first.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean)
+    const legacyAcademias = ((data.academias as string[] | undefined) ?? []).map(value => String(value).trim()).filter(Boolean)
+    const allAcademyNames = [...new Set([...legacyAcademias, ...academyLinks.names])]
     const oldCities = [...new Set(existingRows.map(row => row.city?.S ?? '').filter(Boolean))]
     const oldSlug = first.slug?.S ?? ''
     const now = new Date().toISOString()
@@ -1264,7 +1292,8 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
       sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
       email: { S: String(data.email ?? '').trim().toLowerCase() },
       dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram).trim() },
-      cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+      cref: { S: cref }, academias: { L: allAcademyNames.map(name => ({ S: name })) },
+      academyIds: { L: academyLinks.ids.map(id => ({ S: id })) },
       active: { BOOL: data.active as boolean }, status: { S: data.active ? 'active' : 'inactive' },
       whatsappVerified: { BOOL: first.whatsappVerified?.BOOL === true },
       ...(first.createdByAdmin?.S ? { createdByAdmin: { S: first.createdByAdmin.S } } : {}),
@@ -1279,6 +1308,15 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
       ...added.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
       ...removed.map(city => ({ Delete: { TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } } } })),
     ]
+    for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
+      transaction.push({ Put: { TableName: linksTable,
+        Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)' } })
+    }
+    for (const academyId of oldAcademyIds.filter(id => !academyLinks.ids.includes(id))) {
+      transaction.push({ Delete: { TableName: linksTable,
+        Key: { trainerId: { S: trainerId }, academyId: { S: academyId } } } })
+    }
     if (slug !== oldSlug) {
       transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } })
       if (oldSlug) transaction.push({ Delete: { TableName: slugTable, Key: { slug: { S: oldSlug } }, ConditionExpression: 'trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
@@ -1286,6 +1324,7 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: transaction }))
     return response(200, { updated: true, trainerId })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS') return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Os dados foram alterados ou o endereço do perfil já está em uso.' })
     console.error('[imc-submit] Admin trainer update failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o profissional.' })
@@ -1508,7 +1547,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -1520,6 +1559,7 @@ async function getActiveTrainersForCity(city: string) {
         '#sex': 'sex',
         '#cref': 'cref',
         '#academias': 'academias',
+        '#academyIds': 'academyIds',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -1535,7 +1575,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -1558,6 +1598,7 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
         cref: trainer.cref,
         academias: trainer.academias,
+        academyIds: trainer.academyIds,
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
     return response(200, { trainers: eligible, count: eligible.length })
