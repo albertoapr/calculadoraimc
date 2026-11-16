@@ -1,3 +1,4 @@
+import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -25,7 +26,7 @@ const corsHeaders = {
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Content-Type, Authorization, X-Fitpeso-Verification-Secret',
-  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
 }
 
 function response(statusCode: number, body: Record<string, unknown>) {
@@ -2354,6 +2355,21 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  // Consulta pública e manutenção administrativa de academias.
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies'))
+    return listAcademies(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies/{academyId}'))
+    return getAcademy(event)
+  if (event.resource?.includes('/admin/academies')) {
+    const auth = await authenticateAdmin(event)
+    if ('error' in auth) return auth.error
+    const itemRoute = event.resource.endsWith('/admin/academies/{academyId}')
+    if (event.httpMethod === 'GET') return itemRoute ? getAcademy(event, true) : listAcademies(event, true)
+    if (event.httpMethod === 'POST' && !itemRoute) return createAcademy(event, auth.profile!.whatsapp)
+    if (event.httpMethod === 'PUT' && itemRoute) return updateAcademy(event, auth.profile!.whatsapp)
+    if (event.httpMethod === 'DELETE' && itemRoute) return deactivateAcademy(event)
+    return response(405, { error: 'Método não permitido.' })
+  }
   // Progressive signup is isolated: the existing registration/login remains unchanged.
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
