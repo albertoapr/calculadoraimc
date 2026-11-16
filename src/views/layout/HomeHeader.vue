@@ -39,7 +39,6 @@ const {
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
     <div class="fitpeso-home-header-actions">
-      <CitySelector v-if="viewMode === 'public-trainers'" />
       <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
         Olá,
         {{
@@ -84,7 +83,7 @@ const {
           <button type="button" @click="logout()">Sair</button>
         </template>
       </nav>
-      <CitySelector v-if="viewMode === 'home' && isRootHome" />
+      <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
     </div>
   </div>
 </template>
