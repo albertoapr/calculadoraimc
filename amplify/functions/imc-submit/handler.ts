@@ -1129,6 +1129,11 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   const trainerId = randomBytes(16).toString('hex')
   const now = String(Math.floor(Date.now() / 1000))
   try {
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
+    const legacyAcademias = ((data.academias as string[] | undefined) ?? []).map(value => String(value).trim()).filter(Boolean)
+    const allAcademyNames = [...new Set([...legacyAcademias, ...academyLinks.names])]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
       ...cities.map(city => ({ Put: { TableName: tableName, Item: {
@@ -1137,13 +1142,20 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
         sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
         email: { S: String(data.email ?? '').trim().toLowerCase() },
         dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram) },
-        cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+        cref: { S: cref }, academias: { L: allAcademyNames.map(name => ({ S: name })) },
+        academyIds: { L: academyLinks.ids.map(id => ({ S: id })) },
         active: { BOOL: true }, whatsappVerified: { BOOL: false }, status: { S: 'active' },
         createdByAdmin: { S: auth.profile!.whatsapp }, submittedAt: { N: now },
       }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+      ...academyLinks.ids.map(academyId => ({ Put: {
+        TableName: linksTable,
+        Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)',
+      } })),
     ] }))
     return response(201, { registered: true, trainerId, status: 'active' })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS') return response(400, { error: 'Selecione academias ativas na cidade atendida.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro ou endereço já existente.' })
     console.error('[imc-submit] Admin trainer registration failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o profissional.' })
