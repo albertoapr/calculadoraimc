@@ -2,6 +2,7 @@
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   availableCities,
+  adminAcademies,
   adminTrainerSearch,
   selectedAdminTrainerId,
   adminTrainersStatus,
@@ -106,8 +107,27 @@ const {
           {{ city }}</label
         >
       </fieldset>
+      <fieldset class="field field-wide admin-trainer-cities">
+        <legend>Academias cadastradas</legend>
+        <label
+          v-for="academy in adminAcademies.filter(item =>
+            item.active && adminTrainerEditForm.cities.includes(item.city))"
+          :key="academy.academyId"
+        >
+          <input
+            v-model="adminTrainerEditForm.academyIds"
+            type="checkbox"
+            :value="academy.academyId"
+          />
+          {{ academy.name }} — {{ academy.neighborhood }} ({{ academy.city }})
+        </label>
+        <small v-if="!adminAcademies.some(item =>
+          item.active && adminTrainerEditForm.cities.includes(item.city))">
+          Cadastre academias no menu Gerenciar academias.
+        </small>
+      </fieldset>
       <label class="field field-wide"
-        ><span class="field-label">Academias (separadas por vírgula)</span
+        ><span class="field-label">Outros locais (legado, separados por vírgula)</span
         ><input v-model="adminTrainerEditForm.academias"
       /></label>
       <label class="admin-trainer-active field-wide"
