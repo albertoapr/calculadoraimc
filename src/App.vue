@@ -119,6 +119,25 @@ const {
           loading="lazy"
         />
       </div>
+      <label
+        v-if="viewMode === 'home' && !result && isRootHome"
+        class="home-academy-picker"
+        for="home-academy"
+      >
+        <span class="sr-only">Academia</span>
+        <select
+          id="home-academy"
+          v-model="publicTrainerAcademy"
+          class="home-academy-select"
+          aria-label="Selecionar academia"
+          :disabled="!homeCity || publicTrainersLoading"
+        >
+          <option value="">Selecione uma academia</option>
+          <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
+            {{ academy }}
+          </option>
+        </select>
+      </label>
       <button
         v-if="viewMode === 'home' && !result && isRootHome"
         class="primary-button home-training-request-button"
