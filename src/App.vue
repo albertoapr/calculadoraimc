@@ -129,7 +129,6 @@ const {
       >
         Solicitar treinamento
       </button>
-      <CitySelector v-if="viewMode === 'home' && !result && isRootHome" />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
