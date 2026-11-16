@@ -106,7 +106,13 @@ export function useAdminTrainers(options: {
       instagram: trainer.instagram,
       slug: trainer.slug,
       cities: [...trainer.cities],
-      academias: trainer.academias.join(', '),
+      // Vínculos do catálogo são controlados pelos checkboxes, não pelo campo legado.
+      academias: trainer.academias.filter((name) =>
+        !adminAcademies.value.some((academy) =>
+          `${academy.name} — ${academy.neighborhood}`.toLocaleLowerCase('pt-BR') ===
+          name.toLocaleLowerCase('pt-BR'),
+        ),
+      ).join(', '),
       academyIds: [...(trainer.academyIds ?? [])],
       active: trainer.active,
     })
