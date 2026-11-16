@@ -8,6 +8,7 @@ const {
   customerSignedInName,
   customerIsAdmin,
   openAdminTrainers,
+  openAdminTrainer,
   openAdminAcademies,
   trainerSignedInName,
   trainerSignedInId,
@@ -70,7 +71,7 @@ const {
           <button
             v-if="customerIsAdmin && !trainerSignedInId"
             type="button"
-            @click="viewMode = 'admin-trainer'"
+            @click="openAdminTrainer()"
           >
             Cadastrar Personal
           </button>
