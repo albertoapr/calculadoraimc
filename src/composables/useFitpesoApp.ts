@@ -272,6 +272,10 @@ export function useFitpesoApp() {
     registeredAcademies.value = []
     void loadCityAcademies(city)
   }, { immediate: true })
+  watch(viewMode, (mode) => {
+    if ((mode === 'home' || mode === 'public-trainers' || mode === 'select-trainers') &&
+        publicTrainerCity.value) void loadCityAcademies(publicTrainerCity.value)
+  })
   const { academies: legacyTrainerAcademies, filtered: publicFilteredTrainers } =
     useTrainerDirectory({
       trainers: publicTrainers,
