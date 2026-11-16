@@ -125,6 +125,10 @@ const {
         for="home-academy"
       >
         <span class="sr-only">Academia</span>
+        <svg class="home-academy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="3" width="16" height="18" rx="1.5" />
+          <path d="M8 7h2m4 0h2M8 11h2m4 0h2M8 15h2m4 0h2M10 21v-3h4v3" />
+        </svg>
         <select
           id="home-academy"
           v-model="publicTrainerAcademy"
