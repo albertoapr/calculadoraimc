@@ -8,6 +8,7 @@ const {
   customerSignedInName,
   customerIsAdmin,
   openAdminTrainers,
+  openAdminAcademies,
   trainerSignedInName,
   trainerSignedInId,
   logout,
@@ -79,6 +80,13 @@ const {
             @click="openAdminTrainers()"
           >
             Editar profissionais
+          </button>
+          <button
+            v-if="customerIsAdmin && !trainerSignedInId"
+            type="button"
+            @click="openAdminAcademies()"
+          >
+            Gerenciar academias
           </button>
           <button type="button" @click="logout()">Sair</button>
         </template>
