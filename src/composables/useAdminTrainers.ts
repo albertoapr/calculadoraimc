@@ -120,7 +120,7 @@ export function useAdminTrainers(options: {
     try {
       const [trainers, academies] = await Promise.all([
         listAdminTrainers(token),
-        listAdminAcademies(token),
+        listAdminAcademies(token).catch(() => [] as Academy[]),
       ])
       adminTrainers.value = trainers
       adminAcademies.value = academies
