@@ -3432,7 +3432,7 @@ html[data-theme='dark'] .home-city-selector svg {
 .home-academy-picker .home-academy-icon {
   position: absolute;
   z-index: 1;
-  top: 50%;
+  top: calc(50% + 4px);
   left: 15px;
   width: 19px;
   height: 19px;
