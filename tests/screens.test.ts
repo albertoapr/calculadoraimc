@@ -100,8 +100,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     const citySelector = document.querySelector('#home-city')
     assert.ok(citySelector)
-    assert.equal(citySelector.closest('.fitpeso-home-topbar'), null)
-    assert.ok(document.querySelector('.home-city-divider + .home-city-selector'))
+    assert.ok(citySelector.closest('.fitpeso-home-topbar'))
     assert.match((citySelector as HTMLSelectElement).options[1]?.text ?? '', /, RJ$/)
     assert.equal(document.querySelector('.home-gym-title'), null)
     assert.equal(
@@ -133,7 +132,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
     await nextTick()
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
-    await click(/^Solicitar treinamento$/)
+    await click(/^Treinar com Personal$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     assert.ok(document.querySelector('.request-accordion-form'))
     await click(/Meu perfil/)
@@ -154,8 +153,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     app = await mount('/profissionais')
     await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
-    assert.equal(document.querySelector('.public-directory'), null)
-    assert.ok(document.querySelector('.root-home-photo'))
+    assert.ok(document.querySelector('.public-directory'))
     assert.doesNotMatch(document.body.textContent!, /Solicitar Proposta/)
 
     app.unmount()

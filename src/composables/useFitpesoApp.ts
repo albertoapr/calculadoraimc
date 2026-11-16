@@ -168,10 +168,8 @@ export function useFitpesoApp() {
     supportedRequestCities,
     homeCity,
     homeCityManuallySelected,
-    matchSupportedRequestCity,
     selectHomeCity,
     detectRequestCity,
-    cancelRequestCityDetection,
   } = homeController
 
   const requestVerificationLink = ref('')
