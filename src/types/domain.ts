@@ -55,6 +55,7 @@ export type EligibleTrainer = {
   sex?: string
   gender?: string
   academias?: string[]
+  academyIds?: string[]
   gymName?: string
   academy?: string
 }
@@ -126,6 +127,7 @@ export type AdminTrainer = {
   slug: string
   cities: string[]
   academias: string[]
+  academyIds?: string[]
   active: boolean
 }
 
