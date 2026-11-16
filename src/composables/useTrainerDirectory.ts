@@ -2,6 +2,12 @@ import { computed, type Ref } from 'vue'
 import type { PublicTrainer, TrainerGenderPreference } from '../services/profissionaisService'
 import type { Academy } from '../services/academiesService'
 
+function normalizeAcademyName(name: string) {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–—]/g, '-').replace(/\s*-\s*/g, ' - ')
+    .trim().toLocaleLowerCase('pt-BR')
+}
+
 /** Pure derived state for public lookup and request-specific trainer selection. */
 export function useTrainerDirectory(options: {
   trainers: Ref<PublicTrainer[]>
@@ -33,17 +39,17 @@ export function useTrainerDirectory(options: {
           return false
       }
       if (!options.academy.value) return true
-      const selected = options.academy.value.trim().toLocaleLowerCase('pt-BR')
+      const selected = normalizeAcademyName(options.academy.value)
       const registered = options.registeredAcademies?.value.find(
-        (item) => `${item.name} — ${item.neighborhood}`.toLocaleLowerCase('pt-BR') === selected,
+        (item) => normalizeAcademyName(`${item.name} — ${item.neighborhood}`) === selected,
       )
       const legacyNames = [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? '']
       if (registered && trainer.academyIds?.includes(registered.academyId)) return true
       // Nomes legados são mantidos durante a migração para IDs de academias.
       return legacyNames.some((name) => {
-        const normalized = name.trim().toLocaleLowerCase('pt-BR')
+        const normalized = normalizeAcademyName(name)
         return normalized === selected ||
-          (registered && normalized === registered.name.toLocaleLowerCase('pt-BR'))
+          (registered && normalized === normalizeAcademyName(registered.name))
       })
     }),
   )
