@@ -59,12 +59,6 @@ onBeforeUnmount(() => {
       <small class="brand-tagline">Rede de treinadores</small>
     </button>
     <div class="fitpeso-home-header-actions">
-      <span v-if="trainerSignedInId || customerSignedInName" class="account-greeting">
-        Olá,
-        {{
-          (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
-        }}
-      </span>
       <nav v-if="!trainerSignedInId && !customerSignedInName" class="customer-account-links header-auth-links header-inline-links" aria-label="Acesso de visitantes">
           <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()"
             >Entrar</a
@@ -77,7 +71,14 @@ onBeforeUnmount(() => {
             >Cadastre-se</a
           >
       </nav>
-      <div v-if="trainerSignedInId || customerSignedInName" ref="menuContainer" class="signed-in-menu">
+      <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
+      <span class="account-greeting">
+        Olá,
+        {{
+          (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
+        }}
+      </span>
+      <div ref="menuContainer" class="signed-in-menu">
         <button
           type="button"
           class="signed-in-menu-trigger"
@@ -101,12 +102,16 @@ onBeforeUnmount(() => {
           <button type="button" @click="logout()">Sair</button>
         </nav>
       </div>
+      </div>
       <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
     </div>
   </div>
 </template>
 
 <style scoped>
+.signed-in-header-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; max-width: 100%; min-width: 0; }
+.signed-in-header-row .account-greeting { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+
 .signed-in-menu { position: relative; align-self: flex-end; }
 .signed-in-menu-trigger {
   display: inline-flex; align-items: center; justify-content: center;
