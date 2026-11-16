@@ -65,6 +65,7 @@ const {
   status,
   goHome,
   openRequestForm,
+  openPublicTrainers,
   returnToDraftSummary,
   openSentRequests,
   openCustomerRequests,
@@ -126,6 +127,20 @@ const {
         @click="startTrainingRequestFromHome"
       >
         Solicitar treinamento
+      </button>
+      <button
+        v-if="viewMode === 'home' && !result && isRootHome"
+        class="secondary-button home-find-personal-button"
+        type="button"
+        @click="openPublicTrainers"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="10.5" cy="7" r="3.25" />
+          <path d="M4.5 19v-1.3a6 6 0 0 1 10.1-4.4" />
+          <circle cx="17" cy="16.5" r="3.5" />
+          <path d="m19.5 19 2.5 2.5" />
+        </svg>
+        Buscar Personal
       </button>
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
@@ -350,6 +365,19 @@ const {
 .home-training-request-button {
   display: block;
   width: 100%;
-  margin: 12px 0 20px;
+  margin: 12px 0 12px;
+}
+.home-find-personal-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 20px;
+}
+.home-find-personal-button svg {
+  width: 23px;
+  height: 23px;
+  flex: none;
 }
 </style>
