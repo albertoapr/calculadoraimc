@@ -20,7 +20,12 @@ import AssessmentFormView from './views/assessment/AssessmentFormView.vue'
 import AssessmentResultView from './views/assessment/AssessmentResultView.vue'
 import ServiceRequestView from './views/atendimento/ServiceRequestView.vue'
 import AppFooter from './views/layout/AppFooter.vue'
-import rootHomePersonalImage from './assets/root-home-personal.jpg'
+import HomeView from './views/home/HomeView.vue'
+import PersonalProfileView from './views/home/PersonalProfileView.vue'
+import AboutView from './views/home/AboutView.vue'
+import RequestActionDialog from './views/atendimento/RequestActionDialog.vue'
+import RequestSuccessDialog from './views/atendimento/RequestSuccessDialog.vue'
+import AssessmentProgress from './views/assessment/AssessmentProgress.vue'
 const context = useFitpesoApp()
 provide(fitpesoKey, context)
 const {
@@ -29,7 +34,6 @@ const {
   isRootHome,
   viewMode,
   showRequestForm,
-  requestSent,
   selectingTrainersForDraft,
   publicTrainerCity,
   publicTrainerAcademy,
@@ -48,12 +52,7 @@ const {
   publicTrainersError,
   publicTrainerAcademies,
   publicFilteredTrainers,
-  homeCity,
-  startTrainingRequestFromHome,
   customerRequests,
-  changingRequestId,
-  requestActionDialog,
-  requestActionError,
   showTrainerSignup,
   showCustomerSignup,
   showCustomerLogin,
@@ -61,16 +60,9 @@ const {
   customerIsAdmin,
   form,
   result,
-  evaluating,
-  evaluationProgress,
   status,
-  goHome,
-  openRequestForm,
-  openPublicTrainers,
   returnToDraftSummary,
-  openSentRequests,
   openCustomerRequests,
-  confirmRequestVisibilityChange,
 } = context
 </script>
 
@@ -90,83 +82,21 @@ const {
           ? undefined
           : viewMode === 'admin-academies'
             ? 'admin-academies-title'
-          : viewMode === 'contact'
-            ? 'contact-form-title'
-            : 'page-title'
+            : viewMode === 'contact'
+              ? 'contact-form-title'
+              : 'page-title'
       "
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
-      <PageHeader v-if="viewMode !== 'admin-academies' && !(viewMode === 'home' && !result && isRootHome)" />
+      <PageHeader
+        v-if="viewMode !== 'admin-academies' && !(viewMode === 'home' && !result && isRootHome)"
+      />
       <CitySelector
         v-if="viewMode !== 'public-trainers' && !(viewMode === 'home' && !result && isRootHome)"
       />
-      <h1 v-if="viewMode === 'home' && !result && isRootHome" class="home-training-title">
-        <span class="home-training-heading">
-          <span class="brand-peso">Personal</span>
-          <span class="brand-fit">Trainer</span>
-        </span>
-      </h1>
-      <p v-if="viewMode === 'home' && !result && isRootHome" class="home-training-subtitle">
-        para todos os bolsos e rotinas
-      </p>
-      <div
-        v-if="viewMode === 'home' && !result && isRootHome"
-        class="root-home-photo home-training-photo"
-      >
-        <img
-          class="root-home-personal-image"
-          :src="rootHomePersonalImage"
-          alt="Personal trainer orientando uma aluna durante um exercício na academia"
-          loading="lazy"
-        />
-      </div>
-      <label
-        v-if="viewMode === 'home' && !result && isRootHome"
-        class="home-academy-picker"
-        for="home-academy"
-      >
-        <svg class="home-academy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="4" y="3" width="16" height="18" rx="1.5" />
-          <path d="M8 7h2m4 0h2M8 11h2m4 0h2M8 15h2m4 0h2M10 21v-3h4v3" />
-        </svg>
-        <select
-          id="home-academy"
-          v-model="publicTrainerAcademy"
-          class="home-academy-select"
-          aria-label="Selecionar academia"
-          :disabled="!homeCity || publicTrainersLoading"
-        >
-          <option value="">Selecione uma academia</option>
-          <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
-            {{ academy }}
-          </option>
-        </select>
-      </label>
-      <button
-        v-if="viewMode === 'home' && !result && isRootHome"
-        class="primary-button home-training-request-button"
-        type="button"
-        :disabled="!homeCity"
-        @click="startTrainingRequestFromHome"
-      >
-        Treinar com Personal
-      </button>
-      <button
-        v-if="viewMode === 'home' && !result && isRootHome"
-        class="secondary-button home-find-personal-button"
-        type="button"
-        @click="openPublicTrainers"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="10.5" cy="7" r="3.25" />
-          <path d="M4.5 19v-1.3a6 6 0 0 1 10.1-4.4" />
-          <circle cx="17" cy="16.5" r="3.5" />
-          <path d="m19.5 19 2.5 2.5" />
-        </svg>
-        Buscar Profissionais
-      </button>
+      <HomeView v-if="viewMode === 'home' && !result && isRootHome" />
 
       <MyProfileView v-if="viewMode === 'my-profile'" />
 
@@ -174,68 +104,7 @@ const {
 
       <TrainerRequestsView v-if="viewMode === 'trainer-requests'" />
 
-      <div
-        v-if="requestActionDialog"
-        class="request-action-overlay"
-        @click.self="!changingRequestId && (requestActionDialog = null)"
-        @keydown.esc="!changingRequestId && (requestActionDialog = null)"
-      >
-        <section
-          class="request-action-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="request-action-title"
-          aria-describedby="request-action-description"
-        >
-          <h2 id="request-action-title">
-            {{
-              requestActionDialog.action === 'deactivate'
-                ? 'Inativar solicitação?'
-                : 'Reativar solicitação?'
-            }}
-          </h2>
-          <p id="request-action-description">
-            {{
-              requestActionDialog.action === 'deactivate'
-                ? 'Os profissionais deixarão de receber esta solicitação. Você poderá reativá-la até o fim da validade.'
-                : 'Sua solicitação voltará a ficar disponível aos profissionais selecionados.'
-            }}
-          </p>
-          <p class="request-action-expiry">
-            Validade original:
-            {{
-              new Date(requestActionDialog.request.validUntil * 1000).toLocaleDateString('pt-BR')
-            }}
-          </p>
-          <p v-if="requestActionError" class="request-action-error" role="alert">
-            {{ requestActionError }}
-          </p>
-          <div class="request-action-buttons">
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="Boolean(changingRequestId)"
-              @click="requestActionDialog = null"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              class="primary-button"
-              :disabled="Boolean(changingRequestId)"
-              @click="confirmRequestVisibilityChange"
-            >
-              {{
-                changingRequestId
-                  ? 'Aguarde…'
-                  : requestActionDialog.action === 'deactivate'
-                    ? 'Sim, inativar'
-                    : 'Sim, reativar'
-              }}
-            </button>
-          </div>
-        </section>
-      </div>
+      <RequestActionDialog />
       <CustomerRequestsView v-if="viewMode === 'customer-requests'" />
 
       <AdminTrainerView v-if="viewMode === 'admin-trainer' && customerIsAdmin" />
@@ -323,21 +192,9 @@ const {
         @refresh-requests="refreshShareableRequests"
         @retry="searchHomeTrainers"
       />
-      <div v-if="viewMode === 'home' && !result && !isRootHome" class="home-actions">
-        <div class="home-action">
-          <button class="primary-button" type="button" @click="openRequestForm">
-            Solicitar Proposta
-          </button>
-        </div>
-      </div>
+      <PersonalProfileView v-if="viewMode === 'home' && !result && !isRootHome" />
 
-      <section v-if="viewMode === 'about'" class="fitpeso-about-page" aria-labelledby="page-title">
-        <p>O FitPeso conecta pessoas que desejam treinar a profissionais de Educação Física.</p>
-        <p>
-          Encontre profissionais na sua cidade, informe suas preferências de atendimento e solicite
-          propostas para escolher a opção mais adequada.
-        </p>
-      </section>
+      <AboutView v-if="viewMode === 'about'" />
 
       <AssessmentFormView v-if="viewMode === 'assessment' && !result" />
 
@@ -345,37 +202,10 @@ const {
 
       <ServiceRequestView v-if="viewMode === 'contact' && showRequestForm" />
 
-      <div
-        v-if="evaluating"
-        class="evaluation-overlay"
-        role="status"
-        aria-live="polite"
-        :aria-label="`Avaliando: ${evaluationProgress}%`"
-      >
-        <div class="evaluation-circle" :style="{ '--progress': `${evaluationProgress * 3.6}deg` }">
-          <strong>{{ evaluationProgress }}%</strong>
-        </div>
-      </div>
+      <AssessmentProgress />
 
       <p v-if="status" class="status" role="status" aria-live="polite">{{ status }}</p>
-      <div v-if="requestSent" class="success-overlay" role="presentation" @click.self="goHome">
-        <section
-          class="success-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="request-sent-title"
-        >
-          <div class="success-mark" aria-hidden="true">✓</div>
-          <h2 id="request-sent-title">Solicitação registrada!</h2>
-          <p>
-            Sua solicitação foi criada! Agora, envie-a para algum personal para receber uma
-            proposta. Ela ficará disponível por até 7 dias.
-          </p>
-          <button class="primary-button" type="button" @click="openSentRequests">
-            Ver minhas solicitações
-          </button>
-        </section>
-      </div>
+      <RequestSuccessDialog />
       <AppFooter />
     </section>
   </main>
@@ -387,23 +217,5 @@ const {
   border-top: 1px solid var(--line);
   width: 100%;
   margin: 10px 0 18px;
-}
-.home-training-request-button {
-  display: block;
-  width: 100%;
-  margin: 12px 0 12px;
-}
-.home-find-personal-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  margin: 0 0 20px;
-}
-.home-find-personal-button svg {
-  width: 23px;
-  height: 23px;
-  flex: none;
 }
 </style>

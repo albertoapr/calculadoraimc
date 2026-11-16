@@ -3,6 +3,8 @@
 `useFitpesoApp` é a camada de orquestração do shell. Regras que pertencem a um único domínio ficam
 em controladores menores:
 
+- `useHome`: busca de profissionais e academias, filtros, preferência na sessão e cidades;
+- `useTrainingRequest`: configuração, seleção, validação e envio do treinamento;
 - `useAssessment`: cálculo e estado da avaliação corporal;
 - `usePublicTrainerProfile`: leitura do perfil público por ID ou slug;
 - `useSupportedCity`: cidades atendidas, preferência e geolocalização;

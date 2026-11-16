@@ -68,15 +68,12 @@ const {
       <fieldset class="field field-wide admin-trainer-cities">
         <legend>Academias cadastradas</legend>
         <label
-          v-for="academy in adminAcademies.filter(item =>
-            item.active && item.city === adminTrainerForm.city)"
+          v-for="academy in adminAcademies.filter(
+            (item) => item.active && item.city === adminTrainerForm.city,
+          )"
           :key="academy.academyId"
         >
-          <input
-            v-model="adminTrainerForm.academyIds"
-            type="checkbox"
-            :value="academy.academyId"
-          />
+          <input v-model="adminTrainerForm.academyIds" type="checkbox" :value="academy.academyId" />
           {{ academy.name }} — {{ academy.neighborhood }}
         </label>
       </fieldset>

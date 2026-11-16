@@ -34,18 +34,24 @@ const supportedCities = new Set<string>(supportedRequestCities)
 
 const visible = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('pt-BR')
-  return academies.value.filter((academy) =>
-    (!cityFilter.value || cityFilter.value === academy.city) &&
-    (activeFilter.value === 'all' ||
-      (activeFilter.value === 'active' ? academy.active : !academy.active)) &&
-    (!query || [academy.name, academy.neighborhood, academy.address].some((text) =>
-      text.toLocaleLowerCase('pt-BR').includes(query))),
+  return academies.value.filter(
+    (academy) =>
+      (!cityFilter.value || cityFilter.value === academy.city) &&
+      (activeFilter.value === 'all' ||
+        (activeFilter.value === 'active' ? academy.active : !academy.active)) &&
+      (!query ||
+        [academy.name, academy.neighborhood, academy.address].some((text) =>
+          text.toLocaleLowerCase('pt-BR').includes(query),
+        )),
   )
 })
 
 function token() {
-  return sessionStorage.getItem('fitpeso-customer-session') ??
-    sessionStorage.getItem('fitpeso-google-session') ?? ''
+  return (
+    sessionStorage.getItem('fitpeso-customer-session') ??
+    sessionStorage.getItem('fitpeso-google-session') ??
+    ''
+  )
 }
 
 async function refresh() {
@@ -59,7 +65,8 @@ async function refresh() {
   try {
     academies.value = await listAdminAcademies(session)
   } catch (error) {
-    status.value = error instanceof Error ? error.message : 'Não foi possível carregar as academias.'
+    status.value =
+      error instanceof Error ? error.message : 'Não foi possível carregar as academias.'
   } finally {
     loading.value = false
   }
@@ -98,8 +105,11 @@ async function save() {
     status.value = 'Entre novamente como administrador.'
     return
   }
-  if (form.name.trim().length < 2 || form.neighborhood.trim().length < 2 ||
-      !supportedCities.has(form.city)) {
+  if (
+    form.name.trim().length < 2 ||
+    form.neighborhood.trim().length < 2 ||
+    !supportedCities.has(form.city)
+  ) {
     status.value = 'Preencha nome, cidade e bairro válidos.'
     return
   }
@@ -125,7 +135,11 @@ async function save() {
 }
 
 async function deactivate(academy: Academy) {
-  if (saving.value || !window.confirm(`Inativar a academia ${academy.name} — ${academy.neighborhood}?`)) return
+  if (
+    saving.value ||
+    !window.confirm(`Inativar a academia ${academy.name} — ${academy.neighborhood}?`)
+  )
+    return
   const session = token()
   if (!session) {
     status.value = 'Entre novamente como administrador.'
@@ -143,19 +157,25 @@ async function deactivate(academy: Academy) {
   }
 }
 
-onMounted(() => { void refresh() })
+onMounted(() => {
+  void refresh()
+})
 </script>
 
 <template>
   <section class="admin-academies" aria-labelledby="admin-academies-title">
     <h2 id="admin-academies-title" class="request-form-title">
-      <button class="title-back-button" type="button" aria-label="Voltar" @click="goHome">&lt;</button>
+      <button class="title-back-button" type="button" aria-label="Voltar" @click="goHome">
+        &lt;
+      </button>
       Academias
     </h2>
 
     <div class="academy-actions">
       <button type="button" class="primary-button" @click="newAcademy">+ Nova academia</button>
-      <button type="button" class="academy-refresh" :disabled="loading" @click="refresh">Atualizar lista</button>
+      <button type="button" class="academy-refresh" :disabled="loading" @click="refresh">
+        Atualizar lista
+      </button>
     </div>
 
     <div class="academy-filters">
@@ -167,7 +187,9 @@ onMounted(() => { void refresh() })
         <span class="field-label">Cidade</span>
         <select v-model="cityFilter">
           <option value="">Todas as cidades</option>
-          <option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option>
+          <option v-for="city in supportedRequestCities" :key="city" :value="city">
+            {{ city }}
+          </option>
         </select>
       </label>
       <label class="field">
@@ -192,7 +214,12 @@ onMounted(() => { void refresh() })
         </div>
         <div class="academy-card-actions">
           <button type="button" :disabled="saving" @click="editAcademy(academy)">Editar</button>
-          <button v-if="academy.active" type="button" :disabled="saving" @click="deactivate(academy)">
+          <button
+            v-if="academy.active"
+            type="button"
+            :disabled="saving"
+            @click="deactivate(academy)"
+          >
             Inativar
           </button>
         </div>
@@ -204,12 +231,20 @@ onMounted(() => { void refresh() })
       <h3>{{ selectedId ? 'Editar academia' : 'Nova academia' }}</h3>
       <label class="field">
         <span class="field-label">Nome *</span>
-        <input v-model.trim="form.name" required minlength="2" maxlength="80" autocomplete="organization" />
+        <input
+          v-model.trim="form.name"
+          required
+          minlength="2"
+          maxlength="80"
+          autocomplete="organization"
+        />
       </label>
       <label class="field">
         <span class="field-label">Cidade *</span>
         <select v-model="form.city" required>
-          <option v-for="city in supportedRequestCities" :key="city" :value="city">{{ city }}</option>
+          <option v-for="city in supportedRequestCities" :key="city" :value="city">
+            {{ city }}
+          </option>
         </select>
       </label>
       <label class="field">
@@ -222,7 +257,13 @@ onMounted(() => { void refresh() })
       </label>
       <label class="field">
         <span class="field-label">CEP</span>
-        <input v-model.trim="form.zipCode" inputmode="numeric" pattern="[0-9]{5}-?[0-9]{3}" maxlength="9" placeholder="00000-000 (opcional)" />
+        <input
+          v-model.trim="form.zipCode"
+          inputmode="numeric"
+          pattern="[0-9]{5}-?[0-9]{3}"
+          maxlength="9"
+          placeholder="00000-000 (opcional)"
+        />
       </label>
       <label class="academy-active">
         <input v-model="form.active" type="checkbox" />
@@ -239,33 +280,101 @@ onMounted(() => { void refresh() })
 </template>
 
 <style scoped>
-.admin-academies { display: grid; gap: 18px; }
-.academy-actions, .academy-form-actions, .academy-card-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.academy-actions button { flex: 1; }
-.academy-refresh, .academy-card-actions button, .academy-form-actions button:not(.primary-button) {
-  padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px;
-  background: transparent; color: var(--ink); cursor: pointer;
+.admin-academies {
+  display: grid;
+  gap: 18px;
 }
-.academy-filters { display: grid; gap: 10px; }
-.academy-filters .field, .academy-form .field { min-width: 0; }
-.academy-filters input, .academy-filters select, .academy-form input:not([type='checkbox']), .academy-form select {
-  width: 100%; max-width: 100%; min-height: 46px;
+.academy-actions,
+.academy-form-actions,
+.academy-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
-.academy-list { display: grid; gap: 10px; }
+.academy-actions button {
+  flex: 1;
+}
+.academy-refresh,
+.academy-card-actions button,
+.academy-form-actions button:not(.primary-button) {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.academy-filters {
+  display: grid;
+  gap: 10px;
+}
+.academy-filters .field,
+.academy-form .field {
+  min-width: 0;
+}
+.academy-filters input,
+.academy-filters select,
+.academy-form input:not([type='checkbox']),
+.academy-form select {
+  width: 100%;
+  max-width: 100%;
+  min-height: 46px;
+}
+.academy-list {
+  display: grid;
+  gap: 10px;
+}
 .academy-card {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 14px; border: 1px solid var(--line); border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   background: var(--card-bg, transparent);
 }
-.academy-card-info { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
-.academy-card-info span, .academy-card-info small { color: var(--muted); }
-.academy-card-actions { justify-content: flex-end; }
-.academy-status { margin: 0; color: var(--muted); }
-.academy-form { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
-.academy-form h3 { margin: 0; }
-.academy-active { display: flex; gap: 8px; align-items: center; color: var(--ink); }
+.academy-card-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.academy-card-info span,
+.academy-card-info small {
+  color: var(--muted);
+}
+.academy-card-actions {
+  justify-content: flex-end;
+}
+.academy-status {
+  margin: 0;
+  color: var(--muted);
+}
+.academy-form {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.academy-form h3 {
+  margin: 0;
+}
+.academy-active {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--ink);
+}
 @media (max-width: 460px) {
-  .academy-card { flex-direction: column; align-items: stretch; }
-  .academy-card-actions { justify-content: flex-start; }
+  .academy-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .academy-card-actions {
+    justify-content: flex-start;
+  }
 }
 </style>

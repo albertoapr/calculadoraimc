@@ -110,8 +110,9 @@ const {
       <fieldset class="field field-wide admin-trainer-cities">
         <legend>Academias cadastradas</legend>
         <label
-          v-for="academy in adminAcademies.filter(item =>
-            item.active && adminTrainerEditForm.cities.includes(item.city))"
+          v-for="academy in adminAcademies.filter(
+            (item) => item.active && adminTrainerEditForm.cities.includes(item.city),
+          )"
           :key="academy.academyId"
         >
           <input
@@ -121,8 +122,13 @@ const {
           />
           {{ academy.name }} — {{ academy.neighborhood }} ({{ academy.city }})
         </label>
-        <small v-if="!adminAcademies.some(item =>
-          item.active && adminTrainerEditForm.cities.includes(item.city))">
+        <small
+          v-if="
+            !adminAcademies.some(
+              (item) => item.active && adminTrainerEditForm.cities.includes(item.city),
+            )
+          "
+        >
           Cadastre academias no menu Gerenciar academias.
         </small>
       </fieldset>
