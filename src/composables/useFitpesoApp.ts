@@ -90,6 +90,7 @@ export function useFitpesoApp() {
     | 'professional-registration'
     | 'admin-trainer'
     | 'admin-trainers'
+    | 'admin-academies'
   >(trainerRequestToken ? 'trainer-request' : router.currentRoute.value.path === '/profissionais' ? 'public-trainers' : 'home')
   const showRequestForm = ref(false)
   const requestSent = ref(false)
@@ -463,6 +464,12 @@ export function useFitpesoApp() {
       viewMode.value = 'admin-trainers'
     },
   })
+
+  function openAdminAcademies() {
+    if (!customerIsAdmin.value) return
+    viewMode.value = 'admin-academies'
+    void nextTick(() => window.scrollTo(0, 0))
+  }
 
   const {
     editingProfile,
@@ -1543,6 +1550,7 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     openAdminTrainers,
+    openAdminAcademies,
     trainerSignedInName,
     trainerSignedInId,
     logout,
