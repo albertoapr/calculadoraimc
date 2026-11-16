@@ -5,6 +5,7 @@ import {
   updateAdminTrainer,
 } from '../services/adminTrainersService'
 import type { AdminTrainer } from '../types/domain'
+import { listAdminAcademies, type Academy } from '../services/academiesService'
 
 export function useAdminTrainers(options: {
   isAdmin: Ref<boolean>
@@ -53,6 +54,7 @@ export function useAdminTrainers(options: {
   }
 
   const adminTrainers = ref<AdminTrainer[]>([])
+  const adminAcademies = ref<Academy[]>([])
   const adminTrainerSearch = ref('')
   const selectedAdminTrainerId = ref('')
   const adminTrainersStatus = ref('')
@@ -69,6 +71,7 @@ export function useAdminTrainers(options: {
     slug: '',
     cities: [] as string[],
     academias: '',
+    academyIds: [] as string[],
     active: true,
   })
   const filteredAdminTrainers = computed(() => {
@@ -94,6 +97,7 @@ export function useAdminTrainers(options: {
       slug: trainer.slug,
       cities: [...trainer.cities],
       academias: trainer.academias.join(', '),
+      academyIds: [...(trainer.academyIds ?? [])],
       active: trainer.active,
     })
     adminTrainersStatus.value = ''
@@ -114,8 +118,12 @@ export function useAdminTrainers(options: {
     adminTrainersLoading.value = true
     adminTrainersStatus.value = 'Carregando profissionais…'
     try {
-      const trainers = await listAdminTrainers(token)
+      const [trainers, academies] = await Promise.all([
+        listAdminTrainers(token),
+        listAdminAcademies(token),
+      ])
       adminTrainers.value = trainers
+      adminAcademies.value = academies
       adminTrainersStatus.value = trainers.length ? '' : 'Nenhum profissional cadastrado.'
       if (selectedAdminTrainerId.value) {
         const selected = trainers.find(
@@ -177,6 +185,7 @@ export function useAdminTrainers(options: {
     adminTrainerBusy,
     saveAdminTrainer,
     adminTrainers,
+    adminAcademies,
     adminTrainerSearch,
     selectedAdminTrainerId,
     adminTrainersStatus,
