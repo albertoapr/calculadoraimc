@@ -30,6 +30,18 @@ academies.addGlobalSecondaryIndex({
   sortKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
   projectionType: dynamodb.ProjectionType.ALL,
 })
+const trainerAcademies = new dynamodb.Table(requestStack, 'FitpesoTrainerAcademies', {
+  partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+trainerAcademies.addGlobalSecondaryIndex({
+  indexName: 'TrainersByAcademy',
+  partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+})
 const trainerSlugs = new dynamodb.Table(requestStack, 'FitpesoTrainerSlugs', {
   partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -89,6 +101,11 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${academies.tableArn}/index/AcademiesByCity`],
 }))
+trainerAcademies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:DeleteItem', 'dynamodb:TransactWriteItems')
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${trainerAcademies.tableArn}/index/TrainersByAcademy`],
+}))
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:DeleteItem')
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 fitpesoProposals.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
@@ -120,6 +137,7 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
+backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_PROPOSALS_TABLE', fitpesoProposals.tableName)
