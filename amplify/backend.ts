@@ -201,8 +201,19 @@ const newDataTables = [
   [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
   [personalsV2, 'FITPESO_PERSONAL_V2_TABLE'],
 ] as const
+// Isola as permissões das tabelas V2 em uma política gerenciada.
+// O IAM limita a soma das políticas inline de uma role a 10.240 caracteres;
+// criar múltiplas políticas inline não elimina esse limite.
+const identityDataPolicy = new iam.ManagedPolicy(
+  Stack.of(backend.imcSubmit.resources.lambda),
+  'FitpesoIdentityDataAccess',
+)
+const lambdaRole = backend.imcSubmit.resources.lambda.role
+if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
+lambdaRole.addManagedPolicy(identityDataPolicy)
+
 for (const [table, envName] of newDataTables) {
-  table.grantReadWriteData(backend.imcSubmit.resources.lambda)
+  table.grantReadWriteData(identityDataPolicy)
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
 // Consultas em GSIs exigem permissão para ARN do índice.
@@ -211,7 +222,7 @@ for (const [table, indices] of [
   [customersV2, ['CustomerByUsuario']],
   [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
 ] as const) {
-  backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  identityDataPolicy.addStatements(new iam.PolicyStatement({
     actions: ['dynamodb:Query'],
     resources: indices.map(index => `${table.tableArn}/index/${index}`),
   }))
