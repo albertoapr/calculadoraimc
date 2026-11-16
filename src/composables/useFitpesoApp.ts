@@ -482,6 +482,7 @@ export function useFitpesoApp() {
     saveAdminTrainer,
     adminTrainerSearch,
     adminAcademies,
+    loadAdminAcademyOptions,
     selectedAdminTrainerId,
     adminTrainersStatus,
     adminTrainersLoading,
@@ -501,6 +502,13 @@ export function useFitpesoApp() {
       viewMode.value = 'admin-trainers'
     },
   })
+
+  function openAdminTrainer() {
+    if (!customerIsAdmin.value) return
+    viewMode.value = 'admin-trainer'
+    void loadAdminAcademyOptions()
+    void nextTick(() => window.scrollTo(0, 0))
+  }
 
   function openAdminAcademies() {
     if (!customerIsAdmin.value) return
@@ -1588,6 +1596,7 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     openAdminTrainers,
+    openAdminTrainer,
     openAdminAcademies,
     trainerSignedInName,
     trainerSignedInId,
