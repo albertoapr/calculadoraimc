@@ -148,7 +148,7 @@ const {
         :disabled="!homeCity"
         @click="startTrainingRequestFromHome"
       >
-        Solicitar treinamento
+        Treinar com Personal
       </button>
       <button
         v-if="viewMode === 'home' && !result && isRootHome"
