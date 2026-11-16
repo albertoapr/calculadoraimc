@@ -9,6 +9,7 @@ export type PublicTrainer = {
   sex?: string
   gender?: string
   academias?: string[]
+  academyIds?: string[]
   gymName?: string
   academy?: string
 }
