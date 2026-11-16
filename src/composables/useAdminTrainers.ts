@@ -23,6 +23,7 @@ export function useAdminTrainers(options: {
     slug: '',
     city: 'Mesquita',
     academias: '',
+    academyIds: [] as string[],
   })
   const adminTrainerStatus = ref('')
   const adminTrainerBusy = ref(false)
@@ -55,6 +56,15 @@ export function useAdminTrainers(options: {
 
   const adminTrainers = ref<AdminTrainer[]>([])
   const adminAcademies = ref<Academy[]>([])
+  async function loadAdminAcademyOptions() {
+    const token = options.getToken()
+    if (!options.isAdmin.value || !token) return
+    try {
+      adminAcademies.value = await listAdminAcademies(token)
+    } catch {
+      adminAcademies.value = []
+    }
+  }
   const adminTrainerSearch = ref('')
   const selectedAdminTrainerId = ref('')
   const adminTrainersStatus = ref('')
@@ -186,6 +196,7 @@ export function useAdminTrainers(options: {
     saveAdminTrainer,
     adminTrainers,
     adminAcademies,
+    loadAdminAcademyOptions,
     adminTrainerSearch,
     selectedAdminTrainerId,
     adminTrainersStatus,
