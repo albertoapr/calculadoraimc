@@ -103,7 +103,6 @@ onBeforeUnmount(() => {
           <button type="button" @click="logout()">Sair</button>
         </nav>
       </div>
-      </nav>
       <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
     </div>
   </div>
@@ -122,10 +121,11 @@ onBeforeUnmount(() => {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 50;
   min-width: 210px; max-width: calc(100vw - 30px);
   display: flex; flex-direction: column; padding: 6px;
-  background: var(--card, var(--surface, #fff)); color: var(--text, inherit);
+  background: #fff; color: #243b30;
   border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 12px 30px rgba(0,0,0,.18);
 }
+html[data-theme='dark'] .signed-in-menu-items { background: #1b2623; color: #f1f5f3; }
 .signed-in-menu-items button {
   width: 100%; padding: 11px 12px; background: transparent; color: inherit;
   border: 0; border-radius: 6px; text-align: left; font: inherit; cursor: pointer;
