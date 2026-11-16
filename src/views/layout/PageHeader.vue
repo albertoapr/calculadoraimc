@@ -8,8 +8,6 @@ const {
   personalBrandFirstName,
   trainerProfileFailed,
   viewMode,
-  publicTrainerAcademy,
-  publicTrainerAcademies,
   showRequestForm,
   form,
   result,
@@ -59,25 +57,8 @@ const {
       />
       <p class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
     </div>
-    <h1 v-if="viewMode === 'public-trainers'" id="page-title" class="academy-page-title">
-      <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
-        &lt;
-      </button>
-      <label class="sr-only" for="directory-academy">Academia</label>
-      <select
-        id="directory-academy"
-        v-model="publicTrainerAcademy"
-        class="directory-academy-select"
-        aria-label="Selecione uma academia"
-      >
-        <option value="">Selecione uma academia</option>
-        <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
-          {{ academy }}
-        </option>
-      </select>
-    </h1>
     <h1
-      v-if="viewMode !== 'contact' && viewMode !== 'public-trainers' && (viewMode !== 'home' || result)"
+      v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)"
       id="page-title"
       :class="{ 'academy-page-title': viewMode === 'public-trainers' }"
     >
@@ -94,7 +75,11 @@ const {
         <rect x="12" y="9" width="16" height="8" rx="2" />
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
       </svg>
-      <span>{{
+      <span v-if="viewMode === 'public-trainers'" class="academy-page-brand">
+        <span class="brand-peso">Personal</span>
+        <span class="brand-fit">Trainers</span>
+      </span>
+      <span v-else>{{
         viewMode === 'select-trainers'
           ? 'Solicitar treinamento'
           : viewMode === 'about'
@@ -125,41 +110,33 @@ const {
 
 <style scoped>
 .academy-page-title {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
+  margin-bottom: 0;
+  flex-wrap: nowrap;
   gap: 6px;
-  margin: 0;
-  padding: 0;
-}
-.directory-academy-select {
-  flex: 1 1 auto;
-  min-width: 0;
   width: 100%;
-  margin: 0;
-  padding: 8px 4px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--ink);
-  color-scheme: inherit;
-  font-size: clamp(19px, 5.3vw, 25px);
-  font-weight: 700;
-  cursor: pointer;
+  min-width: 0;
 }
-.directory-academy-select:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
+.academy-page-brand {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: nowrap;
+  column-gap: 0.3em;
+  row-gap: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  font-size: clamp(20px, 5.5vw, 32px);
+  letter-spacing: -0.045em;
 }
-.directory-academy-select option {
-  background: #f2f4ee;
-  color: #203e32;
+.academy-page-brand .brand-fit,
+.academy-page-brand .brand-peso {
+  white-space: nowrap;
 }
-html[data-theme='dark'] .directory-academy-select option {
-  background: #141d18;
-  color: #f4f5f0;
+.academy-page-brand .brand-peso {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .academy-page-neighborhood {
   margin: 2px auto 12px;
