@@ -64,7 +64,13 @@ export function useFitpesoApp() {
     usePublicTrainerProfile(router)
   const isRootHome = computed(() => router.currentRoute.value.path === '/')
 
-  const viewMode = ref<AppViewMode>(trainerRequestToken ? 'trainer-request' : router.currentRoute.value.path === '/profissionais' ? 'public-trainers' : 'home')
+  const viewMode = ref<AppViewMode>(
+    trainerRequestToken
+      ? 'trainer-request'
+      : router.currentRoute.value.path === '/profissionais'
+        ? 'public-trainers'
+        : 'home',
+  )
   const showRequestForm = ref(false)
   const requestSent = ref(false)
   const requestStep = ref(1)
@@ -143,11 +149,20 @@ export function useFitpesoApp() {
     },
   })
   const homeController = useHome({
-    viewMode, isRootHome, form, showRequestForm, requestStep, selectingTrainersForDraft,
-    selectedTrainerIds, homeSelectedTrainerIds, sharingRequestId, sharingRequestMessage,
+    viewMode,
+    isRootHome,
+    form,
+    showRequestForm,
+    requestStep,
+    selectingTrainersForDraft,
+    selectedTrainerIds,
+    homeSelectedTrainerIds,
+    sharingRequestId,
+    sharingRequestMessage,
     openRequestForm: () => openRequestForm(),
     sendRequestToSelectedTrainers: () => sendRequestToSelectedTrainers(),
-    readNavigationPreference, saveNavigationPreference,
+    readNavigationPreference,
+    saveNavigationPreference,
   })
   const {
     publicTrainers,
@@ -384,10 +399,25 @@ export function useFitpesoApp() {
     confirmServiceRequest,
     sendResult,
   } = useTrainingRequest({
-    viewMode, showRequestForm, requestStep, selectingTrainersForDraft, selectedTrainerIds, homeSelectedTrainerIds, sharingRequestId, sharingRequestMessage, customerSignedInName, form, trainingStartMinutes, trainingEndMinutes, status, refreshShareableRequests,
+    viewMode,
+    showRequestForm,
+    requestStep,
+    selectingTrainersForDraft,
+    selectedTrainerIds,
+    homeSelectedTrainerIds,
+    sharingRequestId,
+    sharingRequestMessage,
+    customerSignedInName,
+    form,
+    trainingStartMinutes,
+    trainingEndMinutes,
+    status,
+    refreshShareableRequests,
     home: homeController,
     openCustomerLogin: (fromRequest, method) => openCustomerLogin(fromRequest, method),
-    onContactReset: () => { googleProfileStatus.value = '' },
+    onContactReset: () => {
+      googleProfileStatus.value = ''
+    },
   })
   const contactAge = computed(() => {
     if (!showRequestForm.value || form.age === '') return undefined
@@ -882,7 +912,6 @@ export function useFitpesoApp() {
   )
 
   onMounted(() => {
-
     if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
       publicTrainerCity.value = homeCity.value
       void loadPublicTrainers()

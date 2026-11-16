@@ -24,10 +24,20 @@ export function useHome(options: {
   saveNavigationPreference: (key: string, value: string) => void
 }) {
   const {
-    viewMode, isRootHome, form, showRequestForm, requestStep,
-    selectingTrainersForDraft, selectedTrainerIds, homeSelectedTrainerIds,
-    sharingRequestId, sharingRequestMessage, openRequestForm,
-    sendRequestToSelectedTrainers, readNavigationPreference, saveNavigationPreference,
+    viewMode,
+    isRootHome,
+    form,
+    showRequestForm,
+    requestStep,
+    selectingTrainersForDraft,
+    selectedTrainerIds,
+    homeSelectedTrainerIds,
+    sharingRequestId,
+    sharingRequestMessage,
+    openRequestForm,
+    sendRequestToSelectedTrainers,
+    readNavigationPreference,
+    saveNavigationPreference,
   } = options
   const NAV_CITY = 'fitpeso:preferred-city:v1'
   const publicTrainers = ref<EligibleTrainer[]>([])
@@ -78,10 +88,8 @@ export function useHome(options: {
     selectedTrainerIds.value = chosenTrainers
     homeSelectedTrainerIds.value = chosenTrainers
     // Em "Todas as academias", o local é definido pelo cliente na solicitação.
-    if (!publicTrainerAcademy.value) {
-      form.gymName = ''
-      form.attendsGym = false
-    }
+    form.gymName = publicTrainerAcademy.value
+    form.attendsGym = Boolean(publicTrainerAcademy.value)
   }
 
   async function requestProposalFromHome() {
@@ -126,13 +134,20 @@ export function useHome(options: {
       if (id === academyLookupId) registeredAcademies.value = []
     }
   }
-  watch(publicTrainerCity, (city) => {
-    registeredAcademies.value = []
-    void loadCityAcademies(city)
-  }, { immediate: true })
+  watch(
+    publicTrainerCity,
+    (city) => {
+      registeredAcademies.value = []
+      void loadCityAcademies(city)
+    },
+    { immediate: true },
+  )
   watch(viewMode, (mode) => {
-    if ((mode === 'home' || mode === 'public-trainers' || mode === 'select-trainers') &&
-        publicTrainerCity.value) void loadCityAcademies(publicTrainerCity.value)
+    if (
+      (mode === 'home' || mode === 'public-trainers' || mode === 'select-trainers') &&
+      publicTrainerCity.value
+    )
+      void loadCityAcademies(publicTrainerCity.value)
   })
   const { academies: legacyTrainerAcademies, filtered: publicFilteredTrainers } =
     useTrainerDirectory({
@@ -147,17 +162,22 @@ export function useHome(options: {
   const publicTrainerAcademies = computed(() => {
     const canonical = registeredAcademies.value.map((item) => `${item.name} — ${item.neighborhood}`)
     const normalize = (value: string) =>
-      value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[–—]/g, '-').replace(/\s*-\s*/g, ' - ')
-        .trim().toLocaleLowerCase('pt-BR')
-    const unregistered = legacyTrainerAcademies.value.filter((name) =>
-      !registeredAcademies.value.some((item) =>
-        normalize(name) === normalize(item.name) ||
-        normalize(name) === normalize(`${item.name} — ${item.neighborhood}`)),
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[–—]/g, '-')
+        .replace(/\s*-\s*/g, ' - ')
+        .trim()
+        .toLocaleLowerCase('pt-BR')
+    const unregistered = legacyTrainerAcademies.value.filter(
+      (name) =>
+        !registeredAcademies.value.some(
+          (item) =>
+            normalize(name) === normalize(item.name) ||
+            normalize(name) === normalize(`${item.name} — ${item.neighborhood}`),
+        ),
     )
-    return [...new Set([...canonical, ...unregistered])].sort((a, b) =>
-      a.localeCompare(b, 'pt-BR'),
-    )
+    return [...new Set([...canonical, ...unregistered])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   })
   // Sem seleção, a lista pode carregar opções para o combo, mas não exibe resultados.
   watch(
@@ -244,7 +264,6 @@ export function useHome(options: {
     loadPublicTrainers,
     searchHomeTrainers,
   })
-
 
   return {
     publicTrainers,

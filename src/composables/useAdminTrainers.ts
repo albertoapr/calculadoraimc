@@ -84,16 +84,24 @@ export function useAdminTrainers(options: {
     academyIds: [] as string[],
     active: true,
   })
-  watch(() => adminTrainerForm.city, (city) => {
-    adminTrainerForm.academyIds = adminTrainerForm.academyIds.filter((id) =>
-      adminAcademies.value.some((academy) => academy.academyId === id && academy.city === city),
-    )
-  })
-  watch(() => [...adminTrainerEditForm.cities], (cities) => {
-    adminTrainerEditForm.academyIds = adminTrainerEditForm.academyIds.filter((id) =>
-      adminAcademies.value.some((academy) => academy.academyId === id && cities.includes(academy.city)),
-    )
-  })
+  watch(
+    () => adminTrainerForm.city,
+    (city) => {
+      adminTrainerForm.academyIds = adminTrainerForm.academyIds.filter((id) =>
+        adminAcademies.value.some((academy) => academy.academyId === id && academy.city === city),
+      )
+    },
+  )
+  watch(
+    () => [...adminTrainerEditForm.cities],
+    (cities) => {
+      adminTrainerEditForm.academyIds = adminTrainerEditForm.academyIds.filter((id) =>
+        adminAcademies.value.some(
+          (academy) => academy.academyId === id && cities.includes(academy.city),
+        ),
+      )
+    },
+  )
 
   const filteredAdminTrainers = computed(() => {
     const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
@@ -118,12 +126,16 @@ export function useAdminTrainers(options: {
       slug: trainer.slug,
       cities: [...trainer.cities],
       // Vínculos do catálogo são controlados pelos checkboxes, não pelo campo legado.
-      academias: trainer.academias.filter((name) =>
-        !adminAcademies.value.some((academy) =>
-          `${academy.name} — ${academy.neighborhood}`.toLocaleLowerCase('pt-BR') ===
-          name.toLocaleLowerCase('pt-BR'),
-        ),
-      ).join(', '),
+      academias: trainer.academias
+        .filter(
+          (name) =>
+            !adminAcademies.value.some(
+              (academy) =>
+                `${academy.name} — ${academy.neighborhood}`.toLocaleLowerCase('pt-BR') ===
+                name.toLocaleLowerCase('pt-BR'),
+            ),
+        )
+        .join(', '),
       academyIds: [...(trainer.academyIds ?? [])],
       active: trainer.active,
     })

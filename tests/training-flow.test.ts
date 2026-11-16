@@ -21,14 +21,22 @@ test('home selection survives the training flow and submission preserves the req
   const payloads: Record<string, unknown>[] = []
   globalThis.fetch = async (input, init) => {
     const url = String(input)
-    if (url === '/amplify_outputs.json') return Response.json({ custom: { imcApi: { endpoint: 'http://localhost/mock' } } })
+    if (url === '/amplify_outputs.json')
+      return Response.json({ custom: { imcApi: { endpoint: 'http://localhost/mock' } } })
     if (url.endsWith('/api/requests')) {
-      assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer customer-session')
+      assert.equal(
+        (init?.headers as Record<string, string>).authorization,
+        '***',
+      )
       payloads.push(JSON.parse(String(init?.body)))
       return Response.json({ created: true, requestId: 'r1' })
     }
     if (url.includes('/api/academies')) return Response.json({ academies: [] })
-    return Response.json({ trainers: [{ trainerId: 'p1', name: 'Ana Silva', slug: 'ana', academias: ['Academia Teste'] }] })
+    return Response.json({
+      trainers: [
+        { trainerId: 'p1', name: 'Ana Silva', slug: 'ana', academias: ['Academia Teste'] },
+      ],
+    })
   }
   setActivePinia(createPinia())
   const scope = effectScope()
@@ -49,24 +57,54 @@ test('home selection survives the training flow and submission preserves the req
       let loginRequests = 0
       let request: ReturnType<typeof useTrainingRequest>
       const home = useHome({
-        viewMode, isRootHome: computed(() => true), form: draft.form, showRequestForm, requestStep,
-        selectingTrainersForDraft, selectedTrainerIds, homeSelectedTrainerIds,
-        sharingRequestId, sharingRequestMessage,
+        viewMode,
+        isRootHome: computed(() => true),
+        form: draft.form,
+        showRequestForm,
+        requestStep,
+        selectingTrainersForDraft,
+        selectedTrainerIds,
+        homeSelectedTrainerIds,
+        sharingRequestId,
+        sharingRequestMessage,
         openRequestForm: () => request.openRequestForm(),
         sendRequestToSelectedTrainers() {},
         readNavigationPreference: () => 'Mesquita',
         saveNavigationPreference() {},
       })
       request = useTrainingRequest({
-        viewMode, showRequestForm, requestStep, selectingTrainersForDraft,
-        selectedTrainerIds, homeSelectedTrainerIds, sharingRequestId, sharingRequestMessage,
-        customerSignedInName, form: draft.form, trainingStartMinutes, trainingEndMinutes,
-        status, home, async refreshShareableRequests() {},
-        async openCustomerLogin() { loginRequests += 1 },
+        viewMode,
+        showRequestForm,
+        requestStep,
+        selectingTrainersForDraft,
+        selectedTrainerIds,
+        homeSelectedTrainerIds,
+        sharingRequestId,
+        sharingRequestMessage,
+        customerSignedInName,
+        form: draft.form,
+        trainingStartMinutes,
+        trainingEndMinutes,
+        status,
+        home,
+        async refreshShareableRequests() {},
+        async openCustomerLogin() {
+          loginRequests += 1
+        },
         onContactReset() {},
       })
-      return { home, request, draft, viewMode, status, selectedTrainerIds,
-        homeSelectedTrainerIds, sharingRequestMessage, customerSignedInName, getLoginRequests: () => loginRequests }
+      return {
+        home,
+        request,
+        draft,
+        viewMode,
+        status,
+        selectedTrainerIds,
+        homeSelectedTrainerIds,
+        sharingRequestMessage,
+        customerSignedInName,
+        getLoginRequests: () => loginRequests,
+      }
     })!
     flow.home.publicTrainerCity.value = 'Mesquita'
     await flow.home.loadPublicTrainers()

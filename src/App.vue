@@ -82,15 +82,17 @@ const {
           ? undefined
           : viewMode === 'admin-academies'
             ? 'admin-academies-title'
-          : viewMode === 'contact'
-            ? 'contact-form-title'
-            : 'page-title'
+            : viewMode === 'contact'
+              ? 'contact-form-title'
+              : 'page-title'
       "
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
-      <PageHeader v-if="viewMode !== 'admin-academies' && !(viewMode === 'home' && !result && isRootHome)" />
+      <PageHeader
+        v-if="viewMode !== 'admin-academies' && !(viewMode === 'home' && !result && isRootHome)"
+      />
       <CitySelector
         v-if="viewMode !== 'public-trainers' && !(viewMode === 'home' && !result && isRootHome)"
       />

@@ -3,9 +3,13 @@ import type { PublicTrainer, TrainerGenderPreference } from '../services/profiss
 import type { Academy } from '../services/academiesService'
 
 function normalizeAcademyName(name: string) {
-  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[–—]/g, '-').replace(/\s*-\s*/g, ' - ')
-    .trim().toLocaleLowerCase('pt-BR')
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ')
+    .trim()
+    .toLocaleLowerCase('pt-BR')
 }
 
 /** Pure derived state for public lookup and request-specific trainer selection. */
@@ -43,7 +47,11 @@ export function useTrainerDirectory(options: {
       const registered = options.registeredAcademies?.value.find(
         (item) => normalizeAcademyName(`${item.name} — ${item.neighborhood}`) === selected,
       )
-      const legacyNames = [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? '']
+      const legacyNames = [
+        ...(trainer.academias ?? []),
+        trainer.gymName ?? '',
+        trainer.academy ?? '',
+      ]
       if (registered && trainer.academyIds?.includes(registered.academyId)) return true
       const sameNameUnits = registered
         ? (options.registeredAcademies?.value ?? []).filter(
@@ -53,9 +61,12 @@ export function useTrainerDirectory(options: {
       // Um nome legado simples não identifica a unidade quando existem várias filiais.
       return legacyNames.some((name) => {
         const normalized = normalizeAcademyName(name)
-        return normalized === selected ||
-          (registered && sameNameUnits === 1 &&
+        return (
+          normalized === selected ||
+          (registered &&
+            sameNameUnits === 1 &&
             normalized === normalizeAcademyName(registered.name))
+        )
       })
     }),
   )

@@ -1,6 +1,13 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { createFitpesoRequest } from '../services/atendimentoService'
-import { isValidAge, isValidEmail, isValidPersonName, normalizeBrazilianPhone, normalizeEmail, normalizePersonName } from '../utils/validation'
+import {
+  isValidAge,
+  isValidEmail,
+  isValidPersonName,
+  normalizeBrazilianPhone,
+  normalizeEmail,
+  normalizePersonName,
+} from '../utils/validation'
 import { minutesToTime } from '../utils/time'
 import { trainerDisplayName } from '../utils/trainer'
 import type { AppViewMode } from '../types/navigation'
@@ -27,12 +34,32 @@ export function useTrainingRequest(options: {
   onContactReset: () => void
 }) {
   const {
-    viewMode, showRequestForm, requestStep, selectingTrainersForDraft, selectedTrainerIds, homeSelectedTrainerIds, sharingRequestId, sharingRequestMessage, customerSignedInName, form, trainingStartMinutes, trainingEndMinutes, status, refreshShareableRequests, openCustomerLogin,
+    viewMode,
+    showRequestForm,
+    requestStep,
+    selectingTrainersForDraft,
+    selectedTrainerIds,
+    homeSelectedTrainerIds,
+    sharingRequestId,
+    sharingRequestMessage,
+    customerSignedInName,
+    form,
+    trainingStartMinutes,
+    trainingEndMinutes,
+    status,
+    refreshShareableRequests,
+    openCustomerLogin,
   } = options
   const {
-    publicTrainers, publicTrainerAcademies, publicTrainerAcademy, publicTrainerCity,
-    homeCity, loadPublicTrainers, matchSupportedRequestCity,
-    cancelRequestCityDetection, detectRequestCity,
+    publicTrainers,
+    publicTrainerAcademies,
+    publicTrainerAcademy,
+    publicTrainerCity,
+    homeCity,
+    loadPublicTrainers,
+    matchSupportedRequestCity,
+    cancelRequestCityDetection,
+    detectRequestCity,
   } = options.home
   const submittingRequest = ref(false)
   const isMesquita = (city: string) => city.trim().toLocaleLowerCase('pt-BR') === 'mesquita'

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 import { build } from 'esbuild'
-import { parse, compileScript } from '@vue/compiler-sfc'
+import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 
@@ -69,6 +69,18 @@ test('extracted screens preserve login, request age between steps and theme chan
         setup(builder) {
           builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
             const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path })
+            if (!descriptor.script && !descriptor.scriptSetup) {
+              const template = compileTemplate({
+                source: descriptor.template?.content ?? '',
+                filename: path,
+                id: path,
+              })
+              if (template.errors.length) throw new Error(String(template.errors[0]))
+              return {
+                contents: template.code + '\nexport default { render }',
+                loader: 'ts',
+              }
+            }
             return {
               contents: compileScript(descriptor, { id: path, inlineTemplate: true }).content,
               loader: 'ts',
