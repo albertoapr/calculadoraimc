@@ -288,9 +288,14 @@ export function useFitpesoApp() {
     })
   const publicTrainerAcademies = computed(() => {
     const canonical = registeredAcademies.value.map((item) => `${item.name} — ${item.neighborhood}`)
+    const normalize = (value: string) =>
+      value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[–—]/g, '-').replace(/\s*-\s*/g, ' - ')
+        .trim().toLocaleLowerCase('pt-BR')
     const unregistered = legacyTrainerAcademies.value.filter((name) =>
       !registeredAcademies.value.some((item) =>
-        name.toLocaleLowerCase('pt-BR') === item.name.toLocaleLowerCase('pt-BR')),
+        normalize(name) === normalize(item.name) ||
+        normalize(name) === normalize(`${item.name} — ${item.neighborhood}`)),
     )
     return [...new Set([...canonical, ...unregistered])].sort((a, b) =>
       a.localeCompare(b, 'pt-BR'),
