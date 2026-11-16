@@ -3,6 +3,7 @@ import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
+  isRootHome,
   goHome,
   customerSignedInName,
   customerIsAdmin,
@@ -83,6 +84,7 @@ const {
           <button type="button" @click="logout()">Sair</button>
         </template>
       </nav>
+      <CitySelector v-if="viewMode === 'home' && isRootHome" />
     </div>
   </div>
 </template>
@@ -90,10 +92,31 @@ const {
 <style scoped>
 .fitpeso-home-header-actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
   gap: 6px;
   min-width: 0;
+}
+.fitpeso-home-header-actions :deep(.home-city-selector:not(.home-city-selector--right)) {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+.fitpeso-home-header-actions :deep(.home-city-selector:not(.home-city-selector--right) .home-city-select) {
+  width: auto;
+  max-width: 100%;
+  min-height: 38px;
+  padding: 6px 20px 6px 26px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  text-align-last: right;
+}
+.fitpeso-home-header-actions :deep(.home-city-selector:not(.home-city-selector--right) svg) {
+  left: 2px;
+  width: 16px;
+  height: 16px;
 }
 .fitpeso-home-header-actions :deep(.home-city-selector--right) {
   width: auto;
@@ -158,7 +181,7 @@ html[data-theme='dark'] .header-inline-links .header-signup-link {
 }
 @media (max-width: 520px) {
   .fitpeso-home-header-actions {
-    flex-direction: column-reverse;
+    flex-direction: column;
     align-items: flex-end;
     gap: 2px;
   }
