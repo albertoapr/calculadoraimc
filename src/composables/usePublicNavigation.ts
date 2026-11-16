@@ -14,7 +14,7 @@ export function bindPublicNavigation<T extends string>(
   const removeHook = router.afterEach((to) => {
     handlingHistory = true
     try {
-      if (to.path === '/personal' && viewMode.value !== 'public-trainers') onDirectoryOpen()
+      if (to.path === '/profissionais' && viewMode.value !== 'public-trainers') onDirectoryOpen()
       if (to.path === '/' && viewMode.value === 'public-trainers') onHomeOpen()
     } finally {
       handlingHistory = false
@@ -24,12 +24,12 @@ export function bindPublicNavigation<T extends string>(
     viewMode,
     (mode, previous) => {
       if (handlingHistory) return
-      if (mode === 'public-trainers' && router.currentRoute.value.path !== '/personal') {
-        void router.push('/personal')
+      if (mode === 'public-trainers' && router.currentRoute.value.path !== '/profissionais') {
+        void router.push('/profissionais')
       } else if (
         mode === 'home' &&
         previous === 'public-trainers' &&
-        router.currentRoute.value.path === '/personal'
+        router.currentRoute.value.path === '/profissionais'
       ) {
         // Returning from the directory should replace that entry so a browser Back
         // action does not reopen the directory after the title Back button was used.
