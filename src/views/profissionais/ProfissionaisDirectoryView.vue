@@ -144,6 +144,10 @@ const emit = defineEmits<{
   gap: 16px;
   margin: 22px 0;
 }
+/* Aproxima o filtro de academia do título na consulta pública. */
+.public-directory {
+  margin-top: 4px;
+}
 .home-trainer-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
