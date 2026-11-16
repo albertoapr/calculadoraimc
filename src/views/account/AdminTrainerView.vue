@@ -2,6 +2,7 @@
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   availableCities,
+  adminAcademies,
   adminTrainerForm,
   adminTrainerStatus,
   adminTrainerBusy,
@@ -64,8 +65,23 @@ const {
           <option v-for="city in availableCities" :key="city" :value="city">{{ city }}</option>
         </select></label
       >
-      <label class="field"
-        ><span class="field-label">Academias (separadas por vírgula)</span
+      <fieldset class="field field-wide admin-trainer-cities">
+        <legend>Academias cadastradas</legend>
+        <label
+          v-for="academy in adminAcademies.filter(item =>
+            item.active && item.city === adminTrainerForm.city)"
+          :key="academy.academyId"
+        >
+          <input
+            v-model="adminTrainerForm.academyIds"
+            type="checkbox"
+            :value="academy.academyId"
+          />
+          {{ academy.name }} — {{ academy.neighborhood }}
+        </label>
+      </fieldset>
+      <label class="field field-wide"
+        ><span class="field-label">Outros locais (legado, separados por vírgula)</span
         ><input v-model="adminTrainerForm.academias"
       /></label>
       <button type="submit" class="primary-button" :disabled="adminTrainerBusy">
