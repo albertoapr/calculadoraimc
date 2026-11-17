@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
+import { storeToRefs } from 'pinia'
+import { useAccountSession } from '../../stores/accountSession'
+const { customerPhotoUrl } = storeToRefs(useAccountSession())
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   academyOptions,
@@ -20,6 +23,10 @@ const {
     <p class="intro">Consulte e atualize as informações do seu cadastro.</p>
     <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
     <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
+      <div v-if="editingProfileType === 'customer' && customerPhotoUrl" class="google-profile-photo field-wide">
+        <img :src="customerPhotoUrl" alt="Sua foto do Google" width="88" height="88" referrerpolicy="no-referrer" />
+        <div><strong>Foto do perfil Google</strong><small>Imagem vinculada à sua conta Google.</small><a :href="customerPhotoUrl" target="_blank" rel="noopener noreferrer">Abrir foto</a></div>
+      </div>
       <label class="field field-wide" for="profile-name"
         ><span class="field-label">Nome completo</span>
         <input
@@ -145,6 +152,13 @@ const {
           />
         </label>
       </template>
+<style scoped>
+.google-profile-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.google-profile-photo img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
+.google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
+.google-profile-photo small { color: var(--muted); }
+.google-profile-photo a { color: var(--blue); font-size: 0.9rem; }
+</style>
       <small class="field-wide"
         >Para alterar WhatsApp, e-mail ou endereço do perfil profissional, é necessária uma nova
         verificação com a Beta.</small
