@@ -95,6 +95,7 @@ export type TrainerReceivedRequest = {
 }
 
 export type EditableProfile = {
+  trainerId?: string
   tagline: string
   aboutMe: string
   education: string
