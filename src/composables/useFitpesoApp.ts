@@ -74,7 +74,7 @@ export function useFitpesoApp() {
     loadTrainerRequest,
     submitTrainerProposal,
   } = useTrainerProposal(trainerRequestToken)
-  const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, trainerProfileFailed } =
+  const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, publicTrainer, publicTrainerBanner, trainerProfileFailed } =
     usePublicTrainerProfile(router)
   const isRootHome = computed(() => router.currentRoute.value.path === '/')
 
@@ -1199,6 +1199,8 @@ export function useFitpesoApp() {
     trainerIdFromPath,
     trainerSlugFromPath,
     personalBrandFirstName,
+    publicTrainer,
+    publicTrainerBanner,
     trainerProfileFailed,
   }
 }
