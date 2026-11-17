@@ -335,6 +335,23 @@ onMounted(() => {
   border-radius: 12px;
   background: var(--card-bg, transparent);
 }
+/* O token --card-bg é claro mesmo quando o tema escuro está ativo. */
+html[data-theme='dark'] .academy-card {
+  background: #1b2720;
+  color: #f4f5f0;
+  border-color: #3b4b40;
+}
+html[data-theme='dark'] .academy-card-info strong {
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .academy-card-info span,
+html[data-theme='dark'] .academy-card-info small {
+  color: #b5c0b8;
+}
+html[data-theme='dark'] .academy-card-actions button {
+  color: #f4f5f0;
+  border-color: #3b4b40;
+}
 .academy-card-info {
   display: grid;
   gap: 4px;
