@@ -40,6 +40,12 @@ export function useAccountProfile(options: AccountProfileOptions) {
     cref: '',
     slug: '',
     academias: [],
+    tagline: '',
+    aboutMe: '',
+    education: '',
+    workingMethod: '',
+    pricing: '',
+    bannerUpdatedAt: '',
   })
   const editingProfileType = ref<AccountProfileType>('customer')
   const editingProfileStatus = ref('')
@@ -59,6 +65,12 @@ export function useAccountProfile(options: AccountProfileOptions) {
     editingProfile.cref = 'cref' in profile ? (profile.cref ?? '') : ''
     editingProfile.slug = 'slug' in profile ? (profile.slug ?? '') : ''
     editingProfile.academias = 'academias' in profile ? [...(profile.academias ?? [])] : []
+    editingProfile.tagline = 'tagline' in profile ? (profile.tagline ?? '') : ''
+    editingProfile.aboutMe = 'aboutMe' in profile ? (profile.aboutMe ?? '') : ''
+    editingProfile.education = 'education' in profile ? (profile.education ?? '') : ''
+    editingProfile.workingMethod = 'workingMethod' in profile ? (profile.workingMethod ?? '') : ''
+    editingProfile.pricing = 'pricing' in profile ? (profile.pricing ?? '') : ''
+    editingProfile.bannerUpdatedAt = 'bannerUpdatedAt' in profile ? (profile.bannerUpdatedAt ?? '') : ''
   }
 
   async function openMyProfile() {
@@ -124,7 +136,10 @@ export function useAccountProfile(options: AccountProfileOptions) {
         type,
         token,
         trainer
-          ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias }
+          ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias,
+              tagline: editingProfile.tagline, aboutMe: editingProfile.aboutMe,
+              education: editingProfile.education, workingMethod: editingProfile.workingMethod,
+              pricing: editingProfile.pricing }
           : { name, sex: editingProfile.sex as 'masculino' | 'feminino', ...(editingProfile.heightCm !== undefined ? { heightCm: editingProfile.heightCm } : {}), ...(birth ? { dateOfBirth: birth } : {}) },
       )
       if (generation !== currentGeneration || !options.isViewOpen()) return
