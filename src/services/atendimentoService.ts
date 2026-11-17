@@ -1,22 +1,16 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 
 export async function createFitpesoRequest(request: Record<string, unknown>, token: string) {
-  const endpoint = await getRequestApiEndpoint()
   if (!token) throw new Error('Entre na sua conta para enviar a solicitação.')
-  const response = await fetch(`${endpoint}/api/requests`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(request),
-  })
-  const body = (await response.json()) as {
+  const response = await requestApi<{
     created?: boolean
     requestId?: string
     error?: string
-  }
-  if (!response.ok || body.created !== true || !body.requestId) {
-    throw new Error(
-      body.error || 'Não foi possível registrar a solicitação agora. Tente novamente.',
+  }>('/api/requests', { method: 'POST', token, body: request })
+  if (!response.ok || response.body.created !== true || !response.body.requestId)
+    throw apiError(
+      response,
+      'Não foi possível registrar a solicitação agora. Tente novamente.',
     )
-  }
-  return body.requestId
+  return response.body.requestId
 }

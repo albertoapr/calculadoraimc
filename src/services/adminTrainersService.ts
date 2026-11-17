@@ -1,30 +1,25 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 import type { AdminTrainer } from '../types/domain'
 
 export type AdminTrainerWrite = Omit<AdminTrainer, 'trainerId' | 'active'> & { active?: boolean }
 
 export async function registerAdminTrainer(token: string, trainer: AdminTrainerWrite) {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/admin/trainers`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(trainer),
-  })
-  const body = (await response.json()) as { registered?: boolean; error?: string }
-  if (!response.ok || !body.registered)
-    throw new Error(body.error || 'Não foi possível cadastrar o profissional.')
+  const response = await requestApi<{ registered?: boolean; error?: string }>(
+    '/api/admin/trainers',
+    { method: 'POST', token, body: trainer },
+  )
+  if (!response.ok || !response.body.registered)
+    throw apiError(response, 'Não foi possível cadastrar o profissional.')
 }
 
 export async function listAdminTrainers(token: string): Promise<AdminTrainer[]> {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/admin/trainers`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  })
-  const body = (await response.json()) as { trainers?: AdminTrainer[]; error?: string }
-  if (!response.ok || !Array.isArray(body.trainers))
-    throw new Error(body.error || 'Não foi possível carregar os profissionais.')
-  return body.trainers
+  const response = await requestApi<{ trainers?: AdminTrainer[]; error?: string }>(
+    '/api/admin/trainers',
+    { token },
+  )
+  if (!response.ok || !Array.isArray(response.body.trainers))
+    throw apiError(response, 'Não foi possível carregar os profissionais.')
+  return response.body.trainers
 }
 
 export async function updateAdminTrainer(
@@ -32,13 +27,10 @@ export async function updateAdminTrainer(
   trainerId: string,
   trainer: AdminTrainerWrite,
 ) {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/admin/trainers/${encodeURIComponent(trainerId)}`, {
-    method: 'PUT',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(trainer),
-  })
-  const body = (await response.json()) as { updated?: boolean; error?: string }
-  if (!response.ok || !body.updated)
-    throw new Error(body.error || 'Não foi possível salvar o profissional.')
+  const response = await requestApi<{ updated?: boolean; error?: string }>(
+    `/api/admin/trainers/${encodeURIComponent(trainerId)}`,
+    { method: 'PUT', token, body: trainer },
+  )
+  if (!response.ok || !response.body.updated)
+    throw apiError(response, 'Não foi possível salvar o profissional.')
 }

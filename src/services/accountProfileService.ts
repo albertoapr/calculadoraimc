@@ -1,5 +1,5 @@
 import { loadCustomerProfile, loadTrainerSession } from './authenticationService'
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 import type { CustomerAccountProfile, TrainerAccountProfile } from '../types/domain'
 
 export type AccountProfileType = 'customer' | 'trainer'
@@ -25,20 +25,17 @@ export async function updateAccountProfile(
         academias: string[]
       },
 ): Promise<AccountProfile> {
-  const endpoint = await getRequestApiEndpoint()
   const resource = type === 'trainer' ? 'trainers' : 'customers'
-  const response = await fetch(`${endpoint}/api/${resource}/update-profile`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    cache: 'no-store',
-    body: JSON.stringify(payload),
-  })
-  const body = (await response.json()) as {
+  const response = await requestApi<{
     authenticated?: boolean
     profile?: AccountProfile
     error?: string
-  }
-  if (!response.ok || !body.authenticated || !body.profile)
-    throw new Error(body.error || 'Não foi possível salvar o cadastro.')
-  return body.profile
+  }>(`/api/${resource}/update-profile`, {
+    method: 'POST',
+    token,
+    body: payload,
+  })
+  if (!response.ok || !response.body.authenticated || !response.body.profile)
+    throw apiError(response, 'Não foi possível salvar o cadastro.')
+  return response.body.profile
 }

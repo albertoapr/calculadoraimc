@@ -1,4 +1,4 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 
 export type PublicTrainer = {
   trainerId: string
@@ -16,10 +16,6 @@ export type PublicTrainer = {
 
 export type TrainerGenderPreference = 'indiferente' | 'feminino' | 'masculino'
 
-/**
- * Evita consultas repetidas durante o fluxo resumo -> seleção -> resumo.
- * Compartilha requisições simultâneas e mantém o resultado por 90 segundos.
- */
 const CACHE_TTL_MS = 90_000
 const trainerCache = new Map<string, { expiresAt: number; trainers: PublicTrainer[] }>()
 const inFlight = new Map<string, Promise<PublicTrainer[]>>()
@@ -32,7 +28,6 @@ export function getCachedEligibleTrainers(
   return entry && entry.expiresAt > Date.now() ? entry.trainers : undefined
 }
 
-/** Fetch eligible professionals for a city and an optional gender preference. */
 export function listEligibleTrainers(
   city: string,
   gender: TrainerGenderPreference,
@@ -44,24 +39,34 @@ export function listEligibleTrainers(
   if (existing) return existing
 
   const loading = (async () => {
-    const endpoint = await getRequestApiEndpoint()
-    const query = new URLSearchParams({ city, gender })
-    const response = await fetch(`${endpoint}/api/trainers/eligible?${query}`)
-    if (!response.ok) throw new Error('Não foi possível consultar os profissionais.')
-    const body = (await response.json()) as { trainers?: PublicTrainer[] }
-    if (!Array.isArray(body.trainers))
+    const response = await requestApi<{ trainers?: PublicTrainer[]; error?: string }>(
+      '/api/trainers/eligible',
+      { query: { city, gender } },
+    )
+    if (!response.ok)
+      throw apiError(response, 'Não foi possível consultar os profissionais.')
+    if (!Array.isArray(response.body.trainers))
       throw new Error('Resposta inválida ao consultar profissionais.')
-    trainerCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, trainers: body.trainers })
-    return body.trainers
+    trainerCache.set(key, {
+      expiresAt: Date.now() + CACHE_TTL_MS,
+      trainers: response.body.trainers,
+    })
+    return response.body.trainers
   })()
   inFlight.set(key, loading)
-  void loading.then(
-    () => {
-      inFlight.delete(key)
-    },
-    () => {
-      inFlight.delete(key)
-    },
-  )
+  void loading.finally(() => inFlight.delete(key)).catch(() => undefined)
   return loading
+}
+
+export async function getPublicTrainerProfile(
+  identity: { slug: string } | { trainerId: string },
+): Promise<PublicTrainer> {
+  const path =
+    'slug' in identity
+      ? `/api/trainers/by-slug/${encodeURIComponent(identity.slug)}`
+      : `/api/trainers/${encodeURIComponent(identity.trainerId)}`
+  const response = await requestApi<{ trainer?: PublicTrainer; error?: string }>(path)
+  if (!response.ok || !response.body.trainer)
+    throw apiError(response, 'Perfil do personal indisponível.')
+  return response.body.trainer
 }

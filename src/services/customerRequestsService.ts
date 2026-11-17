@@ -1,18 +1,16 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 import type { CustomerRequest } from '../types/domain'
 
 export type RequestVisibilityAction = 'deactivate' | 'reactivate'
 
 export async function listCustomerRequests(token: string): Promise<CustomerRequest[]> {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/customers/requests`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  })
-  const body = (await response.json()) as { requests?: CustomerRequest[]; error?: string }
-  if (!response.ok || !Array.isArray(body.requests))
-    throw new Error(body.error || 'Não foi possível carregar suas solicitações.')
-  return body.requests
+  const response = await requestApi<{ requests?: CustomerRequest[]; error?: string }>(
+    '/api/customers/requests',
+    { token },
+  )
+  if (!response.ok || !Array.isArray(response.body.requests))
+    throw apiError(response, 'Não foi possível carregar suas solicitações.')
+  return response.body.requests
 }
 
 export async function sendCustomerRequestToTrainers(
@@ -20,19 +18,13 @@ export async function sendCustomerRequestToTrainers(
   requestId: string,
   trainerIds: string[],
 ) {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(
-    `${endpoint}/api/requests/${encodeURIComponent(requestId)}/send-to-trainers`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ trainerIds }),
-    },
+  const response = await requestApi<{ sent?: boolean; added?: number; error?: string }>(
+    `/api/requests/${encodeURIComponent(requestId)}/send-to-trainers`,
+    { method: 'POST', token, body: { trainerIds } },
   )
-  const body = (await response.json()) as { sent?: boolean; added?: number; error?: string }
-  if (!response.ok || !body.sent)
-    throw new Error(body.error || 'Não foi possível enviar a solicitação.')
-  return body.added
+  if (!response.ok || !response.body.sent)
+    throw apiError(response, 'Não foi possível enviar a solicitação.')
+  return response.body.added
 }
 
 export async function updateCustomerRequestVisibility(
@@ -40,28 +32,23 @@ export async function updateCustomerRequestVisibility(
   requestId: string,
   action: RequestVisibilityAction,
 ) {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(
-    `${endpoint}/api/requests/${encodeURIComponent(requestId)}/visibility`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action }),
-    },
+  const response = await requestApi<{ updated?: boolean; error?: string }>(
+    `/api/requests/${encodeURIComponent(requestId)}/visibility`,
+    { method: 'POST', token, body: { action } },
   )
-  const body = (await response.json()) as { updated?: boolean; error?: string }
-  if (!response.ok || !body.updated)
-    throw new Error(body.error || 'Não foi possível atualizar a solicitação.')
+  if (!response.ok || !response.body.updated)
+    throw apiError(response, 'Não foi possível atualizar a solicitação.')
 }
 
-export async function acceptCustomerProposal(token: string, requestId: string, trainerId: string) {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}/api/requests/${encodeURIComponent(requestId)}/accept`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ trainerId }),
-  })
-  const body = (await response.json()) as { accepted?: boolean; error?: string }
-  if (!response.ok || body.accepted !== true)
-    throw new Error(body.error || 'Não foi possível aceitar esta proposta.')
+export async function acceptCustomerProposal(
+  token: string,
+  requestId: string,
+  trainerId: string,
+) {
+  const response = await requestApi<{ accepted?: boolean; error?: string }>(
+    `/api/requests/${encodeURIComponent(requestId)}/accept`,
+    { method: 'POST', token, body: { trainerId } },
+  )
+  if (!response.ok || response.body.accepted !== true)
+    throw apiError(response, 'Não foi possível aceitar esta proposta.')
 }

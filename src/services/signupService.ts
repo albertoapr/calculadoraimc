@@ -1,4 +1,4 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 
 export type CustomerSignupInput = {
   name: string
@@ -19,22 +19,21 @@ export type TrainerSignupInput = {
   cref?: string
 }
 
+type CustomerSignupResponse = {
+  registered?: boolean
+  verificationCode?: string
+  error?: string
+}
+
 export async function registerCustomer(payload: CustomerSignupInput, signal?: AbortSignal) {
-  const endpoint = await getRequestApiEndpoint(signal)
-  const response = await fetch(`${endpoint}/api/customers/register`, {
+  const response = await requestApi<CustomerSignupResponse>('/api/customers/register', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
     signal,
-    body: JSON.stringify(payload),
+    body: payload,
   })
-  const body = (await response.json()) as {
-    registered?: boolean
-    verificationCode?: string
-    error?: string
-  }
-  if (!response.ok || body.registered !== true || !body.verificationCode)
-    throw new Error(body.error || 'Não foi possível registrar o cadastro agora.')
-  return body.verificationCode
+  if (!response.ok || response.body.registered !== true || !response.body.verificationCode)
+    throw apiError(response, 'Não foi possível registrar o cadastro agora.')
+  return response.body.verificationCode
 }
 
 export async function queryCustomerSignup(
@@ -43,14 +42,7 @@ export async function queryCustomerSignup(
   sessionToken: string,
   signal?: AbortSignal,
 ) {
-  const endpoint = await getRequestApiEndpoint(signal)
-  const response = await fetch(`${endpoint}/api/customers/verification-status`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    signal,
-    body: JSON.stringify({ code, whatsapp, sessionToken }),
-  })
-  const body = (await response.json()) as {
+  const response = await requestApi<{
     verified?: boolean
     expired?: boolean
     authenticated?: boolean
@@ -60,29 +52,33 @@ export async function queryCustomerSignup(
     dateOfBirth?: string
     isAdmin?: boolean
     error?: string
-  }
-  return { ok: response.ok, body }
+  }>('/api/customers/verification-status', {
+    method: 'POST',
+    signal,
+    body: { code, whatsapp, sessionToken },
+  })
+  return { ok: response.ok, body: response.body }
 }
 
 export async function registerTrainer(payload: TrainerSignupInput, signal?: AbortSignal) {
-  const endpoint = await getRequestApiEndpoint(signal)
-  const response = await fetch(`${endpoint}/api/trainers/register`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    signal,
-    body: JSON.stringify(payload),
-  })
-  const body = (await response.json()) as {
+  const response = await requestApi<{
     registered?: boolean
     verificationCode?: string
     slug?: string
     error?: string
-  }
-  if (!response.ok || body.registered !== true)
-    throw new Error(body.error || 'Não foi possível registrar seu cadastro agora.')
-  if (!body.verificationCode)
+  }>('/api/trainers/register', {
+    method: 'POST',
+    signal,
+    body: payload,
+  })
+  if (!response.ok || response.body.registered !== true)
+    throw apiError(response, 'Não foi possível registrar seu cadastro agora.')
+  if (!response.body.verificationCode)
     throw new Error(
       'Cadastro recebido, mas não foi possível gerar o código de confirmação. Tente novamente.',
     )
-  return { verificationCode: body.verificationCode, slug: body.slug }
+  return {
+    verificationCode: response.body.verificationCode,
+    slug: response.body.slug,
+  }
 }
