@@ -5,6 +5,8 @@ export type CustomerSignupInput = {
   whatsapp: string
   email: string
   sessionToken: string
+  sex: 'masculino' | 'feminino'
+  heightCm?: number
 }
 export type TrainerSignupInput = {
   name: string
