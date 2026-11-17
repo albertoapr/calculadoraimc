@@ -891,7 +891,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
   const academias = data?.academias ?? []
   const pageFields = ['tagline', 'aboutMe', 'education', 'workingMethod', 'pricing'] as const
-  const pageLimits = { tagline: 140, aboutMe: 2000, education: 2000, workingMethod: 2000, pricing: 2000 }
+  const pageLimits = { tagline: 140, aboutMe: 1500, education: 1500, workingMethod: 1500, pricing: 1500 }
   const validPage = data && pageFields.every(key => data[key] === undefined ||
     (typeof data[key] === 'string' && (data[key] as string).length <= pageLimits[key]))
   if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
