@@ -84,10 +84,7 @@ const {
           <strong>{{ trainer.name }}</strong>
           <small>{{ trainer.cref }} · {{ trainer.cities.join(', ') }}</small>
         </span>
-        <span
-          class="admin-trainer-state"
-          :class="trainer.active ? 'is-active' : 'is-inactive'"
-        >
+        <span class="admin-trainer-state" :class="trainer.active ? 'is-active' : 'is-inactive'">
           {{ trainer.active ? 'Ativo' : 'Inativo' }}
         </span>
       </button>
@@ -116,12 +113,7 @@ const {
 
       <label class="field field-wide">
         <span class="field-label">Nome completo</span>
-        <input
-          v-model="adminTrainerForm.name"
-          required
-          maxlength="80"
-          autocomplete="name"
-        />
+        <input v-model="adminTrainerForm.name" required maxlength="80" autocomplete="name" />
       </label>
       <label class="field">
         <span class="field-label">WhatsApp</span>
@@ -163,12 +155,7 @@ const {
       </label>
       <label class="field">
         <span class="field-label">CREF</span>
-        <input
-          v-model="adminTrainerForm.cref"
-          required
-          maxlength="40"
-          placeholder="000000-G/RJ"
-        />
+        <input v-model="adminTrainerForm.cref" required maxlength="40" placeholder="000000-G/RJ" />
       </label>
       <label class="field">
         <span class="field-label">Instagram</span>
@@ -208,11 +195,7 @@ const {
       <fieldset class="field field-wide admin-trainer-options">
         <legend>Academias cadastradas</legend>
         <label v-for="academy in availableAcademiesForTrainer" :key="academy.academyId">
-          <input
-            v-model="adminTrainerForm.academyIds"
-            type="checkbox"
-            :value="academy.academyId"
-          />
+          <input v-model="adminTrainerForm.academyIds" type="checkbox" :value="academy.academyId" />
           {{ academy.name }} — {{ academy.neighborhood }} ({{ academy.city }})
         </label>
         <small v-if="!availableAcademiesForTrainer.length">

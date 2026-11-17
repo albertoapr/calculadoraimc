@@ -55,9 +55,7 @@ export function useAdminTrainers(options: {
       const availableIds = new Set(
         availableAcademiesForTrainer.value.map((academy) => academy.academyId),
       )
-      adminTrainerForm.academyIds = adminTrainerForm.academyIds.filter((id) =>
-        availableIds.has(id),
-      )
+      adminTrainerForm.academyIds = adminTrainerForm.academyIds.filter((id) => availableIds.has(id))
     },
   )
 
@@ -271,11 +269,7 @@ export function useAdminTrainers(options: {
     adminTrainerBusy.value = true
     adminTrainersStatus.value = 'Desativando profissional…'
     try {
-      await updateAdminTrainer(
-        token,
-        selectedAdminTrainerId.value,
-        trainerPayload(false),
-      )
+      await updateAdminTrainer(token, selectedAdminTrainerId.value, trainerPayload(false))
       adminTrainerForm.active = false
       await loadAdminTrainers()
       adminTrainersStatus.value =

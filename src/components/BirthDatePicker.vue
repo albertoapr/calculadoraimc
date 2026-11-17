@@ -42,8 +42,7 @@ function validateTypedDate(report = false) {
   if (!input) return false
   const value = typedDate.value.trim()
   const parsed = parseDateInput(value, props.min, props.max)
-  const message =
-    value && !parsed ? 'Informe uma data válida no formato DD/MM/AAAA.' : ''
+  const message = value && !parsed ? 'Informe uma data válida no formato DD/MM/AAAA.' : ''
   input.setCustomValidity(message)
   if (parsed) emit('update:modelValue', parsed)
   else if (!value) emit('update:modelValue', '')

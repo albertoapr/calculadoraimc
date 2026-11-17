@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  formatDateForInput,
-  maskDateInput,
-  parseDateInput,
-} from '../src/utils/dateInput'
+import { formatDateForInput, maskDateInput, parseDateInput } from '../src/utils/dateInput'
 
 test('data de nascimento aceita digitação brasileira e mantém ISO na API', () => {
   assert.equal(maskDateInput('01021990'), '01/02/1990')
