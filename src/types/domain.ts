@@ -73,6 +73,8 @@ export type CustomerProposal = {
 }
 
 export type CustomerAccountProfile = {
+  sex?: 'masculino' | 'feminino'
+  heightCm?: number
   name: string
   whatsapp: string
   email: string
@@ -92,6 +94,8 @@ export type TrainerReceivedRequest = {
 }
 
 export type EditableProfile = {
+  sex: '' | 'masculino' | 'feminino'
+  heightCm?: number
   name: string
   whatsapp: string
   email: string
