@@ -39,8 +39,19 @@ test('domain controllers preserve authorization, payloads, busy guards and API e
     )
 
     await t.test('registration normalizes academies and blocks double submission', async () => {
-      Object.assign(admin.adminTrainerForm, { name: 'Personal Teste', academias: ' A, , B ' })
-      reply = { registered: true }
+      Object.assign(admin.adminTrainerForm, {
+        name: 'Personal Teste',
+        whatsapp: '21999999999',
+        email: 'personal@example.test',
+        dateOfBirth: '1990-01-02',
+        sex: 'feminino',
+        cref: '123-G/RJ',
+        instagram: '@personal',
+        slug: 'personal-teste',
+        cities: ['Mesquita'],
+        academias: ' A, , B ',
+      })
+      reply = { registered: true, trainerId: 'created-1' }
       pending = new Promise<void>((resolve) => {
         release = resolve
       })
@@ -49,10 +60,13 @@ test('domain controllers preserve authorization, payloads, busy guards and API e
       release!()
       await saving
       pending = undefined
-      assert.equal(calls.length, 1)
-      assert.equal(calls[0].init?.method, 'POST')
-      assert.equal(new Headers(calls[0].init?.headers).get('authorization'), 'Bearer session-2')
-      assert.deepEqual(JSON.parse(String(calls[0].init?.body)).academias, ['A', 'B'])
+      const registrationCalls = calls.filter((call) => call.init?.method === 'POST')
+      assert.equal(registrationCalls.length, 1)
+      assert.equal(
+        new Headers(registrationCalls[0].init?.headers).get('authorization'),
+        'Bearer session-2',
+      )
+      assert.deepEqual(JSON.parse(String(registrationCalls[0].init?.body)).academias, ['A', 'B'])
       assert.equal(admin.adminTrainerBusy.value, false)
       assert.match(admin.adminTrainerStatus.value, /sucesso/)
     })
