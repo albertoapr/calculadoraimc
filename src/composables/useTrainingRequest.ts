@@ -32,6 +32,9 @@ export function useTrainingRequest(options: {
   refreshShareableRequests: () => Promise<void>
   openCustomerLogin: (fromRequest: boolean, method: 'whatsapp') => Promise<void>
   onContactReset: () => void
+  otherGymName?: Ref<string>
+  onDraftStarted?: () => void
+  onDraftSubmitted?: () => void
 }) {
   const {
     viewMode,
@@ -136,6 +139,7 @@ export function useTrainingRequest(options: {
     form.attendsGym = Boolean(form.gymName)
     otherGymName.value = ''
     form.objective = 'Emagrecimento'
+    options.onDraftStarted?.()
     viewMode.value = 'contact'
     publicTrainerCity.value = form.city
     if (publicTrainerCity.value) void loadPublicTrainers()
@@ -162,7 +166,7 @@ export function useTrainingRequest(options: {
       form.attendsGym = Boolean(form.gymName)
     }
   })
-  const otherGymName = ref('')
+  const otherGymName = options.otherGymName ?? ref('')
   watch(
     () => form.city,
     (city) => {
@@ -356,6 +360,7 @@ export function useTrainingRequest(options: {
         },
         token,
       )
+      options.onDraftSubmitted?.()
       sharingRequestId.value = createdRequestId
       sharingRequestMessage.value = 'Solicitação criada com os profissionais selecionados.'
       homeSelectedTrainerIds.value = []

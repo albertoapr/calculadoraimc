@@ -28,10 +28,21 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   dom.window.scrollTo = () => {}
   localStorage.setItem('fitpeso:preferred-city:v1', 'Mesquita')
+  let allowCustomerProfile = false
   const requestCalls: string[] = []
   globalThis.fetch = async (input) => {
     const url = String(input)
     requestCalls.push(url)
+    if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
+      return Response.json({
+        authenticated: true,
+        profile: {
+          name: 'Cliente Teste',
+          whatsapp: '+5521999999999',
+          email: 'cliente@example.test',
+        },
+      })
+    }
     return new Response(
       JSON.stringify(
         url === '/amplify_outputs.json'
@@ -55,7 +66,7 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   const bundle = await build({
     stdin: {
-      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import App from './src/App.vue'; export {nextTick}; export async function mount(path='/'){const router=createRouter({history:createMemoryHistory(),routes:[{path:'/:pathMatch(.*)*',component:App}]}); await router.push(path); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');return app}`,
+      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import {screenRoutes} from './src/router/screens'; import App from './src/App.vue'; export {nextTick}; export async function mount(path='/'){const router=createRouter({history:createMemoryHistory(),routes:[...screenRoutes.map(route=>({path:route.path,component:App})),{path:'/personal/:slug',component:App},{path:'/p/:id',component:App}]}); await router.push(path); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');await nextTick();await new Promise(resolve=>setTimeout(resolve,0));await nextTick();return Object.assign(app,{testRouter:router})}`,
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -142,7 +153,9 @@ test('extracted screens preserve login, request age between steps and theme chan
       '+5521999999999',
     )
     ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
+    assert.equal(app.testRouter.currentRoute.value.path, '/')
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     await click(/^Treinar com Personal$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
@@ -206,6 +219,31 @@ test('extracted screens preserve login, request age between steps and theme chan
     )
     await click(/^Início$/)
     assert.ok(document.querySelector('.root-home-photo'))
+
+    app.unmount()
+    app = await mount('/solicitar-treinamento')
+    assert.equal(app.testRouter.currentRoute.value.path, '/solicitar-treinamento')
+    assert.ok(document.querySelector('.request-accordion-form'))
+    await click(/Meu perfil/)
+    assert.equal((document.querySelector('#accordion-age') as HTMLInputElement).value, '45')
+
+    app.unmount()
+    app = await mount('/meu-cadastro')
+    assert.equal(app.testRouter.currentRoute.value.path, '/entrar')
+    assert.equal(app.testRouter.currentRoute.value.query.redirect, '/meu-cadastro')
+    assert.ok(document.querySelector('#login-identifier'))
+
+    app.unmount()
+    allowCustomerProfile = true
+    sessionStorage.setItem('fitpeso-customer-session', 'profile-fixture')
+    app = await mount('/meu-cadastro')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+    assert.equal(app.testRouter.currentRoute.value.path, '/meu-cadastro')
+    assert.equal(
+      (document.querySelector('#profile-name') as HTMLInputElement).value,
+      'Cliente Teste',
+    )
   } finally {
     app.unmount()
     dom.window.close()

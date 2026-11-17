@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 import { loadCustomerProfile, loadTrainerSession } from '../services/authenticationService'
 import type { CustomerAccountProfile, TrainerAccountProfile } from '../types/domain'
 
@@ -10,12 +10,14 @@ export function useSessionBootstrap(options: {
   applyCustomerProfile: (profile: CustomerAccountProfile) => void
   applyTrainerSession: (profile: TrainerAccountProfile) => void
 }) {
-  function restoreTrainerSession() {
+  const sessionRestoring = ref(true)
+
+  async function restoreTrainerSession() {
     try {
       const token = sessionStorage.getItem('fitpeso-trainer-session')
       if (!token) return
       const generation = options.getGeneration()
-      void loadTrainerSession(token)
+      await loadTrainerSession(token)
         .then((profile) => {
           if (
             options.getGeneration() === generation &&
@@ -34,14 +36,14 @@ export function useSessionBootstrap(options: {
     }
   }
 
-  function restoreCustomerSession() {
+  async function restoreCustomerSession() {
     try {
       const token =
         sessionStorage.getItem('fitpeso-customer-session') ??
         sessionStorage.getItem('fitpeso-google-session')
       if (!token) return
       const generation = options.getGeneration()
-      void loadCustomerProfile(token)
+      await loadCustomerProfile(token)
         .then((profile) => {
           const storedToken =
             sessionStorage.getItem('fitpeso-customer-session') ??
@@ -60,10 +62,13 @@ export function useSessionBootstrap(options: {
     }
   }
 
-  function restoreSessions() {
-    restoreTrainerSession()
-    restoreCustomerSession()
+  async function restoreSessions() {
+    try {
+      await Promise.all([restoreTrainerSession(), restoreCustomerSession()])
+    } finally {
+      sessionRestoring.value = false
+    }
   }
 
-  return { restoreSessions }
+  return { restoreSessions, sessionRestoring }
 }

@@ -1,5 +1,11 @@
 # Navegação
 
-`AppRoot.vue` renderiza o `RouterView`. Todas as rotas usam o mesmo shell `App.vue`, mantendo seu estado entre as URLs públicas. `usePublicNavigation` sincroniza `/` e `/profissionais` com as telas, inclusive Voltar/Avançar.
+As telas possuem URLs próprias declaradas em `screens.ts`. Todas usam o mesmo shell persistente,
+preservando o contexto de autenticação e treinamento ao usar Voltar/Avançar.
 
-O fallback preserva links personalizados e de confirmação. Passos do atendimento, autenticação e áreas privadas continuam sendo fluxos internos do shell. Tokens são removidos da URL pelo Router depois de capturados pelo controlador.
+`useApplicationNavigation` sincroniza o shell com as rotas, reconhece links antigos por hash e
+aguarda a restauração da sessão antes de abrir áreas privadas. Visitantes voltam ao destino original
+após o login; destinos externos não são aceitos. APIs continuam responsáveis pela autorização real.
+
+Preferências de treinamento e seleção de profissionais são recuperadas do sessionStorage na mesma
+sessão do navegador. Nome, telefone, e-mail, consentimento e tokens não são incluídos no rascunho.
