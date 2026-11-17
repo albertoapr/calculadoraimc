@@ -22,7 +22,9 @@ function setCanonical(path: string) {
 export function updatePageSeo(page: Page) {
   const directory = page === 'directory'
   const privatePage = page === 'private'
-  const title = directory ? 'Profissionais de educação física | FitPeso' : 'Encontre um personal trainer | FitPeso'
+  const title = directory
+    ? 'Profissionais de educação física | FitPeso'
+    : 'Encontre um personal trainer | FitPeso'
   const description = directory
     ? 'Consulte profissionais de educação física e encontre um personal trainer para seus objetivos de treino no FitPeso.'
     : 'Encontre um personal trainer, compare profissionais e solicite propostas de atendimento pelo FitPeso.'
