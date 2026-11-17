@@ -78,9 +78,8 @@ export async function getPublicTrainerProfile(
 
 /** Public API only serves images for active professional accounts. */
 export async function getPublicTrainerBanner(trainerId: string): Promise<string> {
-  const response = await requestApi<{ imageBase64?: string; error?: string }>(
-    `/api/trainers/banner/${encodeURIComponent(trainerId)}`,
-  )
+  const path: `/api/${string}` = `/api/trainers/banner/${encodeURIComponent(trainerId)}`
+  const response = await requestApi<{ imageBase64?: string; error?: string }>(path)
   if (!response.ok || !response.body.imageBase64)
     throw apiError(response, 'Não foi possível carregar a foto do profissional.')
   return 'data:image/jpeg;base64,' + response.body.imageBase64
