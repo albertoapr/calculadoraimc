@@ -15,9 +15,11 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
 const dynamodb = new DynamoDBClient({})
+const bannerStorage = new S3Client({})
 const codeLifetimeSeconds = 15 * 60
 const corsHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -138,7 +140,23 @@ async function getPublicTrainerById(trainerId: string) {
   })
   if (!item) return null
   const name = item.name?.S?.trim() ?? ''
-  return name ? { name } : null
+  if (!name) return null
+  const city = item.city?.S ?? ''
+  if (!city) return null
+  const full = await dynamodb.send(new GetItemCommand({
+    TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } },
+  }))
+  const profile = full.Item
+  if (!profile || profile.active?.BOOL !== true) return null
+  return {
+    trainerId, name, slug: profile.slug?.S ?? '',
+    tagline: profile.tagline?.S ?? '',
+    aboutMe: profile.aboutMe?.S ?? '',
+    education: profile.education?.S ?? '',
+    workingMethod: profile.workingMethod?.S ?? '',
+    pricing: profile.pricing?.S ?? '',
+    bannerUpdatedAt: profile.bannerUpdatedAt?.S ?? '',
+  }
 }
 
 async function getPublicTrainerBySlug(slug: string) {
@@ -731,6 +749,12 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
       sex: item.sex?.S ?? '',
       slug: item.slug?.S ?? '',
+      tagline: item.tagline?.S ?? '',
+      aboutMe: item.aboutMe?.S ?? '',
+      education: item.education?.S ?? '',
+      workingMethod: item.workingMethod?.S ?? '',
+      pricing: item.pricing?.S ?? '',
+      bannerUpdatedAt: item.bannerUpdatedAt?.S ?? '',
     } }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -786,11 +810,15 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
   const academias = data?.academias ?? []
-  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+  const pageFields = ['tagline', 'aboutMe', 'education', 'workingMethod', 'pricing'] as const
+  const pageLimits = { tagline: 140, aboutMe: 2000, education: 2000, workingMethod: 2000, pricing: 2000 }
+  const validPage = data && pageFields.every(key => data[key] === undefined ||
+    (typeof data[key] === 'string' && (data[key] as string).length <= pageLimits[key]))
+  if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       !validAcademias(academias) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias'].includes(key))) {
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -810,13 +838,16 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' +
+          (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
+          pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
           ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
+          ...Object.fromEntries(pageFields.filter(key => data[key] !== undefined).map(key => [':' + key, { S: (data[key] as string).trim() }])),
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
