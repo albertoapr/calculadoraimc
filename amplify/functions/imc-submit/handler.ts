@@ -399,6 +399,21 @@ async function getCustomerVerificationStatus(data: Record<string, unknown> | nul
   }
 }
 
+/** Google profile images are URLs, never uploaded image bytes. Only trust Google's verified ID token. */
+function googleProfilePhotoUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 2048) return ''
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password) return ''
+    const hostname = url.hostname.toLowerCase()
+    return hostname === 'googleusercontent.com' || hostname.endsWith('.googleusercontent.com')
+      ? url.href
+      : ''
+  } catch {
+    return ''
+  }
+}
+
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
@@ -432,6 +447,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         email: customer.Item.email?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
         isAdmin: customer.Item.isAdmin?.BOOL === true,
+        googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
       } })
     } catch (error) {
       console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -458,6 +474,32 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     }))
     const customer = result.Items?.[0]
     if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
+    const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
+    const googlePhotoUrl = verifiedPhotoUrl || customer.googlePhotoUrl?.S || ''
+    // Persist the trusted profile-picture URL on successful Google login.
+    // A transient database write failure must not prevent an otherwise valid login.
+    if (verifiedPhotoUrl && verifiedPhotoUrl !== customer.googlePhotoUrl?.S) {
+      try {
+        await dynamodb.send(new UpdateItemCommand({
+          TableName: tableName,
+          Key: { whatsapp: { S: customer.whatsapp!.S! } },
+          UpdateExpression: 'SET googlePhotoUrl = :photo, updatedAt = :updated',
+          ConditionExpression: '#status = :active AND whatsappVerified = :verified AND email = :email',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':photo': { S: verifiedPhotoUrl },
+            ':updated': { S: new Date().toISOString() },
+            ':active': { S: 'ACTIVE' },
+            ':verified': { BOOL: true },
+            ':email': { S: email },
+          },
+        }))
+      } catch (error) {
+        console.warn('[imc-submit] Google profile photo could not be saved', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    }
     return response(200, {
       authenticated: true,
       profile: {
@@ -466,6 +508,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         email,
         dateOfBirth: customer.dateOfBirth?.S ?? '',
         isAdmin: customer.isAdmin?.BOOL === true,
+        googlePhotoUrl,
       },
     })
   } catch (error) {
