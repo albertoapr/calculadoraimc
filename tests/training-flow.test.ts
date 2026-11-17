@@ -24,10 +24,7 @@ test('home selection survives the training flow and submission preserves the req
     if (url === '/amplify_outputs.json')
       return Response.json({ custom: { imcApi: { endpoint: 'http://localhost/mock' } } })
     if (url.endsWith('/api/requests')) {
-      assert.equal(
-        (init?.headers as Record<string, string>).authorization,
-        'Bearer customer-session',
-      )
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer customer-session')
       payloads.push(JSON.parse(String(init?.body)))
       return Response.json({ created: true, requestId: 'r1' })
     }

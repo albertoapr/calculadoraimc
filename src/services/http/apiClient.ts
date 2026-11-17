@@ -49,7 +49,8 @@ function buildQuery(query?: ApiRequestOptions['query']) {
 function responseBody<T>(response: Response, rawBody: string): T {
   if (!rawBody) return undefined as T
   const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('json')) return rawBody as T
+  const looksLikeJson = /^[\\s]*[\\[{]/.test(rawBody)
+  if (!contentType.includes('json') && !looksLikeJson) return rawBody as T
   try {
     return JSON.parse(rawBody) as T
   } catch {
