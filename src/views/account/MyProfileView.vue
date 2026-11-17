@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   academyOptions,
@@ -53,13 +54,10 @@ const {
       </label>
       <label class="field field-wide" for="profile-dob"
         ><span class="field-label">Data de nascimento</span>
-        <input
+        <BirthDatePicker
           id="profile-dob"
           v-model="editingProfile.dateOfBirth"
-          type="date"
-          autocomplete="bday"
-          min="1900-01-01"
-          :max="new Date().toISOString().slice(0, 10)"
+          name="profileBirthDate"
           :required="editingProfileType === 'trainer'"
         />
       </label>

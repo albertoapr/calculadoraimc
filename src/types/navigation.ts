@@ -10,6 +10,5 @@ export type AppViewMode =
   | 'public-trainers'
   | 'select-trainers'
   | 'professional-registration'
-  | 'admin-trainer'
   | 'admin-trainers'
   | 'admin-academies'

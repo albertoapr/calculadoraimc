@@ -9,7 +9,6 @@ const {
   customerSignedInName,
   customerIsAdmin,
   openAdminTrainers,
-  openAdminTrainer,
   openAdminAcademies,
   trainerSignedInName,
   trainerSignedInId,
@@ -117,8 +116,7 @@ onBeforeUnmount(() => {
             </button>
             <button type="button" @click="openMyProfile()">Meu cadastro</button>
             <template v-if="customerIsAdmin && !trainerSignedInId">
-              <button type="button" @click="openAdminTrainer()">Cadastrar Personal</button>
-              <button type="button" @click="openAdminTrainers()">Editar profissionais</button>
+              <button type="button" @click="openAdminTrainers()">Gerenciar profissionais</button>
               <button type="button" @click="openAdminAcademies()">Cadastro de academias</button>
             </template>
             <button type="button" @click="logout()">Sair</button>
