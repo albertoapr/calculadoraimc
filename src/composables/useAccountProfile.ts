@@ -49,7 +49,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
 
   function applyProfileForEditing(profile: AccountProfile) {
     editingProfile.name = profile.name ?? ''
-    editingProfile.sex = 'sex' in profile ? (profile.sex ?? '') : ''
+    const profileSex = 'sex' in profile ? profile.sex : undefined
+    editingProfile.sex = profileSex === 'masculino' || profileSex === 'feminino' ? profileSex : ''
     editingProfile.heightCm = 'heightCm' in profile ? profile.heightCm : undefined
     editingProfile.whatsapp = profile.whatsapp ?? ''
     editingProfile.email = profile.email ?? ''
