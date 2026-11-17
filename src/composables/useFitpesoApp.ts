@@ -15,7 +15,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { updatePageSeo } from '../services/seo'
 import ConsultarProfissionaisView from '../views/profissionais/ConsultarProfissionaisView.vue'
 import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissionaisView.vue'
-import { usePublicNavigation } from './usePublicNavigation'
+import { useApplicationNavigation } from './useApplicationNavigation'
+import { safeReturnPath, type AppScreen } from '../router/screens'
 import { useAssessment } from './useAssessment'
 import { usePublicTrainerProfile } from './usePublicTrainerProfile'
 import { useHome } from './useHome'
@@ -110,8 +111,7 @@ export function useFitpesoApp() {
 
   const trainingDraft = useTrainingDraft()
   const { form } = trainingDraft
-  const { trainingStartMinutes, trainingEndMinutes } = storeToRefs(trainingDraft)
-  const selectedTrainerIds = ref<string[]>([])
+  const { trainingStartMinutes, trainingEndMinutes, selectedTrainerIds } = storeToRefs(trainingDraft)
 
   const trainerSelectionStore = useTrainerSelection()
   const { selectedTrainerIds: homeSelectedTrainerIds } = storeToRefs(trainerSelectionStore)
@@ -417,7 +417,11 @@ export function useFitpesoApp() {
     openCustomerLogin: (fromRequest, method) => openCustomerLogin(fromRequest, method),
     onContactReset: () => {
       googleProfileStatus.value = ''
+      trainingDraft.clearDraft()
     },
+    otherGymName: storeToRefs(trainingDraft).otherGymName,
+    onDraftStarted: () => { trainingDraft.hasDraft = true },
+    onDraftSubmitted: () => trainingDraft.clearDraft(),
   })
   const contactAge = computed(() => {
     if (!showRequestForm.value || form.age === '') return undefined
@@ -447,7 +451,11 @@ export function useFitpesoApp() {
     form,
     contactAge,
     status,
-    resetContactDetails: clearContactDetails,
+    resetContactDetails: () => {
+      showRequestForm.value = false
+      form.shareContactConsent = false
+      googleProfileStatus.value = ''
+    },
     openAssessment: () => {
       viewMode.value = 'assessment'
     },
@@ -627,11 +635,6 @@ export function useFitpesoApp() {
     { immediate: true },
   )
 
-  window.addEventListener('hashchange', () => {
-    showTrainerSignup.value = window.location.hash === '#cadastro-personal'
-    showCustomerSignup.value = window.location.hash === '#cadastro-cliente'
-  })
-
   function logout() {
     clearPendingWhatsAppLogin()
     sessionGeneration += 1 // Invalida respostas de restauração de sessão ainda pendentes.
@@ -722,8 +725,11 @@ export function useFitpesoApp() {
   }
 
   function goHome() {
-    const leavingPublicDirectory = router.currentRoute.value.path === '/profissionais'
-    const leavingPersonalProfile = Boolean(trainerIdFromPath.value || trainerSlugFromPath.value)
+    const returnPath = safeReturnPath(router.currentRoute.value.query.redirect)
+    if (returnPath && (customerSignedInName.value || trainerSignedInId.value)) {
+      void router.replace(returnPath)
+      return
+    }
     clearPendingWhatsAppLogin()
     showTrainerSignup.value = false
     showCustomerSignup.value = false
@@ -745,10 +751,7 @@ export function useFitpesoApp() {
     stopCustomerVerification()
     stopTrainerRegistration()
     showCustomerLoginDialog.value = false
-    // The public-navigation watcher owns the /profissionais -> / transition.
-    // Personalized pages must return to the main URL; other screens only clear the hash.
-    if (leavingPersonalProfile) void router.replace('/')
-    else if (!leavingPublicDirectory) void router.replace(router.currentRoute.value.path)
+    void router.push('/')
     void nextTick(() => window.scrollTo(0, 0))
   }
 
@@ -767,7 +770,6 @@ export function useFitpesoApp() {
         customerLoginStatus.value =
           'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
       }
-      void router.replace(window.location.pathname)
       void nextTick(() => window.scrollTo(0, 0))
       return
     }
@@ -793,7 +795,16 @@ export function useFitpesoApp() {
   }
 
   async function returnToRequestFormAfterLogin() {
-    if (!requestLoginReturn.value) return
+    const returnPath = safeReturnPath(router.currentRoute.value.query.redirect)
+    if (returnPath && !returnPath.startsWith('/solicitar-treinamento')) {
+      requestLoginReturn.value = false
+      await router.replace(returnPath)
+      return
+    }
+    if (!requestLoginReturn.value) {
+      goHome()
+      return
+    }
     requestLoginReturn.value = false
     viewMode.value = 'contact'
     showRequestForm.value = true
@@ -820,7 +831,7 @@ export function useFitpesoApp() {
     }
   }
 
-  const { restoreSessions } = useSessionBootstrap({
+  const { restoreSessions, sessionRestoring } = useSessionBootstrap({
     getGeneration: () => sessionGeneration,
     customerSignedInName,
     trainerSignedInId,
@@ -870,7 +881,7 @@ export function useFitpesoApp() {
     signupContact.value = loginIdentifier.value.trim()
     showCustomerLogin.value = false
     showCustomerSignup.value = true
-    void router.replace(`${window.location.pathname}#cadastro-cliente`)
+
   }
 
   function closeHamburgerOnOutsideClick(event: PointerEvent) {
@@ -888,26 +899,55 @@ export function useFitpesoApp() {
       menu.open = false
   }
 
-  usePublicNavigation(
-    viewMode,
-    () => {
+  async function enterRoute(screen: AppScreen) {
+    if (screen === 'contact') {
+      if (!trainingDraft.hasDraft) await openRequestForm()
+      else {
+        showRequestForm.value = true
+        requestStep.value = 5
+        publicTrainerCity.value = form.city
+        if (form.city) void loadPublicTrainers()
+      }
+    } else if (screen === 'select-trainers') {
+      if (!trainingDraft.hasDraft) {
+        await openRequestForm()
+        await router.replace('/solicitar-treinamento')
+      } else {
+        await selectTrainersForDraft()
+      }
+    } else if (screen === 'public-trainers') {
       selectingTrainersForDraft.value = false
-      viewMode.value = 'public-trainers'
       publicTrainerCity.value = homeCity.value
       if (publicTrainerCity.value) void loadPublicTrainers()
-    },
-    () => {
-      viewMode.value = 'home'
-      selectingTrainersForDraft.value = false
-    },
-  )
+    } else if (screen === 'customer-requests') {
+      await openCustomerRequests()
+    } else if (screen === 'trainer-requests') {
+      await openTrainerReceivedRequests()
+    } else if (screen === 'my-profile') {
+      await openMyProfile()
+    } else if (screen === 'admin-trainers') {
+      await openAdminTrainers()
+    } else if (screen === 'admin-trainer') {
+      openAdminTrainer()
+    }
+  }
+
+  const { navigationPending } = useApplicationNavigation({
+    viewMode, showCustomerLogin, showCustomerSignup, showTrainerSignup,
+    showRequestForm, requestLoginReturn, loginAsTrainer, sessionRestoring,
+    customerSignedInName, trainerSignedInId, customerIsAdmin,
+    onEnter: enterRoute,
+  })
+  function navigateTo(path: string) {
+    const redirect = safeReturnPath(router.currentRoute.value.query.redirect)
+    const authentication = path === '/entrar' || path.startsWith('/cadastro/')
+    void router.push({ path, query: authentication && redirect ? { redirect } : undefined })
+  }
 
   watch(
-    viewMode,
-    (mode) =>
-      updatePageSeo(
-        mode === 'home' ? 'home' : mode === 'public-trainers' ? 'directory' : 'private',
-      ),
+    () => router.currentRoute.value.path,
+    (path) => updatePageSeo(path === '/' || path.startsWith('/personal/') || path.startsWith('/p/')
+      ? 'home' : path === '/profissionais' ? 'directory' : 'private'),
     { immediate: true },
   )
 
@@ -925,16 +965,21 @@ export function useFitpesoApp() {
     void finishEmailLoginFromLink()
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
     window.scrollTo(0, 0)
-    if (trainerRequestToken)
-      void router.replace(`${window.location.pathname}${window.location.hash}`)
+    if (trainerRequestToken) {
+      const query = { ...router.currentRoute.value.query }
+      delete query.token
+      void router.replace({ path: '/proposta', query })
+    }
     void loadTrainerRequest()
     if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
-    restoreSessions()
+    void restoreSessions()
     startAuthentication()
   })
 
   return {
     setGoogleButtonContainer,
+    navigationPending,
+    navigateTo,
     ConsultarProfissionaisView,
     SelecionarProfissionaisView,
     isRootHome,

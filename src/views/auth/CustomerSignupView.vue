@@ -3,6 +3,7 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
+  navigateTo,
   customerForm,
   signupContact,
   signupStep,
@@ -138,7 +139,8 @@ const {
     </p>
     <a
       v-if="!customerVerificationLink"
-      href="#cadastro-personal"
+      href="/cadastro/personal"
+      @click.prevent="navigateTo('/cadastro/personal')"
       class="secondary-button field-wide customer-signup-trainer-link"
     >
       Cadastrar-me como personal

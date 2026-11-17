@@ -29,6 +29,7 @@ import AssessmentProgress from './views/assessment/AssessmentProgress.vue'
 const context = useFitpesoApp()
 provide(fitpesoKey, context)
 const {
+  navigationPending,
   ConsultarProfissionaisView,
   SelecionarProfissionaisView,
   isRootHome,
@@ -68,7 +69,10 @@ const {
 
 <template>
   <main class="page-shell">
-    <TrainerSignupView v-if="showTrainerSignup" />
+    <section v-if="navigationPending" class="calculator" role="status" aria-live="polite">
+      Carregando sua sessão…
+    </section>
+    <TrainerSignupView v-else-if="showTrainerSignup" />
 
     <LoginView v-else-if="showCustomerLogin" />
 

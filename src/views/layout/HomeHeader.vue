@@ -66,10 +66,10 @@ onBeforeUnmount(() => {
         class="customer-account-links header-auth-links header-inline-links"
         aria-label="Acesso de visitantes"
       >
-        <a href="#entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
+        <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
         <span class="header-auth-divider" aria-hidden="true">|</span>
         <a
-          href="#cadastro-cliente"
+          href="/cadastro/cliente"
           class="header-signup-link"
           @click.prevent="openCustomerSignupFromLogin()"
           >Cadastre-se</a
