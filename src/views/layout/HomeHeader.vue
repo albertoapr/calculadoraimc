@@ -91,6 +91,7 @@ onBeforeUnmount(() => {
             (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
           }}
         </span>
+        <span v-if="trainerSignedInId" class="account-role-badge">Personal</span>
         <div ref="menuContainer" class="signed-in-menu">
           <button
             type="button"
@@ -139,6 +140,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.account-role-badge { font-size: 11px; font-weight: 700; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); white-space: nowrap; }
 .account-avatar {
   width: 34px;
   height: 34px;
