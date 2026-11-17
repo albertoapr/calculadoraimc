@@ -552,6 +552,10 @@ export function useFitpesoApp() {
 
   async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (googleProfileTarget.value === 'client') {
+      if (loginAsTrainer.value) {
+        trainerLoginError.value = 'O acesso Google ainda não está disponível para personais. Entre por WhatsApp ou e-mail.'
+        return
+      }
       customerLoginStatus.value = 'Validando sua conta e buscando seu cadastro…'
       googleProfileStatus.value = ''
       try {
