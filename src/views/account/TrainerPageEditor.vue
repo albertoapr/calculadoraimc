@@ -105,7 +105,7 @@ async function handleBannerFile(event: Event) {
     <label v-for="section in fields" :key="section.key" class="field field-wide">
       <span class="field-label">{{ section.title }}</span>
       <textarea v-model="editingProfile[section.key]" :placeholder="section.placeholder"
-        maxlength="2000" rows="4" />
+        maxlength="1500" rows="4" />
     </label>
     <small>Para publicar os textos acima, clique em “Salvar alterações” no fim do cadastro.</small>
   </fieldset>
