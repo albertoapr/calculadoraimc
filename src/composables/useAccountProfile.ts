@@ -31,6 +31,8 @@ type AccountProfileOptions = {
 export function useAccountProfile(options: AccountProfileOptions) {
   const editingProfile = reactive<EditableProfile>({
     name: '',
+    sex: '',
+    heightCm: undefined,
     whatsapp: '',
     email: '',
     dateOfBirth: '',
@@ -47,6 +49,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
 
   function applyProfileForEditing(profile: AccountProfile) {
     editingProfile.name = profile.name ?? ''
+    editingProfile.sex = 'sex' in profile ? (profile.sex ?? '') : ''
+    editingProfile.heightCm = 'heightCm' in profile ? profile.heightCm : undefined
     editingProfile.whatsapp = profile.whatsapp ?? ''
     editingProfile.email = profile.email ?? ''
     editingProfile.dateOfBirth = profile.dateOfBirth ?? ''
@@ -96,6 +100,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
       return
     }
     const type = editingProfileType.value
+    if (type === 'customer' && !editingProfile.sex) { editingProfileStatus.value = 'Selecione o sexo.'; return }
+    if (type === 'customer' && editingProfile.heightCm !== undefined && (!Number.isFinite(editingProfile.heightCm) || editingProfile.heightCm < 80 || editingProfile.heightCm > 250)) { editingProfileStatus.value = 'Informe uma altura válida entre 80 e 250 cm.'; return }
     const trainer = type === 'trainer'
     const cref = editingProfile.cref.trim().toUpperCase()
     const instagram = editingProfile.instagram.trim()
@@ -118,7 +124,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
         token,
         trainer
           ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias }
-          : { name, ...(birth ? { dateOfBirth: birth } : {}) },
+          : { name, sex: editingProfile.sex as 'masculino' | 'feminino', ...(editingProfile.heightCm !== undefined ? { heightCm: editingProfile.heightCm } : {}), ...(birth ? { dateOfBirth: birth } : {}) },
       )
       if (generation !== currentGeneration || !options.isViewOpen()) return
       applyProfileForEditing(profile)
