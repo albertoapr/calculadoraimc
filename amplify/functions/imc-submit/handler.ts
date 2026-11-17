@@ -803,6 +803,90 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   }
 }
 
+// Uploads are private S3 objects. The public image endpoint verifies that the
+// professional is active before returning the binary image.
+async function uploadTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await getTrainerSession(event)
+  if (auth.error) return auth.error
+  const bucket = process.env.TRAINER_BANNERS_BUCKET
+  if (!bucket) return response(503, { error: 'Armazenamento de imagens indisponível.' })
+  const raw = event.isBase64Encoded && event.body
+    ? Buffer.from(event.body, 'base64').toString('utf8')
+    : event.body ?? ''
+  if (Buffer.byteLength(raw, 'utf8') > 1_600_000) return response(413, { error: 'Imagem muito grande.' })
+  let body: { imageBase64?: unknown }
+  try { body = JSON.parse(raw) as { imageBase64?: unknown } }
+  catch { return response(400, { error: 'Imagem inválida.' }) }
+  if (typeof body.imageBase64 !== 'string' || body.imageBase64.length > 1_500_000 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(body.imageBase64)) {
+    return response(400, { error: 'Informe uma imagem JPEG válida.' })
+  }
+  const bytes = Buffer.from(body.imageBase64, 'base64')
+  if (bytes.length < 100 || bytes.length > 1_000_000 ||
+      bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+    return response(400, { error: 'A foto precisa ser JPEG e ter até 1 MB.' })
+  }
+  const trainerId = auth.profile!.trainerId
+  try {
+    await bannerStorage.send(new PutObjectCommand({
+      Bucket: bucket, Key: 'trainers/' + trainerId + '/banner.jpg',
+      Body: bytes, ContentType: 'image/jpeg', CacheControl: 'public, max-age=60',
+    }))
+    const lookup = await dynamodb.send(new QueryCommand({
+      TableName: process.env.TRAINERS_TABLE!,
+      IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: trainerId } },
+    }))
+    const cities = [...new Set((lookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
+    const updatedAt = new Date().toISOString()
+    if (!cities.length) return response(409, { error: 'Cadastro profissional não encontrado.' })
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+      Update: {
+        TableName: process.env.TRAINERS_TABLE!,
+        Key: { city: { S: city }, trainerId: { S: trainerId } },
+        UpdateExpression: 'SET bannerUpdatedAt = :updated',
+        ConditionExpression: '#active = :active AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#active': 'active' },
+        ExpressionAttributeValues: {
+          ':updated': { S: updatedAt }, ':active': { BOOL: true },
+          ':phone': { S: auth.profile!.whatsapp },
+        },
+      },
+    })) }))
+    return response(200, { uploaded: true, bannerUpdatedAt: updatedAt })
+  } catch (error) {
+    console.error('[imc-submit] Banner upload failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível enviar a imagem.' })
+  }
+}
+
+async function getTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const id = event.pathParameters?.trainerId ?? ''
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return response(404, { error: 'Imagem não encontrada.' })
+  const bucket = process.env.TRAINER_BANNERS_BUCKET
+  if (!bucket) return response(503, { error: 'Imagem indisponível.' })
+  try {
+    const trainer = await getPublicTrainerById(id)
+    if (!trainer?.bannerUpdatedAt) return response(404, { error: 'Imagem não encontrada.' })
+    const image = await bannerStorage.send(new GetObjectCommand({
+      Bucket: bucket, Key: 'trainers/' + id + '/banner.jpg',
+    }))
+    if (!image.Body) return response(404, { error: 'Imagem não encontrada.' })
+    const buffer = Buffer.from(await image.Body.transformToByteArray())
+    if (buffer.byteLength > 1_000_000) return response(503, { error: 'Imagem fora dos limites.' })
+    return {
+      statusCode: 200, isBase64Encoded: true,
+      headers: { ...corsHeaders, 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=60' },
+      body: buffer.toString('base64'),
+    }
+  } catch (error) {
+    console.error('[imc-submit] Banner retrieval failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(404, { error: 'Imagem não encontrada.' })
+  }
+}
+
 async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await getTrainerSession(event)
   if (auth.error) return auth.error
@@ -2504,6 +2588,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
