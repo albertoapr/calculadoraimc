@@ -36,7 +36,9 @@ async function fixture(path: string, restoring = false) {
     customerSignedInName: ref(''),
     trainerSignedInId: ref(''),
     customerIsAdmin: ref(false),
-    onEnter: (screen: AppScreen) => { entered.push(screen) },
+    onEnter: (screen: AppScreen) => {
+      entered.push(screen)
+    },
   }
   const navigation = bindApplicationNavigation(router, state)
   await settle()
@@ -63,7 +65,9 @@ test('direct public routes, state transitions and browser history stay synchroni
     await settle()
     assert.equal(f.state.viewMode.value, 'contact')
     assert.equal(f.router.currentRoute.value.path, '/solicitar-treinamento')
-  } finally { f.stop() }
+  } finally {
+    f.stop()
+  }
 })
 
 test('private deep links wait for restored identity before loading the destination', async () => {
@@ -79,7 +83,9 @@ test('private deep links wait for restored identity before loading the destinati
     assert.equal(f.state.viewMode.value, 'my-profile')
     assert.equal(f.navigationPending.value, false)
     assert.deepEqual(f.entered, ['my-profile'])
-  } finally { f.stop() }
+  } finally {
+    f.stop()
+  }
 })
 
 test('visitors keep their destination when changing between login and signup', async () => {
@@ -98,7 +104,9 @@ test('visitors keep their destination when changing between login and signup', a
     await settle()
     assert.equal(f.state.viewMode.value, 'customer-requests')
     assert.equal(f.state.showCustomerSignup.value, false)
-  } finally { f.stop() }
+  } finally {
+    f.stop()
+  }
 })
 
 test('account roles protect trainer and admin routes', async () => {
@@ -119,7 +127,9 @@ test('account roles protect trainer and admin routes', async () => {
     await f.router.push('/solicitacoes-recebidas')
     await settle()
     assert.equal(f.state.viewMode.value, 'trainer-requests')
-  } finally { f.stop() }
+  } finally {
+    f.stop()
+  }
 })
 
 test('legacy hashes become canonical routes and redirects stay internal', async () => {
@@ -137,5 +147,7 @@ test('legacy hashes become canonical routes and redirects stay internal', async 
     await settle()
     assert.equal(f.router.currentRoute.value.path, '/personal/vinicius')
     assert.equal(f.state.viewMode.value, 'home')
-  } finally { f.stop() }
+  } finally {
+    f.stop()
+  }
 })

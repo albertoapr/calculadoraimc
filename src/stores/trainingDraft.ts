@@ -39,9 +39,19 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
   const hasDraft = ref(false)
   const storageKey = 'fitpeso:training-draft:v1'
   const preferenceKeys = [
-    'sessionsPerWeek', 'objective', 'age', 'clientGender', 'city',
-    'trainerGenderPreference', 'desiredDuration', 'singleLesson', 'withCompanion',
-    'attendsGym', 'gymName', 'trainingDays', 'trainingShifts',
+    'sessionsPerWeek',
+    'objective',
+    'age',
+    'clientGender',
+    'city',
+    'trainerGenderPreference',
+    'desiredDuration',
+    'singleLesson',
+    'withCompanion',
+    'attendsGym',
+    'gymName',
+    'trainingDays',
+    'trainingShifts',
   ] as const
 
   try {
@@ -51,19 +61,30 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
         const value = saved.form[key]
         const current = form[key]
         const valid = Array.isArray(current)
-          ? Array.isArray(value) && value.length <= 20 && value.every((item: unknown) => typeof item === 'string' && item.length <= 100)
+          ? Array.isArray(value) &&
+            value.length <= 20 &&
+            value.every((item: unknown) => typeof item === 'string' && item.length <= 100)
           : typeof value === typeof current && (typeof value !== 'string' || value.length <= 200)
         if (valid) Object.assign(form, { [key]: value })
       }
-      if (Number.isInteger(saved.start) && Number.isInteger(saved.end) &&
-          saved.start >= 0 && saved.end <= 1440 && saved.start < saved.end) {
+      if (
+        Number.isInteger(saved.start) &&
+        Number.isInteger(saved.end) &&
+        saved.start >= 0 &&
+        saved.end <= 1440 &&
+        saved.start < saved.end
+      ) {
         trainingStartMinutes.value = saved.start
         trainingEndMinutes.value = saved.end
       }
       if (Array.isArray(saved.selectedTrainerIds)) {
-        selectedTrainerIds.value = [...new Set<string>(saved.selectedTrainerIds.filter(
-          (id: unknown) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id),
-        ))].slice(0, 20)
+        selectedTrainerIds.value = [
+          ...new Set<string>(
+            saved.selectedTrainerIds.filter(
+              (id: unknown) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id),
+            ),
+          ),
+        ].slice(0, 20)
       }
       if (typeof saved.otherGymName === 'string' && saved.otherGymName.length <= 200)
         otherGymName.value = saved.otherGymName
@@ -77,24 +98,43 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
     hasDraft.value = false
     selectedTrainerIds.value = []
     otherGymName.value = ''
-    try { sessionStorage.removeItem(storageKey) } catch { /* private browsing */ }
+    try {
+      sessionStorage.removeItem(storageKey)
+    } catch {
+      /* private browsing */
+    }
   }
 
-  watch([form, trainingStartMinutes, trainingEndMinutes, selectedTrainerIds, otherGymName, hasDraft], () => {
-    try {
-      if (!hasDraft.value) return
-      sessionStorage.setItem(storageKey, JSON.stringify({
-        version: 1,
-        form: Object.fromEntries(preferenceKeys.map((key) => [key, form[key]])),
-        start: trainingStartMinutes.value,
-        end: trainingEndMinutes.value,
-        selectedTrainerIds: selectedTrainerIds.value,
-        otherGymName: otherGymName.value,
-      }))
-    } catch {
-      /* Draft remains available in memory. */
-    }
-  }, { deep: true })
+  watch(
+    [form, trainingStartMinutes, trainingEndMinutes, selectedTrainerIds, otherGymName, hasDraft],
+    () => {
+      try {
+        if (!hasDraft.value) return
+        sessionStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            version: 1,
+            form: Object.fromEntries(preferenceKeys.map((key) => [key, form[key]])),
+            start: trainingStartMinutes.value,
+            end: trainingEndMinutes.value,
+            selectedTrainerIds: selectedTrainerIds.value,
+            otherGymName: otherGymName.value,
+          }),
+        )
+      } catch {
+        /* Draft remains available in memory. */
+      }
+    },
+    { deep: true },
+  )
 
-  return { form, trainingStartMinutes, trainingEndMinutes, selectedTrainerIds, otherGymName, hasDraft, clearDraft }
+  return {
+    form,
+    trainingStartMinutes,
+    trainingEndMinutes,
+    selectedTrainerIds,
+    otherGymName,
+    hasDraft,
+    clearDraft,
+  }
 })

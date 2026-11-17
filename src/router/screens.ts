@@ -57,7 +57,10 @@ export function pathForScreen(screen: AppScreen, currentPath = '/') {
 export function safeReturnPath(value: unknown) {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return ''
   const path = value.split(/[?#]/)[0]
-  return screenRoutes.some((route) => route.path === path && !['login', 'customer-signup', 'trainer-signup'].includes(route.screen))
+  return screenRoutes.some(
+    (route) =>
+      route.path === path && !['login', 'customer-signup', 'trainer-signup'].includes(route.screen),
+  )
     ? value
     : ''
 }

@@ -34,9 +34,14 @@ test('extracted screens preserve login, request age between steps and theme chan
     const url = String(input)
     requestCalls.push(url)
     if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
-      return Response.json({ authenticated: true, profile: {
-        name: 'Cliente Teste', whatsapp: '+5521999999999', email: 'cliente@example.test',
-      } })
+      return Response.json({
+        authenticated: true,
+        profile: {
+          name: 'Cliente Teste',
+          whatsapp: '+5521999999999',
+          email: 'cliente@example.test',
+        },
+      })
     }
     return new Response(
       JSON.stringify(
@@ -148,7 +153,9 @@ test('extracted screens preserve login, request age between steps and theme chan
       '+5521999999999',
     )
     ;(document.querySelector('[aria-label="Voltar"]') as HTMLElement).click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
+    assert.equal(app.testRouter.currentRoute.value.path, '/')
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
     await click(/^Treinar com Personal$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
@@ -233,7 +240,10 @@ test('extracted screens preserve login, request age between steps and theme chan
     await new Promise((resolve) => setTimeout(resolve, 0))
     await nextTick()
     assert.equal(app.testRouter.currentRoute.value.path, '/meu-cadastro')
-    assert.equal((document.querySelector('#profile-name') as HTMLInputElement).value, 'Cliente Teste')
+    assert.equal(
+      (document.querySelector('#profile-name') as HTMLInputElement).value,
+      'Cliente Teste',
+    )
   } finally {
     app.unmount()
     dom.window.close()

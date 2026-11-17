@@ -2,7 +2,11 @@ import { computed, nextTick, onScopeDispose, ref, watch, type Ref } from 'vue'
 import { useRouter, type Router, type RouteLocationNormalizedLoaded } from 'vue-router'
 import type { AppViewMode } from '../types/navigation'
 import {
-  pathForLegacyHash, pathForScreen, screenForPath, screenRoutes, safeReturnPath,
+  pathForLegacyHash,
+  pathForScreen,
+  screenForPath,
+  screenRoutes,
+  safeReturnPath,
   type AppScreen,
 } from '../router/screens'
 
@@ -27,17 +31,27 @@ export function bindApplicationNavigation(router: Router, options: NavigationOpt
   let generation = 0
   let disposed = false
   const currentScreen = computed<AppScreen>(() =>
-    options.showTrainerSignup.value ? 'trainer-signup'
-      : options.showCustomerSignup.value ? 'customer-signup'
-      : options.showCustomerLogin.value ? 'login'
-      : options.viewMode.value,
+    options.showTrainerSignup.value
+      ? 'trainer-signup'
+      : options.showCustomerSignup.value
+        ? 'customer-signup'
+        : options.showCustomerLogin.value
+          ? 'login'
+          : options.viewMode.value,
   )
-  const ready = () => new Promise<void>((resolve) => {
-    if (!options.sessionRestoring.value) { resolve(); return }
-    const stop = watch(options.sessionRestoring, (restoring) => {
-      if (!restoring) { stop(); resolve() }
+  const ready = () =>
+    new Promise<void>((resolve) => {
+      if (!options.sessionRestoring.value) {
+        resolve()
+        return
+      }
+      const stop = watch(options.sessionRestoring, (restoring) => {
+        if (!restoring) {
+          stop()
+          resolve()
+        }
+      })
     })
-  })
 
   async function applyRoute(to: RouteLocationNormalizedLoaded, initial = false) {
     const id = ++generation
@@ -54,11 +68,12 @@ export function bindApplicationNavigation(router: Router, options: NavigationOpt
     const customer = Boolean(options.customerSignedInName.value)
     const trainer = Boolean(options.trainerSignedInId.value)
     const authenticated = customer || trainer
-    const permitted = access === 'public'
-      || (access === 'customer' && customer)
-      || (access === 'trainer' && trainer)
-      || (access === 'account' && authenticated)
-      || (access === 'admin' && customer && options.customerIsAdmin.value)
+    const permitted =
+      access === 'public' ||
+      (access === 'customer' && customer) ||
+      (access === 'trainer' && trainer) ||
+      (access === 'account' && authenticated) ||
+      (access === 'admin' && customer && options.customerIsAdmin.value)
     if (!permitted) {
       if (authenticated) {
         await router.replace('/')
@@ -91,17 +106,22 @@ export function bindApplicationNavigation(router: Router, options: NavigationOpt
   const removeHook = router.afterEach((to, _from, failure) => {
     if (!failure) void applyRoute(to)
   })
-  const stopStateWatch = watch(currentScreen, (screen) => {
-    if (disposed || applyingRoute || navigationPending.value) return
-    const current = router.currentRoute.value
-    const path = pathForScreen(screen, current.path)
-    if (path === current.path) return
-    const redirect = safeReturnPath(current.query.redirect)
-      || (options.requestLoginReturn.value ? '/solicitar-treinamento' : '')
-    const authentication = ['login', 'customer-signup', 'trainer-signup'].includes(screen)
-    const query = authentication && redirect ? { redirect } : undefined
-    void router.push({ path, query })
-  }, { flush: 'post' })
+  const stopStateWatch = watch(
+    currentScreen,
+    (screen) => {
+      if (disposed || applyingRoute || navigationPending.value) return
+      const current = router.currentRoute.value
+      const path = pathForScreen(screen, current.path)
+      if (path === current.path) return
+      const redirect =
+        safeReturnPath(current.query.redirect) ||
+        (options.requestLoginReturn.value ? '/solicitar-treinamento' : '')
+      const authentication = ['login', 'customer-signup', 'trainer-signup'].includes(screen)
+      const query = authentication && redirect ? { redirect } : undefined
+      void router.push({ path, query })
+    },
+    { flush: 'post' },
+  )
 
   void applyRoute(router.currentRoute.value, true)
   function stop() {

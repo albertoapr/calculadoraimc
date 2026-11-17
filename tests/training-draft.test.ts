@@ -22,10 +22,16 @@ test('training draft restores preferences and selection without storing contact 
     const draft = first.run(() => useTrainingDraft())!
     draft.hasDraft = true
     Object.assign(draft.form, {
-      city: 'Mesquita', gymName: 'Academia Teste', age: '45',
-      objective: 'Condicionamento', trainingDays: ['Terça-feira'],
-      name: 'Nome privado', phone: '21999999999', email: 'private@example.test',
-      shareContactConsent: true, singleLesson: true,
+      city: 'Mesquita',
+      gymName: 'Academia Teste',
+      age: '45',
+      objective: 'Condicionamento',
+      trainingDays: ['Terça-feira'],
+      name: 'Nome privado',
+      phone: '21999999999',
+      email: 'private@example.test',
+      shareContactConsent: true,
+      singleLesson: true,
     })
     draft.selectedTrainerIds = ['personal-1']
     draft.trainingStartMinutes = 360

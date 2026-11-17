@@ -20,8 +20,9 @@ export const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const canonical = screenRoutes.find((route) =>
-    route.path === (to.path.replace(/\/+$/, '').toLowerCase() || '/'))
+  const canonical = screenRoutes.find(
+    (route) => route.path === (to.path.replace(/\/+$/, '').toLowerCase() || '/'),
+  )
   if (canonical && canonical.path !== to.path) {
     return { path: canonical.path, query: to.query, hash: to.hash, replace: true }
   }

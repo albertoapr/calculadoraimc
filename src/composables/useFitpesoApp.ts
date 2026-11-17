@@ -51,7 +51,16 @@ export function useFitpesoApp() {
 
   const { theme } = useTheme()
 
-  const trainerRequestToken = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
+  const trainerRequestToken = (() => {
+    const token = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
+    try {
+      if (token) sessionStorage.setItem('fitpeso:trainer-request-token:v1', token)
+      return token || (router.currentRoute.value.path === '/proposta'
+        ? sessionStorage.getItem('fitpeso:trainer-request-token:v1') ?? '' : '')
+    } catch {
+      return token
+    }
+  })()
   const {
     trainerRequest,
     trainerProposalPrice,
@@ -111,7 +120,8 @@ export function useFitpesoApp() {
 
   const trainingDraft = useTrainingDraft()
   const { form } = trainingDraft
-  const { trainingStartMinutes, trainingEndMinutes, selectedTrainerIds } = storeToRefs(trainingDraft)
+  const { trainingStartMinutes, trainingEndMinutes, selectedTrainerIds } =
+    storeToRefs(trainingDraft)
 
   const trainerSelectionStore = useTrainerSelection()
   const { selectedTrainerIds: homeSelectedTrainerIds } = storeToRefs(trainerSelectionStore)
@@ -420,7 +430,9 @@ export function useFitpesoApp() {
       trainingDraft.clearDraft()
     },
     otherGymName: storeToRefs(trainingDraft).otherGymName,
-    onDraftStarted: () => { trainingDraft.hasDraft = true },
+    onDraftStarted: () => {
+      trainingDraft.hasDraft = true
+    },
     onDraftSubmitted: () => trainingDraft.clearDraft(),
   })
   const contactAge = computed(() => {
@@ -881,7 +893,6 @@ export function useFitpesoApp() {
     signupContact.value = loginIdentifier.value.trim()
     showCustomerLogin.value = false
     showCustomerSignup.value = true
-
   }
 
   function closeHamburgerOnOutsideClick(event: PointerEvent) {
@@ -901,6 +912,11 @@ export function useFitpesoApp() {
 
   async function enterRoute(screen: AppScreen) {
     if (screen === 'contact') {
+      if (!trainingDraft.hasDraft && !homeCity.value) {
+        status.value = 'Escolha sua cidade na tela inicial para definir seu treinamento.'
+        await router.replace('/')
+        return
+      }
       if (!trainingDraft.hasDraft) await openRequestForm()
       else {
         showRequestForm.value = true
@@ -909,8 +925,7 @@ export function useFitpesoApp() {
         if (form.city) void loadPublicTrainers()
       }
     } else if (screen === 'select-trainers') {
-      if (!trainingDraft.hasDraft) {
-        await openRequestForm()
+      if (!trainingDraft.hasDraft || !homeController.matchSupportedRequestCity(form.city)) {
         await router.replace('/solicitar-treinamento')
       } else {
         await selectTrainersForDraft()
@@ -933,9 +948,17 @@ export function useFitpesoApp() {
   }
 
   const { navigationPending } = useApplicationNavigation({
-    viewMode, showCustomerLogin, showCustomerSignup, showTrainerSignup,
-    showRequestForm, requestLoginReturn, loginAsTrainer, sessionRestoring,
-    customerSignedInName, trainerSignedInId, customerIsAdmin,
+    viewMode,
+    showCustomerLogin,
+    showCustomerSignup,
+    showTrainerSignup,
+    showRequestForm,
+    requestLoginReturn,
+    loginAsTrainer,
+    sessionRestoring,
+    customerSignedInName,
+    trainerSignedInId,
+    customerIsAdmin,
     onEnter: enterRoute,
   })
   function navigateTo(path: string) {
@@ -946,8 +969,14 @@ export function useFitpesoApp() {
 
   watch(
     () => router.currentRoute.value.path,
-    (path) => updatePageSeo(path === '/' || path.startsWith('/personal/') || path.startsWith('/p/')
-      ? 'home' : path === '/profissionais' ? 'directory' : 'private'),
+    (path) =>
+      updatePageSeo(
+        path === '/' || path.startsWith('/personal/') || path.startsWith('/p/')
+          ? 'home'
+          : path === '/profissionais'
+            ? 'directory'
+            : 'private',
+      ),
     { immediate: true },
   )
 
