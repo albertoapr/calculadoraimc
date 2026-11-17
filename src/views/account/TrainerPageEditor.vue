@@ -5,6 +5,12 @@ import { uploadTrainerBanner } from '../../services/accountProfileService'
 import { getPublicTrainerBanner } from '../../services/profissionaisService'
 
 const { editingProfile } = useFitpesoContext()
+const fields = [
+  { key: 'aboutMe', title: 'Sobre mim', placeholder: 'Conte sua trajetória e seus objetivos como profissional' },
+  { key: 'education', title: 'Formação', placeholder: 'Graduação, especializações e certificações' },
+  { key: 'workingMethod', title: 'Forma de trabalho', placeholder: 'Explique como são os treinos e o acompanhamento' },
+  { key: 'pricing', title: 'Valores', placeholder: 'Explique como funcionam seus pacotes e propostas' },
+] as const
 const uploading = ref(false)
 const uploadError = ref('')
 const preview = ref('')
@@ -96,12 +102,7 @@ async function handleBannerFile(event: Event) {
       <p v-if="uploadError" class="status" role="alert">{{ uploadError }}</p>
     </div>
 
-    <label v-for="section in [
-      { key: 'aboutMe', title: 'Sobre mim', placeholder: 'Conte sua trajetória e seus objetivos como profissional' },
-      { key: 'education', title: 'Formação', placeholder: 'Graduação, especializações e certificações' },
-      { key: 'workingMethod', title: 'Forma de trabalho', placeholder: 'Explique como são os treinos e o acompanhamento' },
-      { key: 'pricing', title: 'Valores', placeholder: 'Explique como funcionam seus pacotes e propostas' },
-    ] as const" :key="section.key" class="field field-wide">
+    <label v-for="section in fields" :key="section.key" class="field field-wide">
       <span class="field-label">{{ section.title }}</span>
       <textarea v-model="editingProfile[section.key]" :placeholder="section.placeholder"
         maxlength="2000" rows="4" />
