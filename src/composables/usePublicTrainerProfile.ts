@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import type { Router } from 'vue-router'
-import { getRequestApiEndpoint } from '../services/api'
+import { getPublicTrainerProfile } from '../services/profissionaisService'
 
 function trainerIdFromPath(path: string) {
   const match = path.match(/^\/p\/([^/]+)\/?$/)
@@ -42,14 +42,10 @@ export function usePublicTrainerProfile(router: Router) {
     trainerProfileFailed.value = false
     if (!trainerId.value && !trainerSlug.value) return
     try {
-      const endpoint = await getRequestApiEndpoint()
-      const profilePath = trainerSlug.value
-        ? `/api/trainers/by-slug/${encodeURIComponent(trainerSlug.value)}`
-        : `/api/trainers/${encodeURIComponent(trainerId.value)}`
-      const response = await fetch(`${endpoint}${profilePath}`, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Trainer profile unavailable')
-      const body = (await response.json()) as { trainer?: { name?: unknown } }
-      const name = typeof body.trainer?.name === 'string' ? body.trainer.name.trim() : ''
+      const trainer = await getPublicTrainerProfile(
+        trainerSlug.value ? { slug: trainerSlug.value } : { trainerId: trainerId.value },
+      )
+      const name = typeof trainer.name === 'string' ? trainer.name.trim() : ''
       if (!name) throw new Error('Invalid trainer profile')
       if (currentLookup !== lookupId) return
       personalName.value = `${name.split(/\s+/)[0]} Personal Trainer`

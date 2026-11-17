@@ -127,7 +127,34 @@ function harness() {
     return sandbox.exports
   }
   const service = loadModule('src/services/authenticationService.ts', {
-    './api': { getRequestApiEndpoint: context.getRequestApiEndpoint },
+    './http/apiClient': {
+      requestApi: async (path, options = {}) => {
+        const { token, query, body, headers: customHeaders, ...requestOptions } = options
+        const parameters = new URLSearchParams()
+        for (const [name, value] of Object.entries(query ?? {}))
+          if (value !== undefined && value !== null) parameters.append(name, String(value))
+        const queryString = parameters.toString()
+        const headers = { ...(customHeaders ?? {}) }
+        if (token) headers.authorization = `Bearer ${token}`
+        if (body !== undefined) headers['content-type'] = 'application/json'
+        const response = await context.fetch(
+          `https://example.test${path}${queryString ? `?${queryString}` : ''}`,
+          {
+            cache: 'no-store',
+            ...requestOptions,
+            headers,
+            body: body === undefined ? undefined : JSON.stringify(body),
+          },
+        )
+        return {
+          ok: response.ok,
+          status: response.status ?? 200,
+          headers: { get: () => null },
+          body: await response.json(),
+        }
+      },
+      apiError: (response, fallback) => new Error(response.body?.error || fallback),
+    },
   })
   const validation = loadModule('src/utils/validation.ts', {})
   const { useAuthentication } = loadModule('src/composables/useAuthentication.ts', {

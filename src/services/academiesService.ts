@@ -1,4 +1,4 @@
-import { getRequestApiEndpoint } from './api'
+import { apiError, requestApi } from './http/apiClient'
 
 export type Academy = {
   academyId: string
@@ -18,51 +18,50 @@ export type AcademyWrite = Pick<
   'name' | 'city' | 'neighborhood' | 'address' | 'zipCode' | 'active'
 >
 
-async function academyRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const endpoint = await getRequestApiEndpoint()
-  const response = await fetch(`${endpoint}${path}`, { cache: 'no-store', ...options })
-  const body = (await response.json()) as T & { error?: string }
-  if (!response.ok) throw new Error(body.error || 'Não foi possível consultar as academias.')
-  return body
-}
-
-function authHeaders(token: string) {
-  return { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
-}
-
 export async function listAcademies(city?: string): Promise<Academy[]> {
-  const query = city ? `?city=${encodeURIComponent(city)}` : ''
-  const data = await academyRequest<{ academies: Academy[] }>(`/api/academies${query}`)
-  if (!Array.isArray(data.academies)) throw new Error('Resposta inválida ao listar academias.')
-  return data.academies
+  const response = await requestApi<{ academies?: Academy[]; error?: string }>('/api/academies', {
+    query: { city },
+  })
+  if (!response.ok) throw apiError(response, 'Não foi possível consultar as academias.')
+  if (!Array.isArray(response.body.academies))
+    throw new Error('Resposta inválida ao listar academias.')
+  return response.body.academies
 }
 
 export async function listAdminAcademies(token: string): Promise<Academy[]> {
-  const data = await academyRequest<{ academies: Academy[] }>('/api/admin/academies', {
-    headers: authHeaders(token),
-  })
-  if (!Array.isArray(data.academies)) throw new Error('Resposta inválida ao listar academias.')
-  return data.academies
+  const response = await requestApi<{ academies?: Academy[]; error?: string }>(
+    '/api/admin/academies',
+    { token },
+  )
+  if (!response.ok) throw apiError(response, 'Não foi possível consultar as academias.')
+  if (!Array.isArray(response.body.academies))
+    throw new Error('Resposta inválida ao listar academias.')
+  return response.body.academies
 }
 
 export async function createAdminAcademy(token: string, academy: AcademyWrite) {
-  return academyRequest<{ created: boolean; academyId: string }>('/api/admin/academies', {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(academy),
-  })
+  const response = await requestApi<{ created: boolean; academyId: string; error?: string }>(
+    '/api/admin/academies',
+    { method: 'POST', token, body: academy },
+  )
+  if (!response.ok) throw apiError(response, 'Não foi possível cadastrar a academia.')
+  return response.body
 }
 
 export async function updateAdminAcademy(token: string, academyId: string, academy: AcademyWrite) {
-  return academyRequest<{ updated: boolean }>(
+  const response = await requestApi<{ updated: boolean; error?: string }>(
     `/api/admin/academies/${encodeURIComponent(academyId)}`,
-    { method: 'PUT', headers: authHeaders(token), body: JSON.stringify(academy) },
+    { method: 'PUT', token, body: academy },
   )
+  if (!response.ok) throw apiError(response, 'Não foi possível salvar a academia.')
+  return response.body
 }
 
 export async function deactivateAdminAcademy(token: string, academyId: string) {
-  return academyRequest<{ deactivated: boolean }>(
+  const response = await requestApi<{ deactivated: boolean; error?: string }>(
     `/api/admin/academies/${encodeURIComponent(academyId)}`,
-    { method: 'DELETE', headers: authHeaders(token) },
+    { method: 'DELETE', token },
   )
+  if (!response.ok) throw apiError(response, 'Não foi possível desativar a academia.')
+  return response.body
 }

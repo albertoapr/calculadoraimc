@@ -25,7 +25,7 @@ import type { AppViewMode } from '../types/navigation'
 import { useSessionBootstrap } from './useSessionBootstrap'
 import { useTrainerSelection } from '../stores/trainerSelection'
 import { storeToRefs } from 'pinia'
-import { getRequestApiEndpoint } from '../services/api'
+import { listTrainerReceivedRequests } from '../services/trainerRequestsService'
 import { minutesToTime } from '../utils/time'
 import { trainingTimeRanges } from '../constants/training'
 import type {
@@ -870,19 +870,9 @@ export function useFitpesoApp() {
     try {
       const token = sessionStorage.getItem('fitpeso-trainer-session') ?? ''
       if (!token) throw new Error('Entre como personal para consultar suas solicitações.')
-      const endpoint = await getRequestApiEndpoint()
-      const response = await fetch(endpoint + '/api/trainers/received-requests', {
-        headers: { authorization: 'Bearer ' + token },
-        cache: 'no-store',
-      })
-      const body = (await response.json()) as {
-        requests?: TrainerReceivedRequest[]
-        error?: string
-      }
-      if (!response.ok || !Array.isArray(body.requests))
-        throw new Error(body.error || 'Não foi possível carregar as solicitações.')
-      trainerReceivedRequests.value = body.requests
-      trainerRequestsStatus.value = body.requests.length
+      const requests = await listTrainerReceivedRequests(token)
+      trainerReceivedRequests.value = requests
+      trainerRequestsStatus.value = requests.length
         ? ''
         : 'Nenhuma solicitação recebida no momento.'
     } catch (error) {
