@@ -7,6 +7,7 @@ const {
   isRootHome,
   goHome,
   customerSignedInName,
+  customerPhotoUrl,
   customerIsAdmin,
   openAdminTrainers,
   openAdminAcademies,
@@ -75,6 +76,15 @@ onBeforeUnmount(() => {
         >
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
+        <img
+          v-if="!trainerSignedInId && customerPhotoUrl"
+          :src="customerPhotoUrl"
+          class="account-avatar"
+          alt="Foto do perfil Google"
+          referrerpolicy="no-referrer"
+          width="34"
+          height="34"
+        />
         <span class="account-greeting">
           Olá,
           {{
@@ -129,6 +139,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.account-avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
 .signed-in-header-row {
   display: flex;
   align-items: center;
