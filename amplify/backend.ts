@@ -2,6 +2,7 @@ import { defineBackend } from '@aws-amplify/backend'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as iam from 'aws-cdk-lib/aws-iam'
+import * as s3 from 'aws-cdk-lib/aws-s3'
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib'
 import { imcSubmit } from './functions/imc-submit/resource'
 
@@ -13,6 +14,16 @@ const requestCodes = new dynamodb.Table(requestStack, 'ImcRequestCodes', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.DESTROY,
 })
+// Public trainer-page banners. Objects are private; the API serves only active profiles.
+const trainerBanners = new s3.Bucket(requestStack, 'FitpesoTrainerBanners', {
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  enforceSSL: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+  autoDeleteObjects: false,
+  lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+})
+trainerBanners.grantReadWrite(backend.imcSubmit.resources.lambda)
+backend.imcSubmit.addEnvironment('TRAINER_BANNERS_BUCKET', trainerBanners.bucketName)
 const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
   sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
