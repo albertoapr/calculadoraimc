@@ -44,7 +44,7 @@ declare global {
 /** Coordinates screen flows. Domain controllers can be extracted independently from this boundary. */
 export function useFitpesoApp() {
   const router = useRouter()
-  const { customerSignedInName, customerIsAdmin, trainerSignedInName, trainerSignedInId } =
+  const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId } =
     storeToRefs(useAccountSession())
   // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
   const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
@@ -502,7 +502,9 @@ export function useFitpesoApp() {
     email: string
     dateOfBirth?: string
     isAdmin?: boolean
+    googlePhotoUrl?: string
   }) {
+    customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     customerIsAdmin.value = profile.isAdmin === true
     form.name = profile.name
     form.phone = profile.whatsapp
@@ -662,6 +664,7 @@ export function useFitpesoApp() {
     }
 
     customerSignedInName.value = ''
+    customerPhotoUrl.value = ''
     customerIsAdmin.value = false
     trainerSignedInId.value = ''
     trainerSignedInName.value = ''
@@ -837,6 +840,7 @@ export function useFitpesoApp() {
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
+    customerPhotoUrl.value = ''
     try {
       sessionStorage.removeItem('fitpeso-customer-session')
       sessionStorage.removeItem('fitpeso-google-session')
@@ -1037,6 +1041,7 @@ export function useFitpesoApp() {
     showCustomerSignup,
     showCustomerLogin,
     customerSignedInName,
+    customerPhotoUrl,
     customerIsAdmin,
     form,
     result,
