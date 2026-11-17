@@ -16,7 +16,7 @@ export async function updateAccountProfile(
   type: AccountProfileType,
   token: string,
   payload:
-    | { name: string; dateOfBirth?: string }
+    | { name: string; dateOfBirth?: string; sex: 'masculino' | 'feminino'; heightCm?: number }
     | {
         name: string
         dateOfBirth: string
