@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { trainerDisplayName } from '../../utils/trainer'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
 const {
@@ -8,6 +9,9 @@ const {
   publicTrainerAcademies,
   selectedTrainerIds,
   selectedTrainerNames,
+  publicTrainers,
+  publicTrainersLoading,
+  publicTrainersError,
   customerSignedInName,
   trainingDayOptions,
   supportedRequestCities,
@@ -17,7 +21,6 @@ const {
   selectTrainingTimeRange,
   submittingRequest,
   otherGymName,
-  selectTrainersForDraft,
   confirmServiceRequest,
 } = useFitpesoContext()
 
@@ -32,6 +35,29 @@ type AccordionSection =
   | 'professionals'
 
 const expandedSection = ref<AccordionSection | null>(null)
+const trainerSearch = ref('')
+const MAX_TRAINERS = 20
+const visibleTrainers = computed(() => {
+  const query = trainerSearch.value.trim().toLocaleLowerCase('pt-BR')
+  const academy = form.gymName.trim().toLocaleLowerCase('pt-BR')
+  return publicTrainers.value.filter((trainer) => {
+    const academies = [...(trainer.academias ?? []), trainer.gymName ?? '', trainer.academy ?? '']
+    const matchesAcademy = !academy || academy === 'outros' ||
+      academies.some((name) => name.trim().toLocaleLowerCase('pt-BR') === academy)
+    return matchesAcademy && (!query || trainer.name.toLocaleLowerCase('pt-BR').includes(query))
+  })
+})
+function toggleTrainer(id: string) {
+  if (selectedTrainerIds.value.includes(id)) {
+    selectedTrainerIds.value = selectedTrainerIds.value.filter((value) => value !== id)
+  } else if (selectedTrainerIds.value.length < MAX_TRAINERS) {
+    selectedTrainerIds.value = [...selectedTrainerIds.value, id]
+  }
+}
+watch(() => [form.city, form.gymName], () => {
+  // Uma mudança de local invalida a seleção anterior, evitando envios para outra academia.
+  selectedTrainerIds.value = []
+})
 
 // Uma aula avulsa corresponde sempre a uma única aula, sem frequência semanal múltipla.
 watch(
@@ -469,7 +495,7 @@ const professionalGenderLabel = computed(() =>
           @click="toggleSection('professionals')"
         >
           <span class="request-accordion-icon" aria-hidden="true">🧑‍🏫</span>
-          <span class="request-accordion-title">Profissional</span>
+          <span class="request-accordion-title">Profissionais</span>
           <span class="request-accordion-preview">{{
             selectedTrainerIds.length ? selectedTrainerIds.length + ' selecionado(s)' : 'A definir'
           }}</span>
@@ -509,13 +535,38 @@ const professionalGenderLabel = computed(() =>
         <p v-if="selectedTrainerNames.length" class="request-accordion-subtext">
           {{ selectedTrainerNames.join(', ') }}
         </p>
-        <button
-          type="button"
-          class="secondary-button request-accordion-professionals-action"
-          @click="selectTrainersForDraft"
-        >
-          {{ selectedTrainerIds.length ? 'Alterar profissionais' : 'Selecionar profissionais' }} →
-        </button>
+        <label for="accordion-trainer-search" class="request-accordion-label">Escolha até 20 profissionais</label>
+        <input
+          id="accordion-trainer-search"
+          v-model="trainerSearch"
+          type="search"
+          class="request-accordion-input"
+          placeholder="Buscar profissional pelo nome"
+        />
+        <p v-if="publicTrainersLoading" class="request-accordion-subtext" role="status">Carregando profissionais…</p>
+        <p v-else-if="publicTrainersError" class="request-accordion-warning" role="alert">{{ publicTrainersError }}</p>
+        <div v-else class="request-trainer-scroll" role="group" aria-label="Selecionar profissionais">
+          <div v-for="trainer in visibleTrainers" :key="trainer.trainerId" class="request-trainer-row">
+            <label class="request-trainer-label">
+              <input
+                type="checkbox"
+                :checked="selectedTrainerIds.includes(trainer.trainerId)"
+                :disabled="!selectedTrainerIds.includes(trainer.trainerId) && selectedTrainerIds.length >= MAX_TRAINERS"
+                @change="toggleTrainer(trainer.trainerId)"
+              />
+              <span>{{ trainerDisplayName(trainer.name) }}</span>
+            </label>
+            <a
+              v-if="trainer.instagram"
+              :href="trainer.instagram.startsWith('http') ? trainer.instagram : 'https://www.instagram.com/' + trainer.instagram.replace(/^@/, '')"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="'Instagram de ' + trainer.name"
+            >Instagram ↗</a>
+          </div>
+          <p v-if="!visibleTrainers.length" class="request-accordion-subtext">Nenhum profissional encontrado para este local.</p>
+        </div>
+        <p class="request-accordion-subtext" aria-live="polite">{{ selectedTrainerIds.length }} de 20 profissionais selecionados</p>
       </div>
     </section>
 
@@ -542,7 +593,7 @@ const professionalGenderLabel = computed(() =>
         (form.gymName === 'Outros' && !otherGymName.trim()) ||
         !form.trainingDays.length
       "
-      @click="selectedTrainerIds.length ? confirmServiceRequest() : selectTrainersForDraft()"
+      @click="selectedTrainerIds.length ? confirmServiceRequest() : toggleSection('professionals')"
     >
       {{
         submittingRequest
@@ -551,8 +602,16 @@ const professionalGenderLabel = computed(() =>
             ? customerSignedInName
               ? 'Confirmar e enviar solicitação'
               : 'Entrar para confirmar solicitação'
-            : 'Selecionar profissionais →'
+            : 'Escolher profissionais'
       }}
     </button>
   </form>
 </template>
+
+<style scoped>
+.request-trainer-scroll { max-height: 290px; overflow-y: auto; margin-top: 12px; border: 1px solid var(--border, #8885); border-radius: 10px; }
+.request-trainer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-bottom: 1px solid var(--border, #8883); }
+.request-trainer-row:last-child { border-bottom: 0; }
+.request-trainer-label { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.request-trainer-row a { flex-shrink: 0; font-size: 13px; }
+</style>
