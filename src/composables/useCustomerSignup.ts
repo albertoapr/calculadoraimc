@@ -27,7 +27,7 @@ export function useCustomerSignup(options: {
   let verificationGeneration = 0
   let registrationRequest: AbortController | undefined
   let verificationRequest: AbortController | undefined
-  const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '' })
+  const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '', sex: '' as '' | 'masculino' | 'feminino', heightCm: undefined as number | undefined })
 
   const signupContact = ref('')
 
@@ -164,6 +164,8 @@ export function useCustomerSignup(options: {
       return
     }
 
+    if (!customerForm.sex) { customerStatus.value = 'Selecione o sexo.'; return }
+    if (customerForm.heightCm !== undefined && (!Number.isFinite(customerForm.heightCm) || customerForm.heightCm < 80 || customerForm.heightCm > 250)) { customerStatus.value = 'Informe uma altura válida entre 80 e 250 cm.'; return }
     const generation = verificationGeneration
     const controller = new AbortController()
     registrationRequest = controller
@@ -178,7 +180,7 @@ export function useCustomerSignup(options: {
         .replace(/\//g, '_')
         .replace(/=+$/g, '')
       const verificationCode = await registerCustomer(
-        { name, whatsapp, email, sessionToken },
+        { name, whatsapp, email, sex: customerForm.sex, heightCm: customerForm.heightCm, sessionToken },
         controller.signal,
       )
       if (!isCurrent()) return
