@@ -1,6 +1,12 @@
 import { apiError, requestApi } from './http/apiClient'
 
 export type PublicTrainer = {
+  tagline?: string
+  aboutMe?: string
+  education?: string
+  workingMethod?: string
+  pricing?: string
+  bannerUpdatedAt?: string
   trainerId: string
   name: string
   slug: string
@@ -68,4 +74,14 @@ export async function getPublicTrainerProfile(
   if (!response.ok || !response.body.trainer)
     throw apiError(response, 'Perfil do personal indisponível.')
   return response.body.trainer
+}
+
+/** Public API only serves images for active professional accounts. */
+export async function getPublicTrainerBanner(trainerId: string): Promise<string> {
+  const response = await requestApi<{ imageBase64?: string; error?: string }>(
+    `/api/trainers/banner/${encodeURIComponent(trainerId)}`,
+  )
+  if (!response.ok || !response.body.imageBase64)
+    throw apiError(response, 'Não foi possível carregar a foto do profissional.')
+  return 'data:image/jpeg;base64,' + response.body.imageBase64
 }
