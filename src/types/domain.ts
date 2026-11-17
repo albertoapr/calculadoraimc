@@ -73,6 +73,7 @@ export type CustomerProposal = {
 }
 
 export type CustomerAccountProfile = {
+  googlePhotoUrl?: string
   sex?: 'masculino' | 'feminino'
   heightCm?: number
   name: string
