@@ -60,7 +60,7 @@ export function listEligibleTrainers(
 export async function getPublicTrainerProfile(
   identity: { slug: string } | { trainerId: string },
 ): Promise<PublicTrainer> {
-  const path =
+  const path: `/api/${string}` =
     'slug' in identity
       ? `/api/trainers/by-slug/${encodeURIComponent(identity.slug)}`
       : `/api/trainers/${encodeURIComponent(identity.trainerId)}`
