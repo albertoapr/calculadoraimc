@@ -876,11 +876,7 @@ async function getTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (!image.Body) return response(404, { error: 'Imagem não encontrada.' })
     const buffer = Buffer.from(await image.Body.transformToByteArray())
     if (buffer.byteLength > 1_000_000) return response(503, { error: 'Imagem fora dos limites.' })
-    return {
-      statusCode: 200, isBase64Encoded: true,
-      headers: { ...corsHeaders, 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=60' },
-      body: buffer.toString('base64'),
-    }
+    return response(200, { imageBase64: buffer.toString('base64') })
   } catch (error) {
     console.error('[imc-submit] Banner retrieval failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(404, { error: 'Imagem não encontrada.' })
