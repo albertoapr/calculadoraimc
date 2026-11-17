@@ -22,7 +22,6 @@ const trainerBanners = new s3.Bucket(requestStack, 'FitpesoTrainerBanners', {
   autoDeleteObjects: false,
   lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
 })
-trainerBanners.grantReadWrite(backend.imcSubmit.resources.lambda)
 backend.imcSubmit.addEnvironment('TRAINER_BANNERS_BUCKET', trainerBanners.bucketName)
 const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
@@ -219,6 +218,7 @@ const identityDataPolicy = new iam.ManagedPolicy(
   Stack.of(backend.imcSubmit.resources.lambda),
   'FitpesoIdentityDataAccess',
 )
+trainerBanners.grantReadWrite(identityDataPolicy)
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
 lambdaRole.addManagedPolicy(identityDataPolicy)
