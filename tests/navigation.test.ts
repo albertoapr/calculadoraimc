@@ -57,9 +57,11 @@ test('direct public routes, state transitions and browser history stay synchroni
     await settle()
     assert.equal(f.state.viewMode.value, 'contact')
     assert.equal(f.state.showRequestForm.value, true)
+    f.state.requestLoginReturn.value = true
     f.router.back()
     await settle()
     assert.equal(f.state.viewMode.value, 'assessment')
+    assert.equal(f.state.requestLoginReturn.value, false)
     assert.equal(f.state.showRequestForm.value, false)
     f.router.forward()
     await settle()

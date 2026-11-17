@@ -89,6 +89,9 @@ export function bindApplicationNavigation(router: Router, options: NavigationOpt
     options.showCustomerSignup.value = screen === 'customer-signup'
     options.showCustomerLogin.value = screen === 'login'
     options.showRequestForm.value = screen === 'contact' || screen === 'select-trainers'
+    if (!['login', 'customer-signup', 'trainer-signup', 'contact', 'select-trainers'].includes(screen)) {
+      options.requestLoginReturn.value = false
+    }
     if (screen === 'login') {
       const target = safeReturnPath(to.query.redirect)
       if (target.startsWith('/solicitar-treinamento')) options.requestLoginReturn.value = true

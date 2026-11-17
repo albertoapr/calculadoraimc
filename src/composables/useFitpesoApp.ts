@@ -55,8 +55,12 @@ export function useFitpesoApp() {
     const token = new URLSearchParams(window.location.search).get('token')?.trim() ?? ''
     try {
       if (token) sessionStorage.setItem('fitpeso:trainer-request-token:v1', token)
-      return token || (router.currentRoute.value.path === '/proposta'
-        ? sessionStorage.getItem('fitpeso:trainer-request-token:v1') ?? '' : '')
+      return (
+        token ||
+        (router.currentRoute.value.path === '/proposta'
+          ? (sessionStorage.getItem('fitpeso:trainer-request-token:v1') ?? '')
+          : '')
+      )
     } catch {
       return token
     }
