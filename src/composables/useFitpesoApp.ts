@@ -315,17 +315,22 @@ export function useFitpesoApp() {
     adminTrainerBusy,
     saveAdminTrainer,
     adminTrainerSearch,
+    adminTrainerActivityFilter,
     adminAcademies,
-    loadAdminAcademyOptions,
+    availableAcademiesForTrainer,
     selectedAdminTrainerId,
+    adminTrainerFormVisible,
     adminTrainersStatus,
     adminTrainersLoading,
     adminTrainerEditBusy,
     adminTrainerEditForm,
     filteredAdminTrainers,
     selectAdminTrainer,
+    startNewAdminTrainer,
+    cancelAdminTrainerEdit,
     openAdminTrainers,
     saveAdminTrainerEdit,
+    deactivateAdminTrainer,
   } = useAdminTrainers({
     isAdmin: customerIsAdmin,
     getToken: () =>
@@ -336,13 +341,6 @@ export function useFitpesoApp() {
       viewMode.value = 'admin-trainers'
     },
   })
-
-  function openAdminTrainer() {
-    if (!customerIsAdmin.value) return
-    viewMode.value = 'admin-trainer'
-    void loadAdminAcademyOptions()
-    void nextTick(() => window.scrollTo(0, 0))
-  }
 
   function openAdminAcademies() {
     if (!customerIsAdmin.value) return
@@ -936,8 +934,7 @@ export function useFitpesoApp() {
       await openMyProfile()
     } else if (screen === 'admin-trainers') {
       await openAdminTrainers()
-    } else if (screen === 'admin-trainer') {
-      openAdminTrainer()
+      if (router.currentRoute.value.path.endsWith('/novo')) startNewAdminTrainer()
     }
   }
 
@@ -1058,15 +1055,21 @@ export function useFitpesoApp() {
     adminTrainerBusy,
     saveAdminTrainer,
     adminTrainerSearch,
+    adminTrainerActivityFilter,
     adminAcademies,
+    availableAcademiesForTrainer,
     selectedAdminTrainerId,
+    adminTrainerFormVisible,
     adminTrainersStatus,
     adminTrainersLoading,
     adminTrainerEditBusy,
     adminTrainerEditForm,
     filteredAdminTrainers,
     selectAdminTrainer,
+    startNewAdminTrainer,
+    cancelAdminTrainerEdit,
     saveAdminTrainerEdit,
+    deactivateAdminTrainer,
     openTrainersForRequest,
     customerRequestsStatus,
     changeRequestVisibility,
@@ -1178,7 +1181,6 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     openAdminTrainers,
-    openAdminTrainer,
     openAdminAcademies,
     trainerSignedInName,
     trainerSignedInId,

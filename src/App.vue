@@ -12,7 +12,6 @@ import MyProfileView from './views/account/MyProfileView.vue'
 import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
 import CustomerRequestsView from './views/account/CustomerRequestsView.vue'
-import AdminTrainerView from './views/account/AdminTrainerView.vue'
 import AdminTrainersView from './views/account/AdminTrainersView.vue'
 import AdminAcademiesView from './views/account/AdminAcademiesView.vue'
 import ProfessionalRegistrationView from './views/account/ProfessionalRegistrationView.vue'
@@ -95,10 +94,14 @@ const {
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
       <PageHeader
-        v-if="viewMode !== 'admin-academies' && !(viewMode === 'home' && !result && isRootHome)"
+        v-if="!viewMode.startsWith('admin-') && !(viewMode === 'home' && !result && isRootHome)"
       />
       <CitySelector
-        v-if="viewMode !== 'public-trainers' && !(viewMode === 'home' && !result && isRootHome)"
+        v-if="
+          !viewMode.startsWith('admin-') &&
+          viewMode !== 'public-trainers' &&
+          !(viewMode === 'home' && !result && isRootHome)
+        "
       />
       <HomeView v-if="viewMode === 'home' && !result && isRootHome" />
 
@@ -111,7 +114,6 @@ const {
       <RequestActionDialog />
       <CustomerRequestsView v-if="viewMode === 'customer-requests'" />
 
-      <AdminTrainerView v-if="viewMode === 'admin-trainer' && customerIsAdmin" />
       <AdminTrainersView v-if="viewMode === 'admin-trainers' && customerIsAdmin" />
       <AdminAcademiesView v-if="viewMode === 'admin-academies' && customerIsAdmin" />
       <ProfessionalRegistrationView v-if="viewMode === 'professional-registration'" />

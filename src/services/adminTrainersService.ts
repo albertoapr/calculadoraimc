@@ -4,12 +4,14 @@ import type { AdminTrainer } from '../types/domain'
 export type AdminTrainerWrite = Omit<AdminTrainer, 'trainerId' | 'active'> & { active?: boolean }
 
 export async function registerAdminTrainer(token: string, trainer: AdminTrainerWrite) {
-  const response = await requestApi<{ registered?: boolean; error?: string }>(
-    '/api/admin/trainers',
-    { method: 'POST', token, body: trainer },
-  )
+  const response = await requestApi<{
+    registered?: boolean
+    trainerId?: string
+    error?: string
+  }>('/api/admin/trainers', { method: 'POST', token, body: trainer })
   if (!response.ok || !response.body.registered)
     throw apiError(response, 'Não foi possível cadastrar o profissional.')
+  return response.body
 }
 
 export async function listAdminTrainers(token: string): Promise<AdminTrainer[]> {
