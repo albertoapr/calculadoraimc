@@ -73,6 +73,7 @@ export type CustomerProposal = {
 }
 
 export type CustomerAccountProfile = {
+  googlePhotoUrl?: string
   name: string
   whatsapp: string
   email: string
