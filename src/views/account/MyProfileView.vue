@@ -61,6 +61,7 @@ const {
           :required="editingProfileType === 'trainer'"
         />
       </label>
+      <template v-if="editingProfileType === 'customer'"><label class="field field-wide" for="profile-sex"><span class="field-label">Sexo</span><select id="profile-sex" v-model="editingProfile.sex" required><option value="" disabled>Selecione o sexo</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label><label class="field field-wide" for="profile-height"><span class="field-label">Altura (cm)</span><input id="profile-height" v-model.number="editingProfile.heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 172" /><small>Sua altura é importante para calcular o IMC e outros indicadores da avaliação física.</small></label></template>
       <template v-if="editingProfileType === 'trainer'">
         <label class="field field-wide" for="profile-cref"
           ><span class="field-label">Registro CREF <span>opcional</span></span>
