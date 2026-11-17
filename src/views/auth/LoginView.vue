@@ -97,7 +97,11 @@ const {
         {{ emailLoginError }}
       </p>
       <button class="primary-button field-wide" type="submit">Continuar</button>
-      <div class="login-google-alternative field-wide">
+      <p v-if="loginAsTrainer" class="login-step-note field-wide" role="status">
+        Acesso de personal: use o WhatsApp ou o e-mail cadastrado como profissional.
+        O Google está disponível somente para clientes.
+      </p>
+      <div v-else class="login-google-alternative field-wide">
         <span>ou</span>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
       </div>
