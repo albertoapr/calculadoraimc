@@ -104,6 +104,8 @@ const {
           placeholder="voce@exemplo.com"
         />
       </label>
+      <label class="field field-wide" for="customer-sex"><span class="field-label">Sexo</span><select id="customer-sex" v-model="customerForm.sex" required><option value="" disabled>Selecione o sexo</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
+      <label class="field field-wide" for="customer-height"><span class="field-label">Altura (cm)</span><input id="customer-height" v-model.number="customerForm.heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 172" /><small>Sua altura é importante para calcular o IMC e outros indicadores da avaliação física.</small></label>
       <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">
         {{ customerSubmitting ? 'Preparando confirmação…' : 'Confirmar WhatsApp' }}
       </button>
