@@ -19,6 +19,29 @@ const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const academies = new dynamodb.Table(requestStack, 'FitpesoAcademies', {
+  partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+academies.addGlobalSecondaryIndex({
+  indexName: 'AcademiesByCity',
+  partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
+const trainerAcademies = new dynamodb.Table(requestStack, 'FitpesoTrainerAcademies', {
+  partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+trainerAcademies.addGlobalSecondaryIndex({
+  indexName: 'TrainersByAcademy',
+  partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+})
 const trainerSlugs = new dynamodb.Table(requestStack, 'FitpesoTrainerSlugs', {
   partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -73,6 +96,16 @@ trainers.addGlobalSecondaryIndex({
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
+academies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${academies.tableArn}/index/AcademiesByCity`],
+}))
+trainerAcademies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:DeleteItem', 'dynamodb:TransactWriteItems')
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${trainerAcademies.tableArn}/index/TrainersByAcademy`],
+}))
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:DeleteItem')
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 fitpesoProposals.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
@@ -103,6 +136,8 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 }))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
+backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
+backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_PROPOSALS_TABLE', fitpesoProposals.tableName)
@@ -166,8 +201,19 @@ const newDataTables = [
   [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
   [personalsV2, 'FITPESO_PERSONAL_V2_TABLE'],
 ] as const
+// Isola as permissões das tabelas V2 em uma política gerenciada.
+// O IAM limita a soma das políticas inline de uma role a 10.240 caracteres;
+// criar múltiplas políticas inline não elimina esse limite.
+const identityDataPolicy = new iam.ManagedPolicy(
+  Stack.of(backend.imcSubmit.resources.lambda),
+  'FitpesoIdentityDataAccess',
+)
+const lambdaRole = backend.imcSubmit.resources.lambda.role
+if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
+lambdaRole.addManagedPolicy(identityDataPolicy)
+
 for (const [table, envName] of newDataTables) {
-  table.grantReadWriteData(backend.imcSubmit.resources.lambda)
+  table.grantReadWriteData(identityDataPolicy)
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
 // Consultas em GSIs exigem permissão para ARN do índice.
@@ -176,7 +222,7 @@ for (const [table, indices] of [
   [customersV2, ['CustomerByUsuario']],
   [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
 ] as const) {
-  backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  identityDataPolicy.addStatements(new iam.PolicyStatement({
     actions: ['dynamodb:Query'],
     resources: indices.map(index => `${table.tableArn}/index/${index}`),
   }))
@@ -194,7 +240,7 @@ const api = new apigateway.RestApi(apiStack, 'ImcPublicApi', {
   },
   defaultCorsPreflightOptions: {
     allowOrigins: apigateway.Cors.ALL_ORIGINS,
-    allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Fitpeso-Verification-Secret'],
   },
 })
@@ -222,6 +268,16 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const adminResource = apiResource.addResource('admin')
+const adminAcademiesResource = adminResource.addResource('academies')
+adminAcademiesResource.addMethod('GET', lambdaIntegration())
+adminAcademiesResource.addMethod('POST', lambdaIntegration())
+const adminAcademyItem = adminAcademiesResource.addResource('{academyId}')
+adminAcademyItem.addMethod('GET', lambdaIntegration())
+adminAcademyItem.addMethod('PUT', lambdaIntegration())
+adminAcademyItem.addMethod('DELETE', lambdaIntegration())
+const academiesResource = apiResource.addResource('academies')
+academiesResource.addMethod('GET', lambdaIntegration())
+academiesResource.addResource('{academyId}').addMethod('GET', lambdaIntegration())
 const adminTrainersResource = adminResource.addResource('trainers')
 adminTrainersResource.addMethod('GET', lambdaIntegration())
 adminTrainersResource.addMethod('POST', lambdaIntegration())
@@ -237,6 +293,10 @@ trainersResource.addResource('verify-login').addMethod('POST', lambdaIntegration
 trainersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('received-requests').addMethod('GET', lambdaIntegration())
+const signupResource = apiResource.addResource('signup')
+signupResource.addResource('start-phone').addMethod('POST', lambdaIntegration())
+signupResource.addResource('status-phone').addMethod('POST', lambdaIntegration())
+signupResource.addResource('verify-phone').addMethod('POST', lambdaIntegration())
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
@@ -278,6 +338,10 @@ backend.addOutput({
     trainerDirectory: {
       tableName: trainers.tableName,
       slugTableName: trainerSlugs.tableName,
+    },
+    academyDirectory: {
+      tableName: academies.tableName,
+      trainerAcademiesTableName: trainerAcademies.tableName,
     },
   },
 })

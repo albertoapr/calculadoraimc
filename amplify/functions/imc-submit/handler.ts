@@ -1,3 +1,5 @@
+import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
+import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
@@ -24,7 +26,7 @@ const corsHeaders = {
   'referrer-policy': 'no-referrer',
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Content-Type, Authorization, X-Fitpeso-Verification-Secret',
-  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
 }
 
 function response(statusCode: number, body: Record<string, unknown>) {
@@ -50,8 +52,9 @@ function isValidRequest(data: Record<string, unknown> | null) {
   const phone = normalizePhone(data.clientPhone)
   const email = typeof data.email === 'string' ? data.email.trim() : ''
   const instagram = data.clientInstagram === undefined ? '' : typeof data.clientInstagram === 'string' ? data.clientInstagram.trim() : null
-  const objectives = ['Emagrecimento', 'Musculação', 'Outros']
+  const objectives = ['Emagrecimento', 'Musculação', 'Outros', 'Hipertrofia', 'Condicionamento físico', 'Saúde e qualidade de vida', 'Reabilitação', 'Outro']
   const trainerGenderPreferences = ['indiferente', 'feminino', 'masculino']
+  const clientGenderOptions = ['feminino', 'masculino', 'nao_informar']
   const desiredDurations = ['Aula avulsa', '1 mês', '2 meses', '3 meses', '4 meses', '5 meses', '6 meses']
   const days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
   const shifts = ['Manhã', 'Tarde', 'Noite']
@@ -64,7 +67,8 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     typeof instagram === 'string' && (instagram === '' || (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
-    (data.age === undefined || (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120)) &&
+    (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120) &&
+    (data.clientGender === undefined || clientGenderOptions.includes(String(data.clientGender))) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
     (data.trainerGenderPreference === undefined || trainerGenderPreferences.includes(String(data.trainerGenderPreference))) &&
     (data.desiredDuration === undefined || data.desiredDuration === '' || desiredDurations.includes(String(data.desiredDuration))) &&
@@ -72,7 +76,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     (data.withCompanion === undefined || typeof data.withCompanion === 'boolean') &&
     (data.singleLesson !== true || data.desiredDuration === 'Aula avulsa') &&
     (data.attendsGym === undefined || typeof data.attendsGym === 'boolean') &&
-    (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 50)) &&
+    (gymName === '' || (data.attendsGym === true && typeof gymName === 'string' && gymName.length <= 160)) &&
     (typeof data.sessionsPerWeek === 'number' && Number.isInteger(data.sessionsPerWeek) && data.sessionsPerWeek >= 1 && data.sessionsPerWeek <= 7) &&
     Array.isArray(trainingDays) && trainingDays.length > 0 && trainingDays.every(day => days.includes(String(day))) &&
     Array.isArray(trainingShifts) && trainingShifts.length > 0 && trainingShifts.every(shift => shifts.includes(String(shift)))
@@ -1125,6 +1129,11 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   const trainerId = randomBytes(16).toString('hex')
   const now = String(Math.floor(Date.now() / 1000))
   try {
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
+    const legacyAcademias = ((data.academias as string[] | undefined) ?? []).map(value => String(value).trim()).filter(Boolean)
+    const allAcademyNames = [...new Set([...legacyAcademias, ...academyLinks.names])]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
       ...cities.map(city => ({ Put: { TableName: tableName, Item: {
@@ -1133,13 +1142,20 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
         sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
         email: { S: String(data.email ?? '').trim().toLowerCase() },
         dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram) },
-        cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+        cref: { S: cref }, academias: { L: allAcademyNames.map(name => ({ S: name })) },
+        academyIds: { L: academyLinks.ids.map(id => ({ S: id })) },
         active: { BOOL: true }, whatsappVerified: { BOOL: false }, status: { S: 'active' },
         createdByAdmin: { S: auth.profile!.whatsapp }, submittedAt: { N: now },
       }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
+      ...academyLinks.ids.map(academyId => ({ Put: {
+        TableName: linksTable,
+        Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)',
+      } })),
     ] }))
     return response(201, { registered: true, trainerId, status: 'active' })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS') return response(400, { error: 'Selecione academias ativas na cidade atendida.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro ou endereço já existente.' })
     console.error('[imc-submit] Admin trainer registration failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o profissional.' })
@@ -1147,6 +1163,27 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
 }
 
 const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+
+async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
+  const ids = raw === undefined ? [] : raw
+  if (!Array.isArray(ids) || ids.length > 20 ||
+    ids.some(id => typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) ||
+    new Set(ids).size !== ids.length) throw new Error('INVALID_ACADEMY_ASSOCIATIONS')
+  if (!ids.length) return { ids: [] as string[], names: [] as string[] }
+  const tableName = process.env.ACADEMIES_TABLE
+  if (!tableName) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  const rows = await Promise.all(ids.map((id: string) => dynamodb.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { academyId: { S: id } },
+    ConsistentRead: true,
+  }))))
+  if (rows.some(result => !result.Item || result.Item.active?.BOOL !== true ||
+    !cities.includes(result.Item.city?.S ?? ''))) throw new Error('INVALID_ACADEMY_ASSOCIATIONS')
+  return {
+    ids: ids as string[],
+    names: rows.map(result => `${result.Item!.name?.S ?? ''} — ${result.Item!.neighborhood?.S ?? ''}`),
+  }
+}
 
 async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateCustomer(event)
@@ -1210,6 +1247,7 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
         slug: item.slug?.S ?? '',
         cities: [...new Set(trainerRows.map(row => row.city?.S ?? '').filter(Boolean))],
         academias: (item.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean),
+        academyIds: (item.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean),
         active: item.active?.BOOL === true,
       }
     }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
@@ -1250,7 +1288,13 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
         return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
       }
     }
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
     const first = existingRows[0]
+    const oldAcademyIds = (first.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean)
+    const legacyAcademias = ((data.academias as string[] | undefined) ?? []).map(value => String(value).trim()).filter(Boolean)
+    const allAcademyNames = [...new Set([...legacyAcademias, ...academyLinks.names])]
     const oldCities = [...new Set(existingRows.map(row => row.city?.S ?? '').filter(Boolean))]
     const oldSlug = first.slug?.S ?? ''
     const now = new Date().toISOString()
@@ -1260,7 +1304,8 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
       sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
       email: { S: String(data.email ?? '').trim().toLowerCase() },
       dateOfBirth: { S: String(data.dateOfBirth) }, instagram: { S: String(data.instagram).trim() },
-      cref: { S: cref }, academias: { L: ((data.academias as string[] | undefined) ?? []).map(name => ({ S: name })) },
+      cref: { S: cref }, academias: { L: allAcademyNames.map(name => ({ S: name })) },
+      academyIds: { L: academyLinks.ids.map(id => ({ S: id })) },
       active: { BOOL: data.active as boolean }, status: { S: data.active ? 'active' : 'inactive' },
       whatsappVerified: { BOOL: first.whatsappVerified?.BOOL === true },
       ...(first.createdByAdmin?.S ? { createdByAdmin: { S: first.createdByAdmin.S } } : {}),
@@ -1275,6 +1320,15 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
       ...added.map(city => ({ Put: { TableName: tableName, Item: { city: { S: city }, ...sharedItem }, ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)' } })),
       ...removed.map(city => ({ Delete: { TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } } } })),
     ]
+    for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
+      transaction.push({ Put: { TableName: linksTable,
+        Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)' } })
+    }
+    for (const academyId of oldAcademyIds.filter(id => !academyLinks.ids.includes(id))) {
+      transaction.push({ Delete: { TableName: linksTable,
+        Key: { trainerId: { S: trainerId }, academyId: { S: academyId } } } })
+    }
     if (slug !== oldSlug) {
       transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } })
       if (oldSlug) transaction.push({ Delete: { TableName: slugTable, Key: { slug: { S: oldSlug } }, ConditionExpression: 'trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
@@ -1282,6 +1336,7 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: transaction }))
     return response(200, { updated: true, trainerId })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS') return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Os dados foram alterados ou o endereço do perfil já está em uso.' })
     console.error('[imc-submit] Admin trainer update failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o profissional.' })
@@ -1443,6 +1498,7 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     clientPhone: item.clientPhone?.S ?? '',
     ...(item.email?.S ? { email: item.email.S } : {}),
     ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+    ...(item.clientGender?.S ? { clientGender: item.clientGender.S } : {}),
     city: item.city?.S ?? '',
     ...(item.objective?.S ? { objective: item.objective.S } : {}),
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
@@ -1503,7 +1559,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -1515,6 +1571,7 @@ async function getActiveTrainersForCity(city: string) {
         '#sex': 'sex',
         '#cref': 'cref',
         '#academias': 'academias',
+        '#academyIds': 'academyIds',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -1530,7 +1587,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -1549,9 +1606,11 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         trainerId: trainer.trainerId,
         name: trainer.name,
         slug: trainer.slug,
+        sex: trainer.sex,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
         cref: trainer.cref,
         academias: trainer.academias,
+        academyIds: trainer.academyIds,
       }))
       .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
     return response(200, { trainers: eligible, count: eligible.length })
@@ -1604,7 +1663,7 @@ async function listValidFitpesoRequests(event: Parameters<APIGatewayProxyHandler
         eligibleTrainers: selectedTrainers.map(trainer => ({
           ...trainer,
           sex: undefined,
-          requestUrl: `https://${trainer.slug}.fitpeso.com.br/?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
+          requestUrl: `https://fitpeso.com.br/personal/${encodeURIComponent(trainer.slug)}?token=${encodeURIComponent(createTrainerRequestToken(request.requestId, trainer.trainerId, validUntil))}`,
         })),
       }
     }))
@@ -1673,6 +1732,7 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
     return response(200, { request: {
       clientName: fullName.split(/\s+/)[0],
       ...(item.age?.N ? { age: Number(item.age.N) } : {}),
+      ...(item.clientGender?.S ? { clientGender: item.clientGender.S } : {}),
       city: item.city?.S ?? '',
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
@@ -1831,16 +1891,20 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
   const customer = auth.profile!
-  if (customer.age === undefined) return response(400, { error: 'Informe sua data de nascimento na revisão do pedido antes de solicitar atendimento.' })
+  // A idade declarada na solicitação dispensa a data de nascimento no cadastro.
+  // Para integrações antigas, mantém a idade calculada do cadastro como alternativa.
   const requestData: Record<string, unknown> = {
     ...data,
     clientName: customer.name,
     clientPhone: customer.whatsapp,
-    ...(customer.age !== undefined ? { age: customer.age } : { age: undefined }),
+    age: data.age ?? customer.age,
     ...(customer.email ? { email: customer.email } : {}),
     consent: data.consent === true,
   }
-  if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento e autorize o envio aos profissionais.' })
+  if (!Number.isInteger(requestData.age) || Number(requestData.age) < 1 || Number(requestData.age) > 120) {
+    return response(400, { error: 'Informe uma idade válida, de 1 a 120 anos.' })
+  }
+  if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento, como objetivo, academia e disponibilidade.' })
 
   const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const locksTable = process.env.FITPESO_REQUEST_LOCKS_TABLE
@@ -1888,13 +1952,14 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     expiresAt: { N: String(validUntil) },
     ...(customer.email ? { email: { S: customer.email } } : {}),
     ...(Number.isInteger(requestData.age) ? { age: { N: String(requestData.age) } } : {}),
+    ...(typeof requestData.clientGender === 'string' ? { clientGender: { S: requestData.clientGender } } : {}),
     ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
     trainerGenderPreference: { S: preference },
     singleLesson: { BOOL: requestData.singleLesson === true },
     withCompanion: { BOOL: requestData.withCompanion === true },
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
-    ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 50) } } : {}),
+    ...(requestData.attendsGym === true && typeof requestData.gymName === 'string' && requestData.gymName.trim() ? { gymName: { S: requestData.gymName.trim().slice(0, 160) } } : {}),
     ...(typeof requestData.sessionsPerWeek === 'number' && Number.isInteger(requestData.sessionsPerWeek) && requestData.sessionsPerWeek >= 1 && requestData.sessionsPerWeek <= 7 ? { sessionsPerWeek: { N: String(requestData.sessionsPerWeek) } } : {}),
     ...(Array.isArray(requestData.trainingDays) && requestData.trainingDays.length ? { trainingDays: { L: requestData.trainingDays.map(day => ({ S: String(day) })) } } : {}),
     ...(Array.isArray(requestData.trainingShifts) && requestData.trainingShifts.length ? { trainingShifts: { L: requestData.trainingShifts.map(shift => ({ S: String(shift) })) } } : {}),
@@ -2343,6 +2408,25 @@ async function consumeCode(data: Record<string, unknown> | null) {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  // Consulta pública e manutenção administrativa de academias.
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies'))
+    return listAcademies(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies/{academyId}'))
+    return getAcademy(event)
+  if (event.resource?.includes('/admin/academies')) {
+    const auth = await authenticateAdmin(event)
+    if ('error' in auth) return auth.error
+    const itemRoute = event.resource.endsWith('/admin/academies/{academyId}')
+    if (event.httpMethod === 'GET') return itemRoute ? getAcademy(event, true) : listAcademies(event, true)
+    if (event.httpMethod === 'POST' && !itemRoute) return createAcademy(event, auth.profile!.whatsapp)
+    if (event.httpMethod === 'PUT' && itemRoute) return updateAcademy(event, auth.profile!.whatsapp)
+    if (event.httpMethod === 'DELETE' && itemRoute) return deactivateAcademy(event)
+    return response(405, { error: 'Método não permitido.' })
+  }
+  // Progressive signup is isolated: the existing registration/login remains unchanged.
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/start-phone')) return startPhoneSignup(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/status-phone')) return phoneSignupStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/signup/verify-phone')) return verifyPhoneSignupFromBeta(event)
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
@@ -2513,7 +2597,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
       }
       if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
-        return response(409, { error: 'Esse endereço já está reservado. Escolha outro subdomínio.' })
+        return response(409, { error: 'Esse endereço já está reservado. Escolha outro endereço para o perfil.' })
       }
       console.error('[imc-submit] Trainer registration failed', {
         errorClass: error instanceof Error ? error.name : typeof error,
