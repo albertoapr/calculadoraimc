@@ -100,7 +100,7 @@ const {
         v-if="
           !viewMode.startsWith('admin-') &&
           viewMode !== 'public-trainers' &&
-          !(viewMode === 'home' && !result && isRootHome)
+          viewMode !== 'home'
         "
       />
       <HomeView v-if="viewMode === 'home' && !result && isRootHome" />
