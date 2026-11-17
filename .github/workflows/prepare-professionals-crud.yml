@@ -1,5 +1,7 @@
 name: Prepare professionals CRUD
 
+# Temporary formatter; removed before merge.
+
 on:
   push:
     branches:
