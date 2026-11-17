@@ -68,12 +68,12 @@ function onNativeDate(event: Event) {
 function openCalendar() {
   const input = nativeDateInput.value
   if (!input) return
-  if ('showPicker' in input) {
+  try {
     input.showPicker()
-    return
+  } catch {
+    input.focus()
+    input.click()
   }
-  input.focus()
-  input.click()
 }
 
 defineExpose({ validate: () => validateTypedDate(true) })
