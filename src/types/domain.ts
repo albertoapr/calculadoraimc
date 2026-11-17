@@ -95,6 +95,12 @@ export type TrainerReceivedRequest = {
 }
 
 export type EditableProfile = {
+  tagline: string
+  aboutMe: string
+  education: string
+  workingMethod: string
+  pricing: string
+  bannerUpdatedAt?: string
   sex: '' | 'masculino' | 'feminino'
   heightCm?: number
   name: string
@@ -108,6 +114,12 @@ export type EditableProfile = {
 }
 
 export type TrainerAccountProfile = {
+  tagline?: string
+  aboutMe?: string
+  education?: string
+  workingMethod?: string
+  pricing?: string
+  bannerUpdatedAt?: string
   trainerId: string
   name: string
   whatsapp: string
