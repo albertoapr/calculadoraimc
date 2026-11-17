@@ -8,9 +8,6 @@ export async function createFitpesoRequest(request: Record<string, unknown>, tok
     error?: string
   }>('/api/requests', { method: 'POST', token, body: request })
   if (!response.ok || response.body.created !== true || !response.body.requestId)
-    throw apiError(
-      response,
-      'Não foi possível registrar a solicitação agora. Tente novamente.',
-    )
+    throw apiError(response, 'Não foi possível registrar a solicitação agora. Tente novamente.')
   return response.body.requestId
 }

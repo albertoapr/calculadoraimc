@@ -43,8 +43,7 @@ export function listEligibleTrainers(
       '/api/trainers/eligible',
       { query: { city, gender } },
     )
-    if (!response.ok)
-      throw apiError(response, 'Não foi possível consultar os profissionais.')
+    if (!response.ok) throw apiError(response, 'Não foi possível consultar os profissionais.')
     if (!Array.isArray(response.body.trainers))
       throw new Error('Resposta inválida ao consultar profissionais.')
     trainerCache.set(key, {

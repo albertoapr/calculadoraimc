@@ -19,10 +19,9 @@ export type AcademyWrite = Pick<
 >
 
 export async function listAcademies(city?: string): Promise<Academy[]> {
-  const response = await requestApi<{ academies?: Academy[]; error?: string }>(
-    '/api/academies',
-    { query: { city } },
-  )
+  const response = await requestApi<{ academies?: Academy[]; error?: string }>('/api/academies', {
+    query: { city },
+  })
   if (!response.ok) throw apiError(response, 'Não foi possível consultar as academias.')
   if (!Array.isArray(response.body.academies))
     throw new Error('Resposta inválida ao listar academias.')
@@ -49,11 +48,7 @@ export async function createAdminAcademy(token: string, academy: AcademyWrite) {
   return response.body
 }
 
-export async function updateAdminAcademy(
-  token: string,
-  academyId: string,
-  academy: AcademyWrite,
-) {
+export async function updateAdminAcademy(token: string, academyId: string, academy: AcademyWrite) {
   const response = await requestApi<{ updated: boolean; error?: string }>(
     `/api/admin/academies/${encodeURIComponent(academyId)}`,
     { method: 'PUT', token, body: academy },

@@ -96,11 +96,7 @@ export async function loadTrainerSession(
     profile?: TrainerAccountProfile
     error?: string
   }>('/api/trainers/profile', { method: 'POST', token, signal })
-  if (
-    !response.ok ||
-    response.body.authenticated !== true ||
-    !response.body.profile?.trainerId
-  )
+  if (!response.ok || response.body.authenticated !== true || !response.body.profile?.trainerId)
     throw apiError(response, 'Sessão inválida.')
   return response.body.profile
 }

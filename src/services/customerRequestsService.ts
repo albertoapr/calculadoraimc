@@ -40,11 +40,7 @@ export async function updateCustomerRequestVisibility(
     throw apiError(response, 'Não foi possível atualizar a solicitação.')
 }
 
-export async function acceptCustomerProposal(
-  token: string,
-  requestId: string,
-  trainerId: string,
-) {
+export async function acceptCustomerProposal(token: string, requestId: string, trainerId: string) {
   const response = await requestApi<{ accepted?: boolean; error?: string }>(
     `/api/requests/${encodeURIComponent(requestId)}/accept`,
     { method: 'POST', token, body: { trainerId } },

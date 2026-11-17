@@ -9,8 +9,7 @@ export async function getTrainerRequest(token: string): Promise<TrainerRequestDe
   }>('/api/requests/trainer-view', { query: { token } })
   if (response.status === 410 || response.body.expired)
     throw new Error('Esta solicitação expirou e não pode mais ser visualizada.')
-  if (!response.ok || !response.body.request)
-    throw apiError(response, 'Solicitação indisponível.')
+  if (!response.ok || !response.body.request) throw apiError(response, 'Solicitação indisponível.')
   return response.body.request
 }
 
