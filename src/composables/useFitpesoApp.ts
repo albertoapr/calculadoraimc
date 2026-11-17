@@ -629,6 +629,12 @@ export function useFitpesoApp() {
     }
   }
 
+  watch(loginAsTrainer, async (trainer) => {
+    if (trainer || !showCustomerLogin.value || loginStep.value !== 1) return
+    await nextTick()
+    await renderGoogleButton('client')
+  })
+
   watch(showCustomerLogin, async (enabled) => {
     if (!enabled) return
     await nextTick()
