@@ -303,6 +303,8 @@ trainersResource.addResource('login-status').addMethod('POST', lambdaIntegration
 trainersResource.addResource('verify-login').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('upload-banner').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('banner').addResource('{trainerId}').addMethod('GET', lambdaIntegration())
 trainersResource.addResource('received-requests').addMethod('GET', lambdaIntegration())
 const signupResource = apiResource.addResource('signup')
 signupResource.addResource('start-phone').addMethod('POST', lambdaIntegration())
