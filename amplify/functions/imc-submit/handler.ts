@@ -707,9 +707,38 @@ async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
 }
 
 
+/** Login must not depend on the public directory's slug/profile filters.
+ * Admin-created trainers are active but may still need their first WhatsApp confirmation.
+ */
 async function findActiveTrainerByWhatsApp(whatsapp: string) {
-  const matches = (await Promise.all(['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-    .map(city => getActiveTrainersForCity(city)))).flat().filter(trainer => trainer.whatsapp === whatsapp)
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const cities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const matches = (await Promise.all(cities.map(async city => {
+    const found: { trainerId: string; city: string }[] = []
+    let cursor: Record<string, any> | undefined
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: '#city = :city',
+        FilterExpression: '#phone = :phone AND #active = :active',
+        ProjectionExpression: '#city, #id, #phone, #active',
+        ExpressionAttributeNames: {
+          '#city': 'city', '#id': 'trainerId', '#phone': 'whatsapp', '#active': 'active',
+        },
+        ExpressionAttributeValues: {
+          ':city': { S: city }, ':phone': { S: whatsapp }, ':active': { BOOL: true },
+        },
+        ExclusiveStartKey: cursor,
+      }))
+      for (const row of page.Items ?? []) {
+        if (row.trainerId?.S && row.whatsapp?.S === whatsapp && row.active?.BOOL === true)
+          found.push({ trainerId: row.trainerId.S, city })
+      }
+      cursor = page.LastEvaluatedKey
+    } while (cursor)
+    return found
+  }))).flat()
   const unique = [...new Map(matches.map(trainer => [trainer.trainerId, trainer])).values()]
   return unique.length === 1 ? unique[0] : null
 }
@@ -989,11 +1018,15 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
       const stored = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))
       return response(200, { verified: stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now })
     }
-    const trainer = await dynamodb.send(new GetItemCommand({
-      TableName: trainersTable, Key: { city: { S: challenge.city?.S ?? '' }, trainerId: { S: challenge.trainerId?.S ?? '' } },
-      ConsistentRead: true,
-    }))
-    if (trainer.Item?.active?.BOOL !== true || trainer.Item.whatsappVerified?.BOOL !== true || trainer.Item.whatsapp?.S !== whatsapp) {
+    const trainerId = challenge.trainerId?.S ?? ''
+    const challengeCity = challenge.city?.S ?? ''
+    if (!trainerId || !challengeCity) return response(200, { verified: false })
+    // Beta has authenticated the WhatsApp confirmation at the protected API entry point.
+    // Mark verified only in the SAME transaction that consumes this one-time challenge.
+    const trainerRows = await getTrainerRows(trainerId)
+    if (trainerRows.length < 1 || trainerRows.length > 2 ||
+      !trainerRows.some(row => row.city?.S === challengeCity) ||
+      trainerRows.some(row => row.active?.BOOL !== true || row.whatsapp?.S !== whatsapp)) {
       return response(200, { verified: false })
     }
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
@@ -1003,10 +1036,24 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         ExpressionAttributeNames: { '#flow': 'flow' },
         ExpressionAttributeValues: { ':flow': { S: 'fitpeso-trainer-login' }, ':whatsapp': { S: whatsapp }, ':now': { N: String(now) } } } },
       { Put: { TableName: tableName, Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-trainer-login-session' },
-        whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
+        whatsapp: { S: whatsapp }, trainerId: { S: trainerId }, city: { S: challengeCity },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      ...trainerRows.map(row => ({
+        Update: {
+          TableName: trainersTable,
+          Key: { city: { S: row.city!.S! }, trainerId: { S: trainerId } },
+          UpdateExpression: 'SET whatsappVerified = :verified, whatsappVerifiedAt = if_not_exists(whatsappVerifiedAt, :now)',
+          ConditionExpression: '#active = :active AND whatsapp = :whatsapp',
+          ExpressionAttributeNames: { '#active': 'active' },
+          ExpressionAttributeValues: {
+            ':verified': { BOOL: true }, ':active': { BOOL: true },
+            ':whatsapp': { S: whatsapp }, ':now': { N: String(now) },
+          },
+        },
+      })),
     ] }))
-    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
+    const confirmedName = trainerRows.find(row => row.city?.S === challengeCity)?.name?.S ?? ''
+    return response(200, { verified: true, whatsapp, name: confirmedName, ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
   } catch (error) {
     if (error instanceof TransactionCanceledException) return response(200, { verified: false })
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
