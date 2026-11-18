@@ -116,6 +116,7 @@ const emit = defineEmits<{
       class="primary-button home-proposal-button"
       type="button"
       :disabled="
+        selectedIds.length === 0 ||
         sharingBusy ||
         checkingRequests ||
         !!requestsError ||
