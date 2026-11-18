@@ -166,7 +166,7 @@ async function ensureSpecificProfile(env: string, key: string, id: string, userI
  * So anexa dados legados apos validar a sessao e os atributos ativos na Lambda.
  * A condicao impede mover um perfil legado ja atribuido para outra pessoa.
  */
-async function linkLegacyCustomer(legacy: LegacyCustomerIdentity, pessoaId: string, userId: string, source: 'GOOGLE' | 'WHATSAPP') {
+async function linkLegacyCustomer(legacy: LegacyCustomerIdentity, pessoaId: string, userId: string, source: 'GOOGLE' | 'WHATSAPP' | 'EMAIL') {
   await db.send(new UpdateItemCommand({
     TableName: table('FITPESO_CUSTOMERS_TABLE'),
     Key: { whatsapp: { S: legacy.whatsapp } },
