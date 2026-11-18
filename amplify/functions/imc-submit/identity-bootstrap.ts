@@ -275,7 +275,13 @@ export async function syncEmailCustomerIdentity(legacy: LegacyCustomerIdentity, 
 export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity) {
   if (!legacy.trainerId || !legacy.city) throw new Error('INVALID_LEGACY_TRAINER')
   const phone = toE164Brazilian(legacy.whatsapp)
-  const pessoaId = await ensureWhatsappPerson(phone, legacy.name)
+  if (legacy.pessoaId && legacy.identitySource !== 'WHATSAPP')
+    throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
+  const existingPhonePerson = await findPersonIdByIdentification('WHATSAPP', phone)
+  if (legacy.pessoaId && existingPhonePerson && legacy.pessoaId !== existingPhonePerson)
+    throw new Error('IDENTITY_LINK_CONFLICT')
+  const pessoaId = legacy.pessoaId ?? existingPhonePerson ?? await ensureWhatsappPerson(phone, legacy.name)
+  await attachVerifiedIdentification({ pessoaId, type: 'WHATSAPP', verifiedValue: phone })
   const userId = stableId('U', `${pessoaId}#PERSONAL`)
   await db.send(new UpdateItemCommand({
     TableName: table('TRAINERS_TABLE'),
