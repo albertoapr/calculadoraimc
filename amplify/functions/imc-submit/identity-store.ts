@@ -3,7 +3,7 @@
  * As tabelas legadas continuam sendo a fonte dos fluxos atuais ate a migracao controlada.
  * Nunca use um identificador informado pelo cliente sem validacao do provedor.
  */
-import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
+import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, QueryCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 
 export type IdentificationType = 'EMAIL' | 'WHATSAPP' | 'GOOGLE'
 export type UserRole = 'ADMIN' | 'CLIENTE' | 'PERSONAL'
