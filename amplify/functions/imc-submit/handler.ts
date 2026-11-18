@@ -16,6 +16,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
+import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity } from './identity-bootstrap'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
@@ -433,6 +434,23 @@ function googleProfilePhotoUrl(value: unknown): string {
   }
 }
 
+/** Fail-open para compatibilidade: falha na migracao nao invalida o login legado.
+ * Conflitos nunca concedem um novo perfil; exigem reconciliacao explicita. */
+async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usuarios: unknown[] }>) {
+  try { return { identity: await operation(), identityStatus: 'ready' as const } }
+  catch (error) {
+    console.warn('[imc-submit] Identity migration pending', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+      reason: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'SYNC_FAILED',
+    })
+    return { identityStatus: 'pending' as const }
+  }
+}
+
+function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
+  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/auth/me')
+}
+
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
@@ -460,6 +478,11 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
         return response(401, { error: 'Cadastro indisponível. Entre novamente.' })
       }
+      const identity = shouldResolveIdentity(event) ? await trySyncIdentity(() => syncWhatsappCustomerIdentity({
+        whatsapp, name: customer.Item!.name?.S ?? '', email: customer.Item!.email?.S ?? '',
+        isAdmin: customer.Item!.isAdmin?.BOOL === true, pessoaId: customer.Item!.pessoa_id?.S,
+        identitySource: customer.Item!.identitySource?.S,
+      })) : undefined
       return response(200, { authenticated: true, profile: {
         name: customer.Item.name?.S ?? '',
         whatsapp,
@@ -467,6 +490,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
         isAdmin: customer.Item.isAdmin?.BOOL === true,
         googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
+        ...identity,
       } })
     } catch (error) {
       console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -493,6 +517,13 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     }))
     const customer = result.Items?.[0]
     if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
+    const identity = shouldResolveIdentity(event) && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
+      ? await trySyncIdentity(() => syncGoogleCustomerIdentity({
+        whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
+        email: customer.email?.S ?? '', isAdmin: customer.isAdmin?.BOOL === true,
+        pessoaId: customer.pessoa_id?.S, identitySource: customer.identitySource?.S,
+      }, { sub: payload.sub!, email }))
+      : shouldResolveIdentity(event) ? { identityStatus: 'pending' as const } : undefined
     const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
     const googlePhotoUrl = verifiedPhotoUrl || customer.googlePhotoUrl?.S || ''
     // Persist the trusted profile-picture URL on successful Google login.
@@ -528,6 +559,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         dateOfBirth: customer.dateOfBirth?.S ?? '',
         isAdmin: customer.isAdmin?.BOOL === true,
         googlePhotoUrl,
+        ...identity,
       },
     })
   } catch (error) {
@@ -770,6 +802,7 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     }
     return { profile: {
       trainerId,
+      city,
       name: item.name?.S ?? '',
       whatsapp,
       email: item.email?.S ?? '',
@@ -2681,7 +2714,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
     const auth = await getTrainerSession(event)
-    return auth.error ?? response(200, { authenticated: true, profile: auth.profile! })
+    if (auth.error) return auth.error
+    const identity = await trySyncIdentity(() => syncWhatsappTrainerIdentity({
+      trainerId: auth.profile!.trainerId, city: auth.profile!.city,
+      whatsapp: auth.profile!.whatsapp, name: auth.profile!.name,
+    }))
+    return response(200, { authenticated: true, profile: { ...auth.profile!, ...identity } })
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
     return beginCustomerLogin(parseBody(event))
@@ -2712,6 +2750,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/me')) {
+    const customer = await getCustomerProfile(event)
+    if (customer.statusCode === 200) return customer
+    const trainer = await getTrainerSession(event)
+    if (trainer.error) return customer
+    const identity = await trySyncIdentity(() => syncWhatsappTrainerIdentity({
+      trainerId: trainer.profile!.trainerId, city: trainer.profile!.city,
+      whatsapp: trainer.profile!.whatsapp, name: trainer.profile!.name,
+    }))
+    return response(200, { authenticated: true, profile: { ...trainer.profile!, ...identity }, activeRole: 'PERSONAL' })
+  }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
     return getCustomerVerificationStatus(parseBody(event))
   }
