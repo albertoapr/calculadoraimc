@@ -161,6 +161,8 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
         codeHash: { S: challenge.sessionTokenHash.S },
         flow: { S: challenge.role?.S === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session' },
         whatsapp: { S: challenge.whatsapp.S },
+        email: { S: challenge.email.S },
+        identityProof: { S: 'EMAIL' },
         expiresAt: { N: String(now + 12 * 60 * 60) },
       }
       if (challenge.role?.S === 'trainer' && challenge.trainerId?.S && challenge.city?.S) {
