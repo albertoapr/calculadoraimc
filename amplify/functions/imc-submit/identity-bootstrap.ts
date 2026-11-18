@@ -242,7 +242,7 @@ export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity)
     TableName: table('TRAINERS_TABLE'),
     Key: { city: { S: legacy.city }, trainerId: { S: legacy.trainerId } },
     UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :p), user_id = if_not_exists(user_id, :u)',
-    ConditionExpression: 'active = :active AND whatsappVerified = :verified AND whatsapp = :phone AND (attribute_not_exists(pessoa_id) OR pessoa_id = :p)',
+    ConditionExpression: 'active = :active AND whatsappVerified = :verified AND whatsapp = :phone AND (attribute_not_exists(pessoa_id) OR pessoa_id = :p) AND (attribute_not_exists(user_id) OR user_id = :u)',
     ExpressionAttributeValues: {
       ':p': { S: pessoaId }, ':u': { S: userId }, ':phone': { S: legacy.whatsapp },
       ':active': { BOOL: true }, ':verified': { BOOL: true },
