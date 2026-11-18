@@ -344,6 +344,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
             Item: {
               codeHash: { S: sessionHash },
               flow: { S: 'fitpeso-customer-login-session' },
+              identityProof: { S: 'WHATSAPP' },
               whatsapp: { S: whatsapp },
               expiresAt: { N: String(sessionExpiry) },
             },
@@ -479,11 +480,14 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
         return response(401, { error: 'Cadastro indisponível. Entre novamente.' })
       }
-      const identity = shouldResolveIdentity(event) ? await trySyncIdentity(() => syncWhatsappCustomerIdentity({
-        whatsapp, name: customer.Item!.name?.S ?? '', email: customer.Item!.email?.S ?? '',
-        isAdmin: customer.Item!.isAdmin?.BOOL === true, pessoaId: customer.Item!.pessoa_id?.S,
-        identitySource: customer.Item!.identitySource?.S,
-      })) : undefined
+      const identity = !shouldResolveIdentity(event) ? undefined
+        : session.Item?.identityProof?.S === 'WHATSAPP'
+          ? await trySyncIdentity(() => syncWhatsappCustomerIdentity({
+              whatsapp, name: customer.Item!.name?.S ?? '', email: customer.Item!.email?.S ?? '',
+              isAdmin: customer.Item!.isAdmin?.BOOL === true, pessoaId: customer.Item!.pessoa_id?.S,
+              identitySource: customer.Item!.identitySource?.S,
+            }))
+          : { identityStatus: 'pending' as const }
       return response(200, { authenticated: true, profile: {
         name: customer.Item.name?.S ?? '',
         whatsapp,
@@ -697,7 +701,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
       } },
       { Put: {
         TableName: codesTable,
-        Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
+        Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
@@ -819,7 +823,7 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       workingMethod: item.workingMethod?.S ?? '',
       pricing: item.pricing?.S ?? '',
       bannerUpdatedAt: item.bannerUpdatedAt?.S ?? '',
-    } }
+    }, identityProof: record?.identityProof?.S ?? '' }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
@@ -1071,6 +1075,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         ExpressionAttributeNames: { '#flow': 'flow' },
         ExpressionAttributeValues: { ':flow': { S: 'fitpeso-trainer-login' }, ':whatsapp': { S: whatsapp }, ':now': { N: String(now) } } } },
       { Put: { TableName: tableName, Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-trainer-login-session' },
+        identityProof: { S: 'WHATSAPP' },
         whatsapp: { S: whatsapp }, trainerId: { S: trainerId }, city: { S: challengeCity },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
       ...trainerRows.map(row => ({
@@ -2716,10 +2721,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
     const auth = await getTrainerSession(event)
     if (auth.error) return auth.error
-    const identity = await trySyncIdentity(() => syncWhatsappTrainerIdentity({
-      trainerId: auth.profile!.trainerId, city: auth.profile!.city,
-      whatsapp: auth.profile!.whatsapp, name: auth.profile!.name,
-    }))
+    const identity = auth.identityProof === 'WHATSAPP'
+      ? await trySyncIdentity(() => syncWhatsappTrainerIdentity({
+          trainerId: auth.profile!.trainerId, city: auth.profile!.city,
+          whatsapp: auth.profile!.whatsapp, name: auth.profile!.name,
+        }))
+      : { identityStatus: 'pending' as const }
     return response(200, { authenticated: true, profile: { ...auth.profile!, ...identity } })
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
@@ -2777,10 +2784,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (customer.statusCode === 200) return customer
     const trainer = await getTrainerSession(event)
     if (trainer.error) return customer
-    const identity = await trySyncIdentity(() => syncWhatsappTrainerIdentity({
-      trainerId: trainer.profile!.trainerId, city: trainer.profile!.city,
-      whatsapp: trainer.profile!.whatsapp, name: trainer.profile!.name,
-    }))
+    const identity = trainer.identityProof === 'WHATSAPP'
+      ? await trySyncIdentity(() => syncWhatsappTrainerIdentity({
+          trainerId: trainer.profile!.trainerId, city: trainer.profile!.city,
+          whatsapp: trainer.profile!.whatsapp, name: trainer.profile!.name,
+        }))
+      : { identityStatus: 'pending' as const }
     return response(200, { authenticated: true, profile: { ...trainer.profile!, ...identity }, activeRole: 'PERSONAL' })
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
