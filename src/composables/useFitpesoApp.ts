@@ -45,8 +45,8 @@ declare global {
 /** Coordinates screen flows. Domain controllers can be extracted independently from this boundary. */
 export function useFitpesoApp() {
   const router = useRouter()
-  const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId } =
-    storeToRefs(useAccountSession())
+  const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId,
+    pessoaId, availableProfiles, identityStatus } = storeToRefs(useAccountSession())
   // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
   const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
 
@@ -510,7 +510,12 @@ export function useFitpesoApp() {
     dateOfBirth?: string
     isAdmin?: boolean
     googlePhotoUrl?: string
+    identity?: { pessoaId: string; usuarios: import('../types/domain').IdentityProfile[] }
+    identityStatus?: 'ready' | 'pending'
   }) {
+    pessoaId.value = profile.identity?.pessoaId ?? ''
+    availableProfiles.value = profile.identity?.usuarios ?? []
+    identityStatus.value = profile.identityStatus ?? ''
     customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     customerIsAdmin.value = profile.isAdmin === true
     form.name = profile.name
@@ -683,6 +688,9 @@ export function useFitpesoApp() {
     customerSignedInName.value = ''
     customerPhotoUrl.value = ''
     customerIsAdmin.value = false
+    pessoaId.value = ''
+    availableProfiles.value = []
+    identityStatus.value = ''
     trainerSignedInId.value = ''
     trainerSignedInName.value = ''
     loginAsTrainer.value = false
@@ -854,6 +862,9 @@ export function useFitpesoApp() {
   }
 
   function applyTrainerSession(profile: TrainerAccountProfile) {
+    pessoaId.value = profile.identity?.pessoaId ?? ''
+    availableProfiles.value = profile.identity?.usuarios ?? []
+    identityStatus.value = profile.identityStatus ?? ''
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
