@@ -20,11 +20,9 @@ const {
 } = useFitpesoContext()
 
 const academyDialogOpen = ref(false)
-const academyTitle = computed(() => {
-  const name = publicTrainerAcademyDetails.value.name.trim()
-  if (!name) return 'Selecione uma academia'
-  return /^academia\b/i.test(name) ? name : `Academia ${name}`
-})
+const academyName = computed(() =>
+  publicTrainerAcademyDetails.value.name.trim().replace(/^academia\s+/i, ''),
+)
 
 function confirmAcademy(academy: string) {
   publicTrainerAcademy.value = academy
@@ -88,7 +86,13 @@ watch(viewMode, (mode) => {
         >
           &lt;
         </button>
-        <h1 id="page-title" class="academy-public-title">{{ academyTitle }}</h1>
+        <h1 id="page-title" class="academy-public-title">
+          <template v-if="academyName">
+            <span class="academy-title-prefix">Academia</span>
+            <span class="academy-title-name">{{ academyName }}</span>
+          </template>
+          <span v-else>Selecione uma academia</span>
+        </h1>
         <button
           type="button"
           class="academy-change-button"
@@ -180,12 +184,28 @@ watch(viewMode, (mode) => {
   width: 100%;
 }
 .academy-public-title {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 0.25em;
   min-width: 0;
   font-size: clamp(20px, 5.4vw, 31px);
   line-height: 1.16;
   overflow-wrap: anywhere;
   text-align: center;
+}
+.academy-title-prefix {
+  color: #286b4e;
+}
+.academy-title-name {
+  color: #263f33;
+}
+:global(html[data-theme='dark']) .academy-title-prefix {
+  color: #55d6a3;
+}
+:global(html[data-theme='dark']) .academy-title-name {
+  color: #f1f5f3;
 }
 .academy-back-button {
   padding: 0;
