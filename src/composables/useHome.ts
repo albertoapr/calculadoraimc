@@ -219,7 +219,10 @@ export function useHome(options: {
         /* navegação privada */
       }
     }
-    if ((viewMode.value === 'home' || viewMode.value === 'public-trainers') && academy !== previousAcademy) {
+    if (
+      (viewMode.value === 'home' || viewMode.value === 'public-trainers') &&
+      academy !== previousAcademy
+    ) {
       homeSelectedTrainerIds.value = []
     }
   })
