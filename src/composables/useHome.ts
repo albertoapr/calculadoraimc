@@ -1,5 +1,5 @@
-import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, hasInjectionContext, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { useRouter, type Router } from 'vue-router'
 import { academyNameSlug, academyPath, academySlug, parseAcademyPath } from '../router/academyRoutes'
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
 import { listAcademies, type Academy } from '../services/academiesService'
@@ -25,7 +25,14 @@ export function useHome(options: {
   readNavigationPreference: (key: string) => string
   saveNavigationPreference: (key: string, value: string) => void
 }) {
-  const router = useRouter()
+  // Unit tests invoke this controller outside a component setup.
+  const router = hasInjectionContext()
+    ? useRouter()
+    : ({
+        currentRoute: ref({ path: '/' }),
+        push: async () => undefined,
+        replace: async () => undefined,
+      } as unknown as Router)
   const {
     viewMode,
     isRootHome,
