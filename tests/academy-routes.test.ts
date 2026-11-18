@@ -9,7 +9,11 @@ test('gera URL legível com cidade, academia e bairro', () => {
     academyPath('Nova Iguaçu', 'Aquatic Center', 'Vila Emil'),
     '/nova-iguacu/academia/aquatic-center/vila-emil',
   )
-  assert.equal(academyPath('Mesquita', 'Academia SmartFit', 'Centro'), '/mesquita/academia/smartfit/centro')
+  assert.equal(
+    academyPath('Mesquita', 'Academia SmartFit', 'Centro'),
+    '/mesquita/academia/smartfit/centro',
+  )
+  assert.equal(academyPath('Mesquita', 'Smart Fit', 'Centro'), '/mesquita/academia/smartfit/centro')
   assert.equal(academySlug('São João de Meriti'), 'sao-joao-de-meriti')
 })
 
