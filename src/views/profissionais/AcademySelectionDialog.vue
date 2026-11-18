@@ -33,7 +33,10 @@ function confirmSelection() {
       aria-modal="true"
       aria-labelledby="academy-dialog-title"
     >
-      <h2 id="academy-dialog-title">Selecione a academia</h2>
+      <h2 id="academy-dialog-title">
+        <span class="academy-dialog-title-primary">Selecione</span>
+        <span class="academy-dialog-title-secondary"> a academia</span>
+      </h2>
       <label for="academy-dialog-select">Academia</label>
       <select
         id="academy-dialog-select"
@@ -93,6 +96,12 @@ function confirmSelection() {
   font-size: 22px;
   text-align: center;
 }
+.academy-dialog-title-primary {
+  color: #286b4e;
+}
+.academy-dialog-title-secondary {
+  color: #263f33;
+}
 .academy-dialog label {
   font-weight: 700;
 }
@@ -106,8 +115,38 @@ function confirmSelection() {
   color: var(--ink);
   color-scheme: normal;
 }
+:global(html[data-theme='dark']) .academy-dialog {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .academy-dialog h2,
+:global(html[data-theme='dark']) .academy-dialog label {
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .academy-dialog-title-primary {
+  color: #55d6a3;
+}
+:global(html[data-theme='dark']) .academy-dialog-title-secondary {
+  color: #f1f5f3;
+}
 :global(html[data-theme='dark']) .academy-dialog select {
   color-scheme: dark;
+  background: #17211b;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .academy-dialog select option {
+  background: #17211b;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .academy-dialog-cancel {
+  border-color: #3b4b40;
+  background: #26342b;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark']) .academy-dialog-empty {
+  color: #b5c0b8;
 }
 .academy-dialog-empty {
   margin: 0;
