@@ -58,7 +58,7 @@ const {
       <p class="intro">
         {{
           loginStep === 1
-            ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.'
+            ? 'Informe seu e-mail para acessar o FitPeso.'
             : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.'
         }}
       </p>
@@ -70,15 +70,16 @@ const {
       @submit.prevent="continueLoginIdentifier"
     >
       <label class="field field-wide" for="login-identifier">
-        <span class="field-label">WhatsApp ou e-mail</span>
+        <!-- Login por WhatsApp suspenso temporariamente. Mantido no código para reativação futura. -->
+        <span class="field-label">E-mail</span>
         <input
           id="login-identifier"
           v-model="loginIdentifier"
-          type="text"
+          type="email"
           inputmode="email"
-          autocomplete="username"
+          autocomplete="email"
           maxlength="254"
-          placeholder="(21) 99999-9999 ou seu@email.com"
+          placeholder="seu@email.com"
           required
           @input="emailLoginError = ''"
         />
