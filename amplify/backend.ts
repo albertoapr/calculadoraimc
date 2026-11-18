@@ -235,6 +235,11 @@ for (const [table, envName] of newDataTables) {
   table.grantReadWriteData(identityDataPolicy)
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
+// Criacao atomica de pessoa + identificacao comprovada.
+identityDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:TransactWriteItems'],
+  resources: [pessoasV2.tableArn, identificacoesV2.tableArn],
+}))
 // Consultas em GSIs exigem permissão para ARN do índice.
 for (const [table, indices] of [
   [identificacoesV2, ['IdentificacoesByPessoa']],
