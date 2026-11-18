@@ -173,14 +173,16 @@ const {
       </div>
     </div>
 
+    <!-- Botão "Criar cadastro" temporariamente oculto. Preservado para reativação.
     <button
-      v-if="loginStep === 1"
-      class="back-button"
-      type="button"
-      @click="openCustomerSignupFromLogin"
+    v-if="loginStep === 1"
+    class="back-button"
+    type="button"
+    @click="openCustomerSignupFromLogin"
     >
-      Criar cadastro
+    Criar cadastro
     </button>
+    -->
     <div
       v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog"
       class="success-overlay"
