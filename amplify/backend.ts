@@ -167,6 +167,13 @@ const identityTable = (id: string, key: string, type = dynamodb.AttributeType.ST
   })
 
 const pessoasV2 = identityTable('FitpesoPessoa', 'pessoa_id')
+// Identificacoes de login pertencem a pessoa, nao a um perfil individual.
+const identificacoesV2 = identityTable('FitpesoPessoaIdentificacao', 'identificationKey')
+identificacoesV2.addGlobalSecondaryIndex({
+  indexName: 'IdentificacoesByPessoa',
+  partitionKey: { name: 'pessoa_id', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
 const usuariosV2 = identityTable('FitpesoUsuario', 'user_id')
 const tiposUsuarioV2 = identityTable('FitpesoTipoUsuario', 'tipo_usuario_id', dynamodb.AttributeType.NUMBER)
 const customersV2 = identityTable('FitpesoCustomerV2', 'customer_id')
@@ -206,6 +213,7 @@ personalsV2.addGlobalSecondaryIndex({
 // As novas tabelas ainda não são usadas pelas rotas atuais.
 const newDataTables = [
   [pessoasV2, 'FITPESO_PESSOA_TABLE'],
+  [identificacoesV2, 'FITPESO_PESSOA_IDENTIFICACAO_TABLE'],
   [usuariosV2, 'FITPESO_USUARIO_TABLE'],
   [tiposUsuarioV2, 'FITPESO_TIPO_USUARIO_TABLE'],
   [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
@@ -229,6 +237,7 @@ for (const [table, envName] of newDataTables) {
 }
 // Consultas em GSIs exigem permissão para ARN do índice.
 for (const [table, indices] of [
+  [identificacoesV2, ['IdentificacoesByPessoa']],
   [usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
   [customersV2, ['CustomerByUsuario']],
   [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
