@@ -17,6 +17,7 @@ import ConsultarProfissionaisView from '../views/profissionais/ConsultarProfissi
 import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissionaisView.vue'
 import { useApplicationNavigation } from './useApplicationNavigation'
 import { safeReturnPath, type AppScreen } from '../router/screens'
+import { parseAcademyPath } from '../router/academyRoutes'
 import { useAssessment } from './useAssessment'
 import { usePublicTrainerProfile } from './usePublicTrainerProfile'
 import { useHome } from './useHome'
@@ -81,7 +82,8 @@ export function useFitpesoApp() {
   const viewMode = ref<AppViewMode>(
     trainerRequestToken
       ? 'trainer-request'
-      : router.currentRoute.value.path === '/profissionais'
+      : router.currentRoute.value.path === '/profissionais' ||
+          parseAcademyPath(router.currentRoute.value.path)
         ? 'public-trainers'
         : 'home',
   )
@@ -185,6 +187,10 @@ export function useFitpesoApp() {
     homeAcademySelected,
     publicTrainerAcademies,
     publicTrainerAcademyDetails,
+    academyRouteLoading,
+    academyRouteError,
+    changePublicAcademy,
+    retryPublicTrainers,
     publicFilteredTrainers,
     publicTrainersLoading,
     publicTrainersError,
@@ -938,9 +944,7 @@ export function useFitpesoApp() {
         await selectTrainersForDraft()
       }
     } else if (screen === 'public-trainers') {
-      selectingTrainersForDraft.value = false
-      publicTrainerCity.value = homeCity.value
-      if (publicTrainerCity.value) void loadPublicTrainers()
+      await homeController.enterPublicTrainersRoute(router.currentRoute.value.path)
     } else if (screen === 'customer-requests') {
       await openCustomerRequests()
     } else if (screen === 'trainer-requests') {
@@ -991,10 +995,6 @@ export function useFitpesoApp() {
       publicTrainerCity.value = homeCity.value
       void loadPublicTrainers()
     }
-    if (viewMode.value === 'public-trainers') {
-      publicTrainerCity.value = homeCity.value
-      if (publicTrainerCity.value) void loadPublicTrainers()
-    }
     document.addEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.addEventListener('click', closeHamburgerOnSelection)
     void finishEmailLoginFromLink()
@@ -1040,6 +1040,10 @@ export function useFitpesoApp() {
     publicTrainersError,
     publicTrainerAcademies,
     publicTrainerAcademyDetails,
+    academyRouteLoading,
+    academyRouteError,
+    changePublicAcademy,
+    retryPublicTrainers,
     publicFilteredTrainers,
     publicTrainers,
     startTrainingRequestFromHome,
