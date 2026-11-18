@@ -202,10 +202,10 @@ watch(viewMode, (mode) => {
 .academy-title-name {
   color: #263f33;
 }
-:global(html[data-theme='dark']) .academy-title-prefix {
-  color: #f1f5f3;
+:global(html[data-theme='dark']) .academy-public-title .academy-title-prefix {
+  color: #ffffff;
 }
-:global(html[data-theme='dark']) .academy-title-name {
+:global(html[data-theme='dark']) .academy-public-title .academy-title-name {
   color: #55d6a3;
 }
 .academy-back-button {
