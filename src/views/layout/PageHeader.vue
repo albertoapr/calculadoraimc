@@ -203,10 +203,10 @@ watch(viewMode, (mode) => {
   color: #263f33;
 }
 :global(html[data-theme='dark']) .academy-title-prefix {
-  color: #55d6a3;
+  color: #f1f5f3;
 }
 :global(html[data-theme='dark']) .academy-title-name {
-  color: #f1f5f3;
+  color: #55d6a3;
 }
 .academy-back-button {
   padding: 0;
