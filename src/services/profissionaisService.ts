@@ -8,6 +8,7 @@ export type PublicTrainer = {
   pricing?: string
   bannerUpdatedAt?: string
   trainerId: string
+  googlePhotoUrl?: string
   name: string
   slug: string
   instagram?: string
