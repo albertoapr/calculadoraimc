@@ -128,21 +128,39 @@ export function useHome(options: {
   const registeredAcademies = ref<Academy[]>([])
   const loadedAcademiesCity = ref('')
   let academyLookupId = 0
-  async function loadCityAcademies(city: string) {
+  let activeAcademyLoadCity = ''
+  let activeAcademyLoad: Promise<void> | null = null
+
+  async function loadCityAcademies(city: string): Promise<void> {
+    if (city && activeAcademyLoadCity === city && activeAcademyLoad) {
+      return activeAcademyLoad
+    }
     const id = ++academyLookupId
     if (!city) {
       registeredAcademies.value = []
       loadedAcademiesCity.value = ''
       return
     }
+    const pending = (async () => {
+      try {
+        const result = await listAcademies(city)
+        if (id === academyLookupId) registeredAcademies.value = result
+      } catch {
+        // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
+        if (id === academyLookupId) registeredAcademies.value = []
+      } finally {
+        if (id === academyLookupId) loadedAcademiesCity.value = city
+      }
+    })()
+    activeAcademyLoadCity = city
+    activeAcademyLoad = pending
     try {
-      const result = await listAcademies(city)
-      if (id === academyLookupId) registeredAcademies.value = result
-    } catch {
-      // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
-      if (id === academyLookupId) registeredAcademies.value = []
+      await pending
     } finally {
-      if (id === academyLookupId) loadedAcademiesCity.value = city
+      if (activeAcademyLoad === pending) {
+        activeAcademyLoad = null
+        activeAcademyLoadCity = ''
+      }
     }
   }
   watch(
