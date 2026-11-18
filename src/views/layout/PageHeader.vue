@@ -16,6 +16,7 @@ const {
   goBackFromTitle,
   publicTrainerAcademy,
   publicTrainerAcademies,
+  changePublicAcademy,
   publicTrainerAcademyDetails,
 } = useFitpesoContext()
 
@@ -25,7 +26,7 @@ const academyName = computed(() =>
 )
 
 function confirmAcademy(academy: string) {
-  publicTrainerAcademy.value = academy
+  changePublicAcademy(academy)
   academyDialogOpen.value = false
 }
 
