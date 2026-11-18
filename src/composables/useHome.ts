@@ -41,6 +41,7 @@ export function useHome(options: {
   } = options
   const NAV_CITY = 'fitpeso:preferred-city:v1'
   const publicTrainers = ref<EligibleTrainer[]>([])
+  const loadedTrainersCity = ref('')
   const publicTrainerCity = ref('')
   const publicTrainerAcademy = ref('')
   // A escolha da academia na home dura apenas a sessão atual do navegador.
@@ -179,6 +180,19 @@ export function useHome(options: {
     )
     return [...new Set([...canonical, ...unregistered])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   })
+  // O cadastro da academia é a fonte principal para nome e bairro no título público.
+  // Para academias legadas, admite o formato "Nome — Bairro".
+  const publicTrainerAcademyDetails = computed(() => {
+    const selected = publicTrainerAcademy.value.trim()
+    if (!selected) return { name: '', neighborhood: '' }
+    const registered = registeredAcademies.value.find(
+      (item) => `${item.name} — ${item.neighborhood}` === selected,
+    )
+    if (registered) return { name: registered.name, neighborhood: registered.neighborhood }
+    const [name, ...neighborhood] = selected.split(/\\s+[—–-]\\s+/)
+    return { name: name || selected, neighborhood: neighborhood.join(' - ') }
+  })
+
   // Sem seleção, a lista pode carregar opções para o combo, mas não exibe resultados.
   watch(
     [publicTrainerAcademies, publicTrainerCity],
@@ -205,10 +219,28 @@ export function useHome(options: {
         /* navegação privada */
       }
     }
-    if (viewMode.value === 'home' && academy !== previousAcademy) {
+    if ((viewMode.value === 'home' || viewMode.value === 'public-trainers') && academy !== previousAcademy) {
       homeSelectedTrainerIds.value = []
     }
   })
+  // Na consulta pública, uma academia deve estar selecionada para exibir sua lista.
+  // O carregamento por cidade impede que uma opção de outra cidade seja escolhida.
+  watch(
+    [publicTrainerAcademies, publicTrainerCity, viewMode, loadedTrainersCity],
+    ([academies, city, mode, loadedCity]) => {
+      if (
+        mode === 'public-trainers' &&
+        city &&
+        loadedCity === city &&
+        !publicTrainerAcademy.value &&
+        academies.length
+      ) {
+        publicTrainerAcademy.value = academies[0] ?? ''
+      }
+    },
+    { immediate: true },
+  )
+
   async function loadPublicTrainers() {
     const id = ++publicLookupId
     const city = publicTrainerCity.value
@@ -216,19 +248,31 @@ export function useHome(options: {
       viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente'
     const cached = getCachedEligibleTrainers(city, gender)
     publicTrainersError.value = ''
+    if (!city) {
+      publicTrainers.value = []
+      loadedTrainersCity.value = ''
+      publicTrainersLoading.value = false
+      return
+    }
     // Dados em cache aparecem imediatamente; não esvaziar a listagem em toda navegação.
     if (cached) {
       publicTrainers.value = cached
+      loadedTrainersCity.value = city
       publicTrainersLoading.value = false
       return
     }
     publicTrainersLoading.value = true
     try {
       const trainers = await listEligibleTrainers(city, gender)
-      if (id === publicLookupId) publicTrainers.value = trainers
+      if (id === publicLookupId) {
+        publicTrainers.value = trainers
+        loadedTrainersCity.value = city
+      }
     } catch {
-      if (id === publicLookupId)
+      if (id === publicLookupId) {
         publicTrainersError.value = 'Não foi possível consultar os profissionais.'
+        loadedTrainersCity.value = ''
+      }
     } finally {
       if (id === publicLookupId) publicTrainersLoading.value = false
     }
@@ -236,7 +280,7 @@ export function useHome(options: {
   function openPublicTrainers() {
     selectingTrainersForDraft.value = false
     publicTrainerCity.value = homeCity.value
-    publicTrainerAcademy.value = ''
+    // Reaproveita a academia escolhida na tela inicial; sem escolha, usa a primeira da cidade.
     viewMode.value = 'public-trainers'
     if (publicTrainerCity.value) void loadPublicTrainers()
     void nextTick(() => window.scrollTo(0, 0))
@@ -271,6 +315,7 @@ export function useHome(options: {
     publicTrainerAcademy,
     homeAcademySelected,
     publicTrainerAcademies,
+    publicTrainerAcademyDetails,
     publicFilteredTrainers,
     publicTrainersLoading,
     publicTrainersError,
