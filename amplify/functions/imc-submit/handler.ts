@@ -6,6 +6,7 @@ import {
   ConditionalCheckFailedException,
   DynamoDBClient,
   GetItemCommand,
+  BatchGetItemCommand,
   DeleteItemCommand,
   PutItemCommand,
   QueryCommand,
@@ -1792,6 +1793,37 @@ async function getActiveTrainersForCity(city: string) {
   })
 }
 
+/** Add Google profile photos to the public trainer directory when the linked account has one. */
+async function trainerGooglePhotos(trainers: { trainerId: string; whatsapp: string }[]) {
+  const table = process.env.FITPESO_CUSTOMERS_TABLE
+  const result = new Map<string, string>()
+  if (!table || !trainers.length) return result
+  const byPhone = new Map(trainers.map(trainer => [trainer.whatsapp, trainer.trainerId]))
+  const phones = [...byPhone.keys()].filter(Boolean)
+  try {
+    for (let index = 0; index < phones.length; index += 100) {
+      let requestItems: Record<string, any> = {
+        [table]: {
+          Keys: phones.slice(index, index + 100).map(whatsapp => ({ whatsapp: { S: whatsapp } })),
+          ProjectionExpression: 'whatsapp, googlePhotoUrl',
+        },
+      }
+      for (let retry = 0; retry < 3 && Object.keys(requestItems).length; retry++) {
+        const page = await dynamodb.send(new BatchGetItemCommand({ RequestItems: requestItems }))
+        for (const item of page.Responses?.[table] ?? []) {
+          const trainerId = byPhone.get(item.whatsapp?.S ?? '')
+          const photo = googleProfilePhotoUrl(item.googlePhotoUrl?.S)
+          if (trainerId && photo) result.set(trainerId, photo)
+        }
+        requestItems = page.UnprocessedKeys ?? {}
+      }
+    }
+  } catch (error) {
+    console.warn('[imc-submit] Public trainer photos unavailable', { errorClass: error instanceof Error ? error.name : typeof error })
+  }
+  return result
+}
+
 async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const city = event.queryStringParameters?.city?.trim() ?? ''
   const preference = event.queryStringParameters?.gender?.trim() ?? 'indiferente'
@@ -1801,12 +1833,14 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
   }
   try {
     const trainers = await getActiveTrainersForCity(city)
+    const photos = await trainerGooglePhotos(trainers)
     const eligible = trainers
       .filter(trainer => preference === 'indiferente' || trainer.sex === preference)
       .map(trainer => ({
         trainerId: trainer.trainerId,
         name: trainer.name,
         slug: trainer.slug,
+        ...(photos.get(trainer.trainerId) ? { googlePhotoUrl: photos.get(trainer.trainerId) } : {}),
         sex: trainer.sex,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
         cref: trainer.cref,
