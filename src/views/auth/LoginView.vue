@@ -55,17 +55,26 @@ const {
         </button>
         Login
       </h1>
-      <p class="intro">
-        {{
-          loginStep === 1
-            ? 'Informe seu e-mail para acessar o FitPeso.'
-            : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.'
-        }}
-      </p>
+      <p class="intro">Entre com sua conta Google para acessar o FitPeso.</p>
     </header>
 
+    <div class="login-google-only">
+      <label class="login-profile-option field-wide" for="login-as-trainer-google">
+        <input
+          id="login-as-trainer-google"
+          v-model="loginAsTrainer"
+          type="checkbox"
+          :disabled="requestLoginReturn"
+          @change="changeLoginProfile"
+        />
+        <span>Entrar como personal trainer</span>
+      </label>
+      <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
+    </div>
+
+    <!-- Formulário de login por e-mail/WhatsApp suspenso temporariamente. -->
     <form
-      v-if="loginStep === 1"
+      v-if="false"
       class="form login-step-form"
       @submit.prevent="continueLoginIdentifier"
     >
@@ -98,13 +107,10 @@ const {
         {{ emailLoginError }}
       </p>
       <button class="primary-button field-wide" type="submit">Continuar</button>
-      <div class="login-google-alternative field-wide">
-        <span>ou</span>
-        <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
-      </div>
+      <!-- Botão Google movido para fora do formulário suspenso. -->
     </form>
 
-    <div v-else class="login-second-step">
+    <div v-if="false" class="login-second-step">
       <div class="login-identity-summary">
         <span>{{ loginIdentifierKind === 'whatsapp' ? 'WhatsApp' : 'E-mail' }}</span>
         <strong>{{ loginIdentifier }}</strong>
@@ -184,7 +190,7 @@ const {
     </button>
     -->
     <div
-      v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog"
+      v-if="false"
       class="success-overlay"
       role="presentation"
     >
