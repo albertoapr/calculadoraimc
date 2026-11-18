@@ -2,6 +2,7 @@ import { apiError, requestApi } from './http/apiClient'
 
 export type PublicTrainer = {
   trainerId: string
+  googlePhotoUrl?: string
   name: string
   slug: string
   instagram?: string

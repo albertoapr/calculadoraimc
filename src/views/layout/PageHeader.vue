@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import AcademySelectionDialog from '../profissionais/AcademySelectionDialog.vue'
 import rootHomePersonalImage from '../../assets/root-home-personal.jpg'
 const {
   trainerIdFromPath,
@@ -12,7 +14,25 @@ const {
   form,
   result,
   goBackFromTitle,
+  publicTrainerAcademy,
+  publicTrainerAcademies,
+  changePublicAcademy,
+  publicTrainerAcademyDetails,
 } = useFitpesoContext()
+
+const academyDialogOpen = ref(false)
+const academyName = computed(() =>
+  publicTrainerAcademyDetails.value.name.trim().replace(/^academia\s+/i, ''),
+)
+
+function confirmAcademy(academy: string) {
+  changePublicAcademy(academy)
+  academyDialogOpen.value = false
+}
+
+watch(viewMode, (mode) => {
+  if (mode !== 'public-trainers') academyDialogOpen.value = false
+})
 </script>
 
 <template>
@@ -57,29 +77,62 @@ const {
       />
       <p class="root-home-tagline-subtitle">O apoio faz toda a diferença.</p>
     </div>
+    <div v-if="viewMode === 'public-trainers'" class="academy-public-heading">
+      <div class="academy-public-heading-row">
+        <button
+          type="button"
+          class="title-back-button academy-back-button"
+          aria-label="Voltar"
+          @click="goBackFromTitle"
+        >
+          &lt;
+        </button>
+        <h1 id="page-title" class="academy-public-title">
+          <span v-if="academyName" class="academy-title-name">{{ academyName }}</span>
+          <span v-else>Selecione uma academia</span>
+        </h1>
+        <button
+          type="button"
+          class="academy-change-button"
+          aria-label="Alterar academia"
+          title="Alterar academia"
+          @click="academyDialogOpen = true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m4 20 4.5-1 10.7-10.7a2.2 2.2 0 0 0-3.1-3.1L5.4 15.9 4 20Z" />
+            <path d="m14.5 6.5 3 3" />
+          </svg>
+        </button>
+      </div>
+      <p v-if="publicTrainerAcademyDetails.neighborhood" class="academy-page-neighborhood">
+        {{ publicTrainerAcademyDetails.neighborhood }}
+      </p>
+    </div>
     <h1
-      v-if="viewMode !== 'contact' && (viewMode !== 'home' || result)"
+      v-if="
+        viewMode !== 'contact' &&
+        viewMode !== 'public-trainers' &&
+        (viewMode !== 'home' || result)
+      "
       id="page-title"
-      :class="{ 'academy-page-title': viewMode === 'public-trainers' }"
     >
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      <svg
-        v-if="viewMode !== 'public-trainers'"
-        class="scale-icon"
-        viewBox="0 0 40 40"
-        aria-hidden="true"
-      >
+      <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
         <rect x="6" y="4" width="28" height="32" rx="6" />
         <rect x="12" y="9" width="16" height="8" rx="2" />
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
       </svg>
-      <span v-if="viewMode === 'public-trainers'" class="academy-page-brand">
-        <span class="brand-peso">Personal</span>
-        <span class="brand-fit">Trainers</span>
-      </span>
-      <span v-else>{{
+      <span>{{
         viewMode === 'select-trainers'
           ? 'Solicitar treinamento'
           : viewMode === 'about'
@@ -105,44 +158,84 @@ const {
     <p v-if="viewMode === 'assessment' && !result" class="intro">
       Informe suas medidas para fazer uma avaliação.
     </p>
+    <AcademySelectionDialog
+      v-if="viewMode === 'public-trainers' && academyDialogOpen"
+      :academies="publicTrainerAcademies"
+      :academy="publicTrainerAcademy"
+      @confirm="confirmAcademy"
+      @close="academyDialogOpen = false"
+    />
   </header>
 </template>
 
 <style scoped>
-.academy-page-title {
-  margin-bottom: 0;
-  flex-wrap: nowrap;
-  gap: 6px;
+.academy-public-heading {
+  margin: 2px 0 12px;
   width: 100%;
   min-width: 0;
 }
-.academy-page-brand {
-  display: inline-flex;
+.academy-public-heading-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.academy-public-title {
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
-  flex-wrap: nowrap;
-  column-gap: 0.3em;
-  row-gap: 0;
+  column-gap: 0.25em;
   min-width: 0;
-  flex: 1 1 auto;
-  white-space: nowrap;
-  font-size: clamp(20px, 5.5vw, 32px);
-  letter-spacing: -0.045em;
+  font-size: clamp(20px, 5.4vw, 31px);
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
-.academy-page-brand .brand-fit,
-.academy-page-brand .brand-peso {
-  white-space: nowrap;
+.academy-title-prefix {
+  color: #286b4e;
 }
-.academy-page-brand .brand-peso {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.academy-title-name {
+  color: #263f33;
+}
+:global(html[data-theme='dark']) .academy-public-title .academy-title-prefix {
+  color: #ffffff;
+}
+:global(html[data-theme='dark']) .academy-public-title .academy-title-name {
+  color: #55d6a3;
+}
+.academy-back-button {
+  padding: 0;
+  font-size: 27px;
+}
+.academy-change-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.academy-change-button svg {
+  width: 22px;
+  height: 22px;
+}
+.academy-change-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 .academy-page-neighborhood {
-  margin: 2px auto 12px;
+  margin: 4px 0 0;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.3;
+  text-align: center;
 }
 </style>

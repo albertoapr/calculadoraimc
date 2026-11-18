@@ -152,13 +152,6 @@ const {
           />
         </label>
       </template>
-<style scoped>
-.google-profile-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.google-profile-photo img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
-.google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
-.google-profile-photo small { color: var(--muted); }
-.google-profile-photo a { color: var(--blue); font-size: 0.9rem; }
-</style>
       <small class="field-wide"
         >Para alterar WhatsApp, e-mail ou endereço do perfil profissional, é necessária uma nova
         verificação com a Beta.</small
@@ -172,3 +165,11 @@ const {
     </p>
   </section>
 </template>
+
+<style scoped>
+.google-profile-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.google-profile-photo img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
+.google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
+.google-profile-photo small { color: var(--muted); }
+.google-profile-photo a { color: var(--blue); font-size: 0.9rem; }
+</style>

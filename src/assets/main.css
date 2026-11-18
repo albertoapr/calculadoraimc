@@ -3580,3 +3580,48 @@ html[data-theme='dark'] .home-training-subtitle {
 .fitpeso-home-brand-column .home-city-selector svg {
   left: 4px;
 }
+
+/* Título da academia na listagem pública: contraste fixo no tema escuro. */
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-prefix {
+  color: #ffffff;
+}
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-name {
+  color: #55d6a3;
+}
+
+/* Modal de seleção de academia: manter todas as superfícies e textos no tema escuro.
+   Regra global evita conflito com estilos gerais de formulário e títulos. */
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog {
+  background-color: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+  color-scheme: dark;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog h2,
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog label {
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog .academy-dialog-title-primary {
+  color: #55d6a3;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog .academy-dialog-title-secondary {
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog select {
+  background-color: #17211b;
+  border-color: #4b6052;
+  color: #f4f5f0;
+  color-scheme: dark;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog select option {
+  background-color: #17211b;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog .academy-dialog-cancel {
+  background-color: #26342b;
+  border-color: #4b6052;
+  color: #f4f5f0;
+}
+html[data-theme='dark'] .academy-dialog-backdrop .academy-dialog .academy-dialog-empty {
+  color: #b5c0b8;
+}

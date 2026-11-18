@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
-    <div class="home-trainer-controls">
+    <div v-if="selectingForDraft" class="home-trainer-controls">
       <label class="home-academy-select">
         <select
           :value="academy"
@@ -89,17 +89,15 @@ const emit = defineEmits<{
     <p v-if="!selectingForDraft && sharingMessage" class="home-list-message" role="status">
       {{ sharingMessage }}
     </p>
-    <p v-if="!city" class="home-list-message">
-      Selecione uma cidade no cabeçalho para encontrar profissionais.
-    </p>
-    <p v-else-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
+    <p v-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
     <p v-else-if="error" class="home-list-message" role="alert">
       {{ error }} <button type="button" @click="emit('retry')">Tentar novamente</button>
     </p>
+    <p v-else-if="!city" class="home-list-message">
+      Selecione uma cidade no cabeçalho para encontrar profissionais.
+    </p>
     <template v-else>
-      <p class="home-list-heading">
-        {{ trainers.length }} {{ trainers.length === 1 ? 'personal' : 'personais' }} em {{ city }}
-      </p>
+      <p v-if="trainers.length" class="trainer-selection-hint">Toque em um ou mais personais para selecionar.</p>
       <ProfissionaisListView
         :show-request-link="!selectingForDraft"
         @request-trainer="(id) => emit('request-trainer', id)"
@@ -118,6 +116,7 @@ const emit = defineEmits<{
       class="primary-button home-proposal-button"
       type="button"
       :disabled="
+        selectedIds.length === 0 ||
         sharingBusy ||
         checkingRequests ||
         !!requestsError ||
@@ -130,9 +129,7 @@ const emit = defineEmits<{
           ? 'Enviando…'
           : checkingRequests
             ? 'Consultando…'
-            : activeRequest
-              ? 'Enviar solicitação'
-              : 'Solicitar treinamento com personal'
+            : 'Treinar com Personal (' + selectedIds.length + ')'
       }}
     </button>
   </section>
@@ -169,9 +166,8 @@ const emit = defineEmits<{
   padding: 10px;
 }
 .home-list-heading,
-.home-list-message {
-  margin: 0;
-}
+.home-list-message { margin: 0; }
+.trainer-selection-hint { margin: 0; color: var(--muted); font-size: 14px; }
 @media (max-width: 520px) {
   .home-trainer-controls {
     grid-template-columns: minmax(0, 1fr);

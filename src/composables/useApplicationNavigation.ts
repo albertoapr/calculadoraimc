@@ -28,6 +28,7 @@ type NavigationOptions = {
 export function bindApplicationNavigation(router: Router, options: NavigationOptions) {
   const navigationPending = ref(false)
   let applyingRoute = false
+  let lastAppliedPath = ''
   let generation = 0
   let disposed = false
   const currentScreen = computed<AppScreen>(() =>
@@ -84,7 +85,12 @@ export function bindApplicationNavigation(router: Router, options: NavigationOpt
       return
     }
     applyingRoute = true
-    const changed = initial || currentScreen.value !== screen
+    // Uma troca entre academias mantém a mesma tela lógica, mas muda seus dados.
+    const changed =
+      initial ||
+      currentScreen.value !== screen ||
+      (screen === 'public-trainers' && to.path !== lastAppliedPath)
+    lastAppliedPath = to.path
     options.showTrainerSignup.value = screen === 'trainer-signup'
     options.showCustomerSignup.value = screen === 'customer-signup'
     options.showCustomerLogin.value = screen === 'login'

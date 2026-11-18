@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { trainerDisplayName, trainerInstagramUrl } from '../../utils/trainer'
+import { trainerInstagramUrl } from '../../utils/trainer'
 
 export type TrainerCardData = {
   trainerId: string
   name: string
+  slug?: string
+  googlePhotoUrl?: string
   instagram?: string
   cref?: string
   academias?: string[]
@@ -21,25 +23,33 @@ const props = defineProps<{
   showRequestLink?: boolean
 }>()
 const emit = defineEmits<{ 'update:selected': [value: boolean]; 'request-trainer': [] }>()
-const expanded = ref(false)
-const crefCopyMessage = ref('')
-
+const displayName = computed(() => props.trainer.name.trim())
+const instagramUrl = computed(() => trainerInstagramUrl(props.trainer.instagram ?? ''))
+const profileUrl = computed(() =>
+  props.trainer.slug ? `/personal/${encodeURIComponent(props.trainer.slug)}` : `/p/${encodeURIComponent(props.trainer.trainerId)}`,
+)
+const photoUrl = computed(() => {
+  const url = props.trainer.googlePhotoUrl ?? ''
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' &&
+      (parsed.hostname === 'googleusercontent.com' || parsed.hostname.endsWith('.googleusercontent.com'))
+      ? url : ''
+  } catch {
+    return ''
+  }
+})
+const crefFeedback = ref('')
 async function copyCref() {
   const cref = props.trainer.cref?.trim()
   if (!cref) return
   try {
     await navigator.clipboard.writeText(cref)
-    crefCopyMessage.value = 'CREF copiado! Cole o número na consulta do CONFEF.'
+    crefFeedback.value = 'CREF copiado!'
   } catch {
-    crefCopyMessage.value =
-      'Não foi possível copiar automaticamente. Selecione o número para copiá-lo.'
+    crefFeedback.value = 'Não foi possível copiar. Selecione o número para copiar.'
   }
 }
-
-const displayName = computed(() => trainerDisplayName(props.trainer.name))
-const instagramUrl = computed(() =>
-  props.trainer.instagram ? trainerInstagramUrl(props.trainer.instagram) : '',
-)
 </script>
 
 <template>
@@ -47,252 +57,127 @@ const instagramUrl = computed(() =>
     class="home-trainer-card"
     :class="{ 'is-selected': selectable && selected, 'is-disabled': selectable && disabled }"
   >
-    <div class="trainer-accordion-header">
-      <input
-        v-if="selectable"
-        type="checkbox"
-        class="trainer-select-checkbox"
-        :checked="selected"
-        :disabled="disabled"
-        :aria-label="'Selecionar ' + displayName"
-        @change="emit('update:selected', ($event.target as HTMLInputElement).checked)"
-      />
-      <button
-        type="button"
-        class="trainer-accordion-toggle"
-        :aria-expanded="expanded"
-        :aria-controls="'trainer-details-' + trainer.trainerId"
-        @click="expanded = !expanded"
-      >
-        <strong>{{ displayName }}</strong>
-        <span class="trainer-accordion-chevron" :class="{ expanded }" aria-hidden="true"></span>
-      </button>
+    <div class="trainer-profile-photo">
+      <img v-if="photoUrl" :src="photoUrl" :alt="'Foto de ' + displayName" loading="lazy" referrerpolicy="no-referrer" />
+      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21v-2a8 8 0 0 1 16 0v2" />
+      </svg>
     </div>
-    <div
-      v-if="expanded"
-      :id="'trainer-details-' + trainer.trainerId"
-      class="trainer-accordion-panel"
-    >
-      <div class="trainer-details-text">
-        <span v-if="trainer.cref?.trim()" class="trainer-cref">
-          <button
-            type="button"
-            class="trainer-cref-copy"
-            :aria-label="'Copiar CREF de ' + displayName"
-            title="Copiar CREF para consultar no CONFEF"
-            @click="copyCref"
-          >
-            CREF: {{ trainer.cref }} <span aria-hidden="true">⧉</span>
-          </button>
-          <a
-            href="https://www.confef.org.br/registrados/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="trainer-cref-search"
-            :aria-label="'Abrir consulta de registro profissional no CONFEF'"
-            title="Consultar registro no CONFEF"
-            >🔎</a
-          >
-        </span>
-        <small v-if="crefCopyMessage" class="trainer-cref-feedback" role="status">{{
-          crefCopyMessage
-        }}</small>
-        <small v-if="alreadySent">Solicitação já enviada</small>
-      </div>
-      <span class="trainer-social-links">
+    <div class="trainer-card-info">
+      <a class="trainer-name-link" :href="profileUrl" @click.stop>{{ displayName }}</a>
+      <div v-if="trainer.cref?.trim()" class="trainer-cref-row">
+        <button
+          type="button"
+          class="trainer-cref-link"
+          :aria-label="'Copiar CREF ' + trainer.cref"
+          title="Copiar número do CREF"
+          @click="copyCref"
+        >CREF {{ trainer.cref }}</button>
         <a
-          v-if="instagramUrl"
-          :href="instagramUrl"
+          class="trainer-cref-search"
+          href="https://www.confef.org.br/registrados/"
           target="_blank"
           rel="noopener noreferrer"
-          class="trainer-instagram-link"
-          :aria-label="'Instagram de ' + displayName"
-          title="Instagram"
+          :aria-label="'Consultar CREF de ' + displayName + ' no CONFEF'"
+          title="Abrir consulta no CONFEF"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            aria-hidden="true"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="5" />
-            <circle cx="12" cy="12" r="4" />
-            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" />
           </svg>
         </a>
-      </span>
+      </div>
+      <small v-if="crefFeedback" role="status" class="trainer-cref-feedback">{{ crefFeedback }}</small>
+      <span v-if="alreadySent" class="trainer-already-sent">Solicitação já enviada</span>
+      <a
+        v-if="instagramUrl"
+        class="trainer-instagram-link"
+        :href="instagramUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        :aria-label="'Instagram de ' + displayName"
+        title="Instagram"
+        @click.stop
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="5" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+        </svg>
+      </a>
     </div>
+    <input
+      v-if="selectable"
+      class="trainer-selection-checkbox"
+      type="checkbox"
+      :checked="selected"
+      :disabled="disabled"
+      :aria-label="'Selecionar ' + displayName"
+      @change="emit('update:selected', ($event.target as HTMLInputElement).checked)"
+    />
   </article>
 </template>
 
 <style scoped>
 .home-trainer-card {
-  /* Sobrescreve o display:flex herdado da listagem antiga:
-     cabeçalho e conteúdo do sanfonado devem ficar um abaixo do outro. */
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 1px solid var(--line, #86978f);
-  border-radius: 14px;
-  background: var(--card-bg, #f2f4ee);
-  overflow: hidden;
-}
-.home-trainer-card.is-selected {
-  border-color: var(--blue, #286b4e);
-  box-shadow: inset 0 0 0 1px var(--blue, #286b4e);
-}
-.trainer-accordion-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  background: var(--card-bg, #f2f4ee);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: default;
 }
-.trainer-select-checkbox {
+.home-trainer-card.is-selected {
+  border-color: #286b4e;
+  box-shadow: inset 0 0 0 1px #286b4e;
+}
+.home-trainer-card.is-disabled { opacity: .62; cursor: default; }
+.trainer-profile-photo {
+  display: grid;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--line);
+}
+.trainer-profile-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.trainer-profile-photo svg { width: 34px; height: 34px; opacity: .75; }
+.trainer-card-info { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: 5px; }
+.trainer-name-link { color: var(--ink); font-weight: 700; font-size: 1rem; overflow-wrap: anywhere; text-decoration: none; }
+.trainer-name-link:hover, .trainer-name-link:focus-visible { text-decoration: underline; }
+ .trainer-cref-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.trainer-cref-link { padding: 0; border: 0; background: transparent; font: inherit; font-size: .84rem; color: var(--muted); cursor: pointer; text-align: left; }
+.trainer-cref-link:hover { text-decoration: underline; }
+.trainer-cref-search { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; color: #286b4e; }
+.trainer-cref-search svg { width: 17px; height: 17px; }
+.trainer-cref-feedback { color: var(--muted); font-size: .78rem; }
+.trainer-cref-link:focus-visible, .trainer-cref-search:focus-visible { outline: 2px solid #55d6a3; outline-offset: 2px; }
+.trainer-instagram-link { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; color: var(--ink); }
+.trainer-instagram-link svg { width: 21px; height: 21px; }
+.trainer-already-sent { font-size: .75rem; color: var(--muted); }
+.trainer-selection-checkbox {
   flex: 0 0 22px;
   width: 22px;
   height: 22px;
-  accent-color: var(--blue, #286b4e);
+  margin: 0;
+  accent-color: #286b4e;
   cursor: pointer;
 }
-.trainer-select-checkbox:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-.trainer-accordion-toggle {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 52px;
-  padding: 8px 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  text-align: left;
-  background: transparent;
-  color: var(--ink, inherit);
-  border: 0;
-  cursor: pointer;
-}
-.trainer-accordion-toggle strong {
-  font-size: 1.05rem;
-  overflow-wrap: anywhere;
-}
-.trainer-accordion-chevron {
-  flex: 0 0 9px;
-  width: 9px;
-  height: 9px;
-  margin-right: 7px;
-  border-right: 2px solid var(--blue-dark, currentColor);
-  border-bottom: 2px solid var(--blue-dark, currentColor);
-  transform: rotate(45deg);
-  transition: transform 150ms ease;
-}
-.trainer-accordion-chevron.expanded {
-  transform: rotate(225deg);
-}
-.trainer-accordion-toggle:focus-visible,
-.trainer-select-checkbox:focus-visible {
-  outline: 2px solid var(--blue, currentColor);
-  outline-offset: 2px;
-}
-.trainer-accordion-panel {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--line, #86978f);
-  color: var(--ink, inherit);
-}
-.trainer-details-text {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.trainer-cref {
-  font-size: 0.9rem;
-}
-.trainer-cref-search {
-  margin-left: 5px;
-  text-decoration: none;
-}
-.trainer-cref-copy {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.trainer-cref-copy:hover {
-  text-decoration: underline;
-}
-.trainer-cref-copy:focus-visible {
-  outline: 2px solid var(--blue, currentColor);
-  outline-offset: 3px;
-}
-.trainer-cref-feedback {
-  color: var(--muted, inherit);
-  font-size: 0.8rem;
-}
-.trainer-social-links {
-  display: flex;
-  flex-direction: row;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.trainer-instagram-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-}
-.trainer-instagram-link svg {
-  width: 24px;
-  height: 24px;
-}
-/* Mantém o sanfonado com a mesma paleta da tela de atendimento. */
-:global(html[data-theme='dark']) .home-trainer-card {
-  background: #1b2720;
-  border-color: #3b4b40;
-  color: #f4f5f0;
-}
-:global(html[data-theme='dark']) .home-trainer-card.is-selected {
-  border-color: #f2a04b;
-  box-shadow: inset 0 0 0 1px #f2a04b;
-}
-:global(html[data-theme='dark']) .trainer-accordion-toggle {
-  color: #f4f5f0;
-}
-:global(html[data-theme='dark'])
-  .trainer-accordion-header:has(.trainer-accordion-toggle[aria-expanded='true']) {
-  background: #29372d;
-}
-:global(html[data-theme='dark']) .trainer-accordion-chevron {
-  border-color: #f2a04b;
-}
-:global(html[data-theme='dark']) .trainer-accordion-panel {
-  background: #1b2720;
-  border-color: #3b4b40;
-  color: #f4f5f0;
-}
-:global(html[data-theme='dark']) .trainer-select-checkbox {
-  accent-color: #f2a04b;
-}
-@media (prefers-reduced-motion: reduce) {
-  .trainer-accordion-chevron {
-    transition: none;
-  }
-}
+.trainer-selection-checkbox:disabled { cursor: not-allowed; }
+.trainer-selection-checkbox:focus-visible { outline: 2px solid #55d6a3; outline-offset: 3px; }
+:global(html[data-theme='dark']) .home-trainer-card { background: #1b2720; border-color: #3b4b40; color: #f4f5f0; }
+:global(html[data-theme='dark']) .home-trainer-card.is-selected { background: #213e30; border-color: #55d6a3; box-shadow: inset 0 0 0 1px #55d6a3; }
+:global(html[data-theme='dark']) .trainer-name-link { color: #fff; }
+:global(html[data-theme='dark']) .trainer-cref-link { color: #c4d2c8; }
+:global(html[data-theme='dark']) .trainer-cref-search { color: #55d6a3; }
+:global(html[data-theme='dark']) .trainer-instagram-link { color: #d5e5d8; }
+:global(html[data-theme='dark']) .trainer-selection-checkbox { accent-color: #55d6a3; }
+@media (max-width: 360px) { .trainer-profile-photo { width: 64px; height: 64px; flex-basis: 64px; } }
 </style>

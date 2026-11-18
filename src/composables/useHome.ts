@@ -1,4 +1,6 @@
-import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, hasInjectionContext, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { useRouter, type Router } from 'vue-router'
+import { academyNameSlug, academyPath, academySlug, parseAcademyPath } from '../router/academyRoutes'
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
 import { listAcademies, type Academy } from '../services/academiesService'
 import { useTrainerDirectory } from './useTrainerDirectory'
@@ -23,6 +25,14 @@ export function useHome(options: {
   readNavigationPreference: (key: string) => string
   saveNavigationPreference: (key: string, value: string) => void
 }) {
+  // Unit tests invoke this controller outside a component setup.
+  const router = hasInjectionContext()
+    ? useRouter()
+    : ({
+        currentRoute: ref({ path: '/' }),
+        push: async () => undefined,
+        replace: async () => undefined,
+      } as unknown as Router)
   const {
     viewMode,
     isRootHome,
@@ -41,6 +51,10 @@ export function useHome(options: {
   } = options
   const NAV_CITY = 'fitpeso:preferred-city:v1'
   const publicTrainers = ref<EligibleTrainer[]>([])
+  const academyRouteLoading = ref(false)
+  const academyRouteError = ref('')
+  let academyRouteLookupId = 0
+  const loadedTrainersCity = ref('')
   const publicTrainerCity = ref('')
   const publicTrainerAcademy = ref('')
   // A escolha da academia na home dura apenas a sessão atual do navegador.
@@ -119,25 +133,48 @@ export function useHome(options: {
   const publicTrainersError = ref('')
   let publicLookupId = 0
   const registeredAcademies = ref<Academy[]>([])
+  const loadedAcademiesCity = ref('')
   let academyLookupId = 0
-  async function loadCityAcademies(city: string) {
+  let activeAcademyLoadCity = ''
+  let activeAcademyLoad: Promise<void> | null = null
+
+  async function loadCityAcademies(city: string): Promise<void> {
+    if (city && activeAcademyLoadCity === city && activeAcademyLoad) {
+      return activeAcademyLoad
+    }
     const id = ++academyLookupId
     if (!city) {
       registeredAcademies.value = []
+      loadedAcademiesCity.value = ''
       return
     }
+    const pending = (async () => {
+      try {
+        const result = await listAcademies(city)
+        if (id === academyLookupId) registeredAcademies.value = result
+      } catch {
+        // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
+        if (id === academyLookupId) registeredAcademies.value = []
+      } finally {
+        if (id === academyLookupId) loadedAcademiesCity.value = city
+      }
+    })()
+    activeAcademyLoadCity = city
+    activeAcademyLoad = pending
     try {
-      const result = await listAcademies(city)
-      if (id === academyLookupId) registeredAcademies.value = result
-    } catch {
-      // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
-      if (id === academyLookupId) registeredAcademies.value = []
+      await pending
+    } finally {
+      if (activeAcademyLoad === pending) {
+        activeAcademyLoad = null
+        activeAcademyLoadCity = ''
+      }
     }
   }
   watch(
     publicTrainerCity,
     (city) => {
       registeredAcademies.value = []
+      loadedAcademiesCity.value = ''
       void loadCityAcademies(city)
     },
     { immediate: true },
@@ -179,6 +216,39 @@ export function useHome(options: {
     )
     return [...new Set([...canonical, ...unregistered])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   })
+  // O cadastro da academia é a fonte principal para nome e bairro no título público.
+  // Para academias legadas, admite o formato "Nome — Bairro".
+  const publicTrainerAcademyDetails = computed(() => {
+    const selected = publicTrainerAcademy.value.trim()
+    if (!selected) return { name: '', neighborhood: '' }
+    const registered = registeredAcademies.value.find(
+      (item) => `${item.name} — ${item.neighborhood}` === selected,
+    )
+    if (registered) return { name: registered.name, neighborhood: registered.neighborhood }
+    const [name, ...neighborhood] = selected.split(/\s+[—–-]\s+/)
+    return { name: name || selected, neighborhood: neighborhood.join(' - ') }
+  })
+
+  function academyParts(choice: string) {
+    const registered = registeredAcademies.value.find(
+      (item) => `${item.name} — ${item.neighborhood}` === choice,
+    )
+    if (registered) return { name: registered.name, neighborhood: registered.neighborhood }
+    const [name, ...neighborhood] = choice.split(/\s+[—–-]\s+/)
+    return { name: name ?? choice, neighborhood: neighborhood.join(' - ') }
+  }
+
+  function pathForAcademyChoice(city: string, choice: string) {
+    const { name, neighborhood } = academyParts(choice)
+    return academyPath(city, name, neighborhood)
+  }
+
+  function changePublicAcademy(choice: string) {
+    if (!publicTrainerAcademies.value.includes(choice) || !publicTrainerCity.value) return
+    const path = pathForAcademyChoice(publicTrainerCity.value, choice)
+    if (router.currentRoute.value.path !== path) void router.push(path)
+  }
+
   // Sem seleção, a lista pode carregar opções para o combo, mas não exibe resultados.
   watch(
     [publicTrainerAcademies, publicTrainerCity],
@@ -205,10 +275,117 @@ export function useHome(options: {
         /* navegação privada */
       }
     }
-    if (viewMode.value === 'home' && academy !== previousAcademy) {
+    if (
+      (viewMode.value === 'home' || viewMode.value === 'public-trainers') &&
+      academy !== previousAcademy
+    ) {
       homeSelectedTrainerIds.value = []
     }
   })
+  // Na consulta pública, uma academia deve estar selecionada para exibir sua lista.
+  // O carregamento por cidade impede que uma opção de outra cidade seja escolhida.
+  watch(
+    [
+      publicTrainerAcademies,
+      publicTrainerCity,
+      viewMode,
+      loadedTrainersCity,
+      loadedAcademiesCity,
+      academyRouteLoading,
+    ],
+    ([academies, city, mode, loadedCity, academiesCity, resolving]) => {
+      if (
+        mode !== 'public-trainers' ||
+        !city ||
+        loadedCity !== city ||
+        academiesCity !== city ||
+        resolving ||
+        parseAcademyPath(router.currentRoute.value.path) ||
+        !academies.length
+      )
+        return
+      if (!publicTrainerAcademy.value || !academies.includes(publicTrainerAcademy.value)) {
+        publicTrainerAcademy.value = academies[0] ?? ''
+      }
+      if (router.currentRoute.value.path === '/profissionais' && publicTrainerAcademy.value) {
+        void router.replace(pathForAcademyChoice(city, publicTrainerAcademy.value))
+      }
+    },
+    { immediate: true },
+  )
+
+  // Alterar a cidade no cabeçalho abandona a rota da unidade anterior.
+  watch(publicTrainerCity, (city, previousCity) => {
+    if (
+      previousCity &&
+      city !== previousCity &&
+      viewMode.value === 'public-trainers' &&
+      !academyRouteLoading.value &&
+      parseAcademyPath(router.currentRoute.value.path)
+    ) {
+      void router.replace('/profissionais')
+    }
+  })
+
+  async function enterPublicTrainersRoute(path: string) {
+    const id = ++academyRouteLookupId
+    selectingTrainersForDraft.value = false
+    academyRouteError.value = ''
+    const route = parseAcademyPath(path)
+    if (!route) {
+      academyRouteLoading.value = false
+      publicTrainerCity.value = homeCity.value || publicTrainerCity.value
+      if (publicTrainerCity.value) {
+        void loadPublicTrainers()
+        void loadCityAcademies(publicTrainerCity.value)
+      }
+      return
+    }
+
+    academyRouteLoading.value = true
+    const city = supportedRequestCities.find((item) => academySlug(item) === route.city)
+    publicTrainerAcademy.value = ''
+    if (!city) {
+      publicTrainerCity.value = ''
+      academyRouteError.value = 'Esta cidade não é atendida pelo FitPeso.'
+      academyRouteLoading.value = false
+      return
+    }
+
+    publicTrainerCity.value = city
+    await Promise.all([loadCityAcademies(city), loadPublicTrainers()])
+    if (id !== academyRouteLookupId || router.currentRoute.value.path !== path) return
+    // A escolha manual de cidade tem prioridade sobre um link ainda carregando.
+    if (publicTrainerCity.value !== city) {
+      academyRouteLoading.value = false
+      void router.replace('/profissionais')
+      return
+    }
+
+    const choice = publicTrainerAcademies.value.find((item) => {
+      const parts = academyParts(item)
+      return (
+        (academyNameSlug(parts.name) === route.name ||
+          academySlug(parts.name.replace(/^academia\s+/i, '')) === route.name) &&
+        academySlug(parts.neighborhood) === route.neighborhood
+      )
+    })
+
+    if (!choice) {
+      academyRouteError.value = 'Academia não encontrada nesta cidade e bairro. Selecione outra academia.'
+      academyRouteLoading.value = false
+      return
+    }
+    publicTrainerAcademy.value = choice
+    academyRouteLoading.value = false
+    const canonical = pathForAcademyChoice(city, choice)
+    if (canonical !== path) void router.replace(canonical)
+  }
+
+  function retryPublicTrainers() {
+    void enterPublicTrainersRoute(router.currentRoute.value.path)
+  }
+
   async function loadPublicTrainers() {
     const id = ++publicLookupId
     const city = publicTrainerCity.value
@@ -216,29 +393,42 @@ export function useHome(options: {
       viewMode.value === 'select-trainers' ? form.trainerGenderPreference : 'indiferente'
     const cached = getCachedEligibleTrainers(city, gender)
     publicTrainersError.value = ''
+    if (!city) {
+      publicTrainers.value = []
+      loadedTrainersCity.value = ''
+      publicTrainersLoading.value = false
+      return
+    }
     // Dados em cache aparecem imediatamente; não esvaziar a listagem em toda navegação.
     if (cached) {
       publicTrainers.value = cached
+      loadedTrainersCity.value = city
       publicTrainersLoading.value = false
       return
     }
     publicTrainersLoading.value = true
     try {
       const trainers = await listEligibleTrainers(city, gender)
-      if (id === publicLookupId) publicTrainers.value = trainers
+      if (id === publicLookupId) {
+        publicTrainers.value = trainers
+        loadedTrainersCity.value = city
+      }
     } catch {
-      if (id === publicLookupId)
+      if (id === publicLookupId) {
         publicTrainersError.value = 'Não foi possível consultar os profissionais.'
+        loadedTrainersCity.value = ''
+      }
     } finally {
       if (id === publicLookupId) publicTrainersLoading.value = false
     }
   }
   function openPublicTrainers() {
     selectingTrainersForDraft.value = false
-    publicTrainerCity.value = homeCity.value
-    publicTrainerAcademy.value = ''
-    viewMode.value = 'public-trainers'
-    if (publicTrainerCity.value) void loadPublicTrainers()
+    const path =
+      homeAcademySelected.value && homeCity.value
+        ? pathForAcademyChoice(homeCity.value, publicTrainerAcademy.value)
+        : '/profissionais'
+    void router.push(path)
     void nextTick(() => window.scrollTo(0, 0))
   }
   const {
@@ -271,6 +461,12 @@ export function useHome(options: {
     publicTrainerAcademy,
     homeAcademySelected,
     publicTrainerAcademies,
+    publicTrainerAcademyDetails,
+    academyRouteLoading,
+    academyRouteError,
+    changePublicAcademy,
+    enterPublicTrainersRoute,
+    retryPublicTrainers,
     publicFilteredTrainers,
     publicTrainersLoading,
     publicTrainersError,
