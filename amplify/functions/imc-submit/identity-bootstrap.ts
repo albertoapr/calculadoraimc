@@ -35,6 +35,9 @@ export type LegacyTrainerIdentity = {
   city: string
   whatsapp: string
   name: string
+  email?: string
+  pessoaId?: string
+  identitySource?: string
 }
 
 function table(env: string) {
@@ -60,7 +63,7 @@ function isConflict(error: unknown) {
       Boolean(error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')))
 }
 
-async function createPersonByProof(type: 'GOOGLE' | 'WHATSAPP', value: string, name: string) {
+async function createPersonByProof(type: 'GOOGLE' | 'WHATSAPP' | 'EMAIL', value: string, name: string) {
   const existing = await findPersonIdByIdentification(type, value)
   if (existing) return existing
   const pessoaId = randomUUID()
@@ -93,6 +96,14 @@ async function ensureGooglePerson(sub: string, verifiedEmail: string, name: stri
   const pessoaId = byGoogle ?? byEmail ?? await createPersonByProof('GOOGLE', sub, name)
   await attachVerifiedIdentification({ pessoaId, type: 'GOOGLE', verifiedValue: sub })
   await attachVerifiedIdentification({ pessoaId, type: 'EMAIL', verifiedValue: verifiedEmail })
+  return pessoaId
+}
+
+async function ensureEmailPerson(verifiedEmail: string, name: string) {
+  const email = verifiedEmail.trim().toLowerCase()
+  const existing = await findPersonIdByIdentification('EMAIL', email)
+  const pessoaId = existing ?? await createPersonByProof('EMAIL', email, name)
+  await attachVerifiedIdentification({ pessoaId, type: 'EMAIL', verifiedValue: email })
   return pessoaId
 }
 
@@ -232,6 +243,34 @@ export async function syncWhatsappCustomerIdentity(legacy: LegacyCustomerIdentit
   return { pessoaId: personFromPhone, usuarios }
 }
 
+/** EMAIL comprovado no link autenticado nunca implica posse do numero de telefone. */
+export async function syncEmailCustomerIdentity(legacy: LegacyCustomerIdentity, verifiedEmail: string) {
+  const email = verifiedEmail.trim().toLowerCase()
+  if (!email || legacy.email?.toLowerCase() !== email) throw new Error('EMAIL_LEGACY_MISMATCH')
+  if (legacy.pessoaId && !['GOOGLE', 'EMAIL'].includes(legacy.identitySource ?? ''))
+    throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
+  const byEmail = await findPersonIdByIdentification('EMAIL', email)
+  if (legacy.pessoaId && byEmail && legacy.pessoaId !== byEmail)
+    throw new Error('IDENTITY_LINK_CONFLICT')
+  const pessoaId = legacy.pessoaId ?? byEmail ?? await ensureEmailPerson(email, legacy.name)
+  await attachVerifiedIdentification({ pessoaId, type: 'EMAIL', verifiedValue: email })
+  const userId = stableId('U', `${pessoaId}#CLIENTE`)
+  await linkLegacyCustomer(legacy, pessoaId, userId, 'EMAIL')
+  await ensureUserRole(pessoaId, 'CLIENTE')
+  await ensureSpecificProfile('FITPESO_CUSTOMER_V2_TABLE', 'customer_id',
+    stableId('C', legacy.whatsapp), userId, { legacyWhatsapp: { S: legacy.whatsapp } })
+  const adminUserId = legacy.isAdmin ? await ensureUserRole(pessoaId, 'ADMIN') : undefined
+  const usuarios = await listPersonProfiles(pessoaId)
+  if (!usuarios.some(u => u.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE',
+    clienteId: stableId('C', legacy.whatsapp),
+  })
+  if (adminUserId && !usuarios.some(u => u.usuarioId === adminUserId)) usuarios.push({
+    usuarioId: adminUserId, tipoUsuarioId: ROLE_CODES.ADMIN, tipo: 'ADMIN',
+  })
+  return { pessoaId, usuarios }
+}
+
 /** PERSONAL e associado por telefone somente apos validacao de sessao WhatsApp do personal. */
 export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity) {
   if (!legacy.trainerId || !legacy.city) throw new Error('INVALID_LEGACY_TRAINER')
@@ -241,11 +280,45 @@ export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity)
   await db.send(new UpdateItemCommand({
     TableName: table('TRAINERS_TABLE'),
     Key: { city: { S: legacy.city }, trainerId: { S: legacy.trainerId } },
-    UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :p), user_id = if_not_exists(user_id, :u)',
+    UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :p), user_id = if_not_exists(user_id, :u), identitySource = if_not_exists(identitySource, :source)',
     ConditionExpression: 'active = :active AND whatsappVerified = :verified AND whatsapp = :phone AND (attribute_not_exists(pessoa_id) OR pessoa_id = :p) AND (attribute_not_exists(user_id) OR user_id = :u)',
     ExpressionAttributeValues: {
       ':p': { S: pessoaId }, ':u': { S: userId }, ':phone': { S: legacy.whatsapp },
       ':active': { BOOL: true }, ':verified': { BOOL: true },
+      ':source': { S: 'WHATSAPP' },
+    },
+  }))
+  await ensureUserRole(pessoaId, 'PERSONAL')
+  await ensureSpecificProfile('FITPESO_PERSONAL_V2_TABLE', 'personal_id',
+    legacy.trainerId, userId, { legacyTrainerId: { S: legacy.trainerId }, cidade: { S: legacy.city } })
+  const usuarios = await listPersonProfiles(pessoaId)
+  if (!usuarios.some(u => u.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.PERSONAL, tipo: 'PERSONAL',
+    personalId: legacy.trainerId,
+  })
+  return { pessoaId, usuarios }
+}
+
+/** Perfil PERSONAL de um login comprovado por link de email. */
+export async function syncEmailTrainerIdentity(legacy: LegacyTrainerIdentity, verifiedEmail: string) {
+  const email = verifiedEmail.trim().toLowerCase()
+  if (!email || legacy.email?.toLowerCase() !== email) throw new Error('EMAIL_LEGACY_MISMATCH')
+  if (legacy.pessoaId && legacy.identitySource !== 'EMAIL')
+    throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
+  const byEmail = await findPersonIdByIdentification('EMAIL', email)
+  if (legacy.pessoaId && byEmail && legacy.pessoaId !== byEmail)
+    throw new Error('IDENTITY_LINK_CONFLICT')
+  const pessoaId = legacy.pessoaId ?? byEmail ?? await ensureEmailPerson(email, legacy.name)
+  await attachVerifiedIdentification({ pessoaId, type: 'EMAIL', verifiedValue: email })
+  const userId = stableId('U', `${pessoaId}#PERSONAL`)
+  await db.send(new UpdateItemCommand({
+    TableName: table('TRAINERS_TABLE'),
+    Key: { city: { S: legacy.city }, trainerId: { S: legacy.trainerId } },
+    UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :p), user_id = if_not_exists(user_id, :u), identitySource = if_not_exists(identitySource, :source)',
+    ConditionExpression: 'active = :active AND whatsappVerified = :verified AND email = :email AND (attribute_not_exists(pessoa_id) OR pessoa_id = :p) AND (attribute_not_exists(user_id) OR user_id = :u)',
+    ExpressionAttributeValues: {
+      ':p': { S: pessoaId }, ':u': { S: userId }, ':email': { S: email },
+      ':active': { BOOL: true }, ':verified': { BOOL: true }, ':source': { S: 'EMAIL' },
     },
   }))
   await ensureUserRole(pessoaId, 'PERSONAL')
