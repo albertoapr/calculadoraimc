@@ -2753,7 +2753,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/me')) {
     const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
-    const token = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim() ?? ''
+    const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? ''
     if (!token) return response(401, { error: 'Entre para continuar.' })
     // Identificacao Google se torna a fonte principal para encontrar a pessoa
     // e TODOS os perfis. A consulta legada serve somente para backfill inicial.
