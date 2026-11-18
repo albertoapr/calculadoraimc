@@ -72,7 +72,18 @@ export type CustomerProposal = {
   expired: boolean
 }
 
-export type CustomerAccountProfile = {
+export type IdentityRole = 'ADMIN' | 'CLIENTE' | 'PERSONAL'
+export type IdentityProfile = {
+  usuarioId: string
+  tipoUsuarioId: number
+  tipo: IdentityRole
+  clienteId?: string
+  personalId?: string
+}
+export type IdentitySummary = { pessoaId: string; usuarios: IdentityProfile[] }
+export type IdentitySyncState = { identity?: IdentitySummary; identityStatus?: 'ready' | 'pending' }
+
+export type CustomerAccountProfile = IdentitySyncState & {
   googlePhotoUrl?: string
   sex?: 'masculino' | 'feminino'
   heightCm?: number
@@ -114,7 +125,7 @@ export type EditableProfile = {
   academias: string[]
 }
 
-export type TrainerAccountProfile = {
+export type TrainerAccountProfile = IdentitySyncState & {
   tagline?: string
   aboutMe?: string
   education?: string
