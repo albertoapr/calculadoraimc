@@ -46,7 +46,7 @@ function table(env: string) {
 export function toE164Brazilian(value: string): string {
   const digits = value.replace(/\D/g, '')
   const full = digits.startsWith('55') ? digits : `55${digits}`
-  if (!/^55\d{10,11}$/.test(full)) throw new Error('WHATSAPP_INVALID')
+  if (!/^55[1-9][1-9]\d{8,9}$/.test(full)) throw new Error('WHATSAPP_INVALID')
   return `+${full}`
 }
 
