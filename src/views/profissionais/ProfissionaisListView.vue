@@ -31,6 +31,13 @@ function updateSelection(trainerId: string, checked: boolean) {
 
 <template>
   <div class="home-trainer-list">
+    <a
+      v-if="trainers.length"
+      class="trainer-cref-consult-link"
+      href="https://www.confef.org.br/registrados/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >Consultar CREF</a>
     <PersonalCard
       v-for="trainer in visibleTrainers"
       :key="trainer.trainerId"
@@ -59,6 +66,8 @@ function updateSelection(trainerId: string, checked: boolean) {
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
+.trainer-cref-consult-link { justify-self: end; color: #286b4e; font-size: .875rem; font-weight: 600; text-decoration: underline; }
+:global(html[data-theme='dark']) .trainer-cref-consult-link { color: #55d6a3; }
 .trainer-pagination { display: grid; justify-items: center; gap: 8px; margin-top: 10px; }
 .trainer-count { margin: 0; color: var(--muted); font-size: .875rem; }
 .trainer-load-more { padding: 8px 12px; border: 0; background: transparent; color: #286b4e; text-decoration: underline; font: inherit; font-weight: 700; cursor: pointer; }
