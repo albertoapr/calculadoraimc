@@ -3,7 +3,7 @@
  * As tabelas legadas continuam sendo a fonte dos fluxos atuais ate a migracao controlada.
  * Nunca use um identificador informado pelo cliente sem validacao do provedor.
  */
-import { DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb'
+import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 
 export type IdentificationType = 'EMAIL' | 'WHATSAPP' | 'GOOGLE'
 export type UserRole = 'ADMIN' | 'CLIENTE' | 'PERSONAL'
@@ -51,22 +51,29 @@ export async function attachVerifiedIdentification(input: {
 }): Promise<void> {
   if (!input.pessoaId.trim()) throw new Error('pessoaId obrigatorio')
   const key = identificationKey(input.type, input.verifiedValue)
-  await client.send(new PutItemCommand({
-    TableName: table('FITPESO_PESSOA_IDENTIFICACAO_TABLE'),
-    Item: {
-      identificationKey: { S: key },
-      pessoa_id: { S: input.pessoaId },
-      tipo: { S: input.type },
-      verificado_em: { S: input.verifiedAt ?? new Date().toISOString() },
-    },
-    // Impede que uma conta assuma identificacoes ja pertencentes a outra pessoa.
-    ConditionExpression: 'attribute_not_exists(identificationKey)',
-  }))
+  // Vinculo idempotente: nunca substitui o dono de uma identificacao.
+  try {
+    await client.send(new UpdateItemCommand({
+      TableName: table('FITPESO_PESSOA_IDENTIFICACAO_TABLE'),
+      Key: { identificationKey: { S: key } },
+      UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :owner), #tipo = if_not_exists(#tipo, :tipo), verificado_em = if_not_exists(verificado_em, :verified)',
+      ConditionExpression: 'attribute_not_exists(identificationKey) OR pessoa_id = :owner',
+      ExpressionAttributeNames: { '#tipo': 'tipo' },
+      ExpressionAttributeValues: {
+        ':owner': { S: input.pessoaId }, ':tipo': { S: input.type },
+        ':verified': { S: input.verifiedAt ?? new Date().toISOString() },
+      },
+    }))
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) throw new Error('IDENTIFICATION_ALREADY_LINKED')
+    throw error
+  }
 }
 
 export interface PersonProfile {
   usuarioId: string
   tipoUsuarioId: number
+  tipo: UserRole
   clienteId?: string
   personalId?: string
 }
@@ -101,9 +108,12 @@ export async function listPersonProfiles(pessoaId: string): Promise<PersonProfil
       queryAll('FITPESO_CUSTOMER_V2_TABLE', 'CustomerByUsuario', 'user_id', usuarioId),
       queryAll('FITPESO_PERSONAL_V2_TABLE', 'PersonalByUsuario', 'user_id', usuarioId),
     ])
+    const role = user.tipo?.S || ({ 1: 'ADMIN', 2: 'CLIENTE', 3: 'PERSONAL' } as Record<number, UserRole>)[tipoUsuarioId]
+    if (role !== 'ADMIN' && role !== 'CLIENTE' && role !== 'PERSONAL') throw new Error('Tipo de usuario desconhecido')
     return {
       usuarioId,
       tipoUsuarioId,
+      tipo: role,
       ...(clientes[0]?.customer_id?.S ? { clienteId: clientes[0].customer_id.S } : {}),
       ...(personais[0]?.personal_id?.S ? { personalId: personais[0].personal_id.S } : {}),
     }
