@@ -31,4 +31,8 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - run: npm run check
+      # Execute a compilação antes da auditoria de estilo para expor erros de deploy.
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run format:check

@@ -50,6 +50,9 @@ const {
   refreshShareableRequests,
   publicTrainersLoading,
   publicTrainersError,
+  academyRouteLoading,
+  academyRouteError,
+  retryPublicTrainers,
   publicTrainerAcademies,
   publicFilteredTrainers,
   customerRequests,
@@ -139,8 +142,8 @@ const {
         :requests-error="customerRequestsLookupError"
         :sharing-busy="sharingRequestBusy"
         :sharing-message="sharingRequestMessage"
-        :loading="publicTrainersLoading"
-        :error="publicTrainersError"
+        :loading="publicTrainersLoading || academyRouteLoading"
+        :error="academyRouteError || publicTrainersError"
         @update:academy="
           (value) => {
             publicTrainerAcademy = value
@@ -156,7 +159,7 @@ const {
         @request-trainer="openRequestForTrainer"
         @open-requests="openCustomerRequests"
         @refresh-requests="refreshShareableRequests"
-        @retry="searchHomeTrainers"
+        @retry="retryPublicTrainers"
       />
       <SelecionarProfissionaisView
         v-if="viewMode === 'select-trainers'"

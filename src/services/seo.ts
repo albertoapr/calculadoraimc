@@ -19,21 +19,31 @@ function setCanonical(path: string) {
   }
   link.href = BASE + path
 }
-export function updatePageSeo(page: Page) {
+export function updatePageSeo(
+  page: Page,
+  options: { path?: string; academy?: string; city?: string; notFound?: boolean } = {},
+) {
   const directory = page === 'directory'
   const privatePage = page === 'private'
-  const title = directory
-    ? 'Profissionais de educação física | FitPeso'
-    : 'Encontre um personal trainer | FitPeso'
-  const description = directory
-    ? 'Consulte profissionais de educação física e encontre um personal trainer para seus objetivos de treino no FitPeso.'
-    : 'Encontre um personal trainer, compare profissionais e solicite propostas de atendimento pelo FitPeso.'
+  const academy = options.academy?.trim().replace(/^academia\s+/i, '') ?? ''
+  const academyPage = directory && Boolean(academy && options.city)
+  const title = academyPage
+    ? `Academia ${academy} em ${options.city} | FitPeso`
+    : directory
+      ? 'Profissionais de educação física | FitPeso'
+      : 'Encontre um personal trainer | FitPeso'
+  const description = academyPage
+    ? `Encontre profissionais de educação física da Academia ${academy} em ${options.city} na FitPeso.`
+    : directory
+      ? 'Consulte profissionais de educação física e encontre um personal trainer para seus objetivos de treino no FitPeso.'
+      : 'Encontre um personal trainer, compare profissionais e solicite propostas de atendimento pelo FitPeso.'
+  const path = directory ? (options.path ?? '/profissionais') : '/'
   document.title = privatePage ? 'Minha área | FitPeso' : title
   setMeta('description', privatePage ? 'Área de acesso restrito do FitPeso.' : description)
-  setMeta('robots', privatePage ? 'noindex, nofollow' : 'index, follow')
+  setMeta('robots', privatePage || options.notFound ? 'noindex, nofollow' : 'index, follow')
   setMeta('og:title', title, 'property')
   setMeta('og:description', description, 'property')
   setMeta('og:type', 'website', 'property')
-  setMeta('og:url', BASE + (directory ? '/profissionais' : '/'), 'property')
-  setCanonical(directory ? '/profissionais' : '/')
+  setMeta('og:url', BASE + path, 'property')
+  setCanonical(path)
 }

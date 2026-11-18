@@ -1,4 +1,5 @@
 import type { AppViewMode } from '../types/navigation'
+import { parseAcademyPath } from './academyRoutes'
 
 export type AppScreen = AppViewMode | 'login' | 'customer-signup' | 'trainer-signup'
 export type ScreenAccess = 'public' | 'customer' | 'trainer' | 'account' | 'admin'
@@ -45,11 +46,13 @@ export function isPersonalPath(path: string) {
 }
 
 export function screenForPath(path: string) {
+  if (parseAcademyPath(path)) return 'public-trainers'
   return screenRoutes.find((route) => route.path === path)?.screen ?? 'home'
 }
 
 export function pathForScreen(screen: AppScreen, currentPath = '/') {
   if (screen === 'home' && isPersonalPath(currentPath)) return currentPath
+  if (screen === 'public-trainers' && parseAcademyPath(currentPath)) return currentPath
   return screenRoutes.find((route) => route.screen === screen)?.path ?? '/'
 }
 
@@ -57,9 +60,12 @@ export function pathForScreen(screen: AppScreen, currentPath = '/') {
 export function safeReturnPath(value: unknown) {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return ''
   const path = value.split(/[?#]/)[0]
-  return screenRoutes.some(
-    (route) =>
-      route.path === path && !['login', 'customer-signup', 'trainer-signup'].includes(route.screen),
+  return (
+    Boolean(parseAcademyPath(path)) ||
+    screenRoutes.some(
+      (route) =>
+        route.path === path && !['login', 'customer-signup', 'trainer-signup'].includes(route.screen),
+    )
   )
     ? value
     : ''
