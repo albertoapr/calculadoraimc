@@ -39,7 +39,6 @@ function confirmSelection() {
         id="academy-dialog-select"
         ref="selectElement"
         v-model="selectedAcademy"
-        @keydown.enter.prevent="confirmSelection"
       >
         <option value="" disabled>Selecione uma academia</option>
         <option v-for="item in academies" :key="item" :value="item">
