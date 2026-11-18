@@ -126,11 +126,13 @@ export function useHome(options: {
   const publicTrainersError = ref('')
   let publicLookupId = 0
   const registeredAcademies = ref<Academy[]>([])
+  const loadedAcademiesCity = ref('')
   let academyLookupId = 0
   async function loadCityAcademies(city: string) {
     const id = ++academyLookupId
     if (!city) {
       registeredAcademies.value = []
+      loadedAcademiesCity.value = ''
       return
     }
     try {
@@ -139,12 +141,15 @@ export function useHome(options: {
     } catch {
       // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
       if (id === academyLookupId) registeredAcademies.value = []
+    } finally {
+      if (id === academyLookupId) loadedAcademiesCity.value = city
     }
   }
   watch(
     publicTrainerCity,
     (city) => {
       registeredAcademies.value = []
+      loadedAcademiesCity.value = ''
       void loadCityAcademies(city)
     },
     { immediate: true },
@@ -255,12 +260,20 @@ export function useHome(options: {
   // Na consulta pública, uma academia deve estar selecionada para exibir sua lista.
   // O carregamento por cidade impede que uma opção de outra cidade seja escolhida.
   watch(
-    [publicTrainerAcademies, publicTrainerCity, viewMode, loadedTrainersCity, academyRouteLoading],
-    ([academies, city, mode, loadedCity, resolving]) => {
+    [
+      publicTrainerAcademies,
+      publicTrainerCity,
+      viewMode,
+      loadedTrainersCity,
+      loadedAcademiesCity,
+      academyRouteLoading,
+    ],
+    ([academies, city, mode, loadedCity, academiesCity, resolving]) => {
       if (
         mode !== 'public-trainers' ||
         !city ||
         loadedCity !== city ||
+        academiesCity !== city ||
         resolving ||
         parseAcademyPath(router.currentRoute.value.path) ||
         !academies.length
