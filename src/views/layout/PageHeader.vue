@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import AcademySelectionDialog from '../profissionais/AcademySelectionDialog.vue'
 import rootHomePersonalImage from '../../assets/root-home-personal.jpg'
@@ -30,6 +30,10 @@ function confirmAcademy(academy: string) {
   publicTrainerAcademy.value = academy
   academyDialogOpen.value = false
 }
+
+watch(viewMode, (mode) => {
+  if (mode !== 'public-trainers') academyDialogOpen.value = false
+})
 </script>
 
 <template>
@@ -92,9 +96,15 @@ function confirmAcademy(academy: string) {
           title="Alterar academia"
           @click="academyDialogOpen = true"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-            aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <path d="m4 20 4.5-1 10.7-10.7a2.2 2.2 0 0 0-3.1-3.1L5.4 15.9 4 20Z" />
             <path d="m14.5 6.5 3 3" />
           </svg>
@@ -105,17 +115,17 @@ function confirmAcademy(academy: string) {
       </p>
     </div>
     <h1
-      v-if="viewMode !== 'contact' && viewMode !== 'public-trainers' && (viewMode !== 'home' || result)"
+      v-if="
+        viewMode !== 'contact' &&
+        viewMode !== 'public-trainers' &&
+        (viewMode !== 'home' || result)
+      "
       id="page-title"
     >
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      <svg
-        class="scale-icon"
-        viewBox="0 0 40 40"
-        aria-hidden="true"
-      >
+      <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
         <rect x="6" y="4" width="28" height="32" rx="6" />
         <rect x="12" y="9" width="16" height="8" rx="2" />
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
