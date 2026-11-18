@@ -100,7 +100,7 @@ async function queryAll(tableName: string, indexName: string, keyName: string, k
 export async function listPersonProfiles(pessoaId: string): Promise<PersonProfile[]> {
   if (!pessoaId) throw new Error('pessoaId obrigatorio')
   const users = await queryAll('FITPESO_USUARIO_TABLE', 'UsuarioByPessoa', 'pessoa_id', pessoaId)
-  const profiles = await Promise.all(users.map(async user => {
+  const profiles = await Promise.all(users.filter(user => user.ativo?.BOOL !== false).map(async user => {
     const usuarioId = user.user_id?.S
     const tipoUsuarioId = Number(user.tipo_usuario_id?.N)
     if (!usuarioId || !Number.isInteger(tipoUsuarioId)) throw new Error('Registro usuario invalido')
