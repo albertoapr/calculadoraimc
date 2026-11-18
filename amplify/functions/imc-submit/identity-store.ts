@@ -113,7 +113,8 @@ export async function listPersonProfiles(pessoaId: string): Promise<PersonProfil
     return {
       usuarioId,
       tipoUsuarioId,
-      tipo: role,
+      // Validado acima contra os tres papeis permitidos.
+      tipo: role as UserRole,
       ...(clientes[0]?.customer_id?.S ? { clienteId: clientes[0].customer_id.S } : {}),
       ...(personais[0]?.personal_id?.S ? { personalId: personais[0].personal_id.S } : {}),
     }
