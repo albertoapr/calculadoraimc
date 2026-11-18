@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="home-trainer-directory public-directory" aria-labelledby="page-title">
-    <div class="home-trainer-controls">
+    <div v-if="selectingForDraft" class="home-trainer-controls">
       <label class="home-academy-select">
         <select
           :value="academy"
