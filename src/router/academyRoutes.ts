@@ -10,7 +10,7 @@ export function academySlug(value: string): string {
 
 export function academyPath(city: string, name: string, neighborhood: string): string {
   const citySlug = academySlug(city)
-  const nameSlug = academySlug(name)
+  const nameSlug = academySlug(name.replace(/^academia\s+/i, ''))
   const neighborhoodSlug = academySlug(neighborhood)
   if (!citySlug || !nameSlug) return '/profissionais'
   const prefix = `/${citySlug}/academia/${nameSlug}`
