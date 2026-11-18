@@ -17,6 +17,7 @@ import {
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
 import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity } from './identity-bootstrap'
+import { resolveVerifiedIdentity } from './identity-store'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
@@ -2751,6 +2752,27 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/me')) {
+    const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
+    const token = authorization.match(/^Bearer\\s+(.+)$/i)?.[1]?.trim() ?? ''
+    if (!token) return response(401, { error: 'Entre para continuar.' })
+    // Identificacao Google se torna a fonte principal para encontrar a pessoa
+    // e TODOS os perfis. A consulta legada serve somente para backfill inicial.
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+      if (!clientId) return response(503, { error: 'Login Google indisponivel.' })
+      try {
+        const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
+        const payload = ticket.getPayload()
+        if (!payload?.email_verified || !payload.sub) return response(401, { error: 'Conta Google nao verificada.' })
+        const found = await resolveVerifiedIdentity('GOOGLE', payload.sub)
+        if (found) return response(200, { authenticated: true, identity: found, usuarios: found.usuarios })
+      } catch (error) {
+        console.warn('[imc-submit] Unified Google identity check failed', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+        // Continua no caminho legado, que valida novamente o token.
+      }
+    }
     const customer = await getCustomerProfile(event)
     if (customer.statusCode === 200) return customer
     const trainer = await getTrainerSession(event)
