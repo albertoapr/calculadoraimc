@@ -89,12 +89,12 @@ const emit = defineEmits<{
     <p v-if="!selectingForDraft && sharingMessage" class="home-list-message" role="status">
       {{ sharingMessage }}
     </p>
-    <p v-if="!city" class="home-list-message">
-      Selecione uma cidade no cabeçalho para encontrar profissionais.
-    </p>
-    <p v-else-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
+    <p v-if="loading" class="home-list-message" role="status">Carregando profissionais…</p>
     <p v-else-if="error" class="home-list-message" role="alert">
       {{ error }} <button type="button" @click="emit('retry')">Tentar novamente</button>
+    </p>
+    <p v-else-if="!city" class="home-list-message">
+      Selecione uma cidade no cabeçalho para encontrar profissionais.
     </p>
     <template v-else>
       <p class="home-list-heading">
