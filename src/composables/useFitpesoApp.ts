@@ -978,15 +978,25 @@ export function useFitpesoApp() {
   }
 
   watch(
-    () => router.currentRoute.value.path,
-    (path) =>
+    [() => router.currentRoute.value.path, publicTrainerAcademyDetails, publicTrainerCity, academyRouteError],
+    ([path, details, city, routeError]) => {
+      const directory = path === '/profissionais' || Boolean(parseAcademyPath(path))
       updatePageSeo(
         path === '/' || path.startsWith('/personal/') || path.startsWith('/p/')
           ? 'home'
-          : path === '/profissionais'
+          : directory
             ? 'directory'
             : 'private',
-      ),
+        directory
+          ? {
+              path,
+              academy: parseAcademyPath(path) && !routeError ? details.name : '',
+              city,
+              notFound: Boolean(routeError),
+            }
+          : {},
+      )
+    },
     { immediate: true },
   )
 
