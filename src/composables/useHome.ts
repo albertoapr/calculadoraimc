@@ -189,7 +189,7 @@ export function useHome(options: {
       (item) => `${item.name} — ${item.neighborhood}` === selected,
     )
     if (registered) return { name: registered.name, neighborhood: registered.neighborhood }
-    const [name, ...neighborhood] = selected.split(/\\s+[—–-]\\s+/)
+    const [name, ...neighborhood] = selected.split(/\s+[—–-]\s+/)
     return { name: name || selected, neighborhood: neighborhood.join(' - ') }
   })
 
