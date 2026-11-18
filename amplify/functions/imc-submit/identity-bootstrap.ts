@@ -175,7 +175,10 @@ export async function syncGoogleCustomerIdentity(legacy: LegacyCustomerIdentity,
 }): Promise<{ pessoaId: string; usuarios: PersonProfile[] }> {
   if (!legacy.whatsapp || legacy.email?.toLowerCase() !== proof.email.toLowerCase())
     throw new Error('GOOGLE_LEGACY_EMAIL_MISMATCH')
+  // Google nao assume um cliente que ja foi vinculado por prova de WhatsApp.
+  if (legacy.pessoaId && legacy.identitySource !== 'GOOGLE') throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
   const pessoaId = await ensureGooglePerson(proof.sub, proof.email, legacy.name)
+  if (legacy.pessoaId && legacy.pessoaId !== pessoaId) throw new Error('IDENTITY_LINK_CONFLICT')
   const userId = stableId('U', `${pessoaId}#CLIENTE`)
   // Primeiro reserva o vinculo com o registro legado; depois cria os perfis V2.
   await linkLegacyCustomer(legacy, pessoaId, userId, 'GOOGLE')
@@ -193,9 +196,15 @@ export async function syncGoogleCustomerIdentity(legacy: LegacyCustomerIdentity,
  */
 export async function syncWhatsappCustomerIdentity(legacy: LegacyCustomerIdentity) {
   const phone = toE164Brazilian(legacy.whatsapp)
-  const personFromPhone = await ensureWhatsappPerson(phone, legacy.name)
-  if (legacy.pessoaId && legacy.pessoaId !== personFromPhone)
+  // Se o perfil foi vinculado pelo Google, telefone e Google precisam ser
+  // comprovados juntos antes de mesclar os perfis.
+  if (legacy.pessoaId && legacy.identitySource !== 'WHATSAPP')
     throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
+  const existingPhonePerson = await findPersonIdByIdentification('WHATSAPP', phone)
+  if (existingPhonePerson && legacy.pessoaId && existingPhonePerson !== legacy.pessoaId)
+    throw new Error('IDENTITY_LINK_CONFLICT')
+  const personFromPhone = legacy.pessoaId ?? existingPhonePerson ?? await ensureWhatsappPerson(phone, legacy.name)
+  await attachVerifiedIdentification({ pessoaId: personFromPhone, type: 'WHATSAPP', verifiedValue: phone })
   const userId = stableId('U', `${personFromPhone}#CLIENTE`)
   await linkLegacyCustomer(legacy, personFromPhone, userId, 'WHATSAPP')
   await ensureUserRole(personFromPhone, 'CLIENTE')
