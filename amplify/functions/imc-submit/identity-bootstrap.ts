@@ -185,8 +185,18 @@ export async function syncGoogleCustomerIdentity(legacy: LegacyCustomerIdentity,
   await ensureUserRole(pessoaId, 'CLIENTE')
   await ensureSpecificProfile('FITPESO_CUSTOMER_V2_TABLE', 'customer_id',
     stableId('C', legacy.whatsapp), userId, { legacyWhatsapp: { S: legacy.whatsapp } })
-  if (legacy.isAdmin) await ensureUserRole(pessoaId, 'ADMIN')
-  return { pessoaId, usuarios: await listPersonProfiles(pessoaId) }
+  const adminUserId = legacy.isAdmin ? await ensureUserRole(pessoaId, 'ADMIN') : undefined
+  const usuarios = await listPersonProfiles(pessoaId)
+  // GSIs do DynamoDB possuem consistencia eventual. Devolva pelo menos
+  // os perfis confirmados pelos writes desta requisicao no primeiro login.
+  if (!usuarios.some(u => u.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE',
+    clienteId: stableId('C', legacy.whatsapp),
+  })
+  if (adminUserId && !usuarios.some(u => u.usuarioId === adminUserId)) usuarios.push({
+    usuarioId: adminUserId, tipoUsuarioId: ROLE_CODES.ADMIN, tipo: 'ADMIN',
+  })
+  return { pessoaId, usuarios }
 }
 
 /**
@@ -210,8 +220,16 @@ export async function syncWhatsappCustomerIdentity(legacy: LegacyCustomerIdentit
   await ensureUserRole(personFromPhone, 'CLIENTE')
   await ensureSpecificProfile('FITPESO_CUSTOMER_V2_TABLE', 'customer_id',
     stableId('C', legacy.whatsapp), userId, { legacyWhatsapp: { S: legacy.whatsapp } })
-  if (legacy.isAdmin) await ensureUserRole(personFromPhone, 'ADMIN')
-  return { pessoaId: personFromPhone, usuarios: await listPersonProfiles(personFromPhone) }
+  const adminUserId = legacy.isAdmin ? await ensureUserRole(personFromPhone, 'ADMIN') : undefined
+  const usuarios = await listPersonProfiles(personFromPhone)
+  if (!usuarios.some(u => u.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE',
+    clienteId: stableId('C', legacy.whatsapp),
+  })
+  if (adminUserId && !usuarios.some(u => u.usuarioId === adminUserId)) usuarios.push({
+    usuarioId: adminUserId, tipoUsuarioId: ROLE_CODES.ADMIN, tipo: 'ADMIN',
+  })
+  return { pessoaId: personFromPhone, usuarios }
 }
 
 /** PERSONAL e associado por telefone somente apos validacao de sessao WhatsApp do personal. */
@@ -233,5 +251,10 @@ export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity)
   await ensureUserRole(pessoaId, 'PERSONAL')
   await ensureSpecificProfile('FITPESO_PERSONAL_V2_TABLE', 'personal_id',
     legacy.trainerId, userId, { legacyTrainerId: { S: legacy.trainerId }, cidade: { S: legacy.city } })
-  return { pessoaId, usuarios: await listPersonProfiles(pessoaId) }
+  const usuarios = await listPersonProfiles(pessoaId)
+  if (!usuarios.some(u => u.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.PERSONAL, tipo: 'PERSONAL',
+    personalId: legacy.trainerId,
+  })
+  return { pessoaId, usuarios }
 }
