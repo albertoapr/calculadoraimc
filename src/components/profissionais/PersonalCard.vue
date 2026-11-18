@@ -39,16 +39,6 @@ const photoUrl = computed(() => {
     return ''
   }
 })
-function toggle() {
-  if (props.selectable && !props.disabled) emit('update:selected', !props.selected)
-}
-function onKeydown(event: KeyboardEvent) {
-  if (event.target !== event.currentTarget) return
-  if (event.key === ' ' || event.key === 'Enter') {
-    event.preventDefault()
-    toggle()
-  }
-}
 function copyCref() {
   const cref = props.trainer.cref?.trim()
   if (cref && navigator.clipboard?.writeText) {
@@ -61,13 +51,6 @@ function copyCref() {
   <article
     class="home-trainer-card"
     :class="{ 'is-selected': selectable && selected, 'is-disabled': selectable && disabled }"
-    :role="selectable ? 'checkbox' : undefined"
-    :tabindex="selectable && !disabled ? 0 : undefined"
-    :aria-checked="selectable ? selected : undefined"
-    :aria-disabled="selectable ? disabled : undefined"
-    :aria-label="selectable ? 'Selecionar ' + displayName : undefined"
-    @click="toggle"
-    @keydown="onKeydown"
   >
     <div class="trainer-profile-photo">
       <img v-if="photoUrl" :src="photoUrl" :alt="'Foto de ' + displayName" loading="lazy" referrerpolicy="no-referrer" />
@@ -111,11 +94,15 @@ function copyCref() {
         </svg>
       </a>
     </div>
-    <span v-if="selectable" class="trainer-selection-indicator" aria-hidden="true">
-      <svg v-if="selected" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.7">
-        <path d="m5 12 4 4L19 6" />
-      </svg>
-    </span>
+    <input
+      v-if="selectable"
+      class="trainer-selection-checkbox"
+      type="checkbox"
+      :checked="selected"
+      :disabled="disabled"
+      :aria-label="'Selecionar ' + displayName"
+      @change="emit('update:selected', ($event.target as HTMLInputElement).checked)"
+    />
   </article>
 </template>
 
@@ -131,7 +118,7 @@ function copyCref() {
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 12px;
-  cursor: pointer;
+  cursor: default;
 }
 .home-trainer-card.is-selected {
   border-color: #286b4e;
@@ -159,16 +146,22 @@ function copyCref() {
 .trainer-instagram-link { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; color: var(--ink); }
 .trainer-instagram-link svg { width: 21px; height: 21px; }
 .trainer-already-sent { font-size: .75rem; color: var(--muted); }
-.trainer-selection-indicator { display: grid; flex: 0 0 22px; width: 22px; height: 22px; place-items: center; border: 2px solid var(--muted); border-radius: 5px; }
-.trainer-selection-indicator svg { width: 17px; height: 17px; }
-.is-selected .trainer-selection-indicator { color: white; background: #286b4e; border-color: #286b4e; }
-.home-trainer-card:focus-visible { outline: 2px solid #55d6a3; outline-offset: 2px; }
+.trainer-selection-checkbox {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: #286b4e;
+  cursor: pointer;
+}
+.trainer-selection-checkbox:disabled { cursor: not-allowed; }
+.trainer-selection-checkbox:focus-visible { outline: 2px solid #55d6a3; outline-offset: 3px; }
 :global(html[data-theme='dark']) .home-trainer-card { background: #1b2720; border-color: #3b4b40; color: #f4f5f0; }
 :global(html[data-theme='dark']) .home-trainer-card.is-selected { background: #213e30; border-color: #55d6a3; box-shadow: inset 0 0 0 1px #55d6a3; }
 :global(html[data-theme='dark']) .trainer-name-link { color: #fff; }
 :global(html[data-theme='dark']) .trainer-cref-link { color: #c4d2c8; }
 :global(html[data-theme='dark']) .trainer-cref-link svg { color: #55d6a3; }
 :global(html[data-theme='dark']) .trainer-instagram-link { color: #d5e5d8; }
-:global(html[data-theme='dark']) .is-selected .trainer-selection-indicator { background: #55d6a3; border-color: #55d6a3; color: #12251b; }
+:global(html[data-theme='dark']) .trainer-selection-checkbox { accent-color: #55d6a3; }
 @media (max-width: 360px) { .trainer-profile-photo { width: 64px; height: 64px; flex-basis: 64px; } }
 </style>
