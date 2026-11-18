@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { academyPath, academySlug, parseAcademyPath } from '../router/academyRoutes'
+import { academyNameSlug, academyPath, academySlug, parseAcademyPath } from '../router/academyRoutes'
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
 import { listAcademies, type Academy } from '../services/academiesService'
 import { useTrainerDirectory } from './useTrainerDirectory'
@@ -358,7 +358,8 @@ export function useHome(options: {
     const choice = publicTrainerAcademies.value.find((item) => {
       const parts = academyParts(item)
       return (
-        academySlug(parts.name.replace(/^academia\s+/i, '')) === route.name &&
+        (academyNameSlug(parts.name) === route.name ||
+          academySlug(parts.name.replace(/^academia\s+/i, '')) === route.name) &&
         academySlug(parts.neighborhood) === route.neighborhood
       )
     })
