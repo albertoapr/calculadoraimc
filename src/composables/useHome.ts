@@ -330,6 +330,12 @@ export function useHome(options: {
     publicTrainerCity.value = city
     await Promise.all([loadCityAcademies(city), loadPublicTrainers()])
     if (id !== academyRouteLookupId || router.currentRoute.value.path !== path) return
+    // A escolha manual de cidade tem prioridade sobre um link ainda carregando.
+    if (publicTrainerCity.value !== city) {
+      academyRouteLoading.value = false
+      void router.replace('/profissionais')
+      return
+    }
 
     const choice = publicTrainerAcademies.value.find((item) => {
       const parts = academyParts(item)
