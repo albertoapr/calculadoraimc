@@ -23,7 +23,7 @@ const academyDialogOpen = ref(false)
 const academyTitle = computed(() => {
   const name = publicTrainerAcademyDetails.value.name.trim()
   if (!name) return 'Selecione uma academia'
-  return /^academia\\b/i.test(name) ? name : `Academia ${name}`
+  return /^academia\b/i.test(name) ? name : `Academia ${name}`
 })
 
 function confirmAcademy(academy: string) {
