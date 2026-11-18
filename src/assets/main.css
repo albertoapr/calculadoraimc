@@ -3580,3 +3580,11 @@ html[data-theme='dark'] .home-training-subtitle {
 .fitpeso-home-brand-column .home-city-selector svg {
   left: 4px;
 }
+
+/* Título da academia na listagem pública: contraste fixo no tema escuro. */
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-prefix {
+  color: #ffffff;
+}
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-name {
+  color: #55d6a3;
+}
