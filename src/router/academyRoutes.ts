@@ -8,9 +8,15 @@ export function academySlug(value: string): string {
     .replace(/^-|-$/g, '')
 }
 
+/** Preserva a grafia da marca Smart Fit no endereço compacto /smartfit. */
+export function academyNameSlug(name: string): string {
+  const slug = academySlug(name.replace(/^academia\s+/i, ''))
+  return slug === 'smart-fit' ? 'smartfit' : slug
+}
+
 export function academyPath(city: string, name: string, neighborhood: string): string {
   const citySlug = academySlug(city)
-  const nameSlug = academySlug(name.replace(/^academia\s+/i, ''))
+  const nameSlug = academyNameSlug(name)
   const neighborhoodSlug = academySlug(neighborhood)
   if (!citySlug || !nameSlug) return '/profissionais'
   const prefix = `/${citySlug}/academia/${nameSlug}`
