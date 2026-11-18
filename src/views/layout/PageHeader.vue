@@ -88,10 +88,7 @@ watch(viewMode, (mode) => {
           &lt;
         </button>
         <h1 id="page-title" class="academy-public-title">
-          <template v-if="academyName">
-            <span class="academy-title-prefix">Academia</span>
-            <span class="academy-title-name">{{ academyName }}</span>
-          </template>
+          <span v-if="academyName" class="academy-title-name">{{ academyName }}</span>
           <span v-else>Selecione uma academia</span>
         </h1>
         <button
