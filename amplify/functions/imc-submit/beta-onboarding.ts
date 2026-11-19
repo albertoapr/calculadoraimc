@@ -5,7 +5,7 @@ import {
   type AttributeValue,
 } from '@aws-sdk/client-dynamodb'
 import { createWhatsAppMagicLink, createBetaTrainerSignupLink, type WhatsAppLinkRole } from './whatsapp-login-link'
-import { parseBetaOnboardingCommand } from './beta-onboarding-command'
+import { parseBetaOnboardingMessage, type BetaOnboardingMessage } from './beta-onboarding-command'
 
 const db = new DynamoDBClient({})
 const hash = (v: string) => createHash('sha256').update(v).digest('hex')
@@ -36,6 +36,41 @@ const trainers = () => process.env.TRAINERS_TABLE!
 const baseUrl = () => process.env.FITPESO_WHATSAPP_LOGIN_URL!
 const secret = () => process.env.TRAINER_WHATSAPP_VERIFY_SECRET!
 const ready = () => Boolean(table() && customers() && trainers() && baseUrl() && secret())
+
+function comparable(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/** Auto-select only one active academy with the exact city, name and neighborhood. */
+async function resolveBetaAcademy(request: BetaOnboardingMessage) {
+  if (!request.city || !request.academyName || !process.env.ACADEMIES_TABLE)
+    return { match: 'not_found' as const }
+  const found: Array<{ id: string; name: string; neighborhood: string }> = []
+  let cursor: Record<string, AttributeValue> | undefined
+  do {
+    const page = await db.send(new QueryCommand({
+      TableName: process.env.ACADEMIES_TABLE,
+      IndexName: 'AcademiesByCity',
+      KeyConditionExpression: '#city = :city',
+      ExpressionAttributeNames: { '#city': 'city' },
+      ExpressionAttributeValues: { ':city': { S: request.city } },
+      ExclusiveStartKey: cursor,
+    }))
+    for (const item of page.Items ?? []) {
+      const name = item.name?.S ?? ''
+      const neighborhood = item.neighborhood?.S ?? ''
+      if (item.active?.BOOL === true && item.academyId?.S &&
+          comparable(name.replace(/^academia\s+/i, '')) === comparable(request.academyName.replace(/^academia\s+/i, '')) &&
+          (!request.neighborhood || comparable(neighborhood) === comparable(request.neighborhood))) {
+        found.push({ id: item.academyId.S, name, neighborhood })
+      }
+    }
+    cursor = page.LastEvaluatedKey
+  } while (cursor)
+  if (found.length !== 1) return { match: found.length ? 'ambiguous' as const : 'not_found' as const }
+  return { match: 'matched' as const, academyId: found[0].id, academyName: found[0].name, neighborhood: found[0].neighborhood }
+}
 
 export async function betaTrainersByPhone(whatsapp: string) {
   const found: Array<{ trainerId: string; city: string; active: boolean; verified: boolean }> = []
@@ -84,7 +119,8 @@ async function createLoginLink(
 
 /** Invoked ONLY by secret-authenticated Beta using the transport's sender phone. */
 export async function betaOnboardingCommand(data: Record<string, unknown> | null) {
-  const role = parseBetaOnboardingCommand(data?.message)
+  const parsed = parseBetaOnboardingMessage(data?.message)
+  const role = parsed?.role
   const whatsapp = phone(data?.whatsapp)
   if (!whatsapp || !role) return reply(400, {
     error: 'Comando inválido. Envie Sou cliente fitpeso ou Sou personal fitpeso pelo seu WhatsApp.',
@@ -166,6 +202,7 @@ export async function betaOnboardingCommand(data: Record<string, unknown> | null
         replyText: 'Seu perfil de personal FitPeso já existe. Entre pelo link seguro (válido por 5 minutos, uso único):\n' + link.loginLink,
       })
     }
+    const academy = await resolveBetaAcademy(parsed!)
     const code = randomBytes(32).toString('base64url')
     const expiresAt = now + 5 * 60
     const loginLink = createBetaTrainerSignupLink(baseUrl(), code)
@@ -174,6 +211,14 @@ export async function betaOnboardingCommand(data: Record<string, unknown> | null
       Item: {
         codeHash: { S: hash(code) }, flow: { S: 'fitpeso-beta-trainer-signup-link' },
         whatsapp: { S: whatsapp }, ...(betaName(data?.name) ? { name: { S: betaName(data?.name) } } : {}),
+        ...(parsed?.city ? { city: { S: parsed.city } } : {}),
+        ...(parsed?.sexHint ? { sexHint: { S: parsed.sexHint } } : {}),
+        ...(parsed?.academyName ? { proposedAcademyName: { S: parsed.academyName } } : {}),
+        ...(parsed?.neighborhood ? { proposedNeighborhood: { S: parsed.neighborhood } } : {}),
+        academyMatch: { S: academy.match },
+        ...(academy.match === 'matched' ? {
+          academyId: { S: academy.academyId }, academyName: { S: academy.academyName },
+        } : {}),
         expiresAt: { N: String(expiresAt) },
       },
       ConditionExpression: 'attribute_not_exists(codeHash)',
@@ -181,7 +226,8 @@ export async function betaOnboardingCommand(data: Record<string, unknown> | null
     return reply(200, {
       ok: true, role, action: 'complete_registration', registered: false,
       loginLink, loginLinkExpiresAt: expiresAt,
-      replyText: 'Cadastro de personal FitPeso iniciado. Seu WhatsApp já está confirmado. Complete seus dados pelo link seguro (válido por 5 minutos):\n' + loginLink,
+      replyText: 'Seu cadastro de personal FitPeso foi iniciado! O número do WhatsApp já está confirmado. ' +
+        'Abra o link seguro para conferir seus dados e concluir o cadastro (válido por 5 minutos):\n' + loginLink,
     })
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException || error instanceof TransactionCanceledException)
@@ -221,12 +267,27 @@ export async function redeemBetaTrainerSignup(data: Record<string, unknown> | nu
         Item: {
           codeHash: { S: hash(sessionToken) }, flow: { S: 'fitpeso-beta-trainer-signup-session' },
           whatsapp: { S: whatsapp }, ...(row.name?.S ? { name: { S: row.name.S } } : {}),
+          ...(row.city?.S ? { city: { S: row.city.S } } : {}),
+          ...(row.sexHint?.S ? { sexHint: { S: row.sexHint.S } } : {}),
+          ...(row.academyMatch?.S ? { academyMatch: { S: row.academyMatch.S } } : {}),
+          ...(row.academyName?.S ? { academyName: { S: row.academyName.S } } : {}),
+          ...(row.academyId?.S ? { academyId: { S: row.academyId.S } } : {}),
+          ...(row.proposedAcademyName?.S ? { proposedAcademyName: { S: row.proposedAcademyName.S } } : {}),
+          ...(row.proposedNeighborhood?.S ? { proposedNeighborhood: { S: row.proposedNeighborhood.S } } : {}),
           expiresAt: { N: String(now + 15 * 60) },
         },
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
     ] }))
-    return reply(200, { started: true, sessionToken, whatsapp, name: row.name?.S ?? '', expiresAt: now + 15 * 60 })
+    return reply(200, {
+      started: true, sessionToken, whatsapp, name: row.name?.S ?? '',
+      city: row.city?.S ?? '', sexHint: row.sexHint?.S ?? '',
+      academyMatch: row.academyMatch?.S ?? '',
+      academyName: row.academyName?.S ?? '',
+      proposedAcademyName: row.proposedAcademyName?.S ?? '',
+      proposedNeighborhood: row.proposedNeighborhood?.S ?? '',
+      expiresAt: now + 15 * 60,
+    })
   } catch (error) {
     if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)
       return reply(410, { error: 'Link usado ou expirado. Solicite outro à Beta.' })
@@ -257,7 +318,7 @@ export async function completeBetaTrainerSignup(
         record.consumedAt?.N || Number(record.expiresAt?.N ?? 0) <= now)
       return reply(401, { error: 'Confirmação expirada. Solicite outro link à Beta.' })
     if (data?.whatsapp !== whatsapp || !validRegistration(data)) return reply(400, {
-      error: 'Confira nome, WhatsApp, cidade, Instagram e os dados obrigatórios.',
+      error: 'Confira nome, WhatsApp, sexo, cidade e os dados obrigatórios.',
     })
     if ((await betaTrainersByPhone(whatsapp)).length)
       return reply(409, { error: 'WhatsApp já vinculado a um personal. Procure o suporte ou faça login.' })
