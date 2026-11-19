@@ -62,3 +62,38 @@ test('convites genericos de cliente e personal tambem sao assinados', () => {
   assert.throws(() => signBetaOnboardingMessage('Mensagem\ncom quebra', secret))
   assert.throws(() => signBetaOnboardingMessage(academyMessage, ''))
 })
+
+test('API Beta rejeita texto alterado e texto sem hash antes de acessar o banco', async () => {
+  const keys = [
+    'IMC_REQUESTS_TABLE', 'FITPESO_CUSTOMERS_TABLE', 'TRAINERS_TABLE',
+    'FITPESO_WHATSAPP_LOGIN_URL', 'TRAINER_WHATSAPP_VERIFY_SECRET',
+  ] as const
+  const old = Object.fromEntries(keys.map(key => [key, process.env[key]]))
+  try {
+    process.env.IMC_REQUESTS_TABLE = 'test-only-code-store'
+    process.env.FITPESO_CUSTOMERS_TABLE = 'test-only-customers'
+    process.env.TRAINERS_TABLE = 'test-only-trainers'
+    process.env.FITPESO_WHATSAPP_LOGIN_URL = 'https://develop.fitpeso.com.br/'
+    process.env.TRAINER_WHATSAPP_VERIFY_SECRET = secret
+    const { betaOnboardingCommand } = await import('../amplify/functions/imc-submit/beta-onboarding')
+    const invitation = createBetaOnboardingInvitation(academyMessage, secret)
+    const whatsapp = '+5521999999999'
+    for (const message of [
+      academyMessage,
+      invitation.shareText.replace('Mesquita', 'Canadá'),
+      invitation.shareText + '\nTexto adicionado',
+    ]) {
+      const result = await betaOnboardingCommand({ message, whatsapp })
+      assert.equal(result.statusCode, 422)
+      assert.match(result.body, /sem hash válido/)
+    }
+    // A valid HMAC passes the integrity check (no database access when phone is invalid).
+    const accepted = await betaOnboardingCommand({ message: invitation.shareText, whatsapp: 'invalid' })
+    assert.equal(accepted.statusCode, 400)
+  } finally {
+    for (const key of keys) {
+      if (old[key] === undefined) delete process.env[key]
+      else process.env[key] = old[key]
+    }
+  }
+})
