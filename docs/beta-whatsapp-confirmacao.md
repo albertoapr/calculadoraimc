@@ -1,5 +1,8 @@
 # Integração Beta ↔ FitPeso: confirmação WhatsApp
 
+> **Atualização obrigatória — cadastro por mensagem compartilhável:** o endpoint `POST /api/auth/beta-onboarding` agora exige que a mensagem original tenha um **HMAC-SHA256** válido, na linha `Hash: ...`. **Mensagens sem hash ou editadas serão rejeitadas (HTTP 422).** As frases sem hash apresentadas abaixo são apenas o conteúdo-base; **não devem mais ser enviadas isoladamente para iniciar cadastro**. O mesmo convite assinado pode ser compartilhado com qualquer número de pessoas. Procedimento atualizado: [mensagem fixa com HMAC](./beta-cadastro-mensagem-assinada.md).
+
+
 O FitPeso prepara mensagens para o WhatsApp da Beta. A automação que recebe as mensagens **não está implementada por este documento**: ela precisa ser atualizada no serviço da Beta para extrair os metadados reais do remetente e chamar as rotas descritas.
 
 ## Cadastro de cliente

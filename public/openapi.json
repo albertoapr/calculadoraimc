@@ -5198,7 +5198,7 @@
         ],
         "operationId": "betaOnboarding",
         "summary": "Beta: iniciar cadastro ou login por comando WhatsApp",
-        "description": "Endpoint reservado à integração Beta autenticada. O número deve ser extraído da origem real da mensagem, jamais do conteúdo digitado pelo contato. A Beta encaminha o campo replyText ao mesmo remetente. Reconhece também mensagem natural, como 'Sou professora da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso'. Identifica a academia no banco, desde que a correspondência seja única e ativa.",
+        "description": "A Beta envia o TEXTO COMPLETO da mensagem encaminhada, incluindo uma linha final Hash: <64 hex>. A FitPeso valida HMAC-SHA256 usando o segredo do servidor ANTES de aceitar texto ou emitir um link. O mesmo HMAC é compartilhável por várias pessoas; ele garante integridade do texto, mas não comprova que o remetente trabalha na academia. Mensagens sem hash ou com caracteres editados retornam HTTP 422.",
         "security": [
           {
             "IntegrationSecret": []
@@ -5217,7 +5217,8 @@
                 "properties": {
                   "message": {
                     "type": "string",
-                    "description": "Comando de cadastro direto ou frase natural de professora/professor com nome da academia, bairro, cidade e intenção explícita de cadastro."
+                    "description": "Texto exato e completo, contendo no fim uma linha 'Hash: ' seguida do HMAC-SHA256 hexadecimal de 64 caracteres. Não cortar, normalizar ou recalcular o hash.",
+                    "example": "Sou personal da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.\\nHash: <HASH_REAL_GERADO_PELA_API>"
                   },
                   "whatsapp": {
                     "type": "string",
@@ -5244,6 +5245,9 @@
           },
           "409": {
             "description": "Cadastro conflitante ou inativo"
+          },
+          "422": {
+            "description": "Texto editado, hash incompatível ou mensagem sem assinatura"
           },
           "429": {
             "description": "Tentativas frequentes (cooldown 30 s)"
@@ -5378,6 +5382,68 @@
           },
           "409": {
             "description": "Cadastro duplicado ou conflito"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-onboarding-template": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "issueBetaOnboardingTemplate",
+        "summary": "Beta: gerar mensagem fixa de cadastro com HMAC reutilizável",
+        "description": "Endpoint exclusivo da integração Beta. Para professor(a) de academia, informar academyId de academia ativa; o backend monta o texto e assina com HMAC-SHA256 secreto. A mesma academia e o mesmo segredo geram a mesma mensagem e hash para todos os contatos. Pode gerar convite genérico para role trainer ou customer sem academyId. Nunca assina texto livre recebido do WhatsApp.",
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "trainer",
+                      "customer"
+                    ]
+                  },
+                  "academyId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Somente para role trainer. UUID obtido em GET /api/academies."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{role, academyId?, message, hash, shareText}; compartilhar exatamente shareText, idêntico para todas as pessoas"
+          },
+          "400": {
+            "description": "Role ou academyId inválido"
+          },
+          "403": {
+            "description": "Falta segredo de integração ou é inválido"
+          },
+          "404": {
+            "description": "Academia inexistente ou inativa"
+          },
+          "422": {
+            "description": "Dados da academia não podem ser convertidos em mensagem canônica"
+          },
+          "503": {
+            "description": "Serviço indisponível"
           }
         }
       }
