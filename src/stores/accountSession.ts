@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { IdentityProfile } from '../types/domain'
+import type { IdentityProfile, IdentityRole } from '../types/domain'
 
 /** Display state only. Session tokens retain their existing storage and validation. */
 export const useAccountSession = defineStore('accountSession', () => {
@@ -11,6 +11,7 @@ export const useAccountSession = defineStore('accountSession', () => {
   const trainerSignedInId = ref('')
   const pessoaId = ref('')
   const availableProfiles = ref<IdentityProfile[]>([])
+  const activeRole = ref<IdentityRole | ''>('')
   const identityStatus = ref<'ready' | 'pending' | ''>('')
-  return { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId, pessoaId, availableProfiles, identityStatus }
+  return { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId, pessoaId, availableProfiles, identityStatus, activeRole }
 })
