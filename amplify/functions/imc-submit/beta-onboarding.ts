@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import { createWhatsAppMagicLink, createBetaTrainerSignupLink, type WhatsAppLinkRole } from './whatsapp-login-link'
 import { parseBetaOnboardingMessage, type BetaOnboardingMessage } from './beta-onboarding-command'
+import { createBetaOnboardingInvitation, verifyBetaOnboardingInvitation } from './beta-onboarding-signature'
 
 const db = new DynamoDBClient({})
 const hash = (v: string) => createHash('sha256').update(v).digest('hex')
@@ -117,15 +118,69 @@ async function createLoginLink(
   return { loginLink: link.loginLink, loginLinkExpiresAt: link.expiresAt }
 }
 
+/**
+ * Mint one signed, permanent, shareable invitation for an ACTIVE academy.
+ * Beta calls this once, using the same integration secret as other Beta routes.
+ * The output is identical every time for the same academy and secret.
+ */
+export async function betaOnboardingTemplate(data: Record<string, unknown> | null) {
+  if (!secret() || !process.env.ACADEMIES_TABLE)
+    return reply(503, { error: 'Serviço de convites indisponível.' })
+  const role = data?.role
+  if (role !== 'trainer' && role !== 'customer')
+    return reply(400, { error: 'Informe role: trainer ou customer.' })
+  const academyId = data?.academyId
+  if (academyId !== undefined && (role !== 'trainer' || typeof academyId !== 'string' ||
+      !/^[a-f0-9-]{36}$/i.test(academyId)))
+    return reply(400, { error: 'Identificador de academia inválido.' })
+  try {
+    let message = role === 'customer' ? 'Sou cliente fitpeso' : 'Sou personal fitpeso'
+    if (role === 'trainer' && typeof academyId === 'string') {
+      const result = await db.send(new GetItemCommand({
+        TableName: process.env.ACADEMIES_TABLE,
+        Key: { academyId: { S: academyId } },
+        ConsistentRead: true,
+      }))
+      const academy = result.Item
+      if (!academy || academy.active?.BOOL !== true)
+        return reply(404, { error: 'Academia não encontrada ou inativa.' })
+      const name = (academy.name?.S ?? '').trim().replace(/^academia\s+/i, '').trim()
+      const neighborhood = (academy.neighborhood?.S ?? '').trim()
+      const city = academy.city?.S ?? ''
+      message = `Sou personal da Academia ${name}, no bairro ${neighborhood}, em ${city}, e quero me cadastrar na FitPeso.`
+      const parsed = parseBetaOnboardingMessage(message)
+      if (parsed?.role !== 'trainer' || parsed.city !== city ||
+          comparable(parsed.academyName ?? '') !== comparable(name) ||
+          comparable(parsed.neighborhood ?? '') !== comparable(neighborhood)) {
+        return reply(422, { error: 'Os dados desta academia não permitem gerar uma mensagem padrão. Confira o cadastro.' })
+      }
+    }
+    return reply(200, { role, ...(typeof academyId === 'string' ? { academyId } : {}),
+      ...createBetaOnboardingInvitation(message, secret()),
+    })
+  } catch (error) {
+    console.error('[beta-onboarding] Signed template issue failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return reply(503, { error: 'Não foi possível gerar a mensagem padrão.' })
+  }
+}
+
 /** Invoked ONLY by secret-authenticated Beta using the transport's sender phone. */
 export async function betaOnboardingCommand(data: Record<string, unknown> | null) {
-  const parsed = parseBetaOnboardingMessage(data?.message)
+  if (!ready()) return reply(503, { error: 'Serviço indisponível.' })
+  // The signed invitation is identical for EVERY recipient. Reject any edited
+  // text or hash before parsing, touching DynamoDB, or issuing a login link.
+  const approvedText = verifyBetaOnboardingInvitation(data?.message, secret())
+  if (!approvedText) return reply(422, {
+    error: 'Mensagem de cadastro alterada ou sem hash válido. Compartilhe a mensagem original, sem editar.',
+  })
+  const parsed = parseBetaOnboardingMessage(approvedText)
   const role = parsed?.role
   const whatsapp = phone(data?.whatsapp)
   if (!whatsapp || !role) return reply(400, {
-    error: 'Comando inválido. Envie Sou cliente fitpeso ou Sou personal fitpeso pelo seu WhatsApp.',
+    error: 'Mensagem de cadastro ou número do remetente inválido.',
   })
-  if (!ready()) return reply(503, { error: 'Serviço indisponível.' })
   const now = Math.floor(Date.now() / 1000)
   // Bounded reply rate avoids chat loops, link floods, and repeated side effects.
   try {
