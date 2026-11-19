@@ -62,6 +62,36 @@ export async function queryCustomerSignup(
   return { ok: response.ok, body: response.body }
 }
 
+export async function redeemBetaTrainerSignup(code: string) {
+  const response = await requestApi<{
+    started?: boolean
+    sessionToken?: string
+    whatsapp?: string
+    name?: string
+    expiresAt?: number
+    error?: string
+  }>('/api/auth/beta-trainer-signup/redeem', { method: 'POST', body: { code } })
+  if (!response.ok || !response.body.started || !response.body.sessionToken ||
+      !response.body.whatsapp)
+    throw apiError(response, 'Este link não é mais válido. Solicite outro à Beta.')
+  return response.body as { started: true; sessionToken: string; whatsapp: string; name?: string; expiresAt?: number }
+}
+
+export async function completeBetaTrainerSignup(
+  payload: TrainerSignupInput & { onboardingSessionToken: string },
+  signal?: AbortSignal,
+) {
+  const response = await requestApi<{
+    registered?: boolean
+    sessionToken?: string
+    slug?: string
+    error?: string
+  }>('/api/auth/beta-trainer-signup/complete', { method: 'POST', body: payload, signal })
+  if (!response.ok || !response.body.registered || !response.body.sessionToken)
+    throw apiError(response, 'Não foi possível concluir o cadastro do personal.')
+  return response.body.sessionToken
+}
+
 export async function registerTrainer(payload: TrainerSignupInput, signal?: AbortSignal) {
   const response = await requestApi<{
     registered?: boolean
