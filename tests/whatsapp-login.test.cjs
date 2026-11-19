@@ -329,14 +329,14 @@ for (const role of ['customer', 'trainer'])
     h.reply = { started: true }
     await h.api.startEmailLogin()
     assert.match(h.requests[0].url, /\/api\/customers\/start-email-login$/)
-    assert.equal(JSON.parse(h.requests[0].options.body).asTrainer, role === 'trainer')
+    assert.equal('asTrainer' in JSON.parse(h.requests[0].options.body), false)
     assert.equal(h.state.emailLoginPending.value, true)
     assert.equal(h.state.emailLoginSubmitting.value, false)
     const token = h.state.emailLoginSessionToken.value
     assert.equal(token.length, 43)
-    h.reply = { authenticated: true }
+    h.reply = { authenticated: true, role }
     await h.api.pollEmailLogin()
-    assert.equal(JSON.parse(h.requests[1].options.body).role, role)
+    assert.equal('role' in JSON.parse(h.requests[1].options.body), false)
     assert.equal(h.applied, true)
     assert.equal(h.storage.get(`fitpeso-${role}-session`), token)
     assert.equal(h.state.emailLoginPending.value, false)
