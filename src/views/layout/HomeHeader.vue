@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
@@ -23,6 +23,9 @@ const {
   openTrainerReceivedRequests,
   openCustomerSignupFromLogin,
 } = useFitpesoContext()
+const profileLabel = computed(() =>
+  activeRole.value === 'ADMIN' ? 'Administrador' : activeRole.value === 'PERSONAL' ? 'Personal' : 'Cliente',
+)
 const menuOpen = ref(false)
 const menuContainer = ref<HTMLElement | null>(null)
 const closeMenu = () => {
@@ -88,15 +91,27 @@ onBeforeUnmount(() => {
           width="34"
           height="34"
         />
-        <span class="account-greeting">
-          Olá,
-          {{
-            (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
-          }}
-        </span>
-        <span v-if="trainerSignedInId || selectableProfiles.length > 1" class="account-role-badge">
-          {{ activeRole === 'ADMIN' ? 'Administrador' : activeRole === 'PERSONAL' ? 'Personal' : 'Cliente' }}
-        </span>
+        <div class="signed-in-account-identity">
+          <span class="account-greeting">
+            Olá,
+            {{
+              (trainerSignedInId ? trainerSignedInName : customerSignedInName).trim().split(/\s+/)[0]
+            }}
+          </span>
+          <button
+            v-if="selectableProfiles.length > 1"
+            type="button"
+            class="account-role-badge account-role-button"
+            :aria-label="`Alterar perfil. Perfil atual: ${profileLabel}`"
+            aria-haspopup="dialog"
+            title="Alterar perfil"
+            @click="openProfileChooser()"
+          >
+            {{ profileLabel }}
+            <span aria-hidden="true">▾</span>
+          </button>
+          <span v-else class="account-role-badge">{{ profileLabel }}</span>
+        </div>
         <div ref="menuContainer" class="signed-in-menu">
           <button
             type="button"
@@ -149,6 +164,30 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .account-role-badge { font-size: 11px; font-weight: 700; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); white-space: nowrap; }
+.signed-in-account-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.account-role-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.account-role-button:hover {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 9%, transparent);
+}
+.account-role-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
 .account-avatar {
   width: 34px;
   height: 34px;

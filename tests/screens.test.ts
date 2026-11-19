@@ -66,7 +66,7 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   const bundle = await build({
     stdin: {
-      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import {screenRoutes} from './src/router/screens'; import App from './src/App.vue'; export {nextTick}; export async function mount(path='/'){const router=createRouter({history:createMemoryHistory(),routes:[...screenRoutes.map(route=>({path:route.path,component:App})),{path:'/personal/:slug',component:App},{path:'/p/:id',component:App}]}); await router.push(path); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');await nextTick();await new Promise(resolve=>setTimeout(resolve,0));await nextTick();return Object.assign(app,{testRouter:router})}`,
+      contents: `import {createApp,nextTick} from 'vue'; import {createPinia} from 'pinia'; import {createRouter,createMemoryHistory} from 'vue-router'; import {screenRoutes} from './src/router/screens'; import App from './src/App.vue'; import {useAccountSession} from './src/stores/accountSession'; export {nextTick}; export function setProfiles(profiles){useAccountSession().availableProfiles=profiles;} export async function mount(path='/'){const router=createRouter({history:createMemoryHistory(),routes:[...screenRoutes.map(route=>({path:route.path,component:App})),{path:'/personal/:slug',component:App},{path:'/p/:id',component:App}]}); await router.push(path); const app=createApp(App);app.use(createPinia());app.use(router);app.mount('#app');await nextTick();await new Promise(resolve=>setTimeout(resolve,0));await nextTick();return Object.assign(app,{testRouter:router})}`,
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -107,7 +107,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     module.exports,
     createRequire(import.meta.url),
   )
-  const { mount, nextTick } = module.exports
+  const { mount, nextTick, setProfiles } = module.exports
   let app = await mount()
   const click = async (label: RegExp) => {
     const button = [...document.querySelectorAll('button,a')].find((el) =>
@@ -244,6 +244,26 @@ test('extracted screens preserve login, request age between steps and theme chan
       (document.querySelector('#profile-name') as HTMLInputElement).value,
       'Cliente Teste',
     )
+    const identity = document.querySelector('.signed-in-account-identity')
+    assert.ok(identity, 'Signed-in account identity is visible')
+    assert.match(identity.querySelector('.account-greeting')?.textContent ?? '', /Olá,\s*Cliente/)
+    assert.equal(identity.querySelector('.account-role-badge')?.textContent?.trim(), 'Cliente')
+    assert.equal(identity.querySelector('button.account-role-button'), null)
+
+    // Profile label becomes the accessible dialog trigger when more than one role exists.
+    setProfiles([
+      { usuarioId: 'user-c', tipoUsuarioId: 1, tipo: 'CLIENTE', clienteId: 'customer-1' },
+      { usuarioId: 'user-p', tipoUsuarioId: 2, tipo: 'PERSONAL', personalId: 'trainer-1' },
+    ])
+    await nextTick()
+    const roleButton = identity.querySelector('button.account-role-button') as HTMLButtonElement
+    assert.ok(roleButton)
+    assert.equal(roleButton.getAttribute('aria-haspopup'), 'dialog')
+    assert.match(roleButton.getAttribute('aria-label') ?? '', /Alterar perfil/)
+    roleButton.click()
+    await nextTick()
+    assert.equal(document.querySelector('.profile-select-dialog')?.getAttribute('role'), 'dialog')
+    assert.match(document.querySelector('.profile-select-dialog')?.textContent ?? '', /Escolha seu perfil/)
   } finally {
     app.unmount()
     dom.window.close()

@@ -32,6 +32,8 @@ test('account profile loads and saves customer and trainer data outside the app 
           whatsapp: '5521988887777',
           email: 'maria@example.com',
           dateOfBirth: '1990-05-10',
+          sex: 'feminino',
+          heightCm: 172,
         },
       }
       const account = useAccountProfile({
@@ -52,6 +54,8 @@ test('account profile loads and saves customer and trainer data outside the app 
 
       await account.openMyProfile()
       assert.equal(account.editingProfile.name, 'Maria Silva')
+      assert.equal(account.editingProfile.sex, 'feminino')
+      assert.equal(account.editingProfile.heightCm, 172)
       assert.equal(calls.at(-1)?.url, 'https://api.test/api/customers/profile')
       assert.equal(
         new Headers(calls.at(-1)?.init?.headers).get('authorization'),
@@ -66,6 +70,8 @@ test('account profile loads and saves customer and trainer data outside the app 
           whatsapp: '5521988887777',
           email: 'maria@example.com',
           dateOfBirth: '1990-05-10',
+          sex: 'feminino',
+          heightCm: 172,
         },
       }
       await account.saveMyProfile()
@@ -73,9 +79,13 @@ test('account profile loads and saves customer and trainer data outside the app 
       assert.equal(update.url, 'https://api.test/api/customers/update-profile')
       assert.deepEqual(JSON.parse(String(update.init?.body)), {
         name: 'Maria Souza',
+        sex: 'feminino',
+        heightCm: 172,
         dateOfBirth: '1990-05-10',
       })
       assert.equal(applied?.name, 'Maria Souza')
+      assert.equal(applied?.sex, 'feminino')
+      assert.equal(applied?.heightCm, 172)
       assert.equal(afterSave, 1)
       assert.equal(account.editingProfileStatus.value, 'Cadastro atualizado com sucesso.')
     })
