@@ -123,6 +123,11 @@ export function useFitpesoApp() {
     }
   }
 
+  // Administracao depende do perfil selecionado, nao somente da permissao legada.
+  // Contas antigas ainda nao migradas preservam a autorizacao administrativa.
+  const actingAsAdmin = computed(() => customerIsAdmin.value &&
+    (activeRole.value === 'ADMIN' || !selectableProfiles.value.some(profile => profile.tipo === 'ADMIN')))
+
   const { theme } = useTheme()
 
   const trainerRequestToken = (() => {
@@ -418,7 +423,7 @@ export function useFitpesoApp() {
     saveAdminTrainerEdit,
     deactivateAdminTrainer,
   } = useAdminTrainers({
-    isAdmin: customerIsAdmin,
+    isAdmin: actingAsAdmin,
     getToken: () =>
       sessionStorage.getItem('fitpeso-customer-session') ??
       sessionStorage.getItem('fitpeso-google-session') ??
@@ -429,7 +434,7 @@ export function useFitpesoApp() {
   })
 
   function openAdminAcademies() {
-    if (!customerIsAdmin.value) return
+    if (!actingAsAdmin.value) return
     viewMode.value = 'admin-academies'
     void nextTick(() => window.scrollTo(0, 0))
   }
@@ -1067,7 +1072,7 @@ export function useFitpesoApp() {
     sessionRestoring,
     customerSignedInName,
     trainerSignedInId,
-    customerIsAdmin,
+    customerIsAdmin: actingAsAdmin,
     onEnter: enterRoute,
   })
   function navigateTo(path: string) {
@@ -1167,7 +1172,7 @@ export function useFitpesoApp() {
     showCustomerLogin,
     customerSignedInName,
     customerPhotoUrl,
-    customerIsAdmin,
+    customerIsAdmin: actingAsAdmin,
     activeRole,
     selectableProfiles,
     profileChooserOpen,
