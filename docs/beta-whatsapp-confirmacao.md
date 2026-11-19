@@ -1,5 +1,7 @@
 # Integração Beta ↔ FitPeso: confirmação WhatsApp
 
+> **Templates oficiais atualizados:** a FitPeso utiliza apenas dois convites assinados: `Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.` e `Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.`. Os dois devem conter a linha `Hash:` assinada com HMAC. Os exemplos antigos abaixo servem apenas como histórico e **não são aceitos para cadastro direto pela Beta**. Consulte [os dois templates oficiais](./beta-cadastro-mensagem-assinada.md).
+
 > **Atualização obrigatória — cadastro por mensagem compartilhável:** o endpoint `POST /api/auth/beta-onboarding` agora exige que a mensagem original tenha um **HMAC-SHA256** válido, na linha `Hash: ...`. **Mensagens sem hash ou editadas serão rejeitadas (HTTP 422).** As frases sem hash apresentadas abaixo são apenas o conteúdo-base; **não devem mais ser enviadas isoladamente para iniciar cadastro**. O mesmo convite assinado pode ser compartilhado com qualquer número de pessoas. Procedimento atualizado: [mensagem fixa com HMAC](./beta-cadastro-mensagem-assinada.md).
 
 

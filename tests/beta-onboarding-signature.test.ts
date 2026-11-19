@@ -5,6 +5,7 @@ import {
   createBetaOnboardingInvitation,
   signBetaOnboardingMessage,
   verifyBetaOnboardingInvitation,
+  BETA_ONBOARDING_TEMPLATES,
 } from '../amplify/functions/imc-submit/beta-onboarding-signature'
 import { parseBetaOnboardingMessage } from '../amplify/functions/imc-submit/beta-onboarding-command'
 
@@ -55,7 +56,7 @@ test('hash SHA-256 puro nao substitui uma assinatura HMAC secreta', () => {
 })
 
 test('convites genericos de cliente e personal tambem sao assinados', () => {
-  for (const body of ['Sou cliente fitpeso', 'Sou personal fitpeso']) {
+  for (const body of Object.values(BETA_ONBOARDING_TEMPLATES)) {
     const invite = createBetaOnboardingInvitation(body, secret)
     assert.equal(verifyBetaOnboardingInvitation(invite.shareText, secret), body)
   }
@@ -96,4 +97,25 @@ test('API Beta rejeita texto alterado e texto sem hash antes de acessar o banco'
       else process.env[key] = old[key]
     }
   }
+})
+
+
+test('os dois textos oficiais têm assinaturas fixas distintas e não admitem alterações', () => {
+  assert.equal(BETA_ONBOARDING_TEMPLATES.trainer,
+    'Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.')
+  assert.equal(BETA_ONBOARDING_TEMPLATES.customer,
+    'Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.')
+  const personal = createBetaOnboardingInvitation(BETA_ONBOARDING_TEMPLATES.trainer, secret)
+  const client = createBetaOnboardingInvitation(BETA_ONBOARDING_TEMPLATES.customer, secret)
+  assert.notEqual(personal.hash, client.hash)
+  assert.equal(verifyBetaOnboardingInvitation(personal.shareText, secret), BETA_ONBOARDING_TEMPLATES.trainer)
+  assert.equal(verifyBetaOnboardingInvitation(client.shareText, secret), BETA_ONBOARDING_TEMPLATES.customer)
+  assert.equal(verifyBetaOnboardingInvitation(
+    personal.shareText.replace('receber pedidos', 'receber propostas'), secret,
+  ), null)
+  assert.equal(verifyBetaOnboardingInvitation(
+    client.shareText.replace('como cliente', 'como personal'), secret,
+  ), null)
+  assert.deepEqual(parseBetaOnboardingMessage(BETA_ONBOARDING_TEMPLATES.trainer), { role: 'trainer' })
+  assert.deepEqual(parseBetaOnboardingMessage(BETA_ONBOARDING_TEMPLATES.customer), { role: 'customer' })
 })

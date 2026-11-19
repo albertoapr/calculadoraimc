@@ -5198,7 +5198,7 @@
         ],
         "operationId": "betaOnboarding",
         "summary": "Beta: iniciar cadastro ou login por comando WhatsApp",
-        "description": "A Beta envia o TEXTO COMPLETO da mensagem encaminhada, incluindo uma linha final Hash: <64 hex>. A FitPeso valida HMAC-SHA256 usando o segredo do servidor ANTES de aceitar texto ou emitir um link. O mesmo HMAC é compartilhável por várias pessoas; ele garante integridade do texto, mas não comprova que o remetente trabalha na academia. Mensagens sem hash ou com caracteres editados retornam HTTP 422.",
+        "description": "A Beta envia a mensagem fixa integral com linha Hash: <HMAC-SHA256>. São aceitos EXCLUSIVAMENTE os dois templates oficiais genéricos, personal ou cliente, emitidos pelo endpoint /api/auth/beta-onboarding-template. Todo conteúdo modificado, sem hash ou variante antiga retorna HTTP 422. O HMAC é compartilhável por múltiplos remetentes; o link retornado é individual e temporário.",
         "security": [
           {
             "IntegrationSecret": []
@@ -5217,8 +5217,8 @@
                 "properties": {
                   "message": {
                     "type": "string",
-                    "description": "Texto exato e completo, contendo no fim uma linha 'Hash: ' seguida do HMAC-SHA256 hexadecimal de 64 caracteres. Não cortar, normalizar ou recalcular o hash.",
-                    "example": "Sou personal da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.\\nHash: <HASH_REAL_GERADO_PELA_API>"
+                    "description": "Um dos dois templates oficiais exatos, seguidos por \\nHash: e assinatura HMAC real de 64 caracteres. Não alterar conteúdo.",
+                    "example": "Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.\\nHash: <HMAC_REAL>"
                   },
                   "whatsapp": {
                     "type": "string",
@@ -5393,7 +5393,7 @@
         ],
         "operationId": "issueBetaOnboardingTemplate",
         "summary": "Beta: gerar mensagem fixa de cadastro com HMAC reutilizável",
-        "description": "Endpoint exclusivo da integração Beta. Para professor(a) de academia, informar academyId de academia ativa; o backend monta o texto e assina com HMAC-SHA256 secreto. A mesma academia e o mesmo segredo geram a mesma mensagem e hash para todos os contatos. Pode gerar convite genérico para role trainer ou customer sem academyId. Nunca assina texto livre recebido do WhatsApp.",
+        "description": "Gera exatamente um dos dois templates fixos, com assinatura HMAC-SHA256. Não aceita texto arbitrário, academiaId, nem personalizações; compartilhar o campo shareText com várias pessoas.",
         "security": [
           {
             "IntegrationSecret": []
@@ -5408,6 +5408,7 @@
                 "required": [
                   "role"
                 ],
+                "additionalProperties": false,
                 "properties": {
                   "role": {
                     "type": "string",
@@ -5415,11 +5416,6 @@
                       "trainer",
                       "customer"
                     ]
-                  },
-                  "academyId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "description": "Somente para role trainer. UUID obtido em GET /api/academies."
                   }
                 }
               }
@@ -5435,9 +5431,6 @@
           },
           "403": {
             "description": "Falta segredo de integração ou é inválido"
-          },
-          "404": {
-            "description": "Academia inexistente ou inativa"
           },
           "422": {
             "description": "Dados da academia não podem ser convertidos em mensagem canônica"

@@ -38,3 +38,12 @@ test('mensagem natural de professora identifica academia, bairro e cidade sem In
   assert.equal(parseBetaOnboardingMessage('Sou professora da Academia Aquatic Center, em Mesquita, e quero me cadastrar em outro app.'), null)
   assert.equal(parseBetaOnboardingMessage('Sou professora da Academia X e quero me cadastrar na FitPeso. Veja meu site https://example.com'), null)
 })
+
+
+test('as frases genéricas de cadastro são interpretadas como papéis específicos', async () => {
+  const { parseBetaOnboardingMessage } = await import('../amplify/functions/imc-submit/beta-onboarding-command')
+  const { BETA_ONBOARDING_TEMPLATES } = await import('../amplify/functions/imc-submit/beta-onboarding-signature')
+  assert.deepEqual(parseBetaOnboardingMessage(BETA_ONBOARDING_TEMPLATES.trainer), { role: 'trainer' })
+  assert.deepEqual(parseBetaOnboardingMessage(BETA_ONBOARDING_TEMPLATES.customer), { role: 'customer' })
+  assert.equal(parseBetaOnboardingMessage('Quero me inscrever em fitpeso.com.br como viajante para me divertir.'), null)
+})

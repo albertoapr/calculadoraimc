@@ -5,6 +5,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
  * invitation. Its purpose is message integrity, not sender authentication.
  * The secret NEVER appears in the invitation or in browser-side JavaScript.
  */
+export const BETA_ONBOARDING_TEMPLATES = {
+  trainer: 'Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.',
+  customer: 'Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.',
+} as const
+
 const context = 'fitpeso.beta.onboarding-message.v1\n'
 const suffix = '\nHash: '
 

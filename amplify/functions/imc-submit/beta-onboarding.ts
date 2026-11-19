@@ -6,7 +6,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import { createWhatsAppMagicLink, createBetaTrainerSignupLink, type WhatsAppLinkRole } from './whatsapp-login-link'
 import { parseBetaOnboardingMessage, type BetaOnboardingMessage } from './beta-onboarding-command'
-import { createBetaOnboardingInvitation, verifyBetaOnboardingInvitation } from './beta-onboarding-signature'
+import { BETA_ONBOARDING_TEMPLATES, createBetaOnboardingInvitation, verifyBetaOnboardingInvitation } from './beta-onboarding-signature'
 
 const db = new DynamoDBClient({})
 const hash = (v: string) => createHash('sha256').update(v).digest('hex')
@@ -119,64 +119,33 @@ async function createLoginLink(
 }
 
 /**
- * Mint one signed, permanent, shareable invitation for an ACTIVE academy.
- * Beta calls this once, using the same integration secret as other Beta routes.
- * The output is identical every time for the same academy and secret.
+ * The Beta generates one fixed, shareable message per role.
+ * There are exactly two sanctioned templates, neither varies by sender.
  */
 export async function betaOnboardingTemplate(data: Record<string, unknown> | null) {
-  if (!secret() || !process.env.ACADEMIES_TABLE)
-    return reply(503, { error: 'Serviço de convites indisponível.' })
+  if (!secret()) return reply(503, { error: 'Serviço de convites indisponível.' })
   const role = data?.role
-  if (role !== 'trainer' && role !== 'customer')
-    return reply(400, { error: 'Informe role: trainer ou customer.' })
-  const academyId = data?.academyId
-  if (academyId !== undefined && (role !== 'trainer' || typeof academyId !== 'string' ||
-      !/^[a-f0-9-]{36}$/i.test(academyId)))
-    return reply(400, { error: 'Identificador de academia inválido.' })
-  try {
-    let message = role === 'customer' ? 'Sou cliente fitpeso' : 'Sou personal fitpeso'
-    if (role === 'trainer' && typeof academyId === 'string') {
-      const result = await db.send(new GetItemCommand({
-        TableName: process.env.ACADEMIES_TABLE,
-        Key: { academyId: { S: academyId } },
-        ConsistentRead: true,
-      }))
-      const academy = result.Item
-      if (!academy || academy.active?.BOOL !== true)
-        return reply(404, { error: 'Academia não encontrada ou inativa.' })
-      const name = (academy.name?.S ?? '').trim().replace(/^academia\s+/i, '').trim()
-      const neighborhood = (academy.neighborhood?.S ?? '').trim()
-      const city = academy.city?.S ?? ''
-      message = `Sou personal da Academia ${name}, no bairro ${neighborhood}, em ${city}, e quero me cadastrar na FitPeso.`
-      const parsed = parseBetaOnboardingMessage(message)
-      if (parsed?.role !== 'trainer' || parsed.city !== city ||
-          comparable(parsed.academyName ?? '') !== comparable(name) ||
-          comparable(parsed.neighborhood ?? '') !== comparable(neighborhood)) {
-        return reply(422, { error: 'Os dados desta academia não permitem gerar uma mensagem padrão. Confira o cadastro.' })
-      }
-    }
-    return reply(200, { role, ...(typeof academyId === 'string' ? { academyId } : {}),
-      ...createBetaOnboardingInvitation(message, secret()),
-    })
-  } catch (error) {
-    console.error('[beta-onboarding] Signed template issue failed', {
-      errorClass: error instanceof Error ? error.name : typeof error,
-    })
-    return reply(503, { error: 'Não foi possível gerar a mensagem padrão.' })
+  if (role !== 'trainer' && role !== 'customer' || data?.academyId !== undefined ||
+      Object.keys(data ?? {}).some(key => key !== 'role')) {
+    return reply(400, { error: 'Informe apenas role: trainer ou customer. A mensagem é fixa e não pode ser personalizada.' })
   }
+  return reply(200, { role, ...createBetaOnboardingInvitation(BETA_ONBOARDING_TEMPLATES[role], secret()) })
 }
 
 /** Invoked ONLY by secret-authenticated Beta using the transport's sender phone. */
 export async function betaOnboardingCommand(data: Record<string, unknown> | null) {
   if (!ready()) return reply(503, { error: 'Serviço indisponível.' })
-  // The signed invitation is identical for EVERY recipient. Reject any edited
-  // text or hash before parsing, touching DynamoDB, or issuing a login link.
+  // The signed invitation is identical for EVERY recipient. Reject anything
+  // other than the two sanctioned immutable messages (including older templates)
+  // before parsing, touching DynamoDB, or issuing a login link.
   const approvedText = verifyBetaOnboardingInvitation(data?.message, secret())
-  if (!approvedText) return reply(422, {
+  if (!approvedText || !Object.values(BETA_ONBOARDING_TEMPLATES).includes(
+    approvedText as typeof BETA_ONBOARDING_TEMPLATES[keyof typeof BETA_ONBOARDING_TEMPLATES],
+  )) return reply(422, {
     error: 'Mensagem de cadastro alterada ou sem hash válido. Compartilhe a mensagem original, sem editar.',
   })
+  const role = approvedText === BETA_ONBOARDING_TEMPLATES.trainer ? 'trainer' : 'customer'
   const parsed = parseBetaOnboardingMessage(approvedText)
-  const role = parsed?.role
   const whatsapp = phone(data?.whatsapp)
   if (!whatsapp || !role) return reply(400, {
     error: 'Mensagem de cadastro ou número do remetente inválido.',

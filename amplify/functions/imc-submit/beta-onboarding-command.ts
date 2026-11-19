@@ -22,8 +22,12 @@ function plain(text: string) {
 export function parseBetaOnboardingMessage(message: unknown): BetaOnboardingMessage | null {
   if (typeof message !== 'string' || message.length > 500 || !message.trim()) return null
   const text = plain(message).replace(/[.!?]+$/, '').trim()
-  if (text === 'sou cliente fitpeso') return { role: 'customer' }
-  if (text === 'sou personal fitpeso') return { role: 'trainer' }
+  if (text === 'sou cliente fitpeso' ||
+      text === 'quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino')
+    return { role: 'customer' }
+  if (text === 'sou personal fitpeso' ||
+      text === 'quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino')
+    return { role: 'trainer' }
 
   // Natural registration request: "Sou professora da Academia Aquatic Center,
   // no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso".

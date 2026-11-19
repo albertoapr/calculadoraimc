@@ -1,94 +1,59 @@
-# Beta ↔ FitPeso — mensagens fixas assinadas (HMAC-SHA256)
+# Beta ↔ FitPeso — dois templates de cadastro fixos com HMAC-SHA256
 
-## Requisito
+## Templates oficiais
 
-Uma única mensagem padrão com **o mesmo hash para todas as pessoas** pode ser distribuída e encaminhada pelo WhatsApp. Qualquer edição no texto, inclusive pontuação, maiúsculas, acentos ou inclusão de frases, invalida o hash. O usuário não recebe um novo hash para cada conversa.
+Existem **somente dois templates genéricos**, idênticos para todos os usuários. A API gera a assinatura estável `HMAC-SHA256` usando um segredo do servidor, separado do corpo compartilhado.
 
-A assinatura é um **HMAC-SHA256 com segredo exclusivo do backend**, não um SHA-256 público. Conhecer o texto e seu hash não permite criar um hash válido para uma mensagem diferente. A mesma assinatura pode ser usada por quantas pessoas receberem a mensagem. Isso protege **integridade do convite**, não identidade, vínculo empregatício ou titularidade do CREF.
+**Personal trainer:**
 
-## Gerar uma vez e compartilhar com vários profissionais
+```text
+Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.
 
-A Beta autorizada chama:
-
-**POST /prod/api/auth/beta-onboarding-template**
-
-Cabeçalhos: `Content-Type: application/json` e `X-Fitpeso-Verification-Secret: <segredo já utilizado pela Beta>`.
-
-Corpo de exemplo, com o `academyId` real de uma academia ativa (consultável em `GET /prod/api/academies?city=Mesquita`):
-
-```json
-{
-  "role": "trainer",
-  "academyId": "<UUID_REAL_DA_ACADEMIA>"
-}
+Hash: <HASH_PERSONAL_GERADO_PELA_API>
 ```
 
-O backend **não aceita textos arbitrários para assinar**: lê a academia da tabela DynamoDB, exige academia ativa e constrói a frase padronizada a partir dos campos do cadastro. Isso impede que a Beta assine nomes ou lugares inventados por um contato.
+**Cliente:**
 
-Resposta ilustrativa:
+```text
+Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.
 
-```json
-{
-  "role": "trainer",
-  "academyId": "<UUID_REAL_DA_ACADEMIA>",
-  "message": "Sou personal da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.",
-  "hash": "<HMAC_SHA256_REAL_GERADO_PELO_BACKEND>",
-  "shareText": "Sou personal da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.\nHash: <HMAC_SHA256_REAL_GERADO_PELO_BACKEND>"
-}
+Hash: <HASH_CLIENTE_GERADO_PELA_API>
 ```
 
-**Não compartilhe o exemplo com placeholder.** Copie e distribua somente o `shareText` real devolvido pela API. Ele contém um hash hexadecimal de 64 caracteres calculado com o segredo real do ambiente. O mesmo `role` e `academyId` sempre geram a mesma mensagem e o mesmo hash enquanto a academia e o segredo permanecerem os mesmos.
+Os marcadores **não são hashes reais** e não devem ser enviados. A Beta deve gerar o convite assinado pela API e compartilhar a propriedade `shareText`, que contém a mensagem correta com sua assinatura real.
 
-Também é possível gerar convites genéricos com `{"role":"trainer"}` (texto `Sou personal fitpeso`) ou `{"role":"customer"}` (texto `Sou cliente fitpeso`): **também exigem hash**.
+## Emissão dos dois modelos
 
-## O que o robô Beta faz quando recebe uma mensagem
+A Beta, autenticada pelo segredo da integração (`X-Fitpeso-Verification-Secret`), chama:
 
-1. Recebe mensagem privada de um contato, sem reescrever o texto. Ignora grupos e mensagens enviadas pela própria Beta.
-2. Obtém `whatsapp` do número real do remetente e `name` do nome de exibição, quando existir.
-3. Encaminha **a mensagem completa, incluindo a linha `Hash: ...`**, sem remover espaços, trocar capitalização, alterar pontuação ou recalcular o hash, à API:
+`POST /prod/api/auth/beta-onboarding-template`
 
-```http
-POST /prod/api/auth/beta-onboarding
-Content-Type: application/json
-X-Fitpeso-Verification-Secret: <segredo da integração>
-```
+`Content-Type: application/json`
+
+Para personal: `{"role":"trainer"}`
+
+Para cliente: `{"role":"customer"}`
+
+A resposta fornece `role`, `message`, `hash` e `shareText`. A assinatura e o `shareText` são **sempre os mesmos** para o mesmo template e segredo; não dependem do remetente, da data, da academia ou da cidade. A API **não aceita outro texto ou `academyId`**.
+
+## Processamento do WhatsApp
+
+Ao receber uma mensagem privada, a Beta extrai o número real do remetente, `name` de exibição (quando disponível) e envia o corpo original integral, inclusive a linha `Hash: <hex64>`, para:
+
+`POST /prod/api/auth/beta-onboarding`
+
+com o mesmo cabeçalho secreto. Exemplo do JSON enviado:
 
 ```json
 {
   "whatsapp": "+5521999999999",
-  "name": "Nome de exibição do remetente",
-  "message": "Sou personal da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.\nHash: <HMAC_SHA256_REAL>"
+  "name": "Nome de exibição",
+  "message": "Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.\nHash: <HASH_REAL_GERADO_PELA_API>"
 }
 ```
 
-4. A FitPeso confere o HMAC **antes de interpretar a intenção, consultar o banco, aplicar cooldown ou gerar qualquer link**. Ela compara os bytes do texto recebido com os bytes assinados, sem normalizar.
-5. Se o hash for inválido, ausente ou não corresponder ao texto: **HTTP 422**, nenhuma criação de cadastro e nenhum link. Beta informa que é preciso encaminhar a mensagem original sem editar.
-6. Se for válido: a API verifica o cadastro do remetente e retorna `replyText`, `loginLink` e `loginLinkExpiresAt`. A Beta envia exatamente o `replyText` ao **mesmo remetente**. Esse link é **individual**, de uso único e válido por até 5 minutos, enquanto o **hash do convite é fixo e reutilizável**.
+**Não recalcular o hash no robô, não normalizar o texto e não compartilhar o segredo.** Qualquer alteração no texto ou no hash retorna `HTTP 422`; a API não cria cadastro ou link. Mesmo um convite antigo válido, fora dos dois templates oficiais, é rejeitado. Mensagens repetidas no mesmo WhatsApp são limitadas por cooldown de 30 segundos.
 
-## Exemplos de edição que devem ser rejeitados
+A API confere primeiro a assinatura HMAC e o texto aprovado. Se válidos, cria ou localiza o cadastro do cliente e envia link individual de login; para personal novo, devolve link de uso único que abre o formulário de cadastro profissional, sem academia predeterminada. O usuário poderá informar cidade, academia, Instagram e CREF depois. O link de login/cadastro expira em até 5 minutos, mas **o hash da mensagem fixa não expira por pessoa e é reutilizável entre várias pessoas**.
 
-- Alterar `Mesquita` para `Canadá`.
-- Adicionar frases ou declarações pessoais.
-- Substituir `Aquatic Center` por outra academia.
-- Alterar ou substituir a linha `Hash:`.
-- Enviar somente a frase, sem hash.
-- Enviar um SHA-256 puro do texto alterado no lugar do HMAC.
-
-O hash foi calculado usando `HMAC-SHA256(segredo, "fitpeso.beta.onboarding-message.v1\\n" + texto)`. O prefixo protege o domínio de uso do segredo. Nunca incluir o segredo nos logs, mensagens ou frontend.
-
-## Segurança e limitações
-
-- **O hash não identifica o usuário e não expira individualmente.** É intencionalmente o mesmo para todos os destinatários de um convite compartilhado.
-- O número de WhatsApp vem do evento do provedor, nunca do corpo da mensagem. O nome de exibição pode ser editado pelo próprio usuário.
-- O HMAC **não prova** que alguém trabalha naquela academia ou possui CREF. A validação dessa informação exige um processo separado.
-- Para revogar todos os convites do ambiente, é possível rotacionar o segredo, mas isso também afetará as rotas que usam o mesmo segredo compartilhado; planeje a rotação com a integração Beta.
-- Não há código de confirmação por pessoa na mensagem fixa; **somente o link posterior é individual e temporário**.
-- A atualização precisa ser implantada na FitPeso e no serviço externo do robô Beta. A alteração do repositório FitPeso, isoladamente, não altera o listener do WhatsApp.
-
-## Critérios de aceite
-
-- Dois remetentes diferentes podem encaminhar o mesmo `shareText` e ambos recebem seus próprios links seguros.
-- Texto ou hash alterado, mesmo um único caractere: HTTP 422 e **nenhum cadastro**.
-- Sem hash: HTTP 422.
-- A mensagem original permanece compartilhável por tempo indeterminado, enquanto a academia permanecer válida e o segredo não for rotacionado.
-- A página de cadastro profissional mantém o pré-preenchimento de academia, cidade, WhatsApp e nome de exibição; Instagram e CREF podem ser preenchidos mais tarde.
+O texto assinado fornece **integridade**, não comprovação de identidade civil, habilitação profissional ou vínculo a uma academia. A Beta nunca deve confiar em números de telefone digitados no texto. A automação WhatsApp externa precisa ser atualizada para encaminhar os dois modelos com o hash; o deploy da FitPeso isoladamente não atualiza o robô.
