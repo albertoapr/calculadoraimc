@@ -12,7 +12,7 @@ const {
   selectIdentityProfile,
   closeProfileChooser,
 } = useFitpesoContext()
-const firstOption = ref<HTMLButtonElement | null>(null)
+const dialog = ref<HTMLElement | null>(null)
 const labels: Record<IdentityRole, string> = {
   CLIENTE: 'Cliente',
   PERSONAL: 'Personal Trainer',
@@ -32,22 +32,21 @@ function handleEscape(event: KeyboardEvent) {
 
 onMounted(async () => {
   await nextTick()
-  firstOption.value?.focus()
+  dialog.value?.querySelector('button')?.focus()
 })
 </script>
 
 <template>
   <Teleport to="body">
     <div class="profile-select-overlay" @click.self="closeProfileChooser" @keydown="handleEscape">
-      <section class="profile-select-dialog" role="dialog" aria-modal="true"
+      <section ref="dialog" class="profile-select-dialog" role="dialog" aria-modal="true"
         aria-labelledby="profile-select-title" aria-describedby="profile-select-description">
         <h2 id="profile-select-title">Escolha seu perfil</h2>
         <p id="profile-select-description">
           Você possui mais de um perfil na FitPeso. Como deseja continuar?
         </p>
         <div class="profile-select-options">
-          <button v-for="(profile, index) in selectableProfiles" :key="profile.usuarioId"
-            :ref="(element) => { if (index === 0) firstOption = element as HTMLButtonElement }"
+          <button v-for="profile in selectableProfiles" :key="profile.usuarioId"
             type="button" class="profile-select-option"
             :disabled="profileSwitchBusy"
             @click="selectIdentityProfile(profile.tipo)">
