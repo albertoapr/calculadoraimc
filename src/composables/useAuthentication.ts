@@ -218,7 +218,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     }, 100)
   }
 
-  function scheduleWhatsAppLoginCheck(delay = 3000) {
+  function scheduleWhatsAppLoginCheck(delay = 1500) {
     window.clearTimeout(whatsappCheckTimer)
     if (disposed || !pendingWhatsAppLogin.value || document.hidden) return
     whatsappCheckTimer = window.setTimeout(() => void checkPendingWhatsAppLogin(), delay)

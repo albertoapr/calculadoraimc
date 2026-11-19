@@ -8,7 +8,7 @@ const input = {
   role: 'customer' as const,
   challengeExpiresAt: 1_000_000 + 15 * 60,
   secret: 'beta-secret-only-on-server',
-  baseUrl: 'https://develop.d3w24y6suih6n1.amplifyapp.com/',
+  baseUrl: 'https://develop.fitpeso.com.br/',
   nowSeconds: 1_000_000,
 }
 
@@ -16,7 +16,7 @@ test('WhatsApp link is opaque, keyed, branch scoped and valid for at most five m
   const link = createWhatsAppMagicLink(input)
   const url = new URL(link.loginLink)
   const token = url.searchParams.get('whatsappLoginCode')!
-  assert.equal(url.origin, 'https://develop.d3w24y6suih6n1.amplifyapp.com')
+  assert.equal(url.origin, 'https://develop.fitpeso.com.br')
   assert.match(token, /^[A-Za-z0-9_-]{43}$/)
   assert.notEqual(token, input.code)
   assert.equal(link.item.codeHash.S?.length, 64)
@@ -37,6 +37,7 @@ test('reject open redirects, untrusted hosts and insecure URL schemes', () => {
   for (const baseUrl of [
     'http://fitpeso.com.br/',
     'https://evil.example/',
+    'https://develop.d3w24y6suih6n1.amplifyapp.com/',
     'https://fitpeso.com.br.evil.example/',
     'https://fitpeso.com.br@evil.example/',
     'https://fitpeso.com.br/path',

@@ -46,7 +46,7 @@ Na branch `develop`, após `verified: true`, a API retorna **somente à integra�
   "verified": true,
   "whatsapp": "+5521999999999",
   "name": "Cliente ou Personal",
-  "loginLink": "https://develop.d3w24y6suih6n1.amplifyapp.com/?whatsappLoginCode=TOKEN_SEGURO",
+  "loginLink": "https://develop.fitpeso.com.br/?whatsappLoginCode=TOKEN_SEGURO",
   "loginLinkExpiresAt": 1795050000
 }
 ```
@@ -63,7 +63,7 @@ Não gere links no código da Beta. Não envie o segredo, `sessionToken` ou cód
 - Cada confirmação emite um link de **uso único**, com até **5 minutos** de validade, somente para a origem da branch configurada no backend.
 - `POST /api/auth/verify-whatsapp-link` consome o token **atomicamente** e emite outra sessão válida para o dispositivo que abriu o link. GET/preview **não consome**.
 - O navegador elimina `whatsappLoginCode` da barra de endereço **antes** de validar a sessão.
-- A tela original continua consultando `/customers/login-status` ou `/trainers/login-status` como antes.
+- A tela original continua consultando `/customers/login-status` ou `/trainers/login-status` como antes. Essa confirmação é a prioridade: não depende da entrega ou leitura da mensagem de resposta do Beta. O link é um meio alternativo de entrar caso o usuário saia da tela ou prefira voltar depois.
 
 **A mudança no serviço externo da Beta é obrigatória.** Fazer o deploy da FitPeso isoladamente não altera as respostas que o robô envia. O WhatsApp Web automatizado permanece uma integração não oficial sujeita a bloqueio.
 

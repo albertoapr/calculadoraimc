@@ -6,7 +6,7 @@ export type WhatsAppLinkRole = 'customer' | 'trainer'
 const allowedHosts = new Set([
   'fitpeso.com.br',
   'www.fitpeso.com.br',
-  'develop.d3w24y6suih6n1.amplifyapp.com',
+  'develop.fitpeso.com.br',
 ])
 
 export function createWhatsAppMagicLink(input: {

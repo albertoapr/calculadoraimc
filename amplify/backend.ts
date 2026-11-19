@@ -161,7 +161,7 @@ backend.imcSubmit.addEnvironment(
   'FITPESO_WHATSAPP_LOGIN_URL',
   process.env.AWS_BRANCH === 'main'
     ? 'https://fitpeso.com.br/'
-    : 'https://develop.d3w24y6suih6n1.amplifyapp.com/',
+    : 'https://develop.fitpeso.com.br/',
 )
 // Etapa 2.2: novas entidades isoladas das tabelas legadas.
 // Stack separada para evitar alterações em chaves/GSIs já existentes.
