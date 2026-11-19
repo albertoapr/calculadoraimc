@@ -66,7 +66,9 @@ export function useSessionBootstrap(options: {
     try {
       // Restore the preferred account first. Do not race two sessions: applying
       // a customer profile after the trainer profile would hide trainer-only fields.
-      const preferredRole = localStorage.getItem('fitpeso:preferred-role:v1')
+      const preferredRole = sessionStorage.getItem('fitpeso-active-profile-role') === 'PERSONAL'
+        ? 'trainer'
+        : 'customer'
       if (preferredRole === 'trainer') {
         await restoreTrainerSession()
         if (!options.trainerSignedInId.value) await restoreCustomerSession()
