@@ -631,11 +631,17 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
       ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified' },
       ConsistentRead: true,
     }))
-    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
-    if (!eligible) {
+    const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    // O mesmo número validado pode ter apenas perfil PERSONAL. A criação de CLIENTE
+    // é permitida somente se não houver nenhum registro de cliente preexistente.
+    // Cadastro pendente/inativo NUNCA pode ser reativado por esse atalho.
+    const trainer = !customer.Item ? await findVerifiedTrainerForCustomerLogin(whatsapp) : null
+    if (!eligibleCustomer && !trainer) {
       return response(200, {
         started: false,
-        error: 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
+        error: customer.Item
+          ? 'O cadastro de cliente deste WhatsApp não está ativo ou confirmado.'
+          : 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
       })
     }
     const code = randomBytes(16).toString('base64url')
@@ -647,6 +653,11 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
         flow: { S: 'fitpeso-customer-login' },
         whatsapp: { S: whatsapp },
         eligible: { BOOL: true },
+        ...(trainer ? {
+          createCustomerProfile: { BOOL: true },
+          trainerId: { S: trainer.trainerId },
+          city: { S: trainer.city },
+        } : {}),
         sessionTokenHash: { S: hashCode(sessionToken) },
         expiresAt: { N: String(expiresAt) },
       },
@@ -680,7 +691,15 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
       return response(200, { verified: existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now })
     }
     const customer = await dynamodb.send(new GetItemCommand({ TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true }))
-    const eligible = challenge.eligible?.BOOL === true && customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    // O desafio foi emitido especificamente para um personal já confirmado.
+    // Confere-se novamente o vínculo do telefone antes de criar o perfil CLIENTE.
+    const trainer = challenge.createCustomerProfile?.BOOL === true && !customer.Item
+      ? await getVerifiedTrainerForCustomerLogin(
+        whatsapp, challenge.trainerId?.S ?? '', challenge.city?.S ?? '',
+      )
+      : null
+    const eligible = challenge.eligible?.BOOL === true && (eligibleCustomer || Boolean(trainer))
     if (!eligible) {
       await dynamodb.send(new UpdateItemCommand({
         TableName: codesTable, Key: { codeHash: { S: codeHash } },
@@ -707,8 +726,31 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
+      ...(trainer ? [
+        // Impede que um personal removido/desativado autorize um novo cliente.
+        { ConditionCheck: {
+          TableName: process.env.TRAINERS_TABLE!,
+          Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
+          ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+          ExpressionAttributeNames: { '#active': 'active' },
+          ExpressionAttributeValues: { ':yes': { BOOL: true }, ':phone': { S: whatsapp } },
+        } },
+        { Put: {
+          TableName: customersTable,
+          Item: {
+            whatsapp: { S: whatsapp },
+            name: { S: trainer.name },
+            ...(trainer.dateOfBirth ? { dateOfBirth: { S: trainer.dateOfBirth } } : {}),
+            status: { S: 'ACTIVE' },
+            whatsappVerified: { BOOL: true },
+            verifiedAt: { S: new Date(now * 1000).toISOString() },
+            createdAt: { S: new Date(now * 1000).toISOString() },
+          },
+          ConditionExpression: 'attribute_not_exists(whatsapp)',
+        } },
+      ] : []),
     ] }))
-    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? trainer?.name ?? '' })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
@@ -782,6 +824,29 @@ async function findActiveTrainerByWhatsApp(whatsapp: string) {
   }))).flat()
   const unique = [...new Map(matches.map(trainer => [trainer.trainerId, trainer])).values()]
   return unique.length === 1 ? unique[0] : null
+}
+
+/**
+ * Confirma a titularidade de um perfil PERSONAL já ativo, sem confiar apenas
+ * na existência de um registro público do profissional.
+ */
+async function getVerifiedTrainerForCustomerLogin(whatsapp: string, trainerId: string, city: string) {
+  if (!trainerId || !city || !process.env.TRAINERS_TABLE) return null
+  const result = await dynamodb.send(new GetItemCommand({
+    TableName: process.env.TRAINERS_TABLE,
+    Key: { city: { S: city }, trainerId: { S: trainerId } },
+    ConsistentRead: true,
+  }))
+  const item = result.Item
+  if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) return null
+  const name = item.name?.S?.trim() ?? ''
+  if (name.length < 2) return null
+  return { trainerId, city, name, dateOfBirth: item.dateOfBirth?.S ?? '' }
+}
+
+async function findVerifiedTrainerForCustomerLogin(whatsapp: string) {
+  const match = await findActiveTrainerByWhatsApp(whatsapp)
+  return match ? getVerifiedTrainerForCustomerLogin(whatsapp, match.trainerId, match.city) : null
 }
 
 async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
