@@ -493,7 +493,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
               identityStatus: 'ready' as const,
             }
           : session.Item?.identityProof?.S === 'WHATSAPP'
-            ? await trySyncIdentity(() => syncWhatsappCustomerIdentity(legacy))
+            ? await trySyncIdentity(() => syncWhatsappCustomerAndTrainerIdentities(legacy))
           : session.Item?.identityProof?.S === 'EMAIL' && session.Item.email?.S
             ? await trySyncIdentity(() => syncEmailCustomerIdentity(legacy, session.Item!.email!.S!))
             : { identityStatus: 'pending' as const }
@@ -960,12 +960,56 @@ async function getVerifiedTrainerForCustomerLogin(whatsapp: string, trainerId: s
   if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) return null
   const name = item.name?.S?.trim() ?? ''
   if (name.length < 2) return null
-  return { trainerId, city, name, dateOfBirth: item.dateOfBirth?.S ?? '' }
+  return {
+    trainerId, city, name, dateOfBirth: item.dateOfBirth?.S ?? '',
+    email: item.email?.S ?? '',
+    pessoaId: item.pessoa_id?.S,
+    identitySource: item.identitySource?.S,
+  }
 }
 
 async function findVerifiedTrainerForCustomerLogin(whatsapp: string) {
   const match = await findActiveTrainerByWhatsApp(whatsapp)
   return match ? getVerifiedTrainerForCustomerLogin(whatsapp, match.trainerId, match.city) : null
+}
+
+/**
+ * Após prova do WhatsApp, sincroniza os perfis existentes da mesma pessoa.
+ * Um personal ativo ja confirmado nao precisa iniciar outro fluxo de login.
+ * Vinculos conflitantes continuam exigindo reconciliacao; nunca se transfere
+ * propriedade de Pessoa ou de identificacao.
+ */
+async function syncWhatsappCustomerAndTrainerIdentities(
+  legacy: Parameters<typeof syncWhatsappCustomerIdentity>[0],
+) {
+  const customer = await syncWhatsappCustomerIdentity(legacy)
+  const existing = await listPersonProfiles(customer.pessoaId)
+  if (existing.some(profile => profile.tipo === 'PERSONAL')) {
+    const usuarios = [...new Map(
+      [...customer.usuarios, ...existing].map(profile => [profile.usuarioId, profile]),
+    ).values()]
+    return { pessoaId: customer.pessoaId, usuarios }
+  }
+  const trainer = await findVerifiedTrainerForCustomerLogin(legacy.whatsapp)
+  if (!trainer || (trainer.pessoaId && trainer.pessoaId !== customer.pessoaId) ||
+    (trainer.pessoaId && trainer.identitySource !== 'WHATSAPP')) return customer
+  try {
+    const linked = await syncWhatsappTrainerIdentity({
+      trainerId: trainer.trainerId, city: trainer.city, whatsapp: legacy.whatsapp,
+      name: trainer.name, email: trainer.email,
+      pessoaId: trainer.pessoaId, identitySource: trainer.identitySource,
+    })
+    if (linked.pessoaId !== customer.pessoaId) return customer
+    const usuarios = [...new Map(
+      [...customer.usuarios, ...linked.usuarios].map(profile => [profile.usuarioId, profile]),
+    ).values()]
+    return { pessoaId: customer.pessoaId, usuarios }
+  } catch (error) {
+    console.warn('[imc-submit] Personal role synchronization pending', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return customer
+  }
 }
 
 async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
