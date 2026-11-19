@@ -302,7 +302,13 @@ export async function completeBetaTrainerSignup(
   validRegistration: (input: Record<string, unknown> | null) => boolean,
   register: (
     input: Record<string, unknown>,
-    proof: { betaSignupSessionHash: string; issuedSessionToken: string },
+    proof: {
+      betaSignupSessionHash: string
+      issuedSessionToken: string
+      academyId?: string
+      academyName?: string
+      academyCity?: string
+    },
   ) => Promise<{ slug: string }>,
 ) {
   const proofToken = data?.onboardingSessionToken
@@ -323,7 +329,12 @@ export async function completeBetaTrainerSignup(
     if ((await betaTrainersByPhone(whatsapp)).length)
       return reply(409, { error: 'WhatsApp já vinculado a um personal. Procure o suporte ou faça login.' })
     const sessionToken = randomBytes(32).toString('base64url')
-    const result = await register(data!, { betaSignupSessionHash: hash(proofToken), issuedSessionToken: sessionToken })
+    const result = await register(data!, {
+      betaSignupSessionHash: hash(proofToken), issuedSessionToken: sessionToken,
+      ...(record.academyId?.S && record.academyName?.S && record.city?.S ? {
+        academyId: record.academyId.S, academyName: record.academyName.S, academyCity: record.city.S,
+      } : {}),
+    })
     return reply(201, { registered: true, role: 'trainer', sessionToken, slug: result.slug })
   } catch (error) {
     if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)

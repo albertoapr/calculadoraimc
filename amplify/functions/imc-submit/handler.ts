@@ -1627,7 +1627,13 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
 
 async function registerTrainer(
   data: Record<string, unknown>,
-  betaSignup?: { betaSignupSessionHash: string; issuedSessionToken: string },
+  betaSignup?: {
+    betaSignupSessionHash: string
+    issuedSessionToken: string
+    academyId?: string
+    academyName?: string
+    academyCity?: string
+  },
 ) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
@@ -1646,6 +1652,12 @@ async function registerTrainer(
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
+  // The academy ID is trusted only when confirmed by the server before issuing the Beta token
+  // and still active in the selected city at the moment the profile is saved.
+  const verifiedAcademyIds = betaSignup?.academyId && betaSignup.academyName &&
+    betaSignup.academyCity && cities.includes(betaSignup.academyCity) &&
+    academias.includes(betaSignup.academyName)
+    ? (await resolveRegisteredAcademies([betaSignup.academyId], cities)).ids : []
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
@@ -1705,6 +1717,13 @@ async function registerTrainer(
           ConditionExpression: 'attribute_not_exists(slug)',
         },
       },
+      ...verifiedAcademyIds.map(academyId => ({
+        Put: {
+          TableName: process.env.TRAINER_ACADEMIES_TABLE!,
+          Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+          ConditionExpression: 'attribute_not_exists(trainerId) AND attribute_not_exists(academyId)',
+        },
+      })),
       ...(betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
@@ -1731,6 +1750,7 @@ async function registerTrainer(
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
             academias: { L: academias.map(name => ({ S: name })) },
+            academyIds: { L: verifiedAcademyIds.map(id => ({ S: id })) },
             ...(cref ? { cref: { S: cref } } : {}),
             active: { BOOL: Boolean(betaSignup) },
             whatsappVerified: { BOOL: Boolean(betaSignup) },
