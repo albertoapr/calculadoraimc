@@ -413,7 +413,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     emailLoginError.value = ''
     if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
     emailLoginPollTimer = undefined
-    // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
+    // O perfil e escolhido apos login, usando os papeis retornados pela API.
     customerLoginMethod.value = 'whatsapp'
     customerLoginError.value = ''
     customerLoginStatus.value = ''
@@ -573,9 +573,8 @@ export function useAuthentication(options: AuthenticationOptions) {
   async function submitIdentityLogin() {
     if (loginIdentifierKind.value === 'email') {
       await startEmailLogin()
-    } else if (loginAsTrainer.value) {
-      await startTrainerWhatsAppLogin()
     } else {
+      // O WhatsApp valida a pessoa; o perfil e escolhido somente depois.
       await startCustomerWhatsAppLogin()
     }
   }
@@ -593,7 +592,6 @@ export function useAuthentication(options: AuthenticationOptions) {
       const { ok, body } = await startEmailSession({
         email: loginIdentifier.value,
         sessionToken: token,
-        asTrainer: loginAsTrainer.value,
       })
       if (disposed) return
       if (!ok || body.started !== true)
@@ -625,11 +623,11 @@ export function useAuthentication(options: AuthenticationOptions) {
     )
       return
     const token = emailLoginSessionToken.value
-    const trainer = loginAsTrainer.value
     try {
-      const { ok, body } = await queryEmailSession(token, trainer ? 'trainer' : 'customer')
+      const { ok, body } = await queryEmailSession(token)
       if (disposed) return
-      if (ok && body.authenticated === true) {
+      if (ok && body.authenticated === true && (body.role === 'trainer' || body.role === 'customer')) {
+        const trainer = body.role === 'trainer'
         if (trainer) {
           const profile = await loadTrainerSession(token)
           if (disposed) return
