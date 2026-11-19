@@ -77,12 +77,13 @@ test('API Beta rejeita texto alterado e texto sem hash antes de acessar o banco'
     process.env.FITPESO_WHATSAPP_LOGIN_URL = 'https://develop.fitpeso.com.br/'
     process.env.TRAINER_WHATSAPP_VERIFY_SECRET = secret
     const { betaOnboardingCommand } = await import('../amplify/functions/imc-submit/beta-onboarding')
-    const invitation = createBetaOnboardingInvitation(academyMessage, secret)
+    const invitation = createBetaOnboardingInvitation(BETA_ONBOARDING_TEMPLATES.trainer, secret)
     const whatsapp = '+5521999999999'
     for (const message of [
-      academyMessage,
-      invitation.shareText.replace('Mesquita', 'Canadá'),
+      BETA_ONBOARDING_TEMPLATES.trainer,
+      invitation.shareText.replace('pedidos', 'propostas'),
       invitation.shareText + '\nTexto adicionado',
+      createBetaOnboardingInvitation(academyMessage, secret).shareText,
     ]) {
       const result = await betaOnboardingCommand({ message, whatsapp })
       assert.equal(result.statusCode, 422)
