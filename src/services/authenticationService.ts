@@ -1,5 +1,5 @@
 import { apiError, requestApi } from './http/apiClient'
-import type { CustomerAccountProfile, TrainerAccountProfile } from '../types/domain'
+import type { CustomerAccountProfile, TrainerAccountProfile, IdentityRole } from '../types/domain'
 
 export type LoginRole = 'customer' | 'trainer'
 type AuthenticationResponse<T> = { ok: boolean; body: T }
@@ -10,6 +10,7 @@ type WhatsAppSessionStart = {
   error?: string
 }
 type LoginStatus = {
+  role?: LoginRole
   authenticated?: boolean
   expired?: boolean
   confirmed?: boolean
@@ -54,7 +55,6 @@ export function queryWhatsAppSession(
 export function startEmailSession(payload: {
   email: string
   sessionToken: string
-  asTrainer: boolean
 }) {
   return requestAuthentication<{ started?: boolean; error?: string }>(
     '/api/customers/start-email-login',
@@ -62,10 +62,17 @@ export function startEmailSession(payload: {
   )
 }
 
-export function queryEmailSession(sessionToken: string, role: LoginRole) {
+export function queryEmailSession(sessionToken: string) {
   return requestAuthentication<LoginStatus>('/api/customers/email-login-status', {
     method: 'POST',
-    body: { sessionToken, role },
+    body: { sessionToken },
+  })
+}
+
+export function verifyWhatsAppLoginLink(code: string) {
+  return requestAuthentication<EmailVerification>('/api/auth/verify-whatsapp-link', {
+    method: 'POST',
+    body: { code },
   })
 }
 
@@ -99,4 +106,18 @@ export async function loadTrainerSession(
   if (!response.ok || response.body.authenticated !== true || !response.body.profile?.trainerId)
     throw apiError(response, 'Sessão inválida.')
   return response.body.profile
+}
+
+/** Sessão emitida pelo backend somente após validar a titularidade do novo papel. */
+export async function switchProfileSession(token: string, role: IdentityRole) {
+  const response = await requestApi<{
+    switched?: boolean
+    sessionToken?: string
+    role?: IdentityRole
+    error?: string
+  }>('/api/auth/switch-profile', { method: 'POST', token, body: { role } })
+  if (!response.ok || response.body.switched !== true ||
+      response.body.role !== role || !response.body.sessionToken)
+    throw apiError(response, 'Não foi possível alternar o perfil.')
+  return response.body.sessionToken
 }

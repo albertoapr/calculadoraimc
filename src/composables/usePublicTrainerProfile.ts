@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import type { Router } from 'vue-router'
-import { getPublicTrainerProfile } from '../services/profissionaisService'
+import { getPublicTrainerProfile, getPublicTrainerBanner, type PublicTrainer } from '../services/profissionaisService'
 
 function trainerIdFromPath(path: string) {
   const match = path.match(/^\/p\/([^/]+)\/?$/)
@@ -28,6 +28,8 @@ export function usePublicTrainerProfile(router: Router) {
   const trainerId = computed(() => trainerIdFromPath(router.currentRoute.value.path))
   const trainerSlug = computed(() => trainerSlugFromPath(router.currentRoute.value.path))
   const personalName = ref('FitPeso')
+  const publicTrainer = ref<PublicTrainer | null>(null)
+  const publicTrainerBanner = ref('')
   const personalBrandFirstName = computed(() =>
     personalName.value.endsWith(' Personal Trainer')
       ? personalName.value.slice(0, -' Personal Trainer'.length)
@@ -39,6 +41,8 @@ export function usePublicTrainerProfile(router: Router) {
   async function loadTrainerProfile() {
     const currentLookup = ++lookupId
     personalName.value = 'FitPeso'
+    publicTrainer.value = null
+    publicTrainerBanner.value = ''
     trainerProfileFailed.value = false
     if (!trainerId.value && !trainerSlug.value) return
     try {
@@ -49,6 +53,13 @@ export function usePublicTrainerProfile(router: Router) {
       if (!name) throw new Error('Invalid trainer profile')
       if (currentLookup !== lookupId) return
       personalName.value = `${name.split(/\s+/)[0]} Personal Trainer`
+      publicTrainer.value = trainer
+      if (trainer.trainerId && trainer.bannerUpdatedAt) {
+        try {
+          const image = await getPublicTrainerBanner(trainer.trainerId)
+          if (currentLookup === lookupId) publicTrainerBanner.value = image
+        } catch { /* A página continua disponível sem a foto. */ }
+      }
     } catch {
       if (currentLookup === lookupId) trainerProfileFailed.value = true
     }
@@ -60,6 +71,8 @@ export function usePublicTrainerProfile(router: Router) {
     trainerIdFromPath: trainerId,
     trainerSlugFromPath: trainerSlug,
     personalBrandFirstName,
+    publicTrainer,
+    publicTrainerBanner,
     trainerProfileFailed,
   }
 }

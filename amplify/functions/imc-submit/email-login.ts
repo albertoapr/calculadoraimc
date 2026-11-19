@@ -56,14 +56,14 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
   const data = parse(event)
   const email = typeof data?.email === 'string' ? data.email.trim().toLowerCase() : ''
   const sessionToken = data?.sessionToken
-  const asTrainer = data?.asTrainer === true
+  // O tipo de perfil nao e informado pelo usuario antes de autenticar.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       !validCode(sessionToken)) return reply(400, { error: 'Informe um e-mail válido.' })
   if (!process.env.IMC_REQUESTS_TABLE || !process.env.FITPESO_CUSTOMERS_TABLE || !process.env.TRAINERS_TABLE ||
       !process.env.GMAIL_USER || !process.env.GMAIL_PASSWORD) return reply(503, { error: 'Confirmação por e-mail indisponível.' })
   try {
-    // One outstanding request per email/role per minute, atomically. Prevents accidental resend/spam.
-    const cooldownKey = digest('email-login-cooldown:' + (asTrainer ? 'trainer:' : 'customer:') + email)
+    // Um unico cooldown por email independentemente dos papeis cadastrados.
+    const cooldownKey = digest('email-login-cooldown:' + email)
     const now = Math.floor(Date.now() / 1000)
     try {
       await db.send(new PutItemCommand({
@@ -76,15 +76,20 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
       if (error instanceof ConditionalCheckFailedException) return reply(429, { error: 'Aguarde um minuto antes de solicitar outro link.' })
       throw error
     }
-    const identity = await lookupEmail(email, asTrainer)
-    if (!identity) return reply(400, { error: 'Não foi possível validar esses dados. Confira e-mail, nascimento e o tipo de cadastro.' })
+    // Priorizamos CLIENTE quando existir: apos validar o link, a tela oferece
+    // todos os perfis associados a mesma Pessoa. Sem cliente, usa PERSONAL.
+    const customerIdentity = await lookupEmail(email, false)
+    const trainerIdentity = customerIdentity ? null : await lookupEmail(email, true)
+    const identity = customerIdentity ?? trainerIdentity
+    const role = customerIdentity ? 'customer' : 'trainer'
+    if (!identity) return reply(400, { error: 'Não foi encontrado um cadastro ativo e confirmado com este e-mail.' })
     const code = randomBytes(32).toString('base64url')
     const expiresAt = now + 15 * 60
     const record: Record<string, AttributeValue> = {
       codeHash: { S: digest(code) }, flow: { S: 'fitpeso-email-login' },
       email: { S: email }, whatsapp: { S: identity.whatsapp },
       sessionTokenHash: { S: digest(sessionToken) },
-      role: { S: asTrainer ? 'trainer' : 'customer' },
+      role: { S: role },
       expiresAt: { N: String(expiresAt) },
     }
     if (identity.trainerId && identity.city) {
@@ -119,18 +124,18 @@ export async function beginEmailLogin(event: APIGatewayProxyEvent) {
 
 export async function emailLoginStatus(event: APIGatewayProxyEvent) {
   const data = parse(event)
-  if (!validCode(data?.sessionToken) || (data?.role !== 'trainer' && data?.role !== 'customer')) {
-    return reply(200, { authenticated: false })
-  }
+  if (!validCode(data?.sessionToken)) return reply(200, { authenticated: false })
   const table = process.env.IMC_REQUESTS_TABLE
   if (!table) return reply(503, { error: 'Serviço indisponível.' })
   try {
     const session = (await db.send(new GetItemCommand({
       TableName: table, Key: { codeHash: { S: digest(data.sessionToken) } }, ConsistentRead: true,
     }))).Item
+    const role = session?.flow?.S === 'fitpeso-trainer-login-session' ? 'trainer'
+      : session?.flow?.S === 'fitpeso-customer-login-session' ? 'customer' : null
     return reply(200, {
-      authenticated: session?.flow?.S === (data.role === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session') &&
-        Number(session.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000),
+      authenticated: role !== null && Number(session?.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000),
+      ...(role ? { role } : {}),
     })
   } catch {
     return reply(503, { error: 'Não foi possível consultar o login.' })
@@ -161,6 +166,8 @@ export async function verifyEmailLogin(event: APIGatewayProxyEvent) {
         codeHash: { S: challenge.sessionTokenHash.S },
         flow: { S: challenge.role?.S === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session' },
         whatsapp: { S: challenge.whatsapp.S },
+        email: { S: challenge.email.S },
+        identityProof: { S: 'EMAIL' },
         expiresAt: { N: String(now + 12 * 60 * 60) },
       }
       if (challenge.role?.S === 'trainer' && challenge.trainerId?.S && challenge.city?.S) {

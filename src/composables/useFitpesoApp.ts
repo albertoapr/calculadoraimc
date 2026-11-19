@@ -2,7 +2,7 @@ import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
-import { loadCustomerProfile } from '../services/authenticationService'
+import { loadCustomerProfile, loadTrainerSession, switchProfileSession } from '../services/authenticationService'
 import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
@@ -34,6 +34,7 @@ import type {
   GoogleIdentityApi,
   TrainerReceivedRequest,
   TrainerAccountProfile,
+  IdentityRole,
 } from '../types/domain'
 
 declare global {
@@ -45,10 +46,86 @@ declare global {
 /** Coordinates screen flows. Domain controllers can be extracted independently from this boundary. */
 export function useFitpesoApp() {
   const router = useRouter()
-  const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId } =
-    storeToRefs(useAccountSession())
+  const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId,
+    pessoaId, availableProfiles, identityStatus, activeRole } = storeToRefs(useAccountSession())
   // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
   const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
+  const profileChooserOpen = ref(false)
+  const profileChoiceRequired = ref(false)
+  const profileSwitchBusy = ref(false)
+  const profileSwitchError = ref('')
+  // ADMIN e uma permissao distinta, mas utiliza o mesmo cadastro legado de CLIENTE.
+  const selectableProfiles = computed(() => availableProfiles.value.filter(profile => {
+    if (profile.tipo === 'CLIENTE') return Boolean(profile.clienteId)
+    if (profile.tipo === 'PERSONAL') return Boolean(profile.personalId)
+    return availableProfiles.value.some(user => user.tipo === 'CLIENTE' && user.clienteId)
+  }))
+
+  function requireProfileSelection() {
+    profileSwitchError.value = ''
+    profileChoiceRequired.value = selectableProfiles.value.length > 1
+    profileChooserOpen.value = profileChoiceRequired.value
+  }
+
+  function openProfileChooser() {
+    if (selectableProfiles.value.length < 2) return
+    profileSwitchError.value = ''
+    profileChoiceRequired.value = false
+    profileChooserOpen.value = true
+  }
+
+  function closeProfileChooser() {
+    if (profileSwitchBusy.value || profileChoiceRequired.value) return
+    profileChooserOpen.value = false
+  }
+
+  async function selectIdentityProfile(role: IdentityRole) {
+    if (profileSwitchBusy.value) return
+    if (!selectableProfiles.value.some(profile => profile.tipo === role)) {
+      profileSwitchError.value = 'Esse perfil não está disponível para sua conta.'
+      return
+    }
+    profileSwitchBusy.value = true
+    profileSwitchError.value = ''
+    try {
+      const alreadyActive =
+        (role === 'CLIENTE' && Boolean(customerSignedInName.value)) ||
+        (role === 'PERSONAL' && Boolean(trainerSignedInId.value))
+      if (!alreadyActive) {
+        const currentToken = trainerSignedInId.value
+          ? (sessionStorage.getItem('fitpeso-trainer-session') ?? '')
+          : (sessionStorage.getItem('fitpeso-customer-session') ??
+            sessionStorage.getItem('fitpeso-google-session') ?? '')
+        if (!currentToken) throw new Error('Sua sessão expirou. Entre novamente.')
+        const issuedToken = await switchProfileSession(currentToken, role)
+        // Carrega e valida o perfil novo antes de trocar a sessao local.
+        if (role === 'PERSONAL') {
+          const profile = await loadTrainerSession(issuedToken)
+          sessionStorage.setItem('fitpeso-trainer-session', issuedToken)
+          applyTrainerSession(profile)
+        } else {
+          const profile = await loadCustomerProfile(issuedToken)
+          sessionStorage.setItem('fitpeso-customer-session', issuedToken)
+          applyCustomerProfile(profile)
+          if (role === 'ADMIN' && !customerIsAdmin.value) throw new Error('Perfil de administrador indisponível.')
+        }
+      }
+      activeRole.value = role
+      try { sessionStorage.setItem('fitpeso-active-profile-role', role) } catch { /* sessao em memoria */ }
+      profileChooserOpen.value = false
+      profileChoiceRequired.value = false
+      goHome()
+    } catch (error) {
+      profileSwitchError.value = error instanceof Error ? error.message : 'Não foi possível alterar o perfil.'
+    } finally {
+      profileSwitchBusy.value = false
+    }
+  }
+
+  // Administracao depende do perfil selecionado, nao somente da permissao legada.
+  // Contas antigas ainda nao migradas preservam a autorizacao administrativa.
+  const actingAsAdmin = computed(() => customerIsAdmin.value &&
+    (activeRole.value === 'ADMIN' || !selectableProfiles.value.some(profile => profile.tipo === 'ADMIN')))
 
   const { theme } = useTheme()
 
@@ -75,7 +152,7 @@ export function useFitpesoApp() {
     loadTrainerRequest,
     submitTrainerProposal,
   } = useTrainerProposal(trainerRequestToken)
-  const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, trainerProfileFailed } =
+  const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, publicTrainer, publicTrainerBanner, trainerProfileFailed } =
     usePublicTrainerProfile(router)
   const isRootHome = computed(() => router.currentRoute.value.path === '/')
 
@@ -256,6 +333,7 @@ export function useFitpesoApp() {
     pollEmailLogin,
     closeCustomerLogin,
     finishEmailLoginFromLink,
+    finishWhatsAppLoginFromLink,
     stopEmailLoginPoll,
     startAuthentication,
   } = useAuthentication({
@@ -263,8 +341,14 @@ export function useFitpesoApp() {
     showCustomerSignup,
     showTrainerSignup,
     saveRole: (role) => saveNavigationPreference(NAV_ROLE, role),
-    applyCustomerProfile,
-    applyTrainerSession,
+    applyCustomerProfile: (profile) => {
+      applyCustomerProfile(profile)
+      requireProfileSelection()
+    },
+    applyTrainerSession: (profile) => {
+      applyTrainerSession(profile)
+      requireProfileSelection()
+    },
     renderGoogleButton,
     goHome,
     returnToRequestFormAfterLogin,
@@ -304,6 +388,9 @@ export function useFitpesoApp() {
     signupOtherAcademy,
     trainerForm,
     trainerStatus,
+    betaTrainerSignupToken,
+    betaAcademyHint,
+    startBetaTrainerSignupFromLink,
     trainerVerificationLink,
     trainerSubmitting,
     closeTrainerSignup,
@@ -311,7 +398,18 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     stopTrainerRegistration,
-  } = useTrainerSignup({ onClose: goHome, active: showTrainerSignup })
+  } = useTrainerSignup({
+    onClose: goHome,
+    active: showTrainerSignup,
+    replaceUrl: (url) => router.replace(url),
+    onAuthenticated: async (token) => {
+      const profile = await loadTrainerSession(token)
+      sessionStorage.setItem('fitpeso-trainer-session', token)
+      applyTrainerSession(profile)
+      requireProfileSelection()
+      goHome()
+    },
+  })
   const requestBirthDate = ref('')
 
   const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
@@ -339,7 +437,7 @@ export function useFitpesoApp() {
     saveAdminTrainerEdit,
     deactivateAdminTrainer,
   } = useAdminTrainers({
-    isAdmin: customerIsAdmin,
+    isAdmin: actingAsAdmin,
     getToken: () =>
       sessionStorage.getItem('fitpeso-customer-session') ??
       sessionStorage.getItem('fitpeso-google-session') ??
@@ -350,7 +448,7 @@ export function useFitpesoApp() {
   })
 
   function openAdminAcademies() {
-    if (!customerIsAdmin.value) return
+    if (!actingAsAdmin.value) return
     viewMode.value = 'admin-academies'
     void nextTick(() => window.scrollTo(0, 0))
   }
@@ -510,7 +608,14 @@ export function useFitpesoApp() {
     dateOfBirth?: string
     isAdmin?: boolean
     googlePhotoUrl?: string
+    identity?: { pessoaId: string; usuarios: import('../types/domain').IdentityProfile[] }
+    identityStatus?: 'ready' | 'pending'
   }) {
+    pessoaId.value = profile.identity?.pessoaId ?? ''
+    availableProfiles.value = profile.identity?.usuarios ?? []
+    identityStatus.value = profile.identityStatus ?? ''
+    activeRole.value = profile.isAdmin && profile.identity?.usuarios.some(user => user.tipo === 'ADMIN') &&
+      sessionStorage.getItem('fitpeso-active-profile-role') === 'ADMIN' ? 'ADMIN' : 'CLIENTE'
     customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     customerIsAdmin.value = profile.isAdmin === true
     form.name = profile.name
@@ -565,6 +670,7 @@ export function useFitpesoApp() {
         const profile = await loadCustomerProfile(response.credential)
         sessionStorage.setItem('fitpeso-google-session', response.credential)
         applyCustomerProfile(profile)
+        requireProfileSelection()
         customerLoginStatus.value = `Conectado como ${profile.email}. Seus dados foram preenchidos.`
         googleProfileStatus.value =
           'Cadastro carregado. Confira a disponibilidade e os dados antes de enviar.'
@@ -632,6 +738,12 @@ export function useFitpesoApp() {
     }
   }
 
+  watch(loginAsTrainer, async (trainer) => {
+    if (trainer || !showCustomerLogin.value || loginStep.value !== 1) return
+    await nextTick()
+    await renderGoogleButton('client')
+  })
+
   watch(showCustomerLogin, async (enabled) => {
     if (!enabled) return
     await nextTick()
@@ -673,6 +785,14 @@ export function useFitpesoApp() {
     customerSignedInName.value = ''
     customerPhotoUrl.value = ''
     customerIsAdmin.value = false
+    pessoaId.value = ''
+    availableProfiles.value = []
+    activeRole.value = ''
+    profileChooserOpen.value = false
+    profileChoiceRequired.value = false
+    profileSwitchError.value = ''
+    try { sessionStorage.removeItem('fitpeso-active-profile-role') } catch { /* sem storage */ }
+    identityStatus.value = ''
     trainerSignedInId.value = ''
     trainerSignedInName.value = ''
     loginAsTrainer.value = false
@@ -802,7 +922,8 @@ export function useFitpesoApp() {
 
   async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
     requestLoginReturn.value = fromRequest
-    loginAsTrainer.value = fromRequest ? false : readNavigationPreference(NAV_ROLE) === 'trainer'
+    // O perfil nao e escolhido antes do login; a API devolve os perfis habilitados.
+    loginAsTrainer.value = false
     changeLoginProfile()
     customerLoginStatus.value = ''
     customerLoginError.value = ''
@@ -844,6 +965,10 @@ export function useFitpesoApp() {
   }
 
   function applyTrainerSession(profile: TrainerAccountProfile) {
+    pessoaId.value = profile.identity?.pessoaId ?? ''
+    availableProfiles.value = profile.identity?.usuarios ?? []
+    identityStatus.value = profile.identityStatus ?? ''
+    activeRole.value = 'PERSONAL'
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
@@ -958,7 +1083,7 @@ export function useFitpesoApp() {
     sessionRestoring,
     customerSignedInName,
     trainerSignedInId,
-    customerIsAdmin,
+    customerIsAdmin: actingAsAdmin,
     onEnter: enterRoute,
   })
   function navigateTo(path: string) {
@@ -997,7 +1122,18 @@ export function useFitpesoApp() {
     }
     document.addEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.addEventListener('click', closeHamburgerOnSelection)
-    void finishEmailLoginFromLink()
+    // Restore existing state first; redeemed links must win over an older session.
+    void (async () => {
+      await restoreSessions()
+      const opened = new URL(window.location.href)
+      if (opened.searchParams.has('betaSignupCode')) {
+        await startBetaTrainerSignupFromLink()
+      } else if (opened.searchParams.has('whatsappLoginCode')) {
+        await finishWhatsAppLoginFromLink()
+      } else {
+        await finishEmailLoginFromLink()
+      }
+    })()
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
     window.scrollTo(0, 0)
     if (trainerRequestToken) {
@@ -1007,7 +1143,6 @@ export function useFitpesoApp() {
     }
     void loadTrainerRequest()
     if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
-    void restoreSessions()
     startAuthentication()
   })
 
@@ -1058,7 +1193,16 @@ export function useFitpesoApp() {
     showCustomerLogin,
     customerSignedInName,
     customerPhotoUrl,
-    customerIsAdmin,
+    customerIsAdmin: actingAsAdmin,
+    activeRole,
+    selectableProfiles,
+    profileChooserOpen,
+    profileChoiceRequired,
+    profileSwitchBusy,
+    profileSwitchError,
+    openProfileChooser,
+    closeProfileChooser,
+    selectIdentityProfile,
     form,
     result,
     evaluating,
@@ -1193,6 +1337,8 @@ export function useFitpesoApp() {
     signupAcademyChoice,
     signupOtherAcademy,
     trainerForm,
+    betaTrainerSignupToken,
+    betaAcademyHint,
     trainerStatus,
     trainerVerificationLink,
     trainerSubmitting,
@@ -1215,6 +1361,8 @@ export function useFitpesoApp() {
     trainerIdFromPath,
     trainerSlugFromPath,
     personalBrandFirstName,
+    publicTrainer,
+    publicTrainerBanner,
     trainerProfileFailed,
   }
 }

@@ -8,6 +8,7 @@ import {
   startEmailSession,
   queryEmailSession,
   verifyEmailSession,
+  verifyWhatsAppLoginLink,
 } from '../services/authenticationService'
 import type {
   PendingWhatsAppLogin,
@@ -217,7 +218,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     }, 100)
   }
 
-  function scheduleWhatsAppLoginCheck(delay = 3000) {
+  function scheduleWhatsAppLoginCheck(delay = 1500) {
     window.clearTimeout(whatsappCheckTimer)
     if (disposed || !pendingWhatsAppLogin.value || document.hidden) return
     whatsappCheckTimer = window.setTimeout(() => void checkPendingWhatsAppLogin(), delay)
@@ -413,7 +414,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     emailLoginError.value = ''
     if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
     emailLoginPollTimer = undefined
-    // A escolha é explícita: nunca inferir o papel apenas pelo número de WhatsApp.
+    // O perfil e escolhido apos login, usando os papeis retornados pela API.
     customerLoginMethod.value = 'whatsapp'
     customerLoginError.value = ''
     customerLoginStatus.value = ''
@@ -573,9 +574,8 @@ export function useAuthentication(options: AuthenticationOptions) {
   async function submitIdentityLogin() {
     if (loginIdentifierKind.value === 'email') {
       await startEmailLogin()
-    } else if (loginAsTrainer.value) {
-      await startTrainerWhatsAppLogin()
     } else {
+      // O WhatsApp valida a pessoa; o perfil e escolhido somente depois.
       await startCustomerWhatsAppLogin()
     }
   }
@@ -593,7 +593,6 @@ export function useAuthentication(options: AuthenticationOptions) {
       const { ok, body } = await startEmailSession({
         email: loginIdentifier.value,
         sessionToken: token,
-        asTrainer: loginAsTrainer.value,
       })
       if (disposed) return
       if (!ok || body.started !== true)
@@ -625,11 +624,11 @@ export function useAuthentication(options: AuthenticationOptions) {
     )
       return
     const token = emailLoginSessionToken.value
-    const trainer = loginAsTrainer.value
     try {
-      const { ok, body } = await queryEmailSession(token, trainer ? 'trainer' : 'customer')
+      const { ok, body } = await queryEmailSession(token)
       if (disposed) return
-      if (ok && body.authenticated === true) {
+      if (ok && body.authenticated === true && (body.role === 'trainer' || body.role === 'customer')) {
+        const trainer = body.role === 'trainer'
         if (trainer) {
           const profile = await loadTrainerSession(token)
           if (disposed) return
@@ -703,6 +702,45 @@ export function useAuthentication(options: AuthenticationOptions) {
       showCustomerLogin.value = true
     }
   }
+  async function finishWhatsAppLoginFromLink() {
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('whatsappLoginCode')
+    if (!code) return
+    // Never leave a bearer login link in browser history or subsequent navigation.
+    url.searchParams.delete('whatsappLoginCode')
+    await options.replaceUrl(url.pathname + url.search + url.hash)
+    clearPendingWhatsAppLogin()
+    try {
+      const { ok, body } = await verifyWhatsAppLoginLink(code)
+      if (disposed) return
+      if (!ok || body.authenticated !== true || !body.sessionToken ||
+          (body.role !== 'customer' && body.role !== 'trainer')) {
+        throw new Error(body.error || 'Este link já foi utilizado ou expirou.')
+      }
+      if (body.role === 'trainer') {
+        const profile = await loadTrainerSession(body.sessionToken)
+        if (disposed) return
+        sessionStorage.setItem('fitpeso-trainer-session', body.sessionToken)
+        applyTrainerSession(profile)
+      } else {
+        const profile = await loadCustomerProfile(body.sessionToken)
+        if (disposed) return
+        sessionStorage.setItem('fitpeso-customer-session', body.sessionToken)
+        sessionStorage.removeItem('fitpeso-google-session')
+        applyCustomerProfile(profile)
+      }
+      showCustomerLoginDialog.value = false
+      trainerLoginDialog.value = false
+      showCustomerLogin.value = false
+      emailLoginPending.value = false
+      goHome()
+    } catch (error) {
+      emailLoginError.value = error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
+      loginStep.value = 1
+      showCustomerLogin.value = true
+    }
+  }
+
   function stopEmailLoginPoll() {
     if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
     emailLoginPollTimer = undefined
@@ -785,6 +823,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     pollEmailLogin,
     closeCustomerLogin,
     finishEmailLoginFromLink,
+    finishWhatsAppLoginFromLink,
     stopEmailLoginPoll,
     startAuthentication,
   }

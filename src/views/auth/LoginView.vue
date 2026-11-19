@@ -3,7 +3,6 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
-  loginAsTrainer,
   customerLoginError,
   loginIdentifier,
   loginStep,
@@ -14,11 +13,9 @@ const {
   customerLoginVerificationLink,
   showCustomerLoginDialog,
   customerLoginSubmitting,
-  trainerLoginError,
   trainerLoginLink,
   trainerLoginDialog,
   trainerLoginSubmitting,
-  requestLoginReturn,
   setGoogleButtonContainer,
   goBackFromTitle,
   whatsappChecking,
@@ -28,7 +25,6 @@ const {
   whatsappProgress,
   whatsappSecondsRemaining,
   markWhatsAppOpened,
-  changeLoginProfile,
   pollTrainerWhatsAppLogin,
   pollCustomerLogin,
   continueLoginIdentifier,
@@ -55,62 +51,45 @@ const {
         </button>
         Login
       </h1>
-      <p class="intro">Entre com sua conta Google para acessar o FitPeso.</p>
+      <p class="intro">
+        {{
+          loginStep === 1
+            ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.'
+            : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.'
+        }}
+      </p>
     </header>
 
-    <div class="login-google-only">
-      <label class="login-profile-option field-wide" for="login-as-trainer-google">
-        <input
-          id="login-as-trainer-google"
-          v-model="loginAsTrainer"
-          type="checkbox"
-          :disabled="requestLoginReturn"
-          @change="changeLoginProfile"
-        />
-        <span>Entrar como personal trainer</span>
-      </label>
-      <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
-    </div>
-
-    <!-- Formulário de login por e-mail/WhatsApp suspenso temporariamente. -->
     <form
-      v-if="false"
+      v-if="loginStep === 1"
       class="form login-step-form"
       @submit.prevent="continueLoginIdentifier"
     >
       <label class="field field-wide" for="login-identifier">
-        <!-- Login por WhatsApp suspenso temporariamente. Mantido no código para reativação futura. -->
-        <span class="field-label">E-mail</span>
+        <span class="field-label">WhatsApp ou e-mail</span>
         <input
           id="login-identifier"
           v-model="loginIdentifier"
-          type="email"
+          type="text"
           inputmode="email"
-          autocomplete="email"
+          autocomplete="username"
           maxlength="254"
-          placeholder="seu@email.com"
+          placeholder="(21) 99999-9999 ou seu@email.com"
           required
           @input="emailLoginError = ''"
         />
-      </label>
-      <label class="login-profile-option field-wide" for="login-as-trainer">
-        <input
-          id="login-as-trainer"
-          v-model="loginAsTrainer"
-          type="checkbox"
-          :disabled="requestLoginReturn"
-          @change="changeLoginProfile"
-        />
-        <span>Entrar como personal trainer</span>
       </label>
       <p v-if="emailLoginError" class="login-validation-error field-wide" role="alert">
         {{ emailLoginError }}
       </p>
       <button class="primary-button field-wide" type="submit">Continuar</button>
-      <!-- Botão Google movido para fora do formulário suspenso. -->
+      <div class="login-google-alternative field-wide">
+        <span>ou</span>
+        <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
+      </div>
     </form>
 
-    <div v-if="false" class="login-second-step">
+    <div v-else class="login-second-step">
       <div class="login-identity-summary">
         <span>{{ loginIdentifierKind === 'whatsapp' ? 'WhatsApp' : 'E-mail' }}</span>
         <strong>{{ loginIdentifier }}</strong>
@@ -122,32 +101,20 @@ const {
         @submit.prevent="submitIdentityLogin"
       >
         <p v-if="loginIdentifierKind === 'whatsapp'" class="login-step-note field-wide">
-          Após continuar, você enviará uma mensagem para a Beta pelo WhatsApp. A confirmação será
-          automática.
+          Após continuar, envie uma mensagem à Beta pelo WhatsApp. A Beta responderá com um link
+          seguro para entrar. Você também pode aguardar a atualização automática desta tela.
         </p>
         <p v-else class="login-step-note field-wide">
           Enviaremos um link de confirmação para seu e-mail. Sua conta só será acessada após
           confirmar o link.
         </p>
         <p
-          v-if="
-            loginIdentifierKind === 'email'
-              ? emailLoginError
-              : loginAsTrainer
-                ? trainerLoginError
-                : customerLoginError
-          "
+          v-if="loginIdentifierKind === 'email' ? emailLoginError : customerLoginError"
           class="login-validation-error field-wide"
           role="alert"
           aria-live="assertive"
         >
-          {{
-            loginIdentifierKind === 'email'
-              ? emailLoginError
-              : loginAsTrainer
-                ? trainerLoginError
-                : customerLoginError
-          }}
+          {{ loginIdentifierKind === 'email' ? emailLoginError : customerLoginError }}
         </p>
         <button
           id="login-confirm-action"
@@ -179,18 +146,16 @@ const {
       </div>
     </div>
 
-    <!-- Botão "Criar cadastro" temporariamente oculto. Preservado para reativação.
     <button
-    v-if="loginStep === 1"
-    class="back-button"
-    type="button"
-    @click="openCustomerSignupFromLogin"
+      v-if="loginStep === 1"
+      class="back-button"
+      type="button"
+      @click="openCustomerSignupFromLogin"
     >
-    Criar cadastro
+      Criar cadastro
     </button>
-    -->
     <div
-      v-if="false"
+      v-if="trainerLoginDialog || showCustomerLoginDialog"
       class="success-overlay"
       role="presentation"
     >
@@ -211,14 +176,14 @@ const {
           {{ whatsappConfirmed ? 'WhatsApp confirmado! Entrando…' : 'Confirme seu login' }}
         </h2>
         <p>
-          Toque no botão e envie a mensagem com o código para a Beta no WhatsApp. Depois, volte para
-          esta tela e aguarde a confirmação automática.
+          Envie a mensagem à Beta pelo WhatsApp. Na resposta, clique no link seguro para entrar
+          ou aguarde esta tela atualizar automaticamente.
         </p>
         <a
-          v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink"
+          v-if="trainerLoginDialog ? trainerLoginLink : customerLoginVerificationLink"
           class="primary-button customer-verification-link"
           @click="markWhatsAppOpened"
-          :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink"
+          :href="trainerLoginDialog ? trainerLoginLink : customerLoginVerificationLink"
           target="_blank"
           rel="noopener noreferrer"
           >{{
@@ -256,7 +221,7 @@ const {
           class="primary-button"
           type="button"
           :disabled="whatsappChecking"
-          @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()"
+          @click="trainerLoginDialog ? pollTrainerWhatsAppLogin() : pollCustomerLogin()"
         >
           Código já enviado
         </button>

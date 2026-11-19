@@ -5126,6 +5126,320 @@
           }
         }
       }
+    },
+    "/api/auth/verify-whatsapp-link": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "verifyWhatsAppLoginLink",
+        "summary": "Consumir link seguro de login WhatsApp",
+        "description": "O Beta recebe loginLink após a confirmação protegida por segredo. Esta rota pública aceita somente um token de uso único recebido no WhatsApp (até 5 minutos). A pré-visualização GET nunca consome o link; apenas o POST pode criar uma sessão.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43,
+                    "description": "Token opaco de uso único presente no link"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessão criada para o dispositivo que abriu o link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    },
+                    "sessionToken": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "customer",
+                        "trainer"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Link expirado ou já utilizado"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-onboarding": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "betaOnboarding",
+        "summary": "Beta: iniciar cadastro ou login por comando WhatsApp",
+        "description": "A Beta envia a mensagem fixa integral com linha Hash: <HMAC-SHA256>. São aceitos EXCLUSIVAMENTE os dois templates oficiais genéricos, personal ou cliente, emitidos pelo endpoint /api/auth/beta-onboarding-template. Todo conteúdo modificado, sem hash ou variante antiga retorna HTTP 422. O HMAC é compartilhável por múltiplos remetentes; o link retornado é individual e temporário.",
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "whatsapp"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "Um dos dois templates oficiais exatos, seguidos por \\nHash: e assinatura HMAC real de 64 caracteres. Não alterar conteúdo.",
+                    "example": "Quero me inscrever em fitpeso.com.br como personal para receber pedidos de acompanhamento de treino.\\nHash: <HMAC_REAL>"
+                  },
+                  "whatsapp": {
+                    "type": "string",
+                    "example": "+5521999999999"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Nome de exibição não verificado civilmente"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link seguro e replyText para a Beta responder ao remetente"
+          },
+          "400": {
+            "description": "Comando não reconhecido"
+          },
+          "403": {
+            "description": "Acesso sem segredo de integração"
+          },
+          "409": {
+            "description": "Cadastro conflitante ou inativo"
+          },
+          "422": {
+            "description": "Texto editado, hash incompatível ou mensagem sem assinatura"
+          },
+          "429": {
+            "description": "Tentativas frequentes (cooldown 30 s)"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-trainer-signup/redeem": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "redeemBetaTrainerSignup",
+        "summary": "Consumir link de cadastro profissional iniciado pela Beta",
+        "description": "Somente POST consome um token de uso único. GET e pré-visualizações nunca consomem o link. Emite sessão vinculada ao WhatsApp válida por 15 minutos.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retorna sessão temporária, nome de exibição, telefone, cidade, sexo sugerido e academia validada para pré-preencher o formulário."
+          },
+          "410": {
+            "description": "Link já utilizado ou expirado"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-trainer-signup/complete": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "completeBetaTrainerSignup",
+        "summary": "Concluir cadastro profissional com WhatsApp já confirmado",
+        "description": "Exige token temporário obtido com o link da Beta; usa o número vinculado ao token. Registra o personal como ativo e verificado, retornando sessão de login. Instagram e CREF podem ser informados posteriormente quando a confirmação foi feita pela Beta.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "onboardingSessionToken",
+                  "name",
+                  "whatsapp",
+                  "sex",
+                  "slug",
+                  "cities",
+                  "instagram"
+                ],
+                "properties": {
+                  "onboardingSessionToken": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "whatsapp": {
+                    "type": "string"
+                  },
+                  "sex": {
+                    "type": "string",
+                    "enum": [
+                      "masculino",
+                      "feminino"
+                    ]
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "cities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "instagram": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "academias": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cref": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "registered, sessionToken e slug do novo personal"
+          },
+          "400": {
+            "description": "Dados obrigatórios inválidos"
+          },
+          "401": {
+            "description": "Confirmação expirou ou não foi emitida"
+          },
+          "409": {
+            "description": "Cadastro duplicado ou conflito"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-onboarding-template": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "issueBetaOnboardingTemplate",
+        "summary": "Beta: gerar mensagem fixa de cadastro com HMAC reutilizável",
+        "description": "Gera exatamente um dos dois templates fixos, com assinatura HMAC-SHA256. Não aceita texto arbitrário, academiaId, nem personalizações; compartilhar o campo shareText com várias pessoas.",
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "trainer",
+                      "customer"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{role, academyId?, message, hash, shareText}; compartilhar exatamente shareText, idêntico para todas as pessoas"
+          },
+          "400": {
+            "description": "Role ou academyId inválido"
+          },
+          "403": {
+            "description": "Falta segredo de integração ou é inválido"
+          },
+          "422": {
+            "description": "Dados da academia não podem ser convertidos em mensagem canônica"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
     }
   },
   "components": {

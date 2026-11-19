@@ -72,8 +72,21 @@ export type CustomerProposal = {
   expired: boolean
 }
 
-export type CustomerAccountProfile = {
+export type IdentityRole = 'ADMIN' | 'CLIENTE' | 'PERSONAL'
+export type IdentityProfile = {
+  usuarioId: string
+  tipoUsuarioId: number
+  tipo: IdentityRole
+  clienteId?: string
+  personalId?: string
+}
+export type IdentitySummary = { pessoaId: string; usuarios: IdentityProfile[] }
+export type IdentitySyncState = { identity?: IdentitySummary; identityStatus?: 'ready' | 'pending' }
+
+export type CustomerAccountProfile = IdentitySyncState & {
   googlePhotoUrl?: string
+  sex?: 'masculino' | 'feminino'
+  heightCm?: number
   name: string
   whatsapp: string
   email: string
@@ -93,6 +106,15 @@ export type TrainerReceivedRequest = {
 }
 
 export type EditableProfile = {
+  trainerId?: string
+  tagline: string
+  aboutMe: string
+  education: string
+  workingMethod: string
+  pricing: string
+  bannerUpdatedAt?: string
+  sex: '' | 'masculino' | 'feminino'
+  heightCm?: number
   name: string
   whatsapp: string
   email: string
@@ -103,7 +125,13 @@ export type EditableProfile = {
   academias: string[]
 }
 
-export type TrainerAccountProfile = {
+export type TrainerAccountProfile = IdentitySyncState & {
+  tagline?: string
+  aboutMe?: string
+  education?: string
+  workingMethod?: string
+  pricing?: string
+  bannerUpdatedAt?: string
   trainerId: string
   name: string
   whatsapp: string

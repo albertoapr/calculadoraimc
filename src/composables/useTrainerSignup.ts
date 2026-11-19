@@ -1,5 +1,5 @@
 import { onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
-import { registerTrainer } from '../services/signupService'
+import { registerTrainer, redeemBetaTrainerSignup, completeBetaTrainerSignup } from '../services/signupService'
 import {
   isValidBirthDate,
   isValidEmail,
@@ -12,7 +12,12 @@ import {
   normalizePersonName,
 } from '../utils/validation'
 
-export function useTrainerSignup(options: { onClose: () => void; active?: Ref<boolean> }) {
+export function useTrainerSignup(options: {
+  onClose: () => void
+  active?: Ref<boolean>
+  replaceUrl?: (url: string) => unknown
+  onAuthenticated?: (sessionToken: string) => Promise<void> | void
+}) {
   let disposed = false
   let registrationRequest: AbortController | undefined
   const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
@@ -35,6 +40,40 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
   })
 
   const trainerStatus = ref('')
+  const betaTrainerSignupToken = ref('')
+  const betaAcademyHint = ref('')
+
+  async function startBetaTrainerSignupFromLink() {
+    betaTrainerSignupToken.value = ''
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('betaSignupCode')
+    if (!code) return
+    url.searchParams.delete('betaSignupCode')
+    // Remove the bearer proof before making the network request.
+    await options.replaceUrl?.(url.pathname + url.search + url.hash)
+    try {
+      const body = await redeemBetaTrainerSignup(code)
+      if (disposed) return
+      betaTrainerSignupToken.value = body.sessionToken
+      trainerForm.phone = body.whatsapp
+      if (body.name && !trainerForm.name) trainerForm.name = body.name
+      if (body.city && availableCities.includes(body.city)) trainerForm.cities = [body.city]
+      if (body.sexHint === 'masculino' || body.sexHint === 'feminino') trainerForm.sex = body.sexHint
+      if (body.academyMatch === 'matched' && body.academyName && body.academyName.length <= 60) {
+        trainerForm.academias = [body.academyName]
+        betaAcademyHint.value = 'Academia identificada no cadastro da FitPeso. Confira antes de concluir.'
+      } else if (body.proposedAcademyName) {
+        betaAcademyHint.value = 'Não foi possível confirmar automaticamente a academia ' +
+          body.proposedAcademyName +
+          (body.proposedNeighborhood ? ' (' + body.proposedNeighborhood + ')' : '') +
+          '. Selecione ou informe a academia correta.'
+      }
+      suggestTrainerSlug()
+      trainerStatus.value = 'WhatsApp confirmado pela Beta. Confira seus dados; Instagram e CREF podem ser informados depois.'
+    } catch (error) {
+      trainerStatus.value = error instanceof Error ? error.message : 'Link expirado. Solicite outro à Beta.'
+    }
+  }
 
   const trainerVerificationLink = ref('')
 
@@ -42,6 +81,8 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
 
   function closeTrainerSignup() {
     stopTrainerRegistration()
+    betaTrainerSignupToken.value = ''
+    betaAcademyHint.value = ''
     trainerStatus.value = ''
     options.onClose()
   }
@@ -91,8 +132,9 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
         'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
     } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
-    } else if (!instagram) {
-      validationError = 'Informe um Instagram válido: @usuario, usuario ou instagram.com/usuario.'
+    } else if ((!betaTrainerSignupToken.value && !instagram) ||
+      (trainerForm.instagram.trim() && !instagram)) {
+      validationError = 'Confira o Instagram informado ou deixe em branco para cadastrar depois.'
     } else if (!isValidEmail(email, true)) {
       validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'
     } else if (!isValidLooseCref(cref)) {
@@ -108,25 +150,34 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     trainerSubmitting.value = true
     trainerStatus.value = 'Salvando seu cadastro…'
     try {
-      const body = await registerTrainer(
-        {
-          name,
-          sex,
-          slug,
-          whatsapp: phone,
-          ...(dateOfBirth ? { dateOfBirth } : {}),
-          ...(email ? { email } : {}),
-          cities: [...trainerForm.cities],
-          academias: [...trainerForm.academias],
-          instagram,
-          ...(cref ? { cref } : {}),
-        },
-        controller.signal,
-      )
-      if (disposed || controller.signal.aborted) return
-      const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
-      trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
+      const payload = {
+        name,
+        sex,
+        slug,
+        whatsapp: phone,
+        ...(dateOfBirth ? { dateOfBirth } : {}),
+        ...(email ? { email } : {}),
+        cities: [...trainerForm.cities],
+        academias: [...trainerForm.academias],
+        instagram,
+        ...(cref ? { cref } : {}),
+      }
+      if (betaTrainerSignupToken.value) {
+        const sessionToken = await completeBetaTrainerSignup(
+          { ...payload, onboardingSessionToken: betaTrainerSignupToken.value },
+          controller.signal,
+        )
+        if (disposed || controller.signal.aborted) return
+        betaTrainerSignupToken.value = ''
+        trainerStatus.value = 'Perfil profissional ativado! Entrando na FitPeso…'
+        await options.onAuthenticated?.(sessionToken)
+      } else {
+        const body = await registerTrainer(payload, controller.signal)
+        if (disposed || controller.signal.aborted) return
+        const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
+        trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+        trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
+      }
     } catch (error) {
       if (disposed || controller.signal.aborted) return
       trainerStatus.value =
@@ -143,7 +194,10 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     watch(
       options.active,
       (active) => {
-        if (!active) stopTrainerRegistration()
+        if (!active) {
+          stopTrainerRegistration()
+          betaTrainerSignupToken.value = ''
+        }
       },
       { flush: 'sync' },
     )
@@ -157,6 +211,9 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     signupOtherAcademy,
     trainerForm,
     trainerStatus,
+    betaTrainerSignupToken,
+    betaAcademyHint,
+    startBetaTrainerSignupFromLink,
     trainerVerificationLink,
     trainerSubmitting,
     closeTrainerSignup,

@@ -16,13 +16,18 @@ export async function updateAccountProfile(
   type: AccountProfileType,
   token: string,
   payload:
-    | { name: string; dateOfBirth?: string }
+    | { name: string; dateOfBirth?: string; sex: 'masculino' | 'feminino'; heightCm?: number }
     | {
         name: string
         dateOfBirth: string
         instagram: string
         cref: string
         academias: string[]
+        tagline?: string
+        aboutMe?: string
+        education?: string
+        workingMethod?: string
+        pricing?: string
       },
 ): Promise<AccountProfile> {
   const resource = type === 'trainer' ? 'trainers' : 'customers'
@@ -38,4 +43,14 @@ export async function updateAccountProfile(
   if (!response.ok || !response.body.authenticated || !response.body.profile)
     throw apiError(response, 'Não foi possível salvar o cadastro.')
   return response.body.profile
+}
+
+export async function uploadTrainerBanner(token: string, imageBase64: string) {
+  const response = await requestApi<{ uploaded?: boolean; bannerUpdatedAt?: string; error?: string }>(
+    '/api/trainers/upload-banner',
+    { method: 'POST', token, body: { imageBase64 } },
+  )
+  if (!response.ok || !response.body.uploaded || !response.body.bannerUpdatedAt)
+    throw apiError(response, 'Não foi possível enviar o banner.')
+  return response.body.bannerUpdatedAt
 }

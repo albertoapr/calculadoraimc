@@ -2,6 +2,7 @@ import { defineBackend } from '@aws-amplify/backend'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as iam from 'aws-cdk-lib/aws-iam'
+import * as s3 from 'aws-cdk-lib/aws-s3'
 import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib'
 import { imcSubmit } from './functions/imc-submit/resource'
 
@@ -13,6 +14,15 @@ const requestCodes = new dynamodb.Table(requestStack, 'ImcRequestCodes', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.DESTROY,
 })
+// Public trainer-page banners. Objects are private; the API serves only active profiles.
+const trainerBanners = new s3.Bucket(requestStack, 'FitpesoTrainerBanners', {
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  enforceSSL: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+  autoDeleteObjects: false,
+  lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+})
+backend.imcSubmit.addEnvironment('TRAINER_BANNERS_BUCKET', trainerBanners.bucketName)
 const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
   sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
@@ -146,6 +156,13 @@ backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tab
 backend.imcSubmit.addEnvironment('FITPESO_CUSTOMERS_TABLE', customers.tableName)
 backend.imcSubmit.addEnvironment('GOOGLE_OAUTH_CLIENT_ID', '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com')
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
+// Link de login aponta para o frontend da branch, sem redirecionar develop para produção.
+backend.imcSubmit.addEnvironment(
+  'FITPESO_WHATSAPP_LOGIN_URL',
+  process.env.AWS_BRANCH === 'main'
+    ? 'https://fitpeso.com.br/'
+    : 'https://develop.fitpeso.com.br/',
+)
 // Etapa 2.2: novas entidades isoladas das tabelas legadas.
 // Stack separada para evitar alterações em chaves/GSIs já existentes.
 const identityStack = backend.createStack('fitpeso-identity-data')
@@ -157,6 +174,13 @@ const identityTable = (id: string, key: string, type = dynamodb.AttributeType.ST
   })
 
 const pessoasV2 = identityTable('FitpesoPessoa', 'pessoa_id')
+// Identificacoes de login pertencem a pessoa, nao a um perfil individual.
+const identificacoesV2 = identityTable('FitpesoPessoaIdentificacao', 'identificationKey')
+identificacoesV2.addGlobalSecondaryIndex({
+  indexName: 'IdentificacoesByPessoa',
+  partitionKey: { name: 'pessoa_id', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
 const usuariosV2 = identityTable('FitpesoUsuario', 'user_id')
 const tiposUsuarioV2 = identityTable('FitpesoTipoUsuario', 'tipo_usuario_id', dynamodb.AttributeType.NUMBER)
 const customersV2 = identityTable('FitpesoCustomerV2', 'customer_id')
@@ -193,36 +217,52 @@ personalsV2.addGlobalSecondaryIndex({
   projectionType: dynamodb.ProjectionType.ALL,
 })
 
-// As novas tabelas ainda não são usadas pelas rotas atuais.
+// Preserva os nomes/tabelas existentes; o backfill ocorre apenas após login verificado.
 const newDataTables = [
   [pessoasV2, 'FITPESO_PESSOA_TABLE'],
+  [identificacoesV2, 'FITPESO_PESSOA_IDENTIFICACAO_TABLE'],
   [usuariosV2, 'FITPESO_USUARIO_TABLE'],
   [tiposUsuarioV2, 'FITPESO_TIPO_USUARIO_TABLE'],
   [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
   [personalsV2, 'FITPESO_PERSONAL_V2_TABLE'],
 ] as const
-// Isola as permissões das tabelas V2 em uma política gerenciada.
-// O IAM limita a soma das políticas inline de uma role a 10.240 caracteres;
-// criar múltiplas políticas inline não elimina esse limite.
-const identityDataPolicy = new iam.ManagedPolicy(
-  Stack.of(backend.imcSubmit.resources.lambda),
-  'FitpesoIdentityDataAccess',
-)
+
+// Cada política gerenciada IAM tem limite de 6.144 caracteres (PolicySize).
+// Dividimos as permissões por domínio; múltiplas políticas inline não resolveriam
+// o limite cumulativo de 10.240 caracteres da role.
+const lambdaPolicyStack = Stack.of(backend.imcSubmit.resources.lambda)
+const identityDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoIdentityDataAccess')
+const profileDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoProfileDataAccess')
+const bannerDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoTrainerBannerAccess')
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
 lambdaRole.addManagedPolicy(identityDataPolicy)
+lambdaRole.addManagedPolicy(profileDataPolicy)
+lambdaRole.addManagedPolicy(bannerDataPolicy)
 
+trainerBanners.grantReadWrite(bannerDataPolicy)
 for (const [table, envName] of newDataTables) {
-  table.grantReadWriteData(identityDataPolicy)
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
-// Consultas em GSIs exigem permissão para ARN do índice.
-for (const [table, indices] of [
-  [usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
-  [customersV2, ['CustomerByUsuario']],
-  [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
+for (const table of [pessoasV2, identificacoesV2, usuariosV2]) {
+  table.grantReadWriteData(identityDataPolicy)
+}
+for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
+  table.grantReadWriteData(profileDataPolicy)
+}
+// Criação atômica de pessoa + identificação comprovada.
+identityDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:TransactWriteItems'],
+  resources: [pessoasV2.tableArn, identificacoesV2.tableArn],
+}))
+// Consultas em GSIs exigem permissão nos ARNs dos índices correspondentes.
+for (const [policy, table, indices] of [
+  [identityDataPolicy, identificacoesV2, ['IdentificacoesByPessoa']],
+  [identityDataPolicy, usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
+  [profileDataPolicy, customersV2, ['CustomerByUsuario']],
+  [profileDataPolicy, personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
 ] as const) {
-  identityDataPolicy.addStatements(new iam.PolicyStatement({
+  policy.addStatements(new iam.PolicyStatement({
     actions: ['dynamodb:Query'],
     resources: indices.map(index => `${table.tableArn}/index/${index}`),
   }))
@@ -292,11 +332,23 @@ trainersResource.addResource('login-status').addMethod('POST', lambdaIntegration
 trainersResource.addResource('verify-login').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('upload-banner').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('banner').addResource('{trainerId}').addMethod('GET', lambdaIntegration())
 trainersResource.addResource('received-requests').addMethod('GET', lambdaIntegration())
 const signupResource = apiResource.addResource('signup')
 signupResource.addResource('start-phone').addMethod('POST', lambdaIntegration())
 signupResource.addResource('status-phone').addMethod('POST', lambdaIntegration())
 signupResource.addResource('verify-phone').addMethod('POST', lambdaIntegration())
+// Sessao unica: consulta a pessoa e seus perfis utilizando apenas token validado.
+const authResource = apiResource.addResource('auth')
+authResource.addResource('me').addMethod('GET', lambdaIntegration())
+authResource.addResource('switch-profile').addMethod('POST', lambdaIntegration())
+authResource.addResource('verify-whatsapp-link').addMethod('POST', lambdaIntegration())
+authResource.addResource('beta-onboarding').addMethod('POST', lambdaIntegration())
+authResource.addResource('beta-onboarding-template').addMethod('POST', lambdaIntegration())
+const betaTrainerSignupResource = authResource.addResource('beta-trainer-signup')
+betaTrainerSignupResource.addResource('redeem').addMethod('POST', lambdaIntegration())
+betaTrainerSignupResource.addResource('complete').addMethod('POST', lambdaIntegration())
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())

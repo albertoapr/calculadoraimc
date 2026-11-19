@@ -1,6 +1,8 @@
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
+import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
+import { betaOnboardingCommand, betaOnboardingTemplate, redeemBetaTrainerSignup, completeBetaTrainerSignup } from './beta-onboarding'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -16,9 +18,13 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
+import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity } from './identity-bootstrap'
+import { listPersonProfiles, resolveVerifiedIdentity } from './identity-store'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
 const dynamodb = new DynamoDBClient({})
+const bannerStorage = new S3Client({})
 const codeLifetimeSeconds = 15 * 60
 const corsHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -139,7 +145,23 @@ async function getPublicTrainerById(trainerId: string) {
   })
   if (!item) return null
   const name = item.name?.S?.trim() ?? ''
-  return name ? { name } : null
+  if (!name) return null
+  const city = item.city?.S ?? ''
+  if (!city) return null
+  const full = await dynamodb.send(new GetItemCommand({
+    TableName: tableName, Key: { city: { S: city }, trainerId: { S: trainerId } },
+  }))
+  const profile = full.Item
+  if (!profile || profile.active?.BOOL !== true) return null
+  return {
+    trainerId, name, slug: profile.slug?.S ?? '',
+    tagline: profile.tagline?.S ?? '',
+    aboutMe: profile.aboutMe?.S ?? '',
+    education: profile.education?.S ?? '',
+    workingMethod: profile.workingMethod?.S ?? '',
+    pricing: profile.pricing?.S ?? '',
+    bannerUpdatedAt: profile.bannerUpdatedAt?.S ?? '',
+  }
 }
 
 async function getPublicTrainerBySlug(slug: string) {
@@ -160,7 +182,7 @@ function validAcademias(value: unknown) {
     new Set(value.map((x: string) => x.toLocaleLowerCase('pt-BR'))).size === value.length
 }
 
-function isValidTrainerRegistration(data: Record<string, unknown> | null) {
+function isValidTrainerRegistration(data: Record<string, unknown> | null, allowMissingInstagram = false) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.whatsapp)
@@ -175,7 +197,8 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
-    /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
+    ((allowMissingInstagram && !instagram) ||
+      (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
     (data.academias === undefined || validAcademias(data.academias)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
@@ -324,6 +347,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
             Item: {
               codeHash: { S: sessionHash },
               flow: { S: 'fitpeso-customer-login-session' },
+              identityProof: { S: 'WHATSAPP' },
               whatsapp: { S: whatsapp },
               expiresAt: { N: String(sessionExpiry) },
             },
@@ -415,6 +439,23 @@ function googleProfilePhotoUrl(value: unknown): string {
   }
 }
 
+/** Fail-open para compatibilidade: falha na migracao nao invalida o login legado.
+ * Conflitos nunca concedem um novo perfil; exigem reconciliacao explicita. */
+async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usuarios: unknown[] }>) {
+  try { return { identity: await operation(), identityStatus: 'ready' as const } }
+  catch (error) {
+    console.warn('[imc-submit] Identity migration pending', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+      reason: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'SYNC_FAILED',
+    })
+    return { identityStatus: 'pending' as const }
+  }
+}
+
+function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
+  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
+}
+
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
   const match = authorization.match(/^Bearer\s+(.+)$/i)
@@ -442,6 +483,23 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
         return response(401, { error: 'Cadastro indisponível. Entre novamente.' })
       }
+      const legacy = {
+        whatsapp, name: customer.Item.name?.S ?? '', email: customer.Item.email?.S ?? '',
+        isAdmin: customer.Item.isAdmin?.BOOL === true, pessoaId: customer.Item.pessoa_id?.S,
+        identitySource: customer.Item.identitySource?.S,
+      }
+      const identity = !shouldResolveIdentity(event) ? undefined
+        : session.Item?.identityProof?.S === 'SWITCH' &&
+            session.Item.pessoa_id?.S && customer.Item.pessoa_id?.S === session.Item.pessoa_id.S
+          ? {
+              identity: { pessoaId: session.Item.pessoa_id.S, usuarios: await listPersonProfiles(session.Item.pessoa_id.S) },
+              identityStatus: 'ready' as const,
+            }
+          : session.Item?.identityProof?.S === 'WHATSAPP'
+            ? await trySyncIdentity(() => syncWhatsappCustomerAndTrainerIdentities(legacy))
+          : session.Item?.identityProof?.S === 'EMAIL' && session.Item.email?.S
+            ? await trySyncIdentity(() => syncEmailCustomerIdentity(legacy, session.Item!.email!.S!))
+            : { identityStatus: 'pending' as const }
       return response(200, { authenticated: true, profile: {
         name: customer.Item.name?.S ?? '',
         whatsapp,
@@ -449,6 +507,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
         isAdmin: customer.Item.isAdmin?.BOOL === true,
         googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
+        ...identity,
       } })
     } catch (error) {
       console.error('[imc-submit] Customer WhatsApp session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
@@ -475,6 +534,13 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     }))
     const customer = result.Items?.[0]
     if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
+    const identity = shouldResolveIdentity(event) && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
+      ? await trySyncIdentity(() => syncGoogleCustomerIdentity({
+        whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
+        email: customer.email?.S ?? '', isAdmin: customer.isAdmin?.BOOL === true,
+        pessoaId: customer.pessoa_id?.S, identitySource: customer.identitySource?.S,
+      }, { sub: payload.sub!, email }))
+      : shouldResolveIdentity(event) ? { identityStatus: 'pending' as const } : undefined
     const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
     const googlePhotoUrl = verifiedPhotoUrl || customer.googlePhotoUrl?.S || ''
     // Persist the trusted profile-picture URL on successful Google login.
@@ -510,6 +576,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         dateOfBirth: customer.dateOfBirth?.S ?? '',
         isAdmin: customer.isAdmin?.BOOL === true,
         googlePhotoUrl,
+        ...identity,
       },
     })
   } catch (error) {
@@ -556,6 +623,223 @@ function isValidBirthDate(value: unknown) {
     value >= '1900-01-01' && value <= new Date().toISOString().slice(0, 10)
 }
 
+
+/**
+ * Troca de perfil após autenticação forte.
+ * Nunca confia no perfil escolhido no frontend: valida o vínculo pessoa -> usuario
+ * -> perfil V2 -> registro legado antes de emitir uma sessão da função escolhida.
+ */
+async function switchIdentityProfile(
+  event: Parameters<APIGatewayProxyHandler>[0],
+  data: Record<string, unknown> | null,
+) {
+  const requestedRole = data?.role
+  if (requestedRole !== 'CLIENTE' && requestedRole !== 'PERSONAL' && requestedRole !== 'ADMIN') {
+    return response(400, { error: 'Selecione um perfil válido.' })
+  }
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!codesTable) return response(503, { error: 'Sessões indisponíveis.' })
+  try {
+    let identity: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } | undefined
+    const trainer = await getTrainerSession(event)
+    if (!trainer.error) {
+      const profile = trainer.profile!
+      const legacy = {
+        trainerId: profile.trainerId, city: profile.city, whatsapp: profile.whatsapp,
+        name: profile.name, email: profile.email, pessoaId: trainer.legacyPessoaId,
+        identitySource: trainer.legacyIdentitySource,
+      }
+      if (trainer.identityProof === 'WHATSAPP') {
+        identity = await syncWhatsappTrainerIdentity(legacy)
+      } else if (trainer.identityProof === 'EMAIL' && trainer.proofEmail) {
+        identity = await syncEmailTrainerIdentity(legacy, trainer.proofEmail)
+      } else if (trainer.identityProof === 'SWITCH' &&
+        trainer.sessionPessoaId && trainer.sessionPessoaId === trainer.legacyPessoaId) {
+        identity = { pessoaId: trainer.sessionPessoaId, usuarios: await listPersonProfiles(trainer.sessionPessoaId) }
+      }
+    } else {
+      const customer = await getCustomerProfile(event)
+      if (customer.statusCode !== 200) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+      const parsed = JSON.parse(customer.body) as {
+        profile?: { identity?: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } }
+      }
+      identity = parsed.profile?.identity
+    }
+    if (!identity) return response(409, { error: 'Ainda não foi possível vincular os perfis desta conta.' })
+    const role = requestedRole === 'ADMIN' ? 'CLIENTE' : requestedRole
+    const user = identity.usuarios.find(item => item.tipo === role)
+    if (!user || (requestedRole === 'ADMIN' && !identity.usuarios.some(item => item.tipo === 'ADMIN'))) {
+      return response(403, { error: 'Esse perfil não pertence à sua conta.' })
+    }
+
+    let sessionItem: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>
+    if (role === 'CLIENTE') {
+      if (!user.clienteId) return response(409, { error: 'Perfil de cliente ainda não disponível.' })
+      const linked = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMER_V2_TABLE!,
+        Key: { customer_id: { S: user.clienteId } }, ConsistentRead: true,
+      }))
+      const phone = linked.Item?.legacyWhatsapp?.S
+      if (linked.Item?.user_id?.S !== user.usuarioId || !phone)
+        return response(409, { error: 'Vínculo de cliente inválido.' })
+      const customer = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
+        Key: { whatsapp: { S: phone } }, ConsistentRead: true,
+      }))
+      if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true ||
+        customer.Item.pessoa_id?.S !== identity.pessoaId || customer.Item.user_id?.S !== user.usuarioId ||
+        (requestedRole === 'ADMIN' && customer.Item.isAdmin?.BOOL !== true)) {
+        return response(403, { error: 'Perfil de cliente indisponível.' })
+      }
+      sessionItem = { flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: phone } }
+    } else {
+      if (!user.personalId) return response(409, { error: 'Perfil de personal ainda não disponível.' })
+      const linked = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_PERSONAL_V2_TABLE!,
+        Key: { personal_id: { S: user.personalId } }, ConsistentRead: true,
+      }))
+      const city = linked.Item?.cidade?.S
+      const trainerId = linked.Item?.legacyTrainerId?.S
+      if (linked.Item?.user_id?.S !== user.usuarioId || !city || !trainerId)
+        return response(409, { error: 'Vínculo de personal inválido.' })
+      const trainerProfile = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.TRAINERS_TABLE!,
+        Key: { city: { S: city }, trainerId: { S: trainerId } }, ConsistentRead: true,
+      }))
+      const row = trainerProfile.Item
+      if (row?.active?.BOOL !== true || row.whatsappVerified?.BOOL !== true ||
+        row.pessoa_id?.S !== identity.pessoaId || row.user_id?.S !== user.usuarioId || !row.whatsapp?.S)
+        return response(403, { error: 'Perfil profissional indisponível.' })
+      sessionItem = {
+        flow: { S: 'fitpeso-trainer-login-session' }, whatsapp: { S: row.whatsapp.S },
+        trainerId: { S: trainerId }, city: { S: city },
+      }
+    }
+
+    const token = randomBytes(32).toString('base64url')
+    await dynamodb.send(new PutItemCommand({
+      TableName: codesTable,
+      Item: {
+        ...sessionItem, codeHash: { S: hashCode(token) },
+        identityProof: { S: 'SWITCH' },
+        pessoa_id: { S: identity.pessoaId },
+        expiresAt: { N: String(Math.floor(Date.now() / 1000) + 12 * 60 * 60) },
+      },
+      ConditionExpression: 'attribute_not_exists(codeHash)',
+    }))
+    return response(200, { switched: true, role: requestedRole, sessionToken: token })
+  } catch (error) {
+    console.error('[imc-submit] Profile switch failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível alternar o perfil agora.' })
+  }
+}
+
+
+/** Only the secret-authenticated Beta receives a link; browser status never exposes it. */
+function newWhatsAppLoginLink(
+  code: string, whatsapp: string, role: WhatsAppLinkRole, expiresAt: number,
+  trainerId?: string, city?: string,
+) {
+  return createWhatsAppMagicLink({
+    code, whatsapp, role, challengeExpiresAt: expiresAt,
+    secret: process.env.TRAINER_WHATSAPP_VERIFY_SECRET ?? '',
+    baseUrl: process.env.FITPESO_WHATSAPP_LOGIN_URL ?? '',
+    nowSeconds: Math.floor(Date.now() / 1000), trainerId, city,
+  })
+}
+
+async function availableWhatsAppLoginLink(
+  table: string, code: string, whatsapp: string, role: WhatsAppLinkRole,
+  expiresAt: number, trainerId?: string, city?: string,
+) {
+  const link = newWhatsAppLoginLink(code, whatsapp, role, expiresAt, trainerId, city)
+  const row = (await dynamodb.send(new GetItemCommand({
+    TableName: table, Key: { codeHash: { S: link.linkHash } }, ConsistentRead: true,
+  }))).Item
+  if (row?.flow?.S !== 'fitpeso-whatsapp-login-link' || row.whatsapp?.S !== whatsapp ||
+      row.role?.S !== role || row.consumedAt?.N ||
+      Number(row.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)) return {}
+  return { loginLink: link.loginLink, loginLinkExpiresAt: Number(row.expiresAt!.N) }
+}
+
+/** POST only: link previews and other GETs can never use or burn a token. */
+async function redeemWhatsAppLoginLink(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code : ''
+  if (!/^[A-Za-z0-9_-]{43}$/.test(code)) return response(410, { error: 'Link inválido ou expirado. Solicite outro login.' })
+  const table = process.env.IMC_REQUESTS_TABLE
+  if (!table) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const codeHash = hashCode(code)
+  try {
+    const row = (await dynamodb.send(new GetItemCommand({
+      TableName: table, Key: { codeHash: { S: codeHash } }, ConsistentRead: true,
+    }))).Item
+    const whatsapp = normalizePhone(row?.whatsapp?.S)
+    const role = row?.role?.S
+    if (row?.flow?.S !== 'fitpeso-whatsapp-login-link' || row.consumedAt?.N ||
+        Number(row.expiresAt?.N ?? 0) <= now || !whatsapp ||
+        (role !== 'customer' && role !== 'trainer')) {
+      return response(410, { error: 'Este link já foi utilizado ou expirou. Solicite outro login.' })
+    }
+    let trainerId = ''
+    let city = ''
+    if (role === 'customer') {
+      const customer = (await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
+        Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
+      }))).Item
+      if (customer?.status?.S !== 'ACTIVE' || customer.whatsappVerified?.BOOL !== true)
+        return response(403, { error: 'Cadastro indisponível.' })
+    } else {
+      trainerId = row.trainerId?.S ?? ''
+      city = row.city?.S ?? ''
+      if (!trainerId || !city) return response(410, { error: 'Link inválido.' })
+      const trainers = await getTrainerRows(trainerId)
+      if (trainers.length < 1 || trainers.length > 2 ||
+          !trainers.some(trainer => trainer.city?.S === city) ||
+          trainers.some(trainer => trainer.active?.BOOL !== true ||
+            trainer.whatsappVerified?.BOOL !== true || trainer.whatsapp?.S !== whatsapp)) {
+        return response(403, { error: 'Cadastro profissional indisponível.' })
+      }
+    }
+    const sessionToken = randomBytes(32).toString('base64url')
+    const item: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> = {
+      codeHash: { S: hashCode(sessionToken) },
+      flow: { S: role === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session' },
+      identityProof: { S: 'WHATSAPP' },
+      whatsapp: { S: whatsapp },
+      expiresAt: { N: String(now + 12 * 60 * 60) },
+    }
+    if (role === 'trainer') {
+      item.trainerId = { S: trainerId }
+      item.city = { S: city }
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: {
+        TableName: table, Key: { codeHash: { S: codeHash } },
+        UpdateExpression: 'SET consumedAt = :now',
+        ConditionExpression: '#flow = :flow AND expiresAt > :now AND attribute_not_exists(consumedAt) AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: {
+          ':flow': { S: 'fitpeso-whatsapp-login-link' },
+          ':now': { N: String(now) }, ':phone': { S: whatsapp },
+        },
+      } },
+      { Put: { TableName: table, Item: item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+    ] }))
+    return response(200, { authenticated: true, sessionToken, role })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)
+      return response(410, { error: 'Este link já foi utilizado ou expirou. Solicite outro login.' })
+    console.error('[imc-submit] WhatsApp login link redemption failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível confirmar o login agora.' })
+  }
+}
+
 async function beginCustomerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
@@ -573,11 +857,17 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
       ExpressionAttributeNames: { '#status': 'status', '#verified': 'whatsappVerified' },
       ConsistentRead: true,
     }))
-    const eligible = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
-    if (!eligible) {
+    const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    // O mesmo número validado pode ter apenas perfil PERSONAL. A criação de CLIENTE
+    // é permitida somente se não houver nenhum registro de cliente preexistente.
+    // Cadastro pendente/inativo NUNCA pode ser reativado por esse atalho.
+    const trainer = !customer.Item ? await findVerifiedTrainerForCustomerLogin(whatsapp) : null
+    if (!eligibleCustomer && !trainer) {
       return response(200, {
         started: false,
-        error: 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
+        error: customer.Item
+          ? 'O cadastro de cliente deste WhatsApp não está ativo ou confirmado.'
+          : 'WhatsApp ainda não cadastrado ou não confirmado. Faça seu cadastro para continuar.',
       })
     }
     const code = randomBytes(16).toString('base64url')
@@ -589,6 +879,11 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
         flow: { S: 'fitpeso-customer-login' },
         whatsapp: { S: whatsapp },
         eligible: { BOOL: true },
+        ...(trainer ? {
+          createCustomerProfile: { BOOL: true },
+          trainerId: { S: trainer.trainerId },
+          city: { S: trainer.city },
+        } : {}),
         sessionTokenHash: { S: hashCode(sessionToken) },
         expiresAt: { N: String(expiresAt) },
       },
@@ -619,10 +914,21 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     if (challenge.consumedAt?.N) {
       const sessionHash = challenge.sessionTokenHash?.S ?? ''
       const existing = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
-      return response(200, { verified: existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now })
+      const verified = existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified ? await availableWhatsAppLoginLink(
+        codesTable, code, whatsapp, 'customer', Number(challenge.expiresAt!.N),
+      ) : {}) })
     }
     const customer = await dynamodb.send(new GetItemCommand({ TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true }))
-    const eligible = challenge.eligible?.BOOL === true && customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
+    // O desafio foi emitido especificamente para um personal já confirmado.
+    // Confere-se novamente o vínculo do telefone antes de criar o perfil CLIENTE.
+    const trainer = challenge.createCustomerProfile?.BOOL === true && !customer.Item
+      ? await getVerifiedTrainerForCustomerLogin(
+        whatsapp, challenge.trainerId?.S ?? '', challenge.city?.S ?? '',
+      )
+      : null
+    const eligible = challenge.eligible?.BOOL === true && (eligibleCustomer || Boolean(trainer))
     if (!eligible) {
       await dynamodb.send(new UpdateItemCommand({
         TableName: codesTable, Key: { codeHash: { S: codeHash } },
@@ -636,6 +942,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     const sessionHash = challenge.sessionTokenHash?.S ?? ''
     if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
     const sessionExpiry = now + 12 * 60 * 60
+    const loginLink = newWhatsAppLoginLink(code, whatsapp, 'customer', Number(challenge.expiresAt!.N))
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: {
         TableName: codesTable, Key: { codeHash: { S: codeHash } },
@@ -646,18 +953,46 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
       } },
       { Put: {
         TableName: codesTable,
-        Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
+        Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
+      { Put: { TableName: codesTable, Item: loginLink.item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      ...(trainer ? [
+        // Impede que um personal removido/desativado autorize um novo cliente.
+        { ConditionCheck: {
+          TableName: process.env.TRAINERS_TABLE!,
+          Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
+          ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+          ExpressionAttributeNames: { '#active': 'active' },
+          ExpressionAttributeValues: { ':yes': { BOOL: true }, ':phone': { S: whatsapp } },
+        } },
+        { Put: {
+          TableName: customersTable,
+          Item: {
+            whatsapp: { S: whatsapp },
+            name: { S: trainer.name },
+            ...(trainer.dateOfBirth ? { dateOfBirth: { S: trainer.dateOfBirth } } : {}),
+            status: { S: 'ACTIVE' },
+            whatsappVerified: { BOOL: true },
+            verifiedAt: { S: new Date(now * 1000).toISOString() },
+            createdAt: { S: new Date(now * 1000).toISOString() },
+          },
+          ConditionExpression: 'attribute_not_exists(whatsapp)',
+        } },
+      ] : []),
     ] }))
-    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? '' })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? trainer?.name ?? '',
+      loginLink: loginLink.loginLink, loginLinkExpiresAt: loginLink.expiresAt })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
       const challenge = result.Item
       const sessionHash = challenge?.sessionTokenHash?.S ?? ''
       const session = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
-      return response(200, { verified: session?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(session.Item.expiresAt?.N ?? 0) > now })
+      const verified = session?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(session.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified && challenge ? await availableWhatsAppLoginLink(
+        codesTable, code, whatsapp, 'customer', Number(challenge.expiresAt!.N),
+      ) : {}) })
     }
     console.error('[imc-submit] Customer WhatsApp login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível confirmar o login agora.' })
@@ -690,11 +1025,107 @@ async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
 }
 
 
+/** Login must not depend on the public directory's slug/profile filters.
+ * Admin-created trainers are active but may still need their first WhatsApp confirmation.
+ */
 async function findActiveTrainerByWhatsApp(whatsapp: string) {
-  const matches = (await Promise.all(['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-    .map(city => getActiveTrainersForCity(city)))).flat().filter(trainer => trainer.whatsapp === whatsapp)
+  const tableName = process.env.TRAINERS_TABLE
+  if (!tableName) throw new Error('Trainer directory is not configured')
+  const cities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const matches = (await Promise.all(cities.map(async city => {
+    const found: { trainerId: string; city: string }[] = []
+    let cursor: Record<string, any> | undefined
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: '#city = :city',
+        FilterExpression: '#phone = :phone AND #active = :active',
+        ProjectionExpression: '#city, #id, #phone, #active',
+        ExpressionAttributeNames: {
+          '#city': 'city', '#id': 'trainerId', '#phone': 'whatsapp', '#active': 'active',
+        },
+        ExpressionAttributeValues: {
+          ':city': { S: city }, ':phone': { S: whatsapp }, ':active': { BOOL: true },
+        },
+        ExclusiveStartKey: cursor,
+      }))
+      for (const row of page.Items ?? []) {
+        if (row.trainerId?.S && row.whatsapp?.S === whatsapp && row.active?.BOOL === true)
+          found.push({ trainerId: row.trainerId.S, city })
+      }
+      cursor = page.LastEvaluatedKey
+    } while (cursor)
+    return found
+  }))).flat()
   const unique = [...new Map(matches.map(trainer => [trainer.trainerId, trainer])).values()]
   return unique.length === 1 ? unique[0] : null
+}
+
+/**
+ * Confirma a titularidade de um perfil PERSONAL já ativo, sem confiar apenas
+ * na existência de um registro público do profissional.
+ */
+async function getVerifiedTrainerForCustomerLogin(whatsapp: string, trainerId: string, city: string) {
+  if (!trainerId || !city || !process.env.TRAINERS_TABLE) return null
+  const result = await dynamodb.send(new GetItemCommand({
+    TableName: process.env.TRAINERS_TABLE,
+    Key: { city: { S: city }, trainerId: { S: trainerId } },
+    ConsistentRead: true,
+  }))
+  const item = result.Item
+  if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) return null
+  const name = item.name?.S?.trim() ?? ''
+  if (name.length < 2) return null
+  return {
+    trainerId, city, name, dateOfBirth: item.dateOfBirth?.S ?? '',
+    email: item.email?.S ?? '',
+    pessoaId: item.pessoa_id?.S,
+    identitySource: item.identitySource?.S,
+  }
+}
+
+async function findVerifiedTrainerForCustomerLogin(whatsapp: string) {
+  const match = await findActiveTrainerByWhatsApp(whatsapp)
+  return match ? getVerifiedTrainerForCustomerLogin(whatsapp, match.trainerId, match.city) : null
+}
+
+/**
+ * Após prova do WhatsApp, sincroniza os perfis existentes da mesma pessoa.
+ * Um personal ativo ja confirmado nao precisa iniciar outro fluxo de login.
+ * Vinculos conflitantes continuam exigindo reconciliacao; nunca se transfere
+ * propriedade de Pessoa ou de identificacao.
+ */
+async function syncWhatsappCustomerAndTrainerIdentities(
+  legacy: Parameters<typeof syncWhatsappCustomerIdentity>[0],
+) {
+  const customer = await syncWhatsappCustomerIdentity(legacy)
+  const existing = await listPersonProfiles(customer.pessoaId)
+  if (existing.some(profile => profile.tipo === 'PERSONAL')) {
+    const usuarios = [...new Map(
+      [...customer.usuarios, ...existing].map(profile => [profile.usuarioId, profile]),
+    ).values()]
+    return { pessoaId: customer.pessoaId, usuarios }
+  }
+  const trainer = await findVerifiedTrainerForCustomerLogin(legacy.whatsapp)
+  if (!trainer || (trainer.pessoaId && trainer.pessoaId !== customer.pessoaId) ||
+    (trainer.pessoaId && trainer.identitySource !== 'WHATSAPP')) return customer
+  try {
+    const linked = await syncWhatsappTrainerIdentity({
+      trainerId: trainer.trainerId, city: trainer.city, whatsapp: legacy.whatsapp,
+      name: trainer.name, email: trainer.email,
+      pessoaId: trainer.pessoaId, identitySource: trainer.identitySource,
+    })
+    if (linked.pessoaId !== customer.pessoaId) return customer
+    const usuarios = [...new Map(
+      [...customer.usuarios, ...linked.usuarios].map(profile => [profile.usuarioId, profile]),
+    ).values()]
+    return { pessoaId: customer.pessoaId, usuarios }
+  } catch (error) {
+    console.warn('[imc-submit] Personal role synchronization pending', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return customer
+  }
 }
 
 async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -723,6 +1154,7 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     }
     return { profile: {
       trainerId,
+      city,
       name: item.name?.S ?? '',
       whatsapp,
       email: item.email?.S ?? '',
@@ -732,7 +1164,15 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
       sex: item.sex?.S ?? '',
       slug: item.slug?.S ?? '',
-    } }
+      tagline: item.tagline?.S ?? '',
+      aboutMe: item.aboutMe?.S ?? '',
+      education: item.education?.S ?? '',
+      workingMethod: item.workingMethod?.S ?? '',
+      pricing: item.pricing?.S ?? '',
+      bannerUpdatedAt: item.bannerUpdatedAt?.S ?? '',
+    }, identityProof: record?.identityProof?.S ?? '', proofEmail: record?.email?.S ?? '',
+      legacyPessoaId: item.pessoa_id?.S, legacyIdentitySource: item.identitySource?.S,
+      sessionPessoaId: record.pessoa_id?.S }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
@@ -780,6 +1220,86 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   }
 }
 
+// Uploads are private S3 objects. The public image endpoint verifies that the
+// professional is active before returning the binary image.
+async function uploadTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const auth = await getTrainerSession(event)
+  if (auth.error) return auth.error
+  const bucket = process.env.TRAINER_BANNERS_BUCKET
+  if (!bucket) return response(503, { error: 'Armazenamento de imagens indisponível.' })
+  const raw = event.isBase64Encoded && event.body
+    ? Buffer.from(event.body, 'base64').toString('utf8')
+    : event.body ?? ''
+  if (Buffer.byteLength(raw, 'utf8') > 1_600_000) return response(413, { error: 'Imagem muito grande.' })
+  let body: { imageBase64?: unknown }
+  try { body = JSON.parse(raw) as { imageBase64?: unknown } }
+  catch { return response(400, { error: 'Imagem inválida.' }) }
+  if (typeof body.imageBase64 !== 'string' || body.imageBase64.length > 1_500_000 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(body.imageBase64)) {
+    return response(400, { error: 'Informe uma imagem JPEG válida.' })
+  }
+  const bytes = Buffer.from(body.imageBase64, 'base64')
+  if (bytes.length < 100 || bytes.length > 1_000_000 ||
+      bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+    return response(400, { error: 'A foto precisa ser JPEG e ter até 1 MB.' })
+  }
+  const trainerId = auth.profile!.trainerId
+  try {
+    await bannerStorage.send(new PutObjectCommand({
+      Bucket: bucket, Key: 'trainers/' + trainerId + '/banner.jpg',
+      Body: bytes, ContentType: 'image/jpeg', CacheControl: 'public, max-age=60',
+    }))
+    const lookup = await dynamodb.send(new QueryCommand({
+      TableName: process.env.TRAINERS_TABLE!,
+      IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: trainerId } },
+    }))
+    const cities = [...new Set((lookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
+    const updatedAt = new Date().toISOString()
+    if (!cities.length) return response(409, { error: 'Cadastro profissional não encontrado.' })
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+      Update: {
+        TableName: process.env.TRAINERS_TABLE!,
+        Key: { city: { S: city }, trainerId: { S: trainerId } },
+        UpdateExpression: 'SET bannerUpdatedAt = :updated',
+        ConditionExpression: '#active = :active AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#active': 'active' },
+        ExpressionAttributeValues: {
+          ':updated': { S: updatedAt }, ':active': { BOOL: true },
+          ':phone': { S: auth.profile!.whatsapp },
+        },
+      },
+    })) }))
+    return response(200, { uploaded: true, bannerUpdatedAt: updatedAt })
+  } catch (error) {
+    console.error('[imc-submit] Banner upload failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível enviar a imagem.' })
+  }
+}
+
+async function getTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const id = event.pathParameters?.trainerId ?? ''
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return response(404, { error: 'Imagem não encontrada.' })
+  const bucket = process.env.TRAINER_BANNERS_BUCKET
+  if (!bucket) return response(503, { error: 'Imagem indisponível.' })
+  try {
+    const trainer = await getPublicTrainerById(id)
+    if (!trainer?.bannerUpdatedAt) return response(404, { error: 'Imagem não encontrada.' })
+    const image = await bannerStorage.send(new GetObjectCommand({
+      Bucket: bucket, Key: 'trainers/' + id + '/banner.jpg',
+    }))
+    if (!image.Body) return response(404, { error: 'Imagem não encontrada.' })
+    const buffer = Buffer.from(await image.Body.transformToByteArray())
+    if (buffer.byteLength > 1_000_000) return response(503, { error: 'Imagem fora dos limites.' })
+    return response(200, { imageBase64: buffer.toString('base64') })
+  } catch (error) {
+    console.error('[imc-submit] Banner retrieval failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(404, { error: 'Imagem não encontrada.' })
+  }
+}
+
 async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await getTrainerSession(event)
   if (auth.error) return auth.error
@@ -787,11 +1307,15 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
   const academias = data?.academias ?? []
-  if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+  const pageFields = ['tagline', 'aboutMe', 'education', 'workingMethod', 'pricing'] as const
+  const pageLimits = { tagline: 140, aboutMe: 1500, education: 1500, workingMethod: 1500, pricing: 1500 }
+  const validPage = data && pageFields.every(key => data[key] === undefined ||
+    (typeof data[key] === 'string' && (data[key] as string).length <= pageLimits[key]))
+  if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       !validAcademias(academias) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias'].includes(key))) {
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -811,13 +1335,16 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: data.dateOfBirth ? 'SET #name = :name, dateOfBirth = :dob, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' : 'SET #name = :name, instagram = :instagram, cref = :cref, updatedAt = :updated',
+        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' +
+          (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
+          pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
           ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
+          ...Object.fromEntries(pageFields.filter(key => data[key] !== undefined).map(key => [':' + key, { S: (data[key] as string).trim() }])),
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
@@ -877,15 +1404,24 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
     if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
     if (challenge.consumedAt?.N) {
       const stored = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))
-      return response(200, { verified: stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now })
+      const verified = stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified ? await availableWhatsAppLoginLink(
+        tableName, code, whatsapp, 'trainer', Number(challenge.expiresAt!.N),
+        challenge.trainerId?.S, challenge.city?.S,
+      ) : {}) })
     }
-    const trainer = await dynamodb.send(new GetItemCommand({
-      TableName: trainersTable, Key: { city: { S: challenge.city?.S ?? '' }, trainerId: { S: challenge.trainerId?.S ?? '' } },
-      ConsistentRead: true,
-    }))
-    if (trainer.Item?.active?.BOOL !== true || trainer.Item.whatsappVerified?.BOOL !== true || trainer.Item.whatsapp?.S !== whatsapp) {
+    const trainerId = challenge.trainerId?.S ?? ''
+    const challengeCity = challenge.city?.S ?? ''
+    if (!trainerId || !challengeCity) return response(200, { verified: false })
+    // Beta has authenticated the WhatsApp confirmation at the protected API entry point.
+    // Mark verified only in the SAME transaction that consumes this one-time challenge.
+    const trainerRows = await getTrainerRows(trainerId)
+    if (trainerRows.length < 1 || trainerRows.length > 2 ||
+      !trainerRows.some(row => row.city?.S === challengeCity) ||
+      trainerRows.some(row => row.active?.BOOL !== true || row.whatsapp?.S !== whatsapp)) {
       return response(200, { verified: false })
     }
+    const loginLink = newWhatsAppLoginLink(code, whatsapp, 'trainer', Number(challenge.expiresAt!.N), trainerId, challengeCity)
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: { TableName: tableName, Key: { codeHash: { S: hashCode(code) } },
         UpdateExpression: 'SET consumedAt = :now',
@@ -893,12 +1429,42 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         ExpressionAttributeNames: { '#flow': 'flow' },
         ExpressionAttributeValues: { ':flow': { S: 'fitpeso-trainer-login' }, ':whatsapp': { S: whatsapp }, ':now': { N: String(now) } } } },
       { Put: { TableName: tableName, Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-trainer-login-session' },
-        whatsapp: { S: whatsapp }, trainerId: { S: challenge.trainerId!.S! }, city: { S: challenge.city!.S! },
+        identityProof: { S: 'WHATSAPP' },
+        whatsapp: { S: whatsapp }, trainerId: { S: trainerId }, city: { S: challengeCity },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      { Put: { TableName: tableName, Item: loginLink.item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      ...trainerRows.map(row => ({
+        Update: {
+          TableName: trainersTable,
+          Key: { city: { S: row.city!.S! }, trainerId: { S: trainerId } },
+          UpdateExpression: 'SET whatsappVerified = :verified, whatsappVerifiedAt = if_not_exists(whatsappVerifiedAt, :now)',
+          ConditionExpression: '#active = :active AND whatsapp = :whatsapp',
+          ExpressionAttributeNames: { '#active': 'active' },
+          ExpressionAttributeValues: {
+            ':verified': { BOOL: true }, ':active': { BOOL: true },
+            ':whatsapp': { S: whatsapp }, ':now': { N: String(now) },
+          },
+        },
+      })),
     ] }))
-    return response(200, { verified: true, whatsapp, name: trainer.Item.name?.S ?? '', ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
+    const confirmedName = trainerRows.find(row => row.city?.S === challengeCity)?.name?.S ?? ''
+    return response(200, { verified: true, whatsapp, name: confirmedName, ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}),
+      loginLink: loginLink.loginLink, loginLinkExpiresAt: loginLink.expiresAt })
   } catch (error) {
-    if (error instanceof TransactionCanceledException) return response(200, { verified: false })
+    if (error instanceof TransactionCanceledException) {
+      const challenge = (await dynamodb.send(new GetItemCommand({
+        TableName: tableName, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+      }))).Item
+      const sessionHash = challenge?.sessionTokenHash?.S ?? ''
+      const session = sessionHash ? (await dynamodb.send(new GetItemCommand({
+        TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true,
+      }))).Item : null
+      const verified = session?.flow?.S === 'fitpeso-trainer-login-session' && Number(session.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified && challenge ? await availableWhatsAppLoginLink(
+        tableName, code, whatsapp, 'trainer', Number(challenge.expiresAt!.N),
+        challenge.trainerId?.S, challenge.city?.S,
+      ) : {}) })
+    }
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível confirmar o login agora.' })
   }
@@ -1059,7 +1625,16 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   return { slug, verificationCode: challenge.code }
 }
 
-async function registerTrainer(data: Record<string, unknown>) {
+async function registerTrainer(
+  data: Record<string, unknown>,
+  betaSignup?: {
+    betaSignupSessionHash: string
+    issuedSessionToken: string
+    academyId?: string
+    academyName?: string
+    academyCity?: string
+  },
+) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
   const requestCodesTable = process.env.IMC_REQUESTS_TABLE
@@ -1077,6 +1652,12 @@ async function registerTrainer(data: Record<string, unknown>) {
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
+  // The academy ID is trusted only when confirmed by the server before issuing the Beta token
+  // and still active in the selected city at the moment the profile is saved.
+  const verifiedAcademyIds = betaSignup?.academyId && betaSignup.academyName &&
+    betaSignup.academyCity && cities.includes(betaSignup.academyCity) &&
+    academias.includes(betaSignup.academyName)
+    ? (await resolveRegisteredAcademies([betaSignup.academyId], cities)).ids : []
   const trainerId = randomBytes(16).toString('hex')
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
@@ -1088,17 +1669,47 @@ async function registerTrainer(data: Record<string, unknown>) {
     ExpressionAttributeNames: { '#trainerId': 'trainerId' },
     ConsistentRead: true,
   }))
-  if (existingSlug.Item) return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+  if (existingSlug.Item) {
+    if (betaSignup) throw new TrainerSlugUnavailableError()
+    return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+  }
 
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
-      {
+      ...(!betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
           Item: challenge.item,
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
-      },
+      }] : [{
+        Update: {
+          TableName: requestCodesTable,
+          Key: { codeHash: { S: betaSignup.betaSignupSessionHash } },
+          UpdateExpression: 'SET consumedAt = :now',
+          ConditionExpression: '#flow = :flow AND whatsapp = :phone AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+          ExpressionAttributeNames: { '#flow': 'flow' },
+          ExpressionAttributeValues: {
+            ':flow': { S: 'fitpeso-beta-trainer-signup-session' },
+            ':phone': { S: whatsapp },
+            ':now': { N: String(Math.floor(Date.now() / 1000)) },
+          },
+        },
+      }, {
+        Put: {
+          TableName: requestCodesTable,
+          Item: {
+            codeHash: { S: hashCode(betaSignup.issuedSessionToken) },
+            flow: { S: 'fitpeso-trainer-login-session' },
+            identityProof: { S: 'WHATSAPP' },
+            whatsapp: { S: whatsapp },
+            trainerId: { S: trainerId },
+            city: { S: cities[0] },
+            expiresAt: { N: String(Math.floor(Date.now() / 1000) + 12 * 60 * 60) },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      }]),
       {
         Put: {
           TableName: slugTableName,
@@ -1106,6 +1717,25 @@ async function registerTrainer(data: Record<string, unknown>) {
           ConditionExpression: 'attribute_not_exists(slug)',
         },
       },
+      ...verifiedAcademyIds.map(academyId => ({
+        Put: {
+          TableName: process.env.TRAINER_ACADEMIES_TABLE!,
+          Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+          ConditionExpression: 'attribute_not_exists(trainerId) AND attribute_not_exists(academyId)',
+        },
+      })),
+      ...(betaSignup ? [{
+        Put: {
+          TableName: requestCodesTable,
+          Item: {
+            codeHash: { S: hashCode('fitpeso:beta-trainer-phone-lock:v1:' + whatsapp) },
+            flow: { S: 'fitpeso-beta-trainer-phone-lock' },
+            whatsapp: { S: whatsapp },
+            trainerId: { S: trainerId },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      }] : []),
       ...cities.map(city => ({
         Put: {
           TableName: tableName,
@@ -1120,10 +1750,15 @@ async function registerTrainer(data: Record<string, unknown>) {
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
             academias: { L: academias.map(name => ({ S: name })) },
+            academyIds: { L: verifiedAcademyIds.map(id => ({ S: id })) },
             ...(cref ? { cref: { S: cref } } : {}),
-            active: { BOOL: false },
-            whatsappVerified: { BOOL: false },
-            status: { S: 'pending_verification' },
+            active: { BOOL: Boolean(betaSignup) },
+            whatsappVerified: { BOOL: Boolean(betaSignup) },
+            status: { S: betaSignup ? 'active' : 'pending_verification' },
+            ...(betaSignup ? {
+              whatsappVerifiedAt: { N: submittedAt },
+              signupSource: { S: 'BETA_WHATSAPP' },
+            } : {}),
             submittedAt: { N: submittedAt },
           },
           ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
@@ -2507,6 +3142,23 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  if (event.httpMethod === 'POST' &&
+      (event.resource?.endsWith('/auth/beta-onboarding') ||
+        event.resource?.endsWith('/auth/beta-onboarding-template'))) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return event.resource?.endsWith('/auth/beta-onboarding-template')
+      ? betaOnboardingTemplate(parseBody(event))
+      : betaOnboardingCommand(parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/redeem'))
+    return redeemBetaTrainerSignup(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/complete'))
+    return completeBetaTrainerSignup(parseBody(event), (data) => isValidTrainerRegistration(data, true), registerTrainer)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/verify-whatsapp-link'))
+    return redeemWhatsAppLoginLink(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
@@ -2521,7 +3173,24 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
     const auth = await getTrainerSession(event)
-    return auth.error ?? response(200, { authenticated: true, profile: auth.profile! })
+    if (auth.error) return auth.error
+    const legacy = {
+      trainerId: auth.profile!.trainerId, city: auth.profile!.city,
+      whatsapp: auth.profile!.whatsapp, name: auth.profile!.name, email: auth.profile!.email,
+      pessoaId: auth.legacyPessoaId, identitySource: auth.legacyIdentitySource,
+    }
+    const identity = auth.identityProof === 'SWITCH' &&
+      auth.sessionPessoaId && auth.legacyPessoaId === auth.sessionPessoaId
+      ? {
+          identity: { pessoaId: auth.sessionPessoaId, usuarios: await listPersonProfiles(auth.sessionPessoaId) },
+          identityStatus: 'ready' as const,
+        }
+      : auth.identityProof === 'WHATSAPP'
+        ? await trySyncIdentity(() => syncWhatsappTrainerIdentity(legacy))
+        : auth.identityProof === 'EMAIL' && auth.proofEmail
+          ? await trySyncIdentity(() => syncEmailTrainerIdentity(legacy, auth.proofEmail))
+          : { identityStatus: 'pending' as const }
+    return response(200, { authenticated: true, profile: { ...auth.profile!, ...identity } })
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
     return beginCustomerLogin(parseBody(event))
@@ -2552,6 +3221,47 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/switch-profile')) {
+    return switchIdentityProfile(event, parseBody(event))
+  }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/me')) {
+    const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
+    const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? ''
+    if (!token) return response(401, { error: 'Entre para continuar.' })
+    // Identificacao Google se torna a fonte principal para encontrar a pessoa
+    // e TODOS os perfis. A consulta legada serve somente para backfill inicial.
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+      if (!clientId) return response(503, { error: 'Login Google indisponivel.' })
+      try {
+        const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
+        const payload = ticket.getPayload()
+        if (!payload?.email_verified || !payload.sub) return response(401, { error: 'Conta Google nao verificada.' })
+        const found = await resolveVerifiedIdentity('GOOGLE', payload.sub)
+        if (found) return response(200, { authenticated: true, identity: found, usuarios: found.usuarios })
+      } catch (error) {
+        console.warn('[imc-submit] Unified Google identity check failed', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+        // Continua no caminho legado, que valida novamente o token.
+      }
+    }
+    const customer = await getCustomerProfile(event)
+    if (customer.statusCode === 200) return customer
+    const trainer = await getTrainerSession(event)
+    if (trainer.error) return customer
+    const legacy = {
+      trainerId: trainer.profile!.trainerId, city: trainer.profile!.city,
+      whatsapp: trainer.profile!.whatsapp, name: trainer.profile!.name, email: trainer.profile!.email,
+      pessoaId: trainer.legacyPessoaId, identitySource: trainer.legacyIdentitySource,
+    }
+    const identity = trainer.identityProof === 'WHATSAPP'
+      ? await trySyncIdentity(() => syncWhatsappTrainerIdentity(legacy))
+      : trainer.identityProof === 'EMAIL' && trainer.proofEmail
+        ? await trySyncIdentity(() => syncEmailTrainerIdentity(legacy, trainer.proofEmail))
+        : { identityStatus: 'pending' as const }
+    return response(200, { authenticated: true, profile: { ...trainer.profile!, ...identity }, activeRole: 'PERSONAL' })
+  }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/verification-status')) {
     return getCustomerVerificationStatus(parseBody(event))
   }
