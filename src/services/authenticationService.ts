@@ -10,6 +10,7 @@ type WhatsAppSessionStart = {
   error?: string
 }
 type LoginStatus = {
+  role?: LoginRole
   authenticated?: boolean
   expired?: boolean
   confirmed?: boolean
@@ -54,7 +55,6 @@ export function queryWhatsAppSession(
 export function startEmailSession(payload: {
   email: string
   sessionToken: string
-  asTrainer: boolean
 }) {
   return requestAuthentication<{ started?: boolean; error?: string }>(
     '/api/customers/start-email-login',
@@ -62,10 +62,10 @@ export function startEmailSession(payload: {
   )
 }
 
-export function queryEmailSession(sessionToken: string, role: LoginRole) {
+export function queryEmailSession(sessionToken: string) {
   return requestAuthentication<LoginStatus>('/api/customers/email-login-status', {
     method: 'POST',
-    body: { sessionToken, role },
+    body: { sessionToken },
   })
 }
 
