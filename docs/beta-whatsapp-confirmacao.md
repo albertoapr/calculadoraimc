@@ -125,3 +125,5 @@ Rotas:
 A API limita uma solicitação de cada tipo por WhatsApp a cada 30 segundos (HTTP 429). A Beta deve respeitar esse limite e nunca repetir automaticamente uma mensagem em loop. O fluxo de login tradicional no navegador **permanece imediato**, independente da entrega da mensagem de resposta.
 
 **Atenção à implantação:** o repositório `calculadoraimc` possui a FitPeso, mas não o listener externo do WhatsApp Web da Beta. O deploy da FitPeso configura os endpoints, o cadastro e os links, porém **o robô precisa ser ajustado no serviço próprio** para reconhecer as duas frases, chamar a rota protegida e enviar `replyText`. Sem isso, as frases sozinhas não executarão o cadastro.
+
+Os novos perfis de personal iniciados pela Beta usam uma trava transacional permanente por WhatsApp para bloquear cadastros simultâneos com o mesmo número. O token temporário de preenchimento é descartado ao cancelar a tela.

@@ -1704,6 +1704,18 @@ async function registerTrainer(
           ConditionExpression: 'attribute_not_exists(slug)',
         },
       },
+      ...(betaSignup ? [{
+        Put: {
+          TableName: requestCodesTable,
+          Item: {
+            codeHash: { S: hashCode('fitpeso:beta-trainer-phone-lock:v1:' + whatsapp) },
+            flow: { S: 'fitpeso-beta-trainer-phone-lock' },
+            whatsapp: { S: whatsapp },
+            trainerId: { S: trainerId },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      }] : []),
       ...cities.map(city => ({
         Put: {
           TableName: tableName,

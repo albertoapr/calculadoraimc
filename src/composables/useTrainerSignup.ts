@@ -43,6 +43,7 @@ export function useTrainerSignup(options: {
   const betaTrainerSignupToken = ref('')
 
   async function startBetaTrainerSignupFromLink() {
+    betaTrainerSignupToken.value = ''
     const url = new URL(window.location.href)
     const code = url.searchParams.get('betaSignupCode')
     if (!code) return
@@ -68,6 +69,7 @@ export function useTrainerSignup(options: {
 
   function closeTrainerSignup() {
     stopTrainerRegistration()
+    betaTrainerSignupToken.value = ''
     trainerStatus.value = ''
     options.onClose()
   }
@@ -178,7 +180,10 @@ export function useTrainerSignup(options: {
     watch(
       options.active,
       (active) => {
-        if (!active) stopTrainerRegistration()
+        if (!active) {
+          stopTrainerRegistration()
+          betaTrainerSignupToken.value = ''
+        }
       },
       { flush: 'sync' },
     )
