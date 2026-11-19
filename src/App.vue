@@ -4,6 +4,7 @@ import { useFitpesoApp } from './composables/useFitpesoApp'
 import { fitpesoKey } from './composables/fitpesoContext'
 import TrainerSignupView from './views/auth/TrainerSignupView.vue'
 import LoginView from './views/auth/LoginView.vue'
+import ProfileSelectionDialog from './views/auth/ProfileSelectionDialog.vue'
 import CustomerSignupView from './views/auth/CustomerSignupView.vue'
 import HomeHeader from './views/layout/HomeHeader.vue'
 import PageHeader from './views/layout/PageHeader.vue'
@@ -59,6 +60,7 @@ const {
   showTrainerSignup,
   showCustomerSignup,
   showCustomerLogin,
+  profileChooserOpen,
   customerSignedInName,
   customerIsAdmin,
   form,
@@ -217,6 +219,7 @@ const {
       <RequestSuccessDialog />
       <AppFooter />
     </section>
+    <ProfileSelectionDialog v-if="profileChooserOpen" />
   </main>
 </template>
 
