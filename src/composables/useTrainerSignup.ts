@@ -1,5 +1,5 @@
 import { onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
-import { registerTrainer } from '../services/signupService'
+import { registerTrainer, redeemBetaTrainerSignup, completeBetaTrainerSignup } from '../services/signupService'
 import {
   isValidBirthDate,
   isValidEmail,
@@ -12,7 +12,12 @@ import {
   normalizePersonName,
 } from '../utils/validation'
 
-export function useTrainerSignup(options: { onClose: () => void; active?: Ref<boolean> }) {
+export function useTrainerSignup(options: {
+  onClose: () => void
+  active?: Ref<boolean>
+  replaceUrl?: (url: string) => unknown
+  onAuthenticated?: (sessionToken: string) => Promise<void> | void
+}) {
   let disposed = false
   let registrationRequest: AbortController | undefined
   const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
@@ -35,6 +40,27 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
   })
 
   const trainerStatus = ref('')
+  const betaTrainerSignupToken = ref('')
+
+  async function startBetaTrainerSignupFromLink() {
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('betaSignupCode')
+    if (!code) return
+    url.searchParams.delete('betaSignupCode')
+    // Remove the bearer proof before making the network request.
+    await options.replaceUrl?.(url.pathname + url.search + url.hash)
+    try {
+      const body = await redeemBetaTrainerSignup(code)
+      if (disposed) return
+      betaTrainerSignupToken.value = body.sessionToken
+      trainerForm.phone = body.whatsapp
+      if (body.name && !trainerForm.name) trainerForm.name = body.name
+      suggestTrainerSlug()
+      trainerStatus.value = 'WhatsApp confirmado pela Beta. Complete seus dados para ativar o perfil sem enviar outro código.'
+    } catch (error) {
+      trainerStatus.value = error instanceof Error ? error.message : 'Link expirado. Solicite outro à Beta.'
+    }
+  }
 
   const trainerVerificationLink = ref('')
 
@@ -108,25 +134,34 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     trainerSubmitting.value = true
     trainerStatus.value = 'Salvando seu cadastro…'
     try {
-      const body = await registerTrainer(
-        {
-          name,
-          sex,
-          slug,
-          whatsapp: phone,
-          ...(dateOfBirth ? { dateOfBirth } : {}),
-          ...(email ? { email } : {}),
-          cities: [...trainerForm.cities],
-          academias: [...trainerForm.academias],
-          instagram,
-          ...(cref ? { cref } : {}),
-        },
-        controller.signal,
-      )
-      if (disposed || controller.signal.aborted) return
-      const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
-      trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
+      const payload = {
+        name,
+        sex,
+        slug,
+        whatsapp: phone,
+        ...(dateOfBirth ? { dateOfBirth } : {}),
+        ...(email ? { email } : {}),
+        cities: [...trainerForm.cities],
+        academias: [...trainerForm.academias],
+        instagram,
+        ...(cref ? { cref } : {}),
+      }
+      if (betaTrainerSignupToken.value) {
+        const sessionToken = await completeBetaTrainerSignup(
+          { ...payload, onboardingSessionToken: betaTrainerSignupToken.value },
+          controller.signal,
+        )
+        if (disposed || controller.signal.aborted) return
+        betaTrainerSignupToken.value = ''
+        trainerStatus.value = 'Perfil profissional ativado! Entrando na FitPeso…'
+        await options.onAuthenticated?.(sessionToken)
+      } else {
+        const body = await registerTrainer(payload, controller.signal)
+        if (disposed || controller.signal.aborted) return
+        const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
+        trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
+        trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
+      }
     } catch (error) {
       if (disposed || controller.signal.aborted) return
       trainerStatus.value =
@@ -157,6 +192,8 @@ export function useTrainerSignup(options: { onClose: () => void; active?: Ref<bo
     signupOtherAcademy,
     trainerForm,
     trainerStatus,
+    betaTrainerSignupToken,
+    startBetaTrainerSignupFromLink,
     trainerVerificationLink,
     trainerSubmitting,
     closeTrainerSignup,
