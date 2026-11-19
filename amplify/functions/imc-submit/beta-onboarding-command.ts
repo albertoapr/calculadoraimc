@@ -27,7 +27,7 @@ export function parseBetaOnboardingMessage(message: unknown): BetaOnboardingMess
 
   // Natural registration request: "Sou professora da Academia Aquatic Center,
   // no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso".
-  if (!/\bfitpeso\b/.test(text) || !/\bcadastr(?:o|ar)\b/.test(text)) return null
+  if (!/\b(?:quero|gostaria(?: de)?)\s+(?:me\s+)?cadastr(?:ar|o)\s+(?:na|no)\s+fitpeso$/.test(text)) return null
   const lead = text.match(/^sou\s+(professora|professor|personal(?:\s+trainer)?)\s+d[ao]\s+(?:academia\s+)?(.+)$/)
   if (!lead) return null
   const city = text.match(/\bem\s+(mesquita|nilopolis|nova iguacu|rio de janeiro)\b/)
