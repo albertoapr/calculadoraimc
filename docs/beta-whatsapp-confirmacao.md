@@ -37,6 +37,36 @@ As mensagens de login começam com `Confirmar login FitPeso <codigo>`. A Beta de
 
 As rotas requerem o mesmo cabeçalho secreto e continuam vinculando o código ao número de origem da mensagem. Nas confirmações de login bem-sucedidas, a resposta traz `verified`, `whatsapp` e `name` (nome cadastrado), além de `whatsappDisplayName` quando a Beta envia um nome de exibição válido. **O nome cadastrado não é sobrescrito durante o login**: o nome de exibição do provedor pode ser diferente do nome declarado na conta.
 
+### Novo retorno: link seguro
+
+Na branch `develop`, após `verified: true`, a API retorna **somente à integração Beta autenticada com o segredo**:
+
+```json
+{
+  "verified": true,
+  "whatsapp": "+5521999999999",
+  "name": "Cliente ou Personal",
+  "loginLink": "https://develop.d3w24y6suih6n1.amplifyapp.com/?whatsappLoginCode=TOKEN_SEGURO",
+  "loginLinkExpiresAt": 1795050000
+}
+```
+
+A Beta deve enviar **somente para o número real remetente** (e nunca para o número digitado na mensagem):
+
+> Login FitPeso confirmado! Clique no link abaixo para entrar ou aguarde a tela de login atualizar automaticamente. O link é válido por até 5 minutos e funciona uma única vez.
+>
+> [loginLink retornado pela API]
+
+Não gere links no código da Beta. Não envie o segredo, `sessionToken` ou códigos completos para logs. Se `verified: true` não trouxer `loginLink` (por exemplo, link já consumido), informe apenas que a tela original pode atualizar ou que o usuário pode solicitar um novo login.
+
+- O link é derivado via HMAC do desafio e do segredo interno, armazenado no DynamoDB somente como hash.
+- Cada confirmação emite um link de **uso único**, com até **5 minutos** de validade, somente para a origem da branch configurada no backend.
+- `POST /api/auth/verify-whatsapp-link` consome o token **atomicamente** e emite outra sessão válida para o dispositivo que abriu o link. GET/preview **não consome**.
+- O navegador elimina `whatsappLoginCode` da barra de endereço **antes** de validar a sessão.
+- A tela original continua consultando `/customers/login-status` ou `/trainers/login-status` como antes.
+
+**A mudança no serviço externo da Beta é obrigatória.** Fazer o deploy da FitPeso isoladamente não altera as respostas que o robô envia. O WhatsApp Web automatizado permanece uma integração não oficial sujeita a bloqueio.
+
 ## Cadastro de personal
 
 Para a mensagem de confirmação de cadastro do personal, chamar `POST /api/trainers/verify-whatsapp` com os mesmos campos `whatsapp`, `code` e `name`, utilizando o número real do remetente. A resposta inclui `verified`, `slug`, `whatsapp` e `name` registrado do profissional. O nome profissional não é sobrescrito automaticamente pelo nome de exibição.

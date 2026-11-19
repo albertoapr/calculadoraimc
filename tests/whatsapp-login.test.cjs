@@ -385,3 +385,31 @@ test('email callback removes the one-time code before verifying and restores the
   assert.equal(h.storage.get('fitpeso-trainer-session'), 'verified-session')
   assert.equal(h.applied, true)
 })
+
+// Clicking a magic link authenticates a separate browser; the original polling continues normally.
+for (const role of ['customer', 'trainer']) {
+  test(`${role}: WhatsApp magic link is removed before the POST and restores the correct profile`, async () => {
+    const h = harness()
+    h.context.window.location = {
+      href: 'https://develop.d3w24y6suih6n1.amplifyapp.com/?whatsappLoginCode=' + 'L'.repeat(43) + '&keep=1#section',
+    }
+    h.reply = { authenticated: true, sessionToken: 'new-browser-session', role }
+    await h.api.finishWhatsAppLoginFromLink()
+    assert.equal(h.replacedUrls[0], '/?keep=1#section')
+    assert.match(h.requests[0].url, /\/api\/auth\/verify-whatsapp-link$/)
+    assert.equal(h.requests[0].options.method, 'POST')
+    assert.equal(JSON.parse(h.requests[0].options.body).code, 'L'.repeat(43))
+    assert.equal(h.storage.get(`fitpeso-${role}-session`), 'new-browser-session')
+    assert.equal(h.applied, true)
+  })
+}
+
+test('an expired or already-used WhatsApp link never creates a local session', async () => {
+  const h = harness()
+  h.context.window.location = { href: 'https://develop.d3w24y6suih6n1.amplifyapp.com/?whatsappLoginCode=' + 'Z'.repeat(43) }
+  h.reply = { authenticated: false, error: 'Este link já foi utilizado ou expirou.' }
+  await h.api.finishWhatsAppLoginFromLink()
+  assert.equal(h.applied, false)
+  assert.equal(h.storage.has('fitpeso-customer-session'), false)
+  assert.match(h.state.emailLoginError.value, /utilizado ou expirou/)
+})

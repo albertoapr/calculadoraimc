@@ -102,8 +102,8 @@ const {
         @submit.prevent="submitIdentityLogin"
       >
         <p v-if="loginIdentifierKind === 'whatsapp'" class="login-step-note field-wide">
-          Após continuar, você enviará uma mensagem para a Beta pelo WhatsApp. A confirmação será
-          automática.
+          Após continuar, envie uma mensagem à Beta pelo WhatsApp. A Beta responderá com um link
+          seguro para entrar. Você também pode aguardar a atualização automática desta tela.
         </p>
         <p v-else class="login-step-note field-wide">
           Enviaremos um link de confirmação para seu e-mail. Sua conta só será acessada após
@@ -177,8 +177,8 @@ const {
           {{ whatsappConfirmed ? 'WhatsApp confirmado! Entrando…' : 'Confirme seu login' }}
         </h2>
         <p>
-          Toque no botão e envie a mensagem com o código para a Beta no WhatsApp. Depois, volte para
-          esta tela e aguarde a confirmação automática.
+          Envie a mensagem à Beta pelo WhatsApp. Na resposta, clique no link seguro para entrar
+          ou aguarde esta tela atualizar automaticamente.
         </p>
         <a
           v-if="trainerLoginDialog ? trainerLoginLink : customerLoginVerificationLink"

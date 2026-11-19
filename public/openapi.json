@@ -5126,6 +5126,70 @@
           }
         }
       }
+    },
+    "/api/auth/verify-whatsapp-link": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "verifyWhatsAppLoginLink",
+        "summary": "Consumir link seguro de login WhatsApp",
+        "description": "O Beta recebe loginLink após a confirmação protegida por segredo. Esta rota pública aceita somente um token de uso único recebido no WhatsApp (até 5 minutos). A pré-visualização GET nunca consome o link; apenas o POST pode criar uma sessão.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43,
+                    "description": "Token opaco de uso único presente no link"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sessão criada para o dispositivo que abriu o link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    },
+                    "sessionToken": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "customer",
+                        "trainer"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Link expirado ou já utilizado"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
     }
   },
   "components": {

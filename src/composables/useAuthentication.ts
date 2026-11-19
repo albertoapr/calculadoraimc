@@ -8,6 +8,7 @@ import {
   startEmailSession,
   queryEmailSession,
   verifyEmailSession,
+  verifyWhatsAppLoginLink,
 } from '../services/authenticationService'
 import type {
   PendingWhatsAppLogin,
@@ -701,6 +702,45 @@ export function useAuthentication(options: AuthenticationOptions) {
       showCustomerLogin.value = true
     }
   }
+  async function finishWhatsAppLoginFromLink() {
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('whatsappLoginCode')
+    if (!code) return
+    // Never leave a bearer login link in browser history or subsequent navigation.
+    url.searchParams.delete('whatsappLoginCode')
+    await options.replaceUrl(url.pathname + url.search + url.hash)
+    clearPendingWhatsAppLogin()
+    try {
+      const { ok, body } = await verifyWhatsAppLoginLink(code)
+      if (disposed) return
+      if (!ok || body.authenticated !== true || !body.sessionToken ||
+          (body.role !== 'customer' && body.role !== 'trainer')) {
+        throw new Error(body.error || 'Este link já foi utilizado ou expirou.')
+      }
+      if (body.role === 'trainer') {
+        const profile = await loadTrainerSession(body.sessionToken)
+        if (disposed) return
+        sessionStorage.setItem('fitpeso-trainer-session', body.sessionToken)
+        applyTrainerSession(profile)
+      } else {
+        const profile = await loadCustomerProfile(body.sessionToken)
+        if (disposed) return
+        sessionStorage.setItem('fitpeso-customer-session', body.sessionToken)
+        sessionStorage.removeItem('fitpeso-google-session')
+        applyCustomerProfile(profile)
+      }
+      showCustomerLoginDialog.value = false
+      trainerLoginDialog.value = false
+      showCustomerLogin.value = false
+      emailLoginPending.value = false
+      goHome()
+    } catch (error) {
+      emailLoginError.value = error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
+      loginStep.value = 1
+      showCustomerLogin.value = true
+    }
+  }
+
   function stopEmailLoginPoll() {
     if (emailLoginPollTimer !== undefined) window.clearTimeout(emailLoginPollTimer)
     emailLoginPollTimer = undefined
@@ -783,6 +823,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     pollEmailLogin,
     closeCustomerLogin,
     finishEmailLoginFromLink,
+    finishWhatsAppLoginFromLink,
     stopEmailLoginPoll,
     startAuthentication,
   }

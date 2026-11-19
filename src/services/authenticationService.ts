@@ -69,6 +69,13 @@ export function queryEmailSession(sessionToken: string) {
   })
 }
 
+export function verifyWhatsAppLoginLink(code: string) {
+  return requestAuthentication<EmailVerification>('/api/auth/verify-whatsapp-link', {
+    method: 'POST',
+    body: { code },
+  })
+}
+
 export function verifyEmailSession(code: string) {
   return requestAuthentication<EmailVerification>('/api/customers/verify-email-login', {
     method: 'POST',

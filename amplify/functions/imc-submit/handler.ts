@@ -1,6 +1,7 @@
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
+import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -733,6 +734,110 @@ async function switchIdentityProfile(
   }
 }
 
+
+/** Only the secret-authenticated Beta receives a link; browser status never exposes it. */
+function newWhatsAppLoginLink(
+  code: string, whatsapp: string, role: WhatsAppLinkRole, expiresAt: number,
+  trainerId?: string, city?: string,
+) {
+  return createWhatsAppMagicLink({
+    code, whatsapp, role, challengeExpiresAt: expiresAt,
+    secret: process.env.TRAINER_WHATSAPP_VERIFY_SECRET ?? '',
+    baseUrl: process.env.FITPESO_WHATSAPP_LOGIN_URL ?? '',
+    nowSeconds: Math.floor(Date.now() / 1000), trainerId, city,
+  })
+}
+
+async function availableWhatsAppLoginLink(
+  table: string, code: string, whatsapp: string, role: WhatsAppLinkRole,
+  expiresAt: number, trainerId?: string, city?: string,
+) {
+  const link = newWhatsAppLoginLink(code, whatsapp, role, expiresAt, trainerId, city)
+  const row = (await dynamodb.send(new GetItemCommand({
+    TableName: table, Key: { codeHash: { S: link.linkHash } }, ConsistentRead: true,
+  }))).Item
+  if (row?.flow?.S !== 'fitpeso-whatsapp-login-link' || row.whatsapp?.S !== whatsapp ||
+      row.role?.S !== role || row.consumedAt?.N ||
+      Number(row.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)) return {}
+  return { loginLink: link.loginLink, loginLinkExpiresAt: Number(row.expiresAt!.N) }
+}
+
+/** POST only: link previews and other GETs can never use or burn a token. */
+async function redeemWhatsAppLoginLink(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code : ''
+  if (!/^[A-Za-z0-9_-]{43}$/.test(code)) return response(410, { error: 'Link inválido ou expirado. Solicite outro login.' })
+  const table = process.env.IMC_REQUESTS_TABLE
+  if (!table) return response(503, { error: 'Serviço indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const codeHash = hashCode(code)
+  try {
+    const row = (await dynamodb.send(new GetItemCommand({
+      TableName: table, Key: { codeHash: { S: codeHash } }, ConsistentRead: true,
+    }))).Item
+    const whatsapp = normalizePhone(row?.whatsapp?.S)
+    const role = row?.role?.S
+    if (row?.flow?.S !== 'fitpeso-whatsapp-login-link' || row.consumedAt?.N ||
+        Number(row.expiresAt?.N ?? 0) <= now || !whatsapp ||
+        (role !== 'customer' && role !== 'trainer')) {
+      return response(410, { error: 'Este link já foi utilizado ou expirou. Solicite outro login.' })
+    }
+    let trainerId = ''
+    let city = ''
+    if (role === 'customer') {
+      const customer = (await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
+        Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
+      }))).Item
+      if (customer?.status?.S !== 'ACTIVE' || customer.whatsappVerified?.BOOL !== true)
+        return response(403, { error: 'Cadastro indisponível.' })
+    } else {
+      trainerId = row.trainerId?.S ?? ''
+      city = row.city?.S ?? ''
+      if (!trainerId || !city) return response(410, { error: 'Link inválido.' })
+      const trainers = await getTrainerRows(trainerId)
+      if (trainers.length < 1 || trainers.length > 2 ||
+          !trainers.some(trainer => trainer.city?.S === city) ||
+          trainers.some(trainer => trainer.active?.BOOL !== true ||
+            trainer.whatsappVerified?.BOOL !== true || trainer.whatsapp?.S !== whatsapp)) {
+        return response(403, { error: 'Cadastro profissional indisponível.' })
+      }
+    }
+    const sessionToken = randomBytes(32).toString('base64url')
+    const item: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> = {
+      codeHash: { S: hashCode(sessionToken) },
+      flow: { S: role === 'trainer' ? 'fitpeso-trainer-login-session' : 'fitpeso-customer-login-session' },
+      identityProof: { S: 'WHATSAPP' },
+      whatsapp: { S: whatsapp },
+      expiresAt: { N: String(now + 12 * 60 * 60) },
+    }
+    if (role === 'trainer') {
+      item.trainerId = { S: trainerId }
+      item.city = { S: city }
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: {
+        TableName: table, Key: { codeHash: { S: codeHash } },
+        UpdateExpression: 'SET consumedAt = :now',
+        ConditionExpression: '#flow = :flow AND expiresAt > :now AND attribute_not_exists(consumedAt) AND whatsapp = :phone',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: {
+          ':flow': { S: 'fitpeso-whatsapp-login-link' },
+          ':now': { N: String(now) }, ':phone': { S: whatsapp },
+        },
+      } },
+      { Put: { TableName: table, Item: item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+    ] }))
+    return response(200, { authenticated: true, sessionToken, role })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)
+      return response(410, { error: 'Este link já foi utilizado ou expirou. Solicite outro login.' })
+    console.error('[imc-submit] WhatsApp login link redemption failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível confirmar o login agora.' })
+  }
+}
+
 async function beginCustomerLogin(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data?.whatsapp)
   const sessionToken = typeof data?.sessionToken === 'string' ? data.sessionToken : ''
@@ -807,7 +912,10 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     if (challenge.consumedAt?.N) {
       const sessionHash = challenge.sessionTokenHash?.S ?? ''
       const existing = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
-      return response(200, { verified: existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now })
+      const verified = existing?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(existing.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified ? await availableWhatsAppLoginLink(
+        codesTable, code, whatsapp, 'customer', Number(challenge.expiresAt!.N),
+      ) : {}) })
     }
     const customer = await dynamodb.send(new GetItemCommand({ TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true }))
     const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
@@ -832,6 +940,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     const sessionHash = challenge.sessionTokenHash?.S ?? ''
     if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
     const sessionExpiry = now + 12 * 60 * 60
+    const loginLink = newWhatsAppLoginLink(code, whatsapp, 'customer', Number(challenge.expiresAt!.N))
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: {
         TableName: codesTable, Key: { codeHash: { S: codeHash } },
@@ -845,6 +954,7 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' }, identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(sessionExpiry) } },
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
+      { Put: { TableName: codesTable, Item: loginLink.item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
       ...(trainer ? [
         // Impede que um personal removido/desativado autorize um novo cliente.
         { ConditionCheck: {
@@ -869,14 +979,18 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         } },
       ] : []),
     ] }))
-    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? trainer?.name ?? '' })
+    return response(200, { verified: true, whatsapp, name: customer.Item?.name?.S ?? trainer?.name ?? '',
+      loginLink: loginLink.loginLink, loginLinkExpiresAt: loginLink.expiresAt })
   } catch (error) {
     if (error instanceof TransactionCanceledException) {
       const result = await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: codeHash } }, ConsistentRead: true }))
       const challenge = result.Item
       const sessionHash = challenge?.sessionTokenHash?.S ?? ''
       const session = sessionHash ? await dynamodb.send(new GetItemCommand({ TableName: codesTable, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true })) : null
-      return response(200, { verified: session?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(session.Item.expiresAt?.N ?? 0) > now })
+      const verified = session?.Item?.flow?.S === 'fitpeso-customer-login-session' && Number(session.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified && challenge ? await availableWhatsAppLoginLink(
+        codesTable, code, whatsapp, 'customer', Number(challenge.expiresAt!.N),
+      ) : {}) })
     }
     console.error('[imc-submit] Customer WhatsApp login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível confirmar o login agora.' })
@@ -1288,7 +1402,11 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
     if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
     if (challenge.consumedAt?.N) {
       const stored = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))
-      return response(200, { verified: stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now })
+      const verified = stored.Item?.flow?.S === 'fitpeso-trainer-login-session' && Number(stored.Item.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified ? await availableWhatsAppLoginLink(
+        tableName, code, whatsapp, 'trainer', Number(challenge.expiresAt!.N),
+        challenge.trainerId?.S, challenge.city?.S,
+      ) : {}) })
     }
     const trainerId = challenge.trainerId?.S ?? ''
     const challengeCity = challenge.city?.S ?? ''
@@ -1301,6 +1419,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
       trainerRows.some(row => row.active?.BOOL !== true || row.whatsapp?.S !== whatsapp)) {
       return response(200, { verified: false })
     }
+    const loginLink = newWhatsAppLoginLink(code, whatsapp, 'trainer', Number(challenge.expiresAt!.N), trainerId, challengeCity)
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: { TableName: tableName, Key: { codeHash: { S: hashCode(code) } },
         UpdateExpression: 'SET consumedAt = :now',
@@ -1311,6 +1430,7 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
         identityProof: { S: 'WHATSAPP' },
         whatsapp: { S: whatsapp }, trainerId: { S: trainerId }, city: { S: challengeCity },
         expiresAt: { N: String(now + 12 * 60 * 60) } }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      { Put: { TableName: tableName, Item: loginLink.item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
       ...trainerRows.map(row => ({
         Update: {
           TableName: trainersTable,
@@ -1326,9 +1446,23 @@ async function verifyTrainerLogin(data: Record<string, unknown> | null) {
       })),
     ] }))
     const confirmedName = trainerRows.find(row => row.city?.S === challengeCity)?.name?.S ?? ''
-    return response(200, { verified: true, whatsapp, name: confirmedName, ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}) })
+    return response(200, { verified: true, whatsapp, name: confirmedName, ...(getBetaDisplayName(data) ? { whatsappDisplayName: getBetaDisplayName(data) } : {}),
+      loginLink: loginLink.loginLink, loginLinkExpiresAt: loginLink.expiresAt })
   } catch (error) {
-    if (error instanceof TransactionCanceledException) return response(200, { verified: false })
+    if (error instanceof TransactionCanceledException) {
+      const challenge = (await dynamodb.send(new GetItemCommand({
+        TableName: tableName, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
+      }))).Item
+      const sessionHash = challenge?.sessionTokenHash?.S ?? ''
+      const session = sessionHash ? (await dynamodb.send(new GetItemCommand({
+        TableName: tableName, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true,
+      }))).Item : null
+      const verified = session?.flow?.S === 'fitpeso-trainer-login-session' && Number(session.expiresAt?.N ?? 0) > now
+      return response(200, { verified, ...(verified && challenge ? await availableWhatsAppLoginLink(
+        tableName, code, whatsapp, 'trainer', Number(challenge.expiresAt!.N),
+        challenge.trainerId?.S, challenge.city?.S,
+      ) : {}) })
+    }
     console.error('[imc-submit] Trainer login verification failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível confirmar o login agora.' })
   }
@@ -2937,6 +3071,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/verify-whatsapp-link'))
+    return redeemWhatsAppLoginLink(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)

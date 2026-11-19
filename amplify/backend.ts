@@ -156,6 +156,13 @@ backend.imcSubmit.addEnvironment('FITPESO_REQUEST_LOCKS_TABLE', requestLocks.tab
 backend.imcSubmit.addEnvironment('FITPESO_CUSTOMERS_TABLE', customers.tableName)
 backend.imcSubmit.addEnvironment('GOOGLE_OAUTH_CLIENT_ID', '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com')
 backend.imcSubmit.addEnvironment('BETA_EMAIL_ADDRESS', 'betasolucoesia@gmail.com')
+// Link de login aponta para o frontend da branch, sem redirecionar develop para produção.
+backend.imcSubmit.addEnvironment(
+  'FITPESO_WHATSAPP_LOGIN_URL',
+  process.env.AWS_BRANCH === 'main'
+    ? 'https://fitpeso.com.br/'
+    : 'https://develop.d3w24y6suih6n1.amplifyapp.com/',
+)
 // Etapa 2.2: novas entidades isoladas das tabelas legadas.
 // Stack separada para evitar alterações em chaves/GSIs já existentes.
 const identityStack = backend.createStack('fitpeso-identity-data')
@@ -336,6 +343,7 @@ signupResource.addResource('verify-phone').addMethod('POST', lambdaIntegration()
 const authResource = apiResource.addResource('auth')
 authResource.addResource('me').addMethod('GET', lambdaIntegration())
 authResource.addResource('switch-profile').addMethod('POST', lambdaIntegration())
+authResource.addResource('verify-whatsapp-link').addMethod('POST', lambdaIntegration())
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())

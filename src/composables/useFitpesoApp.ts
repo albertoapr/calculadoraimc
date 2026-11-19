@@ -334,6 +334,7 @@ export function useFitpesoApp() {
     pollEmailLogin,
     closeCustomerLogin,
     finishEmailLoginFromLink,
+    finishWhatsAppLoginFromLink,
     stopEmailLoginPoll,
     startAuthentication,
   } = useAuthentication({
@@ -1108,7 +1109,15 @@ export function useFitpesoApp() {
     }
     document.addEventListener('pointerdown', closeHamburgerOnOutsideClick)
     document.addEventListener('click', closeHamburgerOnSelection)
-    void finishEmailLoginFromLink()
+    // Restore existing state first; redeemed links must win over an older session.
+    void (async () => {
+      await restoreSessions()
+      if (new URL(window.location.href).searchParams.has('whatsappLoginCode')) {
+        await finishWhatsAppLoginFromLink()
+      } else {
+        await finishEmailLoginFromLink()
+      }
+    })()
     if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
     window.scrollTo(0, 0)
     if (trainerRequestToken) {
@@ -1118,7 +1127,6 @@ export function useFitpesoApp() {
     }
     void loadTrainerRequest()
     if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
-    void restoreSessions()
     startAuthentication()
   })
 
