@@ -17,7 +17,7 @@ import {
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
 import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity } from './identity-bootstrap'
-import { resolveVerifiedIdentity } from './identity-store'
+import { listPersonProfiles, resolveVerifiedIdentity } from './identity-store'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
@@ -450,7 +450,7 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 }
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
-  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/auth/me')
+  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -486,8 +486,14 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         identitySource: customer.Item.identitySource?.S,
       }
       const identity = !shouldResolveIdentity(event) ? undefined
-        : session.Item?.identityProof?.S === 'WHATSAPP'
-          ? await trySyncIdentity(() => syncWhatsappCustomerIdentity(legacy))
+        : session.Item?.identityProof?.S === 'SWITCH' &&
+            session.Item.pessoa_id?.S && customer.Item.pessoa_id?.S === session.Item.pessoa_id.S
+          ? {
+              identity: { pessoaId: session.Item.pessoa_id.S, usuarios: await listPersonProfiles(session.Item.pessoa_id.S) },
+              identityStatus: 'ready' as const,
+            }
+          : session.Item?.identityProof?.S === 'WHATSAPP'
+            ? await trySyncIdentity(() => syncWhatsappCustomerIdentity(legacy))
           : session.Item?.identityProof?.S === 'EMAIL' && session.Item.email?.S
             ? await trySyncIdentity(() => syncEmailCustomerIdentity(legacy, session.Item!.email!.S!))
             : { identityStatus: 'pending' as const }
@@ -612,6 +618,119 @@ function isValidBirthDate(value: unknown) {
   const parsed = new Date(`${value}T00:00:00.000Z`)
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value &&
     value >= '1900-01-01' && value <= new Date().toISOString().slice(0, 10)
+}
+
+
+/**
+ * Troca de perfil após autenticação forte.
+ * Nunca confia no perfil escolhido no frontend: valida o vínculo pessoa -> usuario
+ * -> perfil V2 -> registro legado antes de emitir uma sessão da função escolhida.
+ */
+async function switchIdentityProfile(
+  event: Parameters<APIGatewayProxyHandler>[0],
+  data: Record<string, unknown> | null,
+) {
+  const requestedRole = data?.role
+  if (requestedRole !== 'CLIENTE' && requestedRole !== 'PERSONAL' && requestedRole !== 'ADMIN') {
+    return response(400, { error: 'Selecione um perfil válido.' })
+  }
+  const codesTable = process.env.IMC_REQUESTS_TABLE
+  if (!codesTable) return response(503, { error: 'Sessões indisponíveis.' })
+  try {
+    let identity: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } | undefined
+    const trainer = await getTrainerSession(event)
+    if (!trainer.error) {
+      const profile = trainer.profile!
+      const legacy = {
+        trainerId: profile.trainerId, city: profile.city, whatsapp: profile.whatsapp,
+        name: profile.name, email: profile.email, pessoaId: trainer.legacyPessoaId,
+        identitySource: trainer.legacyIdentitySource,
+      }
+      if (trainer.identityProof === 'WHATSAPP') {
+        identity = await syncWhatsappTrainerIdentity(legacy)
+      } else if (trainer.identityProof === 'EMAIL' && trainer.proofEmail) {
+        identity = await syncEmailTrainerIdentity(legacy, trainer.proofEmail)
+      } else if (trainer.identityProof === 'SWITCH' &&
+        trainer.sessionPessoaId && trainer.sessionPessoaId === trainer.legacyPessoaId) {
+        identity = { pessoaId: trainer.sessionPessoaId, usuarios: await listPersonProfiles(trainer.sessionPessoaId) }
+      }
+    } else {
+      const customer = await getCustomerProfile(event)
+      if (customer.statusCode !== 200) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+      const parsed = JSON.parse(customer.body) as {
+        profile?: { identity?: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } }
+      }
+      identity = parsed.profile?.identity
+    }
+    if (!identity) return response(409, { error: 'Ainda não foi possível vincular os perfis desta conta.' })
+    const role = requestedRole === 'ADMIN' ? 'CLIENTE' : requestedRole
+    const user = identity.usuarios.find(item => item.tipo === role)
+    if (!user || (requestedRole === 'ADMIN' && !identity.usuarios.some(item => item.tipo === 'ADMIN'))) {
+      return response(403, { error: 'Esse perfil não pertence à sua conta.' })
+    }
+
+    let sessionItem: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>
+    if (role === 'CLIENTE') {
+      if (!user.clienteId) return response(409, { error: 'Perfil de cliente ainda não disponível.' })
+      const linked = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMER_V2_TABLE!,
+        Key: { customer_id: { S: user.clienteId } }, ConsistentRead: true,
+      }))
+      const phone = linked.Item?.legacyWhatsapp?.S
+      if (linked.Item?.user_id?.S !== user.usuarioId || !phone)
+        return response(409, { error: 'Vínculo de cliente inválido.' })
+      const customer = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
+        Key: { whatsapp: { S: phone } }, ConsistentRead: true,
+      }))
+      if (customer.Item?.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true ||
+        customer.Item.pessoa_id?.S !== identity.pessoaId || customer.Item.user_id?.S !== user.usuarioId ||
+        (requestedRole === 'ADMIN' && customer.Item.isAdmin?.BOOL !== true)) {
+        return response(403, { error: 'Perfil de cliente indisponível.' })
+      }
+      sessionItem = { flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: phone } }
+    } else {
+      if (!user.personalId) return response(409, { error: 'Perfil de personal ainda não disponível.' })
+      const linked = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.FITPESO_PERSONAL_V2_TABLE!,
+        Key: { personal_id: { S: user.personalId } }, ConsistentRead: true,
+      }))
+      const city = linked.Item?.cidade?.S
+      const trainerId = linked.Item?.legacyTrainerId?.S
+      if (linked.Item?.user_id?.S !== user.usuarioId || !city || !trainerId)
+        return response(409, { error: 'Vínculo de personal inválido.' })
+      const trainerProfile = await dynamodb.send(new GetItemCommand({
+        TableName: process.env.TRAINERS_TABLE!,
+        Key: { city: { S: city }, trainerId: { S: trainerId } }, ConsistentRead: true,
+      }))
+      const row = trainerProfile.Item
+      if (row?.active?.BOOL !== true || row.whatsappVerified?.BOOL !== true ||
+        row.pessoa_id?.S !== identity.pessoaId || row.user_id?.S !== user.usuarioId || !row.whatsapp?.S)
+        return response(403, { error: 'Perfil profissional indisponível.' })
+      sessionItem = {
+        flow: { S: 'fitpeso-trainer-login-session' }, whatsapp: { S: row.whatsapp.S },
+        trainerId: { S: trainerId }, city: { S: city },
+      }
+    }
+
+    const token = randomBytes(32).toString('base64url')
+    await dynamodb.send(new PutItemCommand({
+      TableName: codesTable,
+      Item: {
+        ...sessionItem, codeHash: { S: hashCode(token) },
+        identityProof: { S: 'SWITCH' },
+        pessoa_id: { S: identity.pessoaId },
+        expiresAt: { N: String(Math.floor(Date.now() / 1000) + 12 * 60 * 60) },
+      },
+      ConditionExpression: 'attribute_not_exists(codeHash)',
+    }))
+    return response(200, { switched: true, role: requestedRole, sessionToken: token })
+  } catch (error) {
+    console.error('[imc-submit] Profile switch failed', {
+      errorClass: error instanceof Error ? error.name : typeof error,
+    })
+    return response(503, { error: 'Não foi possível alternar o perfil agora.' })
+  }
 }
 
 async function beginCustomerLogin(data: Record<string, unknown> | null) {
@@ -892,7 +1011,8 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       pricing: item.pricing?.S ?? '',
       bannerUpdatedAt: item.bannerUpdatedAt?.S ?? '',
     }, identityProof: record?.identityProof?.S ?? '', proofEmail: record?.email?.S ?? '',
-      legacyPessoaId: item.pessoa_id?.S, legacyIdentitySource: item.identitySource?.S }
+      legacyPessoaId: item.pessoa_id?.S, legacyIdentitySource: item.identitySource?.S,
+      sessionPessoaId: record.pessoa_id?.S }
   } catch (error) {
     console.error('[imc-submit] Trainer session lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return { error: response(503, { error: 'Não foi possível validar sua sessão.' }) }
@@ -2795,11 +2915,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       whatsapp: auth.profile!.whatsapp, name: auth.profile!.name, email: auth.profile!.email,
       pessoaId: auth.legacyPessoaId, identitySource: auth.legacyIdentitySource,
     }
-    const identity = auth.identityProof === 'WHATSAPP'
-      ? await trySyncIdentity(() => syncWhatsappTrainerIdentity(legacy))
-      : auth.identityProof === 'EMAIL' && auth.proofEmail
-        ? await trySyncIdentity(() => syncEmailTrainerIdentity(legacy, auth.proofEmail))
-        : { identityStatus: 'pending' as const }
+    const identity = auth.identityProof === 'SWITCH' &&
+      auth.sessionPessoaId && auth.legacyPessoaId === auth.sessionPessoaId
+      ? {
+          identity: { pessoaId: auth.sessionPessoaId, usuarios: await listPersonProfiles(auth.sessionPessoaId) },
+          identityStatus: 'ready' as const,
+        }
+      : auth.identityProof === 'WHATSAPP'
+        ? await trySyncIdentity(() => syncWhatsappTrainerIdentity(legacy))
+        : auth.identityProof === 'EMAIL' && auth.proofEmail
+          ? await trySyncIdentity(() => syncEmailTrainerIdentity(legacy, auth.proofEmail))
+          : { identityStatus: 'pending' as const }
     return response(200, { authenticated: true, profile: { ...auth.profile!, ...identity } })
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/login')) {
@@ -2831,6 +2957,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/switch-profile')) {
+    return switchIdentityProfile(event, parseBody(event))
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/me')) {
     const authorization = event.headers?.authorization ?? event.headers?.Authorization ?? ''
     const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? ''
