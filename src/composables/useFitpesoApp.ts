@@ -2,7 +2,7 @@ import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
-import { loadCustomerProfile } from '../services/authenticationService'
+import { loadCustomerProfile, loadTrainerSession, switchProfileSession } from '../services/authenticationService'
 import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
@@ -34,6 +34,8 @@ import type {
   GoogleIdentityApi,
   TrainerReceivedRequest,
   TrainerAccountProfile,
+  CustomerAccountProfile,
+  IdentityRole,
 } from '../types/domain'
 
 declare global {
@@ -46,9 +48,80 @@ declare global {
 export function useFitpesoApp() {
   const router = useRouter()
   const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId,
-    pessoaId, availableProfiles, identityStatus } = storeToRefs(useAccountSession())
+    pessoaId, availableProfiles, identityStatus, activeRole } = storeToRefs(useAccountSession())
   // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
   const googleClientId = '250783469314-bg81qekefpf8rtunb0bppq7uitr5rv2l.apps.googleusercontent.com'
+  const profileChooserOpen = ref(false)
+  const profileChoiceRequired = ref(false)
+  const profileSwitchBusy = ref(false)
+  const profileSwitchError = ref('')
+  // ADMIN e uma permissao distinta, mas utiliza o mesmo cadastro legado de CLIENTE.
+  const selectableProfiles = computed(() => availableProfiles.value.filter(profile => {
+    if (profile.tipo === 'CLIENTE') return Boolean(profile.clienteId)
+    if (profile.tipo === 'PERSONAL') return Boolean(profile.personalId)
+    return availableProfiles.value.some(user => user.tipo === 'CLIENTE' && user.clienteId)
+  }))
+
+  function requireProfileSelection() {
+    profileSwitchError.value = ''
+    profileChoiceRequired.value = selectableProfiles.value.length > 1
+    profileChooserOpen.value = profileChoiceRequired.value
+  }
+
+  function openProfileChooser() {
+    if (selectableProfiles.value.length < 2) return
+    profileSwitchError.value = ''
+    profileChoiceRequired.value = false
+    profileChooserOpen.value = true
+  }
+
+  function closeProfileChooser() {
+    if (profileSwitchBusy.value || profileChoiceRequired.value) return
+    profileChooserOpen.value = false
+  }
+
+  async function selectIdentityProfile(role: IdentityRole) {
+    if (profileSwitchBusy.value) return
+    if (!selectableProfiles.value.some(profile => profile.tipo === role)) {
+      profileSwitchError.value = 'Esse perfil não está disponível para sua conta.'
+      return
+    }
+    profileSwitchBusy.value = true
+    profileSwitchError.value = ''
+    try {
+      const alreadyActive =
+        (role === 'CLIENTE' && Boolean(customerSignedInName.value)) ||
+        (role === 'PERSONAL' && Boolean(trainerSignedInId.value))
+      if (!alreadyActive) {
+        const currentToken = trainerSignedInId.value
+          ? (sessionStorage.getItem('fitpeso-trainer-session') ?? '')
+          : (sessionStorage.getItem('fitpeso-customer-session') ??
+            sessionStorage.getItem('fitpeso-google-session') ?? '')
+        if (!currentToken) throw new Error('Sua sessão expirou. Entre novamente.')
+        const issuedToken = await switchProfileSession(currentToken, role)
+        // Carrega e valida o perfil novo antes de trocar a sessao local.
+        if (role === 'PERSONAL') {
+          const profile = await loadTrainerSession(issuedToken)
+          sessionStorage.setItem('fitpeso-trainer-session', issuedToken)
+          applyTrainerSession(profile)
+        } else {
+          const profile = await loadCustomerProfile(issuedToken)
+          sessionStorage.setItem('fitpeso-customer-session', issuedToken)
+          applyCustomerProfile(profile)
+          if (role === 'ADMIN' && !customerIsAdmin.value) throw new Error('Perfil de administrador indisponível.')
+        }
+      }
+      activeRole.value = role
+      try { sessionStorage.setItem('fitpeso-active-profile-role', role) } catch { /* sessao em memoria */ }
+      profileChooserOpen.value = false
+      profileChoiceRequired.value = false
+      goHome()
+    } catch (error) {
+      profileSwitchError.value = error instanceof Error ? error.message : 'Não foi possível alterar o perfil.'
+    } finally {
+      profileSwitchBusy.value = false
+    }
+  }
 
   const { theme } = useTheme()
 
@@ -263,8 +336,14 @@ export function useFitpesoApp() {
     showCustomerSignup,
     showTrainerSignup,
     saveRole: (role) => saveNavigationPreference(NAV_ROLE, role),
-    applyCustomerProfile,
-    applyTrainerSession,
+    applyCustomerProfile: (profile) => {
+      applyCustomerProfile(profile)
+      requireProfileSelection()
+    },
+    applyTrainerSession: (profile) => {
+      applyTrainerSession(profile)
+      requireProfileSelection()
+    },
     renderGoogleButton,
     goHome,
     returnToRequestFormAfterLogin,
@@ -516,6 +595,8 @@ export function useFitpesoApp() {
     pessoaId.value = profile.identity?.pessoaId ?? ''
     availableProfiles.value = profile.identity?.usuarios ?? []
     identityStatus.value = profile.identityStatus ?? ''
+    activeRole.value = profile.isAdmin && profile.identity?.usuarios.some(user => user.tipo === 'ADMIN') &&
+      sessionStorage.getItem('fitpeso-active-profile-role') === 'ADMIN' ? 'ADMIN' : 'CLIENTE'
     customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     customerIsAdmin.value = profile.isAdmin === true
     form.name = profile.name
@@ -574,6 +655,7 @@ export function useFitpesoApp() {
         const profile = await loadCustomerProfile(response.credential)
         sessionStorage.setItem('fitpeso-google-session', response.credential)
         applyCustomerProfile(profile)
+        requireProfileSelection()
         customerLoginStatus.value = `Conectado como ${profile.email}. Seus dados foram preenchidos.`
         googleProfileStatus.value =
           'Cadastro carregado. Confira a disponibilidade e os dados antes de enviar.'
@@ -690,6 +772,11 @@ export function useFitpesoApp() {
     customerIsAdmin.value = false
     pessoaId.value = ''
     availableProfiles.value = []
+    activeRole.value = ''
+    profileChooserOpen.value = false
+    profileChoiceRequired.value = false
+    profileSwitchError.value = ''
+    try { sessionStorage.removeItem('fitpeso-active-profile-role') } catch { /* sem storage */ }
     identityStatus.value = ''
     trainerSignedInId.value = ''
     trainerSignedInName.value = ''
@@ -865,6 +952,7 @@ export function useFitpesoApp() {
     pessoaId.value = profile.identity?.pessoaId ?? ''
     availableProfiles.value = profile.identity?.usuarios ?? []
     identityStatus.value = profile.identityStatus ?? ''
+    activeRole.value = 'PERSONAL'
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
@@ -1080,6 +1168,15 @@ export function useFitpesoApp() {
     customerSignedInName,
     customerPhotoUrl,
     customerIsAdmin,
+    activeRole,
+    selectableProfiles,
+    profileChooserOpen,
+    profileChoiceRequired,
+    profileSwitchBusy,
+    profileSwitchError,
+    openProfileChooser,
+    closeProfileChooser,
+    selectIdentityProfile,
     form,
     result,
     evaluating,
