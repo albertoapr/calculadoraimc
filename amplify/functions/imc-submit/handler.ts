@@ -182,7 +182,7 @@ function validAcademias(value: unknown) {
     new Set(value.map((x: string) => x.toLocaleLowerCase('pt-BR'))).size === value.length
 }
 
-function isValidTrainerRegistration(data: Record<string, unknown> | null) {
+function isValidTrainerRegistration(data: Record<string, unknown> | null, allowMissingInstagram = false) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.whatsapp)
@@ -197,7 +197,8 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null) {
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
-    /^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.') &&
+    ((allowMissingInstagram && !instagram) ||
+      (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
     (data.academias === undefined || validAcademias(data.academias)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
@@ -3129,7 +3130,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/redeem'))
     return redeemBetaTrainerSignup(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/complete'))
-    return completeBetaTrainerSignup(parseBody(event), isValidTrainerRegistration, registerTrainer)
+    return completeBetaTrainerSignup(parseBody(event), (data) => isValidTrainerRegistration(data, true), registerTrainer)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/verify-whatsapp-link'))
     return redeemWhatsAppLoginLink(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
