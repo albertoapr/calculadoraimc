@@ -650,10 +650,6 @@ export function useFitpesoApp() {
 
   async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (googleProfileTarget.value === 'client') {
-      if (loginAsTrainer.value) {
-        trainerLoginError.value = 'O acesso Google ainda não está disponível para personais. Entre por WhatsApp ou e-mail.'
-        return
-      }
       customerLoginStatus.value = 'Validando sua conta e buscando seu cadastro…'
       googleProfileStatus.value = ''
       try {
@@ -912,7 +908,8 @@ export function useFitpesoApp() {
 
   async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
     requestLoginReturn.value = fromRequest
-    loginAsTrainer.value = fromRequest ? false : readNavigationPreference(NAV_ROLE) === 'trainer'
+    // O perfil nao e escolhido antes do login; a API devolve os perfis habilitados.
+    loginAsTrainer.value = false
     changeLoginProfile()
     customerLoginStatus.value = ''
     customerLoginError.value = ''
