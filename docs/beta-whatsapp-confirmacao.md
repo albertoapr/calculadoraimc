@@ -127,3 +127,21 @@ A API limita uma solicitação de cada tipo por WhatsApp a cada 30 segundos (HTT
 **Atenção à implantação:** o repositório `calculadoraimc` possui a FitPeso, mas não o listener externo do WhatsApp Web da Beta. O deploy da FitPeso configura os endpoints, o cadastro e os links, porém **o robô precisa ser ajustado no serviço próprio** para reconhecer as duas frases, chamar a rota protegida e enviar `replyText`. Sem isso, as frases sozinhas não executarão o cadastro.
 
 Os novos perfis de personal iniciados pela Beta usam uma trava transacional permanente por WhatsApp para bloquear cadastros simultâneos com o mesmo número. O token temporário de preenchimento é descartado ao cancelar a tela.
+
+### Cadastro de professora/professor por mensagem única
+
+Exemplo de mensagem original recebida do contato:
+
+```text
+Sou professora da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.
+```
+
+A Beta deve encaminhar à mesma rota secreta `POST /api/auth/beta-onboarding` o campo `message` original, o número do remetente obtido do evento WhatsApp e `name` como nome de exibição do perfil (se disponível). A FitPeso identifica a intenção explícita de cadastro, o tipo `PERSONAL`, a academia, o bairro e a cidade. A expressão "professora" sugere `feminino` para pré-preenchimento, mas não constitui validação do sexo; o campo pode ser alterado.
+
+Para preencher a academia, o backend consulta a tabela real de academias **ativas** pela cidade e compara nome e bairro. Só faz associação automática quando há **uma correspondência única**. Sem correspondência ou com ambiguidade, a tela orienta selecionar/conferir manualmente — nunca cria academia nova ou presume uma correspondência.
+
+A Beta envia exatamente o campo `replyText` da API para o mesmo contato, contendo um link de uso único com formato:
+`https://develop.fitpeso.com.br/cadastro/personal?betaSignupCode=TOKEN`.
+Ao clicar, o navegador abre o formulário de cadastro de personal, consome a prova por POST e preenche nome de exibição, telefone confirmado, cidade e academia identificada. Instagram e CREF são **opcionais para o cadastro iniciado pela Beta**, e podem ser adicionados depois. O link expira em 5 minutos; a sessão temporária do formulário expira em 15 minutos e o telefone não precisa de outra validação.
+
+A automação do WhatsApp Web da Beta **não faz parte deste repositório**. Deve ser adaptada para reconhecer essa mensagem natural, encaminhá-la à rota autenticada e responder com o link. O deploy do backend FitPeso sozinho não faz a Beta responder.

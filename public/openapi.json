@@ -5198,7 +5198,7 @@
         ],
         "operationId": "betaOnboarding",
         "summary": "Beta: iniciar cadastro ou login por comando WhatsApp",
-        "description": "Endpoint reservado à integração Beta autenticada. O número deve ser extraído da origem real da mensagem, jamais do conteúdo digitado pelo contato. A Beta encaminha o campo replyText ao mesmo remetente.",
+        "description": "Endpoint reservado à integração Beta autenticada. O número deve ser extraído da origem real da mensagem, jamais do conteúdo digitado pelo contato. A Beta encaminha o campo replyText ao mesmo remetente. Reconhece também mensagem natural, como 'Sou professora da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso'. Identifica a academia no banco, desde que a correspondência seja única e ativa.",
         "security": [
           {
             "IntegrationSecret": []
@@ -5217,10 +5217,7 @@
                 "properties": {
                   "message": {
                     "type": "string",
-                    "enum": [
-                      "Sou cliente fitpeso",
-                      "Sou personal fitpeso"
-                    ]
+                    "description": "Comando de cadastro direto ou frase natural de professora/professor com nome da academia, bairro, cidade e intenção explícita de cadastro."
                   },
                   "whatsapp": {
                     "type": "string",
@@ -5287,7 +5284,7 @@
         },
         "responses": {
           "200": {
-            "description": "Retorna started, sessionToken, whatsapp, name e expiresAt"
+            "description": "Retorna sessão temporária, nome de exibição, telefone, cidade, sexo sugerido e academia validada para pré-preencher o formulário."
           },
           "410": {
             "description": "Link já utilizado ou expirado"
@@ -5305,7 +5302,7 @@
         ],
         "operationId": "completeBetaTrainerSignup",
         "summary": "Concluir cadastro profissional com WhatsApp já confirmado",
-        "description": "Exige token temporário obtido com o link da Beta; usa o número vinculado ao token. Registra o personal como ativo e verificado, retornando sessão de login.",
+        "description": "Exige token temporário obtido com o link da Beta; usa o número vinculado ao token. Registra o personal como ativo e verificado, retornando sessão de login. Instagram e CREF podem ser informados posteriormente quando a confirmação foi feita pela Beta.",
         "requestBody": {
           "required": true,
           "content": {
