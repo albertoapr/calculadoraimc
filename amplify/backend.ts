@@ -335,6 +335,7 @@ signupResource.addResource('verify-phone').addMethod('POST', lambdaIntegration()
 // Sessao unica: consulta a pessoa e seus perfis utilizando apenas token validado.
 const authResource = apiResource.addResource('auth')
 authResource.addResource('me').addMethod('GET', lambdaIntegration())
+authResource.addResource('switch-profile').addMethod('POST', lambdaIntegration())
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
