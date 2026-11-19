@@ -388,6 +388,8 @@ export function useFitpesoApp() {
     signupOtherAcademy,
     trainerForm,
     trainerStatus,
+    betaTrainerSignupToken,
+    startBetaTrainerSignupFromLink,
     trainerVerificationLink,
     trainerSubmitting,
     closeTrainerSignup,
@@ -395,7 +397,18 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     stopTrainerRegistration,
-  } = useTrainerSignup({ onClose: goHome, active: showTrainerSignup })
+  } = useTrainerSignup({
+    onClose: goHome,
+    active: showTrainerSignup,
+    replaceUrl: (url) => router.replace(url),
+    onAuthenticated: async (token) => {
+      const profile = await loadTrainerSession(token)
+      sessionStorage.setItem('fitpeso-trainer-session', token)
+      applyTrainerSession(profile)
+      requireProfileSelection()
+      goHome()
+    },
+  })
   const requestBirthDate = ref('')
 
   const googleProfileTarget = ref<'client' | 'trainer' | 'customer'>('client')
@@ -1111,7 +1124,10 @@ export function useFitpesoApp() {
     // Restore existing state first; redeemed links must win over an older session.
     void (async () => {
       await restoreSessions()
-      if (new URL(window.location.href).searchParams.has('whatsappLoginCode')) {
+      const opened = new URL(window.location.href)
+      if (opened.searchParams.has('betaSignupCode')) {
+        await startBetaTrainerSignupFromLink()
+      } else if (opened.searchParams.has('whatsappLoginCode')) {
         await finishWhatsAppLoginFromLink()
       } else {
         await finishEmailLoginFromLink()
@@ -1320,6 +1336,7 @@ export function useFitpesoApp() {
     signupAcademyChoice,
     signupOtherAcademy,
     trainerForm,
+    betaTrainerSignupToken,
     trainerStatus,
     trainerVerificationLink,
     trainerSubmitting,
