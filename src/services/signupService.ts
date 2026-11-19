@@ -69,12 +69,22 @@ export async function redeemBetaTrainerSignup(code: string) {
     whatsapp?: string
     name?: string
     expiresAt?: number
+    city?: string
+    sexHint?: string
+    academyMatch?: string
+    academyName?: string
+    proposedAcademyName?: string
+    proposedNeighborhood?: string
     error?: string
   }>('/api/auth/beta-trainer-signup/redeem', { method: 'POST', body: { code } })
   if (!response.ok || !response.body.started || !response.body.sessionToken ||
       !response.body.whatsapp)
     throw apiError(response, 'Este link não é mais válido. Solicite outro à Beta.')
-  return response.body as { started: true; sessionToken: string; whatsapp: string; name?: string; expiresAt?: number }
+  return response.body as {
+    started: true; sessionToken: string; whatsapp: string; name?: string; expiresAt?: number
+    city?: string; sexHint?: string; academyMatch?: string; academyName?: string
+    proposedAcademyName?: string; proposedNeighborhood?: string
+  }
 }
 
 export async function completeBetaTrainerSignup(
