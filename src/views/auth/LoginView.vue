@@ -3,7 +3,6 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
-  loginAsTrainer,
   customerLoginError,
   loginIdentifier,
   loginStep,
@@ -18,7 +17,6 @@ const {
   trainerLoginLink,
   trainerLoginDialog,
   trainerLoginSubmitting,
-  requestLoginReturn,
   setGoogleButtonContainer,
   goBackFromTitle,
   whatsappChecking,
@@ -28,7 +26,6 @@ const {
   whatsappProgress,
   whatsappSecondsRemaining,
   markWhatsAppOpened,
-  changeLoginProfile,
   pollTrainerWhatsAppLogin,
   pollCustomerLogin,
   continueLoginIdentifier,
@@ -83,25 +80,11 @@ const {
           @input="emailLoginError = ''"
         />
       </label>
-      <label class="login-profile-option field-wide" for="login-as-trainer">
-        <input
-          id="login-as-trainer"
-          v-model="loginAsTrainer"
-          type="checkbox"
-          :disabled="requestLoginReturn"
-          @change="changeLoginProfile"
-        />
-        <span>Entrar como personal trainer</span>
-      </label>
       <p v-if="emailLoginError" class="login-validation-error field-wide" role="alert">
         {{ emailLoginError }}
       </p>
       <button class="primary-button field-wide" type="submit">Continuar</button>
-      <p v-if="loginAsTrainer" class="login-step-note field-wide" role="status">
-        Acesso de personal: use o WhatsApp ou o e-mail cadastrado como profissional.
-        O Google está disponível somente para clientes.
-      </p>
-      <div v-else class="login-google-alternative field-wide">
+      <div class="login-google-alternative field-wide">
         <span>ou</span>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
       </div>
@@ -127,24 +110,12 @@ const {
           confirmar o link.
         </p>
         <p
-          v-if="
-            loginIdentifierKind === 'email'
-              ? emailLoginError
-              : loginAsTrainer
-                ? trainerLoginError
-                : customerLoginError
-          "
+          v-if="loginIdentifierKind === 'email' ? emailLoginError : customerLoginError"
           class="login-validation-error field-wide"
           role="alert"
           aria-live="assertive"
         >
-          {{
-            loginIdentifierKind === 'email'
-              ? emailLoginError
-              : loginAsTrainer
-                ? trainerLoginError
-                : customerLoginError
-          }}
+          {{ loginIdentifierKind === 'email' ? emailLoginError : customerLoginError }}
         </p>
         <button
           id="login-confirm-action"
@@ -185,7 +156,7 @@ const {
       Criar cadastro
     </button>
     <div
-      v-if="loginAsTrainer ? trainerLoginDialog : showCustomerLoginDialog"
+      v-if="trainerLoginDialog || showCustomerLoginDialog"
       class="success-overlay"
       role="presentation"
     >
@@ -210,10 +181,10 @@ const {
           esta tela e aguarde a confirmação automática.
         </p>
         <a
-          v-if="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink"
+          v-if="trainerLoginDialog ? trainerLoginLink : customerLoginVerificationLink"
           class="primary-button customer-verification-link"
           @click="markWhatsAppOpened"
-          :href="loginAsTrainer ? trainerLoginLink : customerLoginVerificationLink"
+          :href="trainerLoginDialog ? trainerLoginLink : customerLoginVerificationLink"
           target="_blank"
           rel="noopener noreferrer"
           >{{
@@ -251,7 +222,7 @@ const {
           class="primary-button"
           type="button"
           :disabled="whatsappChecking"
-          @click="loginAsTrainer ? pollTrainerWhatsAppLogin() : pollCustomerLogin()"
+          @click="trainerLoginDialog ? pollTrainerWhatsAppLogin() : pollCustomerLogin()"
         >
           Código já enviado
         </button>
