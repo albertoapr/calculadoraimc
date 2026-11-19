@@ -41,6 +41,7 @@ export function useTrainerSignup(options: {
 
   const trainerStatus = ref('')
   const betaTrainerSignupToken = ref('')
+  const betaAcademyHint = ref('')
 
   async function startBetaTrainerSignupFromLink() {
     betaTrainerSignupToken.value = ''
@@ -56,8 +57,19 @@ export function useTrainerSignup(options: {
       betaTrainerSignupToken.value = body.sessionToken
       trainerForm.phone = body.whatsapp
       if (body.name && !trainerForm.name) trainerForm.name = body.name
+      if (body.city && availableCities.includes(body.city)) trainerForm.cities = [body.city]
+      if (body.sexHint === 'masculino' || body.sexHint === 'feminino') trainerForm.sex = body.sexHint
+      if (body.academyMatch === 'matched' && body.academyName && body.academyName.length <= 60) {
+        trainerForm.academias = [body.academyName]
+        betaAcademyHint.value = 'Academia identificada no cadastro da FitPeso. Confira antes de concluir.'
+      } else if (body.proposedAcademyName) {
+        betaAcademyHint.value = 'Não foi possível confirmar automaticamente a academia ' +
+          body.proposedAcademyName +
+          (body.proposedNeighborhood ? ' (' + body.proposedNeighborhood + ')' : '') +
+          '. Selecione ou informe a academia correta.'
+      }
       suggestTrainerSlug()
-      trainerStatus.value = 'WhatsApp confirmado pela Beta. Complete seus dados para ativar o perfil sem enviar outro código.'
+      trainerStatus.value = 'WhatsApp confirmado pela Beta. Confira seus dados; Instagram e CREF podem ser informados depois.'
     } catch (error) {
       trainerStatus.value = error instanceof Error ? error.message : 'Link expirado. Solicite outro à Beta.'
     }
@@ -70,6 +82,7 @@ export function useTrainerSignup(options: {
   function closeTrainerSignup() {
     stopTrainerRegistration()
     betaTrainerSignupToken.value = ''
+    betaAcademyHint.value = ''
     trainerStatus.value = ''
     options.onClose()
   }
@@ -119,8 +132,9 @@ export function useTrainerSignup(options: {
         'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
     } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
-    } else if (!instagram) {
-      validationError = 'Informe um Instagram válido: @usuario, usuario ou instagram.com/usuario.'
+    } else if ((!betaTrainerSignupToken.value && !instagram) ||
+      (trainerForm.instagram.trim() && !instagram)) {
+      validationError = 'Confira o Instagram informado ou deixe em branco para cadastrar depois.'
     } else if (!isValidEmail(email, true)) {
       validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'
     } else if (!isValidLooseCref(cref)) {
@@ -198,6 +212,7 @@ export function useTrainerSignup(options: {
     trainerForm,
     trainerStatus,
     betaTrainerSignupToken,
+    betaAcademyHint,
     startBetaTrainerSignupFromLink,
     trainerVerificationLink,
     trainerSubmitting,
