@@ -11,6 +11,7 @@ const {
   signupOtherAcademy,
   trainerForm,
   trainerStatus,
+  betaTrainerSignupToken,
   trainerVerificationLink,
   trainerSubmitting,
   setGoogleButtonContainer,
@@ -39,14 +40,18 @@ const {
         </button>
         Cadastro de personal
       </h1>
-      <p class="intro">
+      <p v-if="betaTrainerSignupToken" class="intro">
+        Seu WhatsApp já foi confirmado pela Beta. Complete os campos obrigatórios para ativar o
+        perfil sem uma nova confirmação.
+      </p>
+      <p v-else class="intro">
         Preencha seus dados para receber solicitações de usuários. Confirme o WhatsApp informado
         para ativar seu perfil.
       </p>
     </header>
 
     <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
-      <div class="google-fill field-wide trainer-contact-reminder">
+      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide trainer-contact-reminder">
         <p>
           Antes de enviar o cadastro, baixe e salve o cartão de contato da Beta para receber o
           retorno.
@@ -114,6 +119,7 @@ const {
         <input
           id="trainer-phone"
           v-model="trainerForm.phone"
+          :readonly="Boolean(betaTrainerSignupToken)"
           name="trainerPhone"
           type="tel"
           autocomplete="tel"
@@ -231,7 +237,7 @@ const {
         />
       </label>
       <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
-        {{ trainerSubmitting ? 'Salvando cadastro…' : 'Enviar cadastro' }}
+        {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : 'Enviar cadastro' }}
         <span aria-hidden="true">→</span>
       </button>
       <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">
