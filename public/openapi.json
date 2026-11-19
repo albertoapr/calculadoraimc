@@ -5190,6 +5190,200 @@
           }
         }
       }
+    },
+    "/api/auth/beta-onboarding": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "betaOnboarding",
+        "summary": "Beta: iniciar cadastro ou login por comando WhatsApp",
+        "description": "Endpoint reservado à integração Beta autenticada. O número deve ser extraído da origem real da mensagem, jamais do conteúdo digitado pelo contato. A Beta encaminha o campo replyText ao mesmo remetente.",
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message",
+                  "whatsapp"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "enum": [
+                      "Sou cliente fitpeso",
+                      "Sou personal fitpeso"
+                    ]
+                  },
+                  "whatsapp": {
+                    "type": "string",
+                    "example": "+5521999999999"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Nome de exibição não verificado civilmente"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link seguro e replyText para a Beta responder ao remetente"
+          },
+          "400": {
+            "description": "Comando não reconhecido"
+          },
+          "403": {
+            "description": "Acesso sem segredo de integração"
+          },
+          "409": {
+            "description": "Cadastro conflitante ou inativo"
+          },
+          "429": {
+            "description": "Tentativas frequentes (cooldown 30 s)"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-trainer-signup/redeem": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "redeemBetaTrainerSignup",
+        "summary": "Consumir link de cadastro profissional iniciado pela Beta",
+        "description": "Somente POST consome um token de uso único. GET e pré-visualizações nunca consomem o link. Emite sessão vinculada ao WhatsApp válida por 15 minutos.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retorna started, sessionToken, whatsapp, name e expiresAt"
+          },
+          "410": {
+            "description": "Link já utilizado ou expirado"
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/beta-trainer-signup/complete": {
+      "post": {
+        "tags": [
+          "Autenticação"
+        ],
+        "operationId": "completeBetaTrainerSignup",
+        "summary": "Concluir cadastro profissional com WhatsApp já confirmado",
+        "description": "Exige token temporário obtido com o link da Beta; usa o número vinculado ao token. Registra o personal como ativo e verificado, retornando sessão de login.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "onboardingSessionToken",
+                  "name",
+                  "whatsapp",
+                  "sex",
+                  "slug",
+                  "cities",
+                  "instagram"
+                ],
+                "properties": {
+                  "onboardingSessionToken": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 43
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "whatsapp": {
+                    "type": "string"
+                  },
+                  "sex": {
+                    "type": "string",
+                    "enum": [
+                      "masculino",
+                      "feminino"
+                    ]
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "cities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "instagram": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "academias": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cref": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "registered, sessionToken e slug do novo personal"
+          },
+          "400": {
+            "description": "Dados obrigatórios inválidos"
+          },
+          "401": {
+            "description": "Confirmação expirou ou não foi emitida"
+          },
+          "409": {
+            "description": "Cadastro duplicado ou conflito"
+          }
+        }
+      }
     }
   },
   "components": {
