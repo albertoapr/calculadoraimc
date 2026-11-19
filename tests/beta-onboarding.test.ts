@@ -23,3 +23,18 @@ test('link de cadastro de personal usa domínio personalizado e token opaco', ()
   assert.throws(() => createBetaTrainerSignupLink('https://develop.fitpeso.com.br/', 'short'))
   assert.throws(() => createBetaTrainerSignupLink('http://develop.fitpeso.com.br/', token))
 })
+
+test('mensagem natural de professora identifica academia, bairro e cidade sem Instagram e CREF', async () => {
+  const { parseBetaOnboardingMessage } = await import('../amplify/functions/imc-submit/beta-onboarding-command')
+  assert.deepEqual(
+    parseBetaOnboardingMessage('Sou professora da Academia Aquatic Center, no bairro Vila Emil, em Mesquita, e quero me cadastrar na FitPeso.'),
+    { role: 'trainer', city: 'Mesquita', neighborhood: 'vila emil', academyName: 'aquatic center', sexHint: 'feminino' },
+  )
+  assert.deepEqual(
+    parseBetaOnboardingMessage('Sou professor da academia SmartFit em Mesquita e quero me cadastrar na FitPeso.'),
+    { role: 'trainer', city: 'Mesquita', academyName: 'smartfit', sexHint: 'masculino' },
+  )
+  assert.equal(parseBetaOnboardingMessage('Sou professora da Academia Aquatic Center, no bairro Vila Emil, em Mesquita.'), null)
+  assert.equal(parseBetaOnboardingMessage('Sou professora da Academia Aquatic Center, em Mesquita, e quero me cadastrar em outro app.'), null)
+  assert.equal(parseBetaOnboardingMessage('Sou professora da Academia X e quero me cadastrar na FitPeso. Veja meu site https://example.com'), null)
+})
