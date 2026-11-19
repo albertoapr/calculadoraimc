@@ -34,7 +34,6 @@ import type {
   GoogleIdentityApi,
   TrainerReceivedRequest,
   TrainerAccountProfile,
-  CustomerAccountProfile,
   IdentityRole,
 } from '../types/domain'
 

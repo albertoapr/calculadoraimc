@@ -13,7 +13,6 @@ const {
   customerLoginVerificationLink,
   showCustomerLoginDialog,
   customerLoginSubmitting,
-  trainerLoginError,
   trainerLoginLink,
   trainerLoginDialog,
   trainerLoginSubmitting,
