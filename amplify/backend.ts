@@ -210,7 +210,7 @@ personalsV2.addGlobalSecondaryIndex({
   projectionType: dynamodb.ProjectionType.ALL,
 })
 
-// As novas tabelas ainda não são usadas pelas rotas atuais.
+// Preserva os nomes/tabelas existentes; o backfill ocorre apenas após login verificado.
 const newDataTables = [
   [pessoasV2, 'FITPESO_PESSOA_TABLE'],
   [identificacoesV2, 'FITPESO_PESSOA_IDENTIFICACAO_TABLE'],
@@ -219,35 +219,43 @@ const newDataTables = [
   [customersV2, 'FITPESO_CUSTOMER_V2_TABLE'],
   [personalsV2, 'FITPESO_PERSONAL_V2_TABLE'],
 ] as const
-// Isola as permissões das tabelas V2 em uma política gerenciada.
-// O IAM limita a soma das políticas inline de uma role a 10.240 caracteres;
-// criar múltiplas políticas inline não elimina esse limite.
-const identityDataPolicy = new iam.ManagedPolicy(
-  Stack.of(backend.imcSubmit.resources.lambda),
-  'FitpesoIdentityDataAccess',
-)
-trainerBanners.grantReadWrite(identityDataPolicy)
+
+// Cada política gerenciada IAM tem limite de 6.144 caracteres (PolicySize).
+// Dividimos as permissões por domínio; múltiplas políticas inline não resolveriam
+// o limite cumulativo de 10.240 caracteres da role.
+const lambdaPolicyStack = Stack.of(backend.imcSubmit.resources.lambda)
+const identityDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoIdentityDataAccess')
+const profileDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoProfileDataAccess')
+const bannerDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoTrainerBannerAccess')
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
 lambdaRole.addManagedPolicy(identityDataPolicy)
+lambdaRole.addManagedPolicy(profileDataPolicy)
+lambdaRole.addManagedPolicy(bannerDataPolicy)
 
+trainerBanners.grantReadWrite(bannerDataPolicy)
 for (const [table, envName] of newDataTables) {
-  table.grantReadWriteData(identityDataPolicy)
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
-// Criacao atomica de pessoa + identificacao comprovada.
+for (const table of [pessoasV2, identificacoesV2, usuariosV2]) {
+  table.grantReadWriteData(identityDataPolicy)
+}
+for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
+  table.grantReadWriteData(profileDataPolicy)
+}
+// Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
   resources: [pessoasV2.tableArn, identificacoesV2.tableArn],
 }))
-// Consultas em GSIs exigem permissão para ARN do índice.
-for (const [table, indices] of [
-  [identificacoesV2, ['IdentificacoesByPessoa']],
-  [usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
-  [customersV2, ['CustomerByUsuario']],
-  [personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
+// Consultas em GSIs exigem permissão nos ARNs dos índices correspondentes.
+for (const [policy, table, indices] of [
+  [identityDataPolicy, identificacoesV2, ['IdentificacoesByPessoa']],
+  [identityDataPolicy, usuariosV2, ['UsuarioByPessoa', 'UsuarioByUsername', 'UsuarioByTipo']],
+  [profileDataPolicy, customersV2, ['CustomerByUsuario']],
+  [profileDataPolicy, personalsV2, ['PersonalByUsuario', 'PersonalByCidade']],
 ] as const) {
-  identityDataPolicy.addStatements(new iam.PolicyStatement({
+  policy.addStatements(new iam.PolicyStatement({
     actions: ['dynamodb:Query'],
     resources: indices.map(index => `${table.tableArn}/index/${index}`),
   }))
