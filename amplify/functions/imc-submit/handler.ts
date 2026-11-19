@@ -2,6 +2,7 @@ import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcad
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
+import { betaOnboardingCommand, redeemBetaTrainerSignup, completeBetaTrainerSignup } from './beta-onboarding'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -1623,7 +1624,10 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   return { slug, verificationCode: challenge.code }
 }
 
-async function registerTrainer(data: Record<string, unknown>) {
+async function registerTrainer(
+  data: Record<string, unknown>,
+  betaSignup?: { betaSignupSessionHash: string; issuedSessionToken: string },
+) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
   const requestCodesTable = process.env.IMC_REQUESTS_TABLE
@@ -1652,17 +1656,47 @@ async function registerTrainer(data: Record<string, unknown>) {
     ExpressionAttributeNames: { '#trainerId': 'trainerId' },
     ConsistentRead: true,
   }))
-  if (existingSlug.Item) return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+  if (existingSlug.Item) {
+    if (betaSignup) throw new TrainerSlugUnavailableError()
+    return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+  }
 
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
-      {
+      ...(!betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
           Item: challenge.item,
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
-      },
+      }] : [{
+        Update: {
+          TableName: requestCodesTable,
+          Key: { codeHash: { S: betaSignup.betaSignupSessionHash } },
+          UpdateExpression: 'SET consumedAt = :now',
+          ConditionExpression: '#flow = :flow AND whatsapp = :phone AND expiresAt > :now AND attribute_not_exists(consumedAt)',
+          ExpressionAttributeNames: { '#flow': 'flow' },
+          ExpressionAttributeValues: {
+            ':flow': { S: 'fitpeso-beta-trainer-signup-session' },
+            ':phone': { S: whatsapp },
+            ':now': { N: String(Math.floor(Date.now() / 1000)) },
+          },
+        },
+      }, {
+        Put: {
+          TableName: requestCodesTable,
+          Item: {
+            codeHash: { S: hashCode(betaSignup.issuedSessionToken) },
+            flow: { S: 'fitpeso-trainer-login-session' },
+            identityProof: { S: 'WHATSAPP' },
+            whatsapp: { S: whatsapp },
+            trainerId: { S: trainerId },
+            city: { S: cities[0] },
+            expiresAt: { N: String(Math.floor(Date.now() / 1000) + 12 * 60 * 60) },
+          },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        },
+      }]),
       {
         Put: {
           TableName: slugTableName,
@@ -1685,9 +1719,13 @@ async function registerTrainer(data: Record<string, unknown>) {
             instagram: { S: instagram },
             academias: { L: academias.map(name => ({ S: name })) },
             ...(cref ? { cref: { S: cref } } : {}),
-            active: { BOOL: false },
-            whatsappVerified: { BOOL: false },
-            status: { S: 'pending_verification' },
+            active: { BOOL: Boolean(betaSignup) },
+            whatsappVerified: { BOOL: Boolean(betaSignup) },
+            status: { S: betaSignup ? 'active' : 'pending_verification' },
+            ...(betaSignup ? {
+              whatsappVerifiedAt: { N: submittedAt },
+              signupSource: { S: 'BETA_WHATSAPP' },
+            } : {}),
             submittedAt: { N: submittedAt },
           },
           ConditionExpression: 'attribute_not_exists(city) AND attribute_not_exists(trainerId)',
@@ -3071,6 +3109,15 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-onboarding')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return betaOnboardingCommand(parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/redeem'))
+    return redeemBetaTrainerSignup(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/complete'))
+    return completeBetaTrainerSignup(parseBody(event), isValidTrainerRegistration, registerTrainer)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/verify-whatsapp-link'))
     return redeemWhatsAppLoginLink(parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
