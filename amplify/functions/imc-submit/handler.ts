@@ -214,6 +214,8 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
+    (data.sex === undefined || data.sex === 'masculino' || data.sex === 'feminino') &&
+    (data.heightCm === undefined || (typeof data.heightCm === 'number' && Number.isFinite(data.heightCm) && data.heightCm >= 80 && data.heightCm <= 250)) &&
     (sessionToken === '' || /^[A-Za-z0-9_-]{43}$/.test(sessionToken))
 }
 
@@ -226,6 +228,8 @@ async function registerCustomer(data: Record<string, unknown>) {
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
   const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
+  const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
+  const heightCm = typeof data.heightCm === 'number' ? data.heightCm : undefined
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
     Key: { whatsapp: { S: whatsapp } },
@@ -248,6 +252,8 @@ async function registerCustomer(data: Record<string, unknown>) {
             name: { S: name },
             ...(email ? { email: { S: email } } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
+            ...(sex ? { sex: { S: sex } } : {}),
+            ...(heightCm !== undefined ? { heightCm: { N: String(heightCm) } } : {}),
             status: { S: 'PENDING_VERIFICATION' },
             whatsappVerified: { BOOL: false },
             createdAt: { S: new Date(now * 1000).toISOString() },
@@ -453,7 +459,8 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 }
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
-  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
+  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') ||
+    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -505,6 +512,8 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp,
         email: customer.Item.email?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+        sex: customer.Item.sex?.S ?? '',
+        heightCm: customer.Item.heightCm?.N ? Number(customer.Item.heightCm.N) : undefined,
         isAdmin: customer.Item.isAdmin?.BOOL === true,
         googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
         ...identity,
@@ -574,6 +583,8 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         whatsapp: customer.whatsapp?.S ?? '',
         email,
         dateOfBirth: customer.dateOfBirth?.S ?? '',
+        sex: customer.sex?.S ?? '',
+        heightCm: customer.heightCm?.N ? Number(customer.heightCm.N) : undefined,
         isAdmin: customer.isAdmin?.BOOL === true,
         googlePhotoUrl,
         ...identity,
@@ -1191,8 +1202,10 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   if (auth.error) return auth.error
   const data = parseBody(event)
   if (!data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth'].includes(key))) {
-    return response(400, { error: 'Informe um nome válido. A data de nascimento é opcional até solicitar atendimento.' })
+      (data.sex !== undefined && data.sex !== 'masculino' && data.sex !== 'feminino') ||
+      (data.heightCm !== undefined && (typeof data.heightCm !== 'number' || !Number.isFinite(data.heightCm) || data.heightCm < 80 || data.heightCm > 250)) ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'sex', 'heightCm'].includes(key))) {
+    return response(400, { error: 'Confira o nome, o sexo, a altura (80 a 250 cm) e a data de nascimento.' })
   }
   const tableName = process.env.FITPESO_CUSTOMERS_TABLE
   if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
@@ -1201,12 +1214,17 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
     await dynamodb.send(new UpdateItemCommand({
       TableName: tableName,
       Key: { whatsapp: { S: whatsapp } },
-      UpdateExpression: data.dateOfBirth ? 'SET #name = :name, #dob = :dob, updatedAt = :updated' : 'SET #name = :name, updatedAt = :updated',
+      UpdateExpression: 'SET #name = :name, updatedAt = :updated' +
+        (data.dateOfBirth ? ', #dob = :dob' : '') +
+        (data.sex !== undefined ? ', #sex = :sex' : '') +
+        (data.heightCm !== undefined ? ', #height = :height' : ''),
       ConditionExpression: '#status = :active AND whatsappVerified = :verified',
-      ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#status': 'status' },
+      ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#sex': 'sex', '#height': 'heightCm', '#status': 'status' },
       ExpressionAttributeValues: {
         ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
         ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+        ...(data.sex !== undefined ? { ':sex': { S: data.sex as string } } : {}),
+        ...(data.heightCm !== undefined ? { ':height': { N: String(data.heightCm) } } : {}),
         ':updated': { S: new Date().toISOString() },
         ':active': { S: 'ACTIVE' }, ':verified': { BOOL: true },
       },
