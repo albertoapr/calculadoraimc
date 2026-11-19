@@ -9,6 +9,24 @@ const allowedHosts = new Set([
   'develop.fitpeso.com.br',
 ])
 
+export function trustedFitpesoUrl(baseUrl: string): URL {
+  const url = new URL(baseUrl)
+  if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname) || url.port ||
+      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('Untrusted WhatsApp login URL')
+  }
+  return url
+}
+
+/** Only the signed-up trainer can redeem the one-use onboarding link. */
+export function createBetaTrainerSignupLink(baseUrl: string, token: string) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('Invalid onboarding token')
+  const url = trustedFitpesoUrl(baseUrl)
+  url.pathname = '/cadastro/personal'
+  url.searchParams.set('betaSignupCode', token)
+  return url.toString()
+}
+
 export function createWhatsAppMagicLink(input: {
   code: string
   whatsapp: string
@@ -25,12 +43,7 @@ export function createWhatsAppMagicLink(input: {
       !Number.isSafeInteger(input.nowSeconds) || input.challengeExpiresAt <= input.nowSeconds) {
     throw new Error('Invalid WhatsApp login link request')
   }
-  const url = new URL(input.baseUrl)
-  // Avoid open redirects: only the owned production and development origins are accepted.
-  if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname) || url.port ||
-      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new Error('Untrusted WhatsApp login URL')
-  }
+  const url = trustedFitpesoUrl(input.baseUrl)
   if (input.role === 'trainer' && (!input.trainerId || !input.city)) {
     throw new Error('Trainer identification is required')
   }
