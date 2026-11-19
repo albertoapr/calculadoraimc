@@ -1219,7 +1219,12 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
         (data.sex !== undefined ? ', #sex = :sex' : '') +
         (data.heightCm !== undefined ? ', #height = :height' : ''),
       ConditionExpression: '#status = :active AND whatsappVerified = :verified',
-      ExpressionAttributeNames: { '#name': 'name', '#dob': 'dateOfBirth', '#sex': 'sex', '#height': 'heightCm', '#status': 'status' },
+      ExpressionAttributeNames: {
+        '#name': 'name', '#status': 'status',
+        ...(data.dateOfBirth ? { '#dob': 'dateOfBirth' } : {}),
+        ...(data.sex !== undefined ? { '#sex': 'sex' } : {}),
+        ...(data.heightCm !== undefined ? { '#height': 'heightCm' } : {}),
+      },
       ExpressionAttributeValues: {
         ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
         ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
