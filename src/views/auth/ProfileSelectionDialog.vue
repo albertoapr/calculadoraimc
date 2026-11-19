@@ -126,4 +126,30 @@ onMounted(async () => {
   color: var(--blue);
   font-weight: 700;
 }
+
+/* O modal é teleportado para <body>, então sua superfície precisa respeitar
+   explicitamente o tema escuro em vez de herdar --card-bg do tema claro. */
+:global(html[data-theme='dark'] .profile-select-dialog) {
+  background: #1b2720;
+  border-color: #3b4b40;
+  color: #f4f5f0;
+  color-scheme: dark;
+}
+:global(html[data-theme='dark'] .profile-select-option) {
+  background: #223128;
+  border-color: #4b6052;
+  color: #f4f5f0;
+}
+:global(html[data-theme='dark'] .profile-select-option:hover:not(:disabled)),
+:global(html[data-theme='dark'] .profile-select-option:focus-visible) {
+  background: #293c30;
+  border-color: #f2a04b;
+}
+:global(html[data-theme='dark'] .profile-select-option:focus-visible) {
+  outline: 2px solid #f2a04b;
+  outline-offset: 2px;
+}
+:global(html[data-theme='dark'] .profile-select-error) {
+  color: #fecaca !important;
+}
 </style>
