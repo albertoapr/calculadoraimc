@@ -12,6 +12,7 @@ const {
   trainerForm,
   trainerStatus,
   betaTrainerSignupToken,
+  betaAcademyHint,
   trainerVerificationLink,
   trainerSubmitting,
   setGoogleButtonContainer,
@@ -64,7 +65,7 @@ const {
         >
         <small>WhatsApp: +55 21 97111-8383</small>
       </div>
-      <div class="google-fill field-wide">
+      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide">
         <p>Complete nome e e-mail com sua conta Google</p>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
         <small v-if="googleProfileStatus" role="status" aria-live="polite">{{
@@ -164,9 +165,10 @@ const {
         </div>
       </fieldset>
       <label class="field field-wide" for="trainer-instagram"
-        ><span class="field-label">Perfil do Instagram</span>
+        ><span class="field-label">Perfil do Instagram <span v-if="betaTrainerSignupToken">(opcional; pode preencher depois)</span></span>
         <fieldset class="availability-group field-wide">
           <legend>Academias onde atende (até 5)</legend>
+          <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
           <div class="public-academy-add">
             <select v-model="signupAcademyChoice" aria-label="Selecionar academia">
               <option value="">Selecione uma academia</option>
@@ -220,7 +222,7 @@ const {
           autocomplete="url"
           maxlength="100"
           placeholder="@seuperfil ou instagram.com/seuperfil"
-          required
+          :required="!betaTrainerSignupToken"
         />
       </label>
       <label class="field field-wide" for="trainer-cref"
