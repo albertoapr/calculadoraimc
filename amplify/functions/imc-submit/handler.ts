@@ -2,7 +2,7 @@ import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcad
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
-import { betaOnboardingCommand, redeemBetaTrainerSignup, completeBetaTrainerSignup } from './beta-onboarding'
+import { betaOnboardingCommand, betaOnboardingTemplate, redeemBetaTrainerSignup, completeBetaTrainerSignup } from './beta-onboarding'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import {
   ConditionalCheckFailedException,
@@ -3142,10 +3142,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
-  if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-onboarding')) {
+  if (event.httpMethod === 'POST' &&
+      (event.resource?.endsWith('/auth/beta-onboarding') ||
+        event.resource?.endsWith('/auth/beta-onboarding-template'))) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
-    return betaOnboardingCommand(parseBody(event))
+    return event.resource?.endsWith('/auth/beta-onboarding-template')
+      ? betaOnboardingTemplate(parseBody(event))
+      : betaOnboardingCommand(parseBody(event))
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/beta-trainer-signup/redeem'))
     return redeemBetaTrainerSignup(parseBody(event))
