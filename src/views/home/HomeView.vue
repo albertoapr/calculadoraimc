@@ -140,7 +140,7 @@ function confirmAcademy(academy: string) {
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.home-academy-prefix { color: #286b4e; font-size: .72em; font-weight: 600; }
+.home-academy-prefix { color: #286b4e; font-size: .92em; font-weight: 600; }
 .home-academy-name { color: #263f33; }
 :global(html[data-theme='dark']) .home-academy-prefix { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-name { color: #ffffff; }
