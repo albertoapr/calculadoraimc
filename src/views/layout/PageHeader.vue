@@ -91,12 +91,13 @@ watch(viewMode, (mode) => {
           <button
             type="button"
             class="academy-change-button"
-            :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
+            :aria-label="`Alterar academia. ${academyName ? 'Academia ' + academyName : 'Selecione uma academia'}`"
             aria-haspopup="dialog"
             title="Selecionar academia"
             @click="academyDialogOpen = true"
           >
-            <span class="academy-title-name">{{ academyName || 'Selecione uma academia' }}</span>
+            <span v-if="academyName" class="academy-title-label"><span class="academy-title-prefix">Academia</span> <span class="academy-title-name">{{ academyName }}</span></span>
+            <span v-else>Selecione uma academia</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="m6 9 6 6 6-6" />
             </svg>
@@ -190,7 +191,7 @@ watch(viewMode, (mode) => {
   color: #263f33;
 }
 :global(html[data-theme='dark']) .academy-public-title .academy-title-prefix {
-  color: #ffffff;
+  color: #55d6a3;
 }
 :global(html[data-theme='dark']) .academy-public-title .academy-title-name {
   color: #ffffff;
