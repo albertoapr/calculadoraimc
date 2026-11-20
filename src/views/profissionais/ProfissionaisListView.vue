@@ -31,6 +31,15 @@ function updateSelection(trainerId: string, checked: boolean) {
 
 <template>
   <div class="home-trainer-list">
+    <a
+      class="trainer-register-lookup"
+      href="https://www.confef.org.br/registrados/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Consultar registro profissional
+      <span aria-hidden="true">↗</span>
+    </a>
     <PersonalCard
       v-for="trainer in visibleTrainers"
       :key="trainer.trainerId"
@@ -54,6 +63,21 @@ function updateSelection(trainerId: string, checked: boolean) {
 </template>
 
 <style scoped>
+.trainer-register-lookup {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 5px;
+  color: var(--blue);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.trainer-register-lookup:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
 .home-trainer-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
