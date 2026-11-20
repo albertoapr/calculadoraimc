@@ -97,7 +97,6 @@ const emit = defineEmits<{
       Selecione uma cidade no cabeçalho para encontrar profissionais.
     </p>
     <template v-else>
-      <p v-if="trainers.length" class="trainer-selection-hint">Toque em um ou mais personais para selecionar.</p>
       <ProfissionaisListView
         :show-request-link="!selectingForDraft"
         @request-trainer="(id) => emit('request-trainer', id)"
@@ -167,7 +166,6 @@ const emit = defineEmits<{
 }
 .home-list-heading,
 .home-list-message { margin: 0; }
-.trainer-selection-hint { margin: 0; color: var(--muted); font-size: 14px; }
 @media (max-width: 520px) {
   .home-trainer-controls {
     grid-template-columns: minmax(0, 1fr);
