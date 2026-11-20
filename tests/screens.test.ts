@@ -33,6 +33,11 @@ test('extracted screens preserve login, request age between steps and theme chan
   globalThis.fetch = async (input) => {
     const url = String(input)
     requestCalls.push(url)
+    if (url.endsWith('/api/auth/beta-onboarding-share')) {
+      return Response.json({
+        shareText: 'Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.\\nHash: ' + 'a'.repeat(64),
+      })
+    }
     if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
       return Response.json({
         authenticated: true,
@@ -121,6 +126,8 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   try {
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
+    const shareButton = document.querySelector('[aria-label="Compartilhar FitPeso com um amigo"]')
+    assert.ok(shareButton, 'O rodapé deve oferecer compartilhamento da FitPeso')
     const citySelector = document.querySelector('#home-city')
     assert.ok(citySelector)
     assert.ok(citySelector.closest('.fitpeso-home-topbar'))
