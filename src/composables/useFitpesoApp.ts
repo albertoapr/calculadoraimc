@@ -3,6 +3,7 @@ import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
 import { loadCustomerProfile, loadTrainerSession, switchProfileSession } from '../services/authenticationService'
+import { ApiError } from '../services/http/apiClient'
 import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
@@ -678,14 +679,37 @@ export function useFitpesoApp() {
         showCustomerLogin.value = false
         await returnToRequestFormAfterLogin()
       } catch (error) {
-        customerLoginStatus.value =
-          error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
-        googleProfileStatus.value = customerLoginStatus.value
         try {
           sessionStorage.removeItem('fitpeso-google-session')
         } catch {
           /* Storage pode estar desativado. */
         }
+        if (error instanceof ApiError && error.status === 404) {
+          // Google já validou a identidade; um cadastro novo ainda exige dados
+          // complementares e confirmação do WhatsApp.
+          try {
+            const part = response.credential.split('.')[1]
+            if (part) {
+              const bytes = Uint8Array.from(
+                atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')),
+                (char) => char.charCodeAt(0),
+              )
+              const claims = JSON.parse(new TextDecoder().decode(bytes)) as { email?: string; name?: string }
+              if (typeof claims.name === 'string') customerForm.name = claims.name.trim()
+              if (typeof claims.email === 'string') {
+                openCustomerSignupFromLogin(claims.email.trim().toLowerCase())
+                return
+              }
+            }
+          } catch {
+            // Não confiar em dados malformados no preenchimento do formulário.
+          }
+          openCustomerSignupFromLogin('')
+          return
+        }
+        customerLoginStatus.value =
+          error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
+        googleProfileStatus.value = customerLoginStatus.value
       }
       return
     }
