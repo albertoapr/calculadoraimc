@@ -186,12 +186,14 @@ watch(viewMode, (mode) => {
 }
 .academy-title-prefix {
   color: #286b4e;
+  font-size: .72em;
+  font-weight: 600;
 }
 .academy-title-name {
   color: #263f33;
 }
 :global(html[data-theme='dark']) .academy-public-title .academy-title-prefix {
-  color: #55d6a3;
+  color: #ffffff;
 }
 :global(html[data-theme='dark']) .academy-public-title .academy-title-name {
   color: #ffffff;
