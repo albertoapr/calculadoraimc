@@ -140,9 +140,9 @@ function confirmAcademy(academy: string) {
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.home-academy-prefix { color: #286b4e; }
+.home-academy-prefix { color: #286b4e; font-size: .72em; font-weight: 600; }
 .home-academy-name { color: #263f33; }
-:global(html[data-theme='dark']) .home-academy-prefix { color: #55d6a3; }
+:global(html[data-theme='dark']) .home-academy-prefix { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-name { color: #ffffff; }
 .home-academy-change-button svg {
   width: 17px;
