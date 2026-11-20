@@ -1,6 +1,57 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import { requestApi } from '../../services/http/apiClient'
+
 const { theme, viewMode } = useFitpesoContext()
+const BETA_WHATSAPP = '5521971118383'
+const shareText = ref('')
+const shareLoading = ref(false)
+const shareError = ref('')
+
+// O HMAC é assinado no backend; jamais incluir o segredo no frontend.
+async function loadSignedInvitation() {
+  if (shareText.value || shareLoading.value) return
+  shareLoading.value = true
+  shareError.value = ''
+  try {
+    const response = await requestApi<{ shareText?: string; error?: string }>(
+      '/api/auth/beta-onboarding-share',
+    )
+    const invitation = response.body?.shareText
+    if (!response.ok || typeof invitation !== 'string' ||
+        !/^Quero me inscrever em fitpeso\\.com\\.br como cliente[^\\r\\n]*\\nHash: [a-f0-9]{64}$/.test(invitation)) {
+      throw new Error('Convite indisponível')
+    }
+    shareText.value = invitation
+  } catch {
+    shareError.value = 'Não foi possível preparar o convite. Tente novamente.'
+  } finally {
+    shareLoading.value = false
+  }
+}
+
+onMounted(() => { void loadSignedInvitation() })
+
+async function shareFitpeso() {
+  if (!shareText.value) {
+    await loadSignedInvitation()
+    if (!shareText.value) return
+  }
+  const betaLink = `https://wa.me/${BETA_WHATSAPP}?text=${encodeURIComponent(shareText.value)}`
+  const invitation = `Conheça a FitPeso! Para se inscrever como cliente, abra este link e envie a mensagem pronta para a Beta:\\n${betaLink}`
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: 'Convite FitPeso', text: invitation })
+      return
+    } catch (error) {
+      // Cancelar a folha de compartilhamento não deve abrir outra janela.
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    }
+  }
+  // Desktop e navegadores sem Web Share API: escolher um amigo no WhatsApp.
+  window.open(`https://wa.me/?text=${encodeURIComponent(invitation)}`, '_blank', 'noopener,noreferrer')
+}
 </script>
 
 <template>
@@ -26,6 +77,21 @@ const { theme, viewMode } = useFitpesoContext()
           />
         </svg>
       </a>
+      <button
+        type="button"
+        class="box-contact-link footer-share-button"
+        aria-label="Compartilhar FitPeso com um amigo"
+        title="Compartilhar FitPeso com um amigo"
+        :disabled="shareLoading"
+        @click="shareFitpeso"
+      >
+        <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="2.5" />
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="18" cy="19" r="2.5" />
+          <path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6" />
+        </svg>
+      </button>
       <span class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
       <a
         v-if="viewMode === 'home'"
@@ -43,6 +109,7 @@ const { theme, viewMode } = useFitpesoContext()
       >
       <a href="/sobre" class="box-contact-link" @click.prevent="viewMode = 'about'">Sobre</a>
     </nav>
+    <span v-if="shareError" class="footer-share-error" role="status">{{ shareError }}</span>
     <div class="box-theme-actions" style="margin-left: auto">
       <button
         type="button"
@@ -81,5 +148,19 @@ const { theme, viewMode } = useFitpesoContext()
 }
 .footer-menu-links .box-contact-link {
   justify-self: auto;
+}
+.footer-share-button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.footer-share-button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+.footer-share-error {
+  font-size: 12px;
+  color: var(--muted);
 }
 </style>
