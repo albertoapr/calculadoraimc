@@ -60,8 +60,6 @@ O texto assinado fornece **integridade**, não comprovação de identidade civil
 
 ## Compartilhamento pelo rodapé da FitPeso
 
-O botão de compartilhar, ao lado do WhatsApp no rodapé, usa `GET /api/auth/beta-onboarding-share` para obter o `shareText` **do template de cliente**, já assinado no servidor com o mesmo segredo da Beta. Este GET é público, não exige o cabeçalho secreto e retorna somente o texto fixo e o hash; não retorna o segredo e não cria cadastros ou sessões.
+O botão de compartilhar no rodapé divulga a aplicação com uma mensagem simples contendo o link `https://fitpeso.com.br`. O convite não contém hash, link direto para a Beta ou comando de cadastro e não chama nenhuma API. No celular, utiliza o compartilhamento nativo quando disponível; nos demais navegadores, abre o WhatsApp para o usuário escolher o destinatário.
 
-O navegador compartilha um convite com um link `https://wa.me/5521971118383?text=...` cujo parâmetro `text` contém **exatamente** o `shareText` (texto oficial + quebra de linha + `Hash:`); quem recebe o convite abre a conversa e envia a mensagem pronta à Beta. Não inserir saudações ou texto livre dentro do corpo assinado. Em navegadores com Web Share API, o usuário escolhe o aplicativo ou destinatário; caso contrário, abre a interface de compartilhamento do WhatsApp.
-
-O número `5521971118383` é o mesmo contato WhatsApp do rodapé e deve estar conectado ao listener da Beta que processa `POST /api/auth/beta-onboarding`. Caso pertença apenas ao suporte, configure o número correto antes de disponibilizar o botão ao público. O novo endpoint exige deploy do backend e do frontend, além da integração externa da Beta preparada para reconhecer o template assinado.
+**Importante:** isso não altera os dois templates assinados de cadastro direto pela Beta descritos acima. Os comandos enviados à Beta ainda exigem HMAC-SHA256 para serem aceitos. Apenas o convite de divulgação pública deixou de utilizar esse fluxo.
