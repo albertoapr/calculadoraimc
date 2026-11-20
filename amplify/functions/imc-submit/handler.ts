@@ -3165,6 +3165,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/customers/verify-email-login') && (event.httpMethod === 'GET' || event.httpMethod === 'POST')) return verifyEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-email-login')) return beginEmailLogin(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/email-login-status')) return emailLoginStatus(event)
+  // A assinatura é pública e reutilizável; somente o servidor conhece o segredo.
+  // Este GET revela exclusivamente o template oficial para compartilhar, sem emitir sessões.
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/auth/beta-onboarding-share')) {
+    return betaOnboardingTemplate({ role: 'customer' })
+  }
   if (event.httpMethod === 'POST' &&
       (event.resource?.endsWith('/auth/beta-onboarding') ||
         event.resource?.endsWith('/auth/beta-onboarding-template'))) {
