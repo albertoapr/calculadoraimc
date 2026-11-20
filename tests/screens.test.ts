@@ -33,6 +33,9 @@ test('extracted screens preserve login, request age between steps and theme chan
   globalThis.fetch = async (input) => {
     const url = String(input)
     requestCalls.push(url)
+    if (url.endsWith('/api/customers/start-email-login')) {
+      return Response.json({ error: 'Não foi encontrado um cadastro ativo e confirmado com este e-mail.' }, { status: 400 })
+    }
     if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
       return Response.json({
         authenticated: true,
@@ -199,15 +202,22 @@ test('extracted screens preserve login, request age between steps and theme chan
 
     await click(/^Cadastre-se$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
-    const signupContact = document.querySelector('#signup-contact') as HTMLInputElement
-    assert.ok(signupContact)
+    const signupContact = document.querySelector('#login-identifier') as HTMLInputElement
+    assert.ok(signupContact, 'Entrar e Cadastre-se abrem a mesma tela')
+    const googleContainer = document.querySelector('.login-google-alternative')
+    assert.ok(googleContainer)
+    assert.ok(
+      Boolean(googleContainer.compareDocumentPosition(signupContact) & Node.DOCUMENT_POSITION_FOLLOWING),
+      'Google deve aparecer antes do campo de contato',
+    )
     signupContact.value = 'cliente@example.test'
     signupContact.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     document
       .querySelector('form')!
       .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     await nextTick()
-    assert.ok(document.querySelector('#customer-name'))
+    assert.ok(document.querySelector('#customer-name'), 'Conta nova deve avançar para os dados complementares')
     await click(/^Cadastrar-me como personal$/)
     await new Promise((resolve) => setTimeout(resolve, 10))
     await nextTick()
