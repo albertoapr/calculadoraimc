@@ -4,6 +4,7 @@ import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
   customerLoginError,
+  customerLoginStatus,
   loginIdentifier,
   loginStep,
   loginIdentifierKind,
@@ -82,6 +83,9 @@ const {
           @input="emailLoginError = ''"
         />
       </label>
+      <p v-if="customerLoginStatus && !customerLoginError" class="login-validation-error field-wide" role="status">
+        {{ customerLoginStatus }}
+      </p>
       <p v-if="customerLoginError && !emailLoginError" class="login-validation-error field-wide" role="alert">
         {{ customerLoginError }}
       </p>
