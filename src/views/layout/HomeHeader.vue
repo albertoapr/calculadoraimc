@@ -21,7 +21,6 @@ const {
   openCustomerRequests,
   openMyProfile,
   openTrainerReceivedRequests,
-  openCustomerSignupFromLogin,
 } = useFitpesoContext()
 const profileLabel = computed(() =>
   activeRole.value === 'ADMIN' ? 'Administrador' : activeRole.value === 'PERSONAL' ? 'Personal' : 'Cliente',
@@ -77,7 +76,7 @@ onBeforeUnmount(() => {
         <a
           href="/cadastro/cliente"
           class="header-signup-link"
-          @click.prevent="openCustomerSignupFromLogin()"
+          @click.prevent="openCustomerLogin()"
           >Cadastre-se</a
         >
       </nav>
