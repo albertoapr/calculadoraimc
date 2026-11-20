@@ -35,7 +35,7 @@ test('extracted screens preserve login, request age between steps and theme chan
     requestCalls.push(url)
     if (url.endsWith('/api/auth/beta-onboarding-share')) {
       return Response.json({
-        shareText: 'Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.\\nHash: ' + 'a'.repeat(64),
+        shareText: 'Quero me inscrever em fitpeso.com.br como cliente para encontrar um personal trainer e solicitar acompanhamento de treino.\nHash: ' + 'a'.repeat(64),
       })
     }
     if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
