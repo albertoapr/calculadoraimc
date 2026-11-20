@@ -88,29 +88,20 @@ watch(viewMode, (mode) => {
           &lt;
         </button>
         <h1 id="page-title" class="academy-public-title">
-          <span v-if="academyName" class="academy-title-name">{{ academyName }}</span>
-          <span v-else>Selecione uma academia</span>
-        </h1>
-        <button
-          type="button"
-          class="academy-change-button"
-          aria-label="Alterar academia"
-          title="Alterar academia"
-          @click="academyDialogOpen = true"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+          <button
+            type="button"
+            class="academy-change-button"
+            :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
+            aria-haspopup="dialog"
+            title="Selecionar academia"
+            @click="academyDialogOpen = true"
           >
-            <path d="m4 20 4.5-1 10.7-10.7a2.2 2.2 0 0 0-3.1-3.1L5.4 15.9 4 20Z" />
-            <path d="m14.5 6.5 3 3" />
-          </svg>
-        </button>
+            <span class="academy-title-name">{{ academyName || 'Selecione uma academia' }}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        </h1>
       </div>
       <p v-if="publicTrainerAcademyDetails.neighborhood" class="academy-page-neighborhood">
         {{ publicTrainerAcademyDetails.neighborhood }}
@@ -183,10 +174,8 @@ watch(viewMode, (mode) => {
 }
 .academy-public-title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  column-gap: 0.25em;
   min-width: 0;
   font-size: clamp(20px, 5.4vw, 31px);
   line-height: 1.16;
@@ -213,19 +202,31 @@ watch(viewMode, (mode) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 8px;
-  color: var(--ink);
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 3px 5px;
+  color: #263f33;
   background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 .academy-change-button svg {
-  width: 22px;
-  height: 22px;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: #286b4e;
+  transition: transform .15s ease;
 }
+.academy-change-button:hover svg { transform: translateY(2px); }
+:global(html[data-theme='dark']) .academy-change-button { color: #55d6a3; }
+:global(html[data-theme='dark']) .academy-change-button svg { color: #55d6a3; }
 .academy-change-button:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
