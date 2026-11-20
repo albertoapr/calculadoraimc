@@ -186,7 +186,7 @@ watch(viewMode, (mode) => {
 }
 .academy-title-prefix {
   color: #286b4e;
-  font-size: .72em;
+  font-size: .92em;
   font-weight: 600;
 }
 .academy-title-name {
