@@ -47,13 +47,14 @@ function confirmAcademy(academy: string) {
         <button
           type="button"
           class="home-academy-change-button"
-          :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
+          :aria-label="`Alterar academia. ${academyName ? 'Academia ' + academyName : 'Selecione uma academia'}`"
           aria-haspopup="dialog"
           title="Selecionar academia"
           :disabled="!homeCity || publicTrainersLoading"
           @click="academyDialogOpen = true"
         >
-          <span>{{ academyName || 'Selecione uma academia' }}</span>
+          <span v-if="academyName" class="home-academy-label"><span class="home-academy-prefix">Academia</span> <span class="home-academy-name">{{ academyName }}</span></span>
+          <span v-else>Selecione uma academia</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="m6 9 6 6 6-6" />
           </svg>
@@ -139,6 +140,10 @@ function confirmAcademy(academy: string) {
   overflow-wrap: anywhere;
   cursor: pointer;
 }
+.home-academy-prefix { color: #286b4e; }
+.home-academy-name { color: #263f33; }
+:global(html[data-theme='dark']) .home-academy-prefix { color: #55d6a3; }
+:global(html[data-theme='dark']) .home-academy-name { color: #ffffff; }
 .home-academy-change-button svg {
   width: 17px;
   height: 17px;
