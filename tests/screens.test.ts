@@ -126,10 +126,10 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.ok(citySelector.closest('.fitpeso-home-topbar'))
     assert.match((citySelector as HTMLSelectElement).options[1]?.text ?? '', /, RJ$/)
     assert.equal(document.querySelector('.home-gym-title'), null)
-    assert.equal(
-      (document.querySelector('#home-academy option[value=""]') as HTMLOptionElement)?.text,
-      'Selecione uma academia',
-    )
+    assert.equal(document.querySelector('.home-academy-title')?.textContent?.trim(), 'Selecione uma academia')
+    const changeAcademy = document.querySelector('.home-academy-change-button') as HTMLButtonElement
+    assert.ok(changeAcademy)
+    assert.equal(changeAcademy.disabled, true, 'Select a city before changing the academy')
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
       /Personal.*Trainer/s,
