@@ -44,30 +44,21 @@ function confirmAcademy(academy: string) {
   <div class="home-academy-heading" aria-label="Academia selecionada">
     <div class="home-academy-heading-row">
       <h2 class="home-academy-title">
-        <span v-if="academyName">{{ academyName }}</span>
-        <span v-else>Selecione uma academia</span>
-      </h2>
-      <button
-        type="button"
-        class="home-academy-change-button"
-        aria-label="Alterar academia"
-        title="Alterar academia"
-        :disabled="!homeCity || publicTrainersLoading"
-        @click="academyDialogOpen = true"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+        <button
+          type="button"
+          class="home-academy-change-button"
+          :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
+          aria-haspopup="dialog"
+          title="Selecionar academia"
+          :disabled="!homeCity || publicTrainersLoading"
+          @click="academyDialogOpen = true"
         >
-          <path d="m4 20 4.5-1 10.7-10.7a2.2 2.2 0 0 0-3.1-3.1L5.4 15.9 4 20Z" />
-          <path d="m14.5 6.5 3 3" />
-        </svg>
-      </button>
+          <span>{{ academyName || 'Selecione uma academia' }}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </h2>
     </div>
     <p v-if="publicTrainerAcademyDetails.neighborhood" class="home-academy-neighborhood">
       {{ publicTrainerAcademyDetails.neighborhood }}
@@ -117,36 +108,45 @@ function confirmAcademy(academy: string) {
   min-width: 0;
 }
 .home-academy-heading-row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  min-width: 0;
 }
 .home-academy-title {
-  grid-column: 2;
   margin: 0;
   min-width: 0;
   font-size: clamp(20px, 5.4vw, 31px);
   line-height: 1.16;
   text-align: center;
-  overflow-wrap: anywhere;
-  color: #263f33;
 }
 .home-academy-change-button {
-  grid-column: 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 8px;
-  color: var(--ink);
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 3px 5px;
+  color: #263f33;
   background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
-.home-academy-change-button svg { width: 22px; height: 22px; }
+.home-academy-change-button svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: #286b4e;
+  transition: transform .15s ease;
+}
+.home-academy-change-button:hover svg { transform: translateY(2px); }
 .home-academy-change-button:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
@@ -160,7 +160,8 @@ function confirmAcademy(academy: string) {
   line-height: 1.3;
   text-align: center;
 }
-:global(html[data-theme='dark']) .home-academy-title { color: #55d6a3; }
+:global(html[data-theme='dark']) .home-academy-change-button { color: #55d6a3; }
+:global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
 .home-training-request-button {
   display: block;
   width: 100%;
