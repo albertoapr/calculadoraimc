@@ -346,8 +346,6 @@ authResource.addResource('switch-profile').addMethod('POST', lambdaIntegration()
 authResource.addResource('verify-whatsapp-link').addMethod('POST', lambdaIntegration())
 authResource.addResource('beta-onboarding').addMethod('POST', lambdaIntegration())
 authResource.addResource('beta-onboarding-template').addMethod('POST', lambdaIntegration())
-// Convite fixo com HMAC público: apenas leitura da mensagem, nunca do segredo.
-authResource.addResource('beta-onboarding-share').addMethod('GET', lambdaIntegration())
 const betaTrainerSignupResource = authResource.addResource('beta-trainer-signup')
 betaTrainerSignupResource.addResource('redeem').addMethod('POST', lambdaIntegration())
 betaTrainerSignupResource.addResource('complete').addMethod('POST', lambdaIntegration())
