@@ -153,14 +153,14 @@ function confirmAcademy(academy: string) {
 }
 .home-academy-change-button:disabled { opacity: .5; cursor: not-allowed; }
 .home-academy-neighborhood {
-  margin: 4px 0 0;
+  margin: -5px 0 0;
   color: var(--muted);
   font-size: 16px;
   font-weight: 600;
   line-height: 1.3;
   text-align: center;
 }
-:global(html[data-theme='dark']) .home-academy-change-button { color: #55d6a3; }
+:global(html[data-theme='dark']) .home-academy-change-button { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
 .home-training-request-button {
   display: block;
