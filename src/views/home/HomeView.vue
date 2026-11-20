@@ -26,6 +26,21 @@ function confirmAcademy(academy: string) {
 </script>
 
 <template>
+  <h1 class="home-training-title">
+    <span class="home-training-heading">
+      <span class="brand-peso">Personal</span>
+      <span class="brand-fit">Trainer</span>
+    </span>
+  </h1>
+  <p class="home-training-subtitle">para todos os bolsos e rotinas</p>
+  <div class="root-home-photo home-training-photo">
+    <img
+      class="root-home-personal-image"
+      :src="rootHomePersonalImage"
+      alt="Personal trainer orientando uma aluna durante um exercício na academia"
+      loading="lazy"
+    />
+  </div>
   <div class="home-academy-heading" aria-label="Academia selecionada">
     <div class="home-academy-heading-row">
       <h2 class="home-academy-title">
@@ -85,21 +100,6 @@ function confirmAcademy(academy: string) {
     </svg>
     Buscar Profissionais
   </button>
-  <h1 class="home-training-title">
-    <span class="home-training-heading">
-      <span class="brand-peso">Personal</span>
-      <span class="brand-fit">Trainer</span>
-    </span>
-  </h1>
-  <p class="home-training-subtitle">para todos os bolsos e rotinas</p>
-  <div class="root-home-photo home-training-photo">
-    <img
-      class="root-home-personal-image"
-      :src="rootHomePersonalImage"
-      alt="Personal trainer orientando uma aluna durante um exercício na academia"
-      loading="lazy"
-    />
-  </div>
 </template>
 
 <style scoped>
