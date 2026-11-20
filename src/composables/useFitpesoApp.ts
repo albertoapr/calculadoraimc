@@ -350,6 +350,7 @@ export function useFitpesoApp() {
       requireProfileSelection()
     },
     renderGoogleButton,
+    beginCustomerSignup: (contact) => openCustomerSignupFromLogin(contact),
     goHome,
     returnToRequestFormAfterLogin,
     replaceUrl: (url) => router.replace(url),
@@ -1015,10 +1016,19 @@ export function useFitpesoApp() {
     }
   }
 
-  function openCustomerSignupFromLogin() {
+  function openCustomerSignupFromLogin(contact = loginIdentifier.value) {
     clearPendingWhatsAppLogin()
-    signupStep.value = 1
-    signupContact.value = loginIdentifier.value.trim()
+    const identifier = contact.trim()
+    signupContact.value = identifier
+    // O contato já foi validado na tela unificada; apresentar somente os dados
+    // complementares do novo cadastro e manter a confirmação do WhatsApp.
+    signupStep.value = identifier ? 2 : 1
+    if (identifier.includes('@')) {
+      customerForm.email = identifier
+    } else if (identifier) {
+      customerForm.whatsapp = identifier
+      customerForm.email = ''
+    }
     showCustomerLogin.value = false
     showCustomerSignup.value = true
   }
