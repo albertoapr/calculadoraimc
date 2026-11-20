@@ -78,6 +78,7 @@ async function copyCref() {
       </div>
       <small v-if="crefFeedback" role="status" class="trainer-cref-feedback">{{ crefFeedback }}</small>
       <span v-if="alreadySent" class="trainer-already-sent">Solicitação já enviada</span>
+    </div>
       <a
         v-if="instagramUrl"
         class="trainer-instagram-link"
@@ -94,7 +95,6 @@ async function copyCref() {
           <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
         </svg>
       </a>
-    </div>
     <input
       v-if="selectable"
       class="trainer-selection-checkbox"
@@ -146,7 +146,7 @@ async function copyCref() {
 .trainer-cref-link:hover { text-decoration: underline; }
 .trainer-cref-feedback { color: var(--muted); font-size: .78rem; }
 .trainer-cref-link:focus-visible { outline: 2px solid #55d6a3; outline-offset: 2px; }
-.trainer-instagram-link { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; color: var(--ink); }
+.trainer-instagram-link { display: inline-flex; flex: 0 0 26px; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: auto; color: var(--ink); }
 .trainer-instagram-link svg { width: 21px; height: 21px; }
 .trainer-already-sent { font-size: .75rem; color: var(--muted); }
 .trainer-selection-checkbox {
