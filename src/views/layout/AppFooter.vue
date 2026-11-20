@@ -20,7 +20,7 @@ async function loadSignedInvitation() {
     )
     const invitation = response.body?.shareText
     if (!response.ok || typeof invitation !== 'string' ||
-        !/^Quero me inscrever em fitpeso\\.com\\.br como cliente[^\\r\\n]*\\nHash: [a-f0-9]{64}$/.test(invitation)) {
+        !/^Quero me inscrever em fitpeso\.com\.br como cliente[^\r\n]*\nHash: [a-f0-9]{64}$/.test(invitation)) {
       throw new Error('Convite indisponível')
     }
     shareText.value = invitation
@@ -39,7 +39,7 @@ async function shareFitpeso() {
     if (!shareText.value) return
   }
   const betaLink = `https://wa.me/${BETA_WHATSAPP}?text=${encodeURIComponent(shareText.value)}`
-  const invitation = `Conheça a FitPeso! Para se inscrever como cliente, abra este link e envie a mensagem pronta para a Beta:\\n${betaLink}`
+  const invitation = `Conheça a FitPeso! Para se inscrever como cliente, abra este link e envie a mensagem pronta para a Beta:\n${betaLink}`
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ title: 'Convite FitPeso', text: invitation })
