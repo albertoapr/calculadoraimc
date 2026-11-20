@@ -129,7 +129,9 @@ test('extracted screens preserve login, request age between steps and theme chan
     assert.equal(document.querySelector('.home-academy-title')?.textContent?.trim(), 'Selecione uma academia')
     const changeAcademy = document.querySelector('.home-academy-change-button') as HTMLButtonElement
     assert.ok(changeAcademy)
-    assert.equal(changeAcademy.getAttribute('aria-label'), 'Alterar academia')
+    assert.match(changeAcademy.getAttribute('aria-label') ?? '', /^Alterar academia/)
+    assert.equal(changeAcademy.getAttribute('aria-haspopup'), 'dialog')
+    assert.equal(changeAcademy.querySelector('svg path')?.getAttribute('d'), 'm6 9 6 6 6-6')
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
       /Personal.*Trainer/s,
