@@ -3284,7 +3284,7 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
           }))
         : Promise.resolve(null),
     ])
-    const uniqueRequests = new Map<string, NonNullable<typeof byPhone>['Items'][number]>()
+    const uniqueRequests = new Map<string, Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>>()
     for (const item of [...(byCustomerId?.Items ?? []), ...(byPhone?.Items ?? [])]) {
       const id = item.requestId?.S
       if (id && customerOwnsRequest(item, auth.profile!)) uniqueRequests.set(id, item)
