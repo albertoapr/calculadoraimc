@@ -11,6 +11,7 @@ import {
 
 export function useCustomerSignup(options: {
   onClose: (confirmed: boolean) => void
+  onGoogleAuthenticated?: (credential: string) => Promise<void>
   onAuthenticated?: (
     sessionToken: string,
     profile: {
@@ -157,8 +158,12 @@ export function useCustomerSignup(options: {
       customerStatus.value = 'Informe um nome válido.'
       return
     }
-    if (!whatsapp) {
+    if (customerForm.whatsapp.trim() && !whatsapp) {
       customerStatus.value = 'Informe um WhatsApp válido com DDD.'
+      return
+    }
+    if (!whatsapp && !signupGoogleCredential.value) {
+      customerStatus.value = 'Para cadastro sem WhatsApp, continue com o Google.'
       return
     }
     if (!isValidEmail(email, true)) {
@@ -187,6 +192,15 @@ export function useCustomerSignup(options: {
         controller.signal,
       )
       if (!isCurrent()) return
+      if (!whatsapp) {
+        if (!signupGoogleCredential.value) throw new Error('A confirmação do Google expirou.')
+        await options.onGoogleAuthenticated?.(signupGoogleCredential.value)
+        if (!isCurrent()) return
+        customerVerificationComplete.value = true
+        customerStatus.value = 'Cadastro concluído! Você já pode acessar sua conta.'
+        closeCustomerSignup()
+        return
+      }
       customerSessionToken.value = sessionToken
       const message = `Confirmar cadastro FitPeso ${verificationCode}\nWhatsApp: ${whatsapp}${name ? `\nNome: ${name}` : ''}`
       customerVerificationCode.value = verificationCode
