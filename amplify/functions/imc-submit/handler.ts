@@ -1543,7 +1543,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
-    })) })
+    }))
     for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
       changes.push({ Put: { TableName: linksTable,
         Item: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } },
