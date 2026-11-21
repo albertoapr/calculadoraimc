@@ -409,6 +409,7 @@ export function useFitpesoApp() {
     signupAcademyChoice,
     signupOtherAcademy,
     trainerForm,
+    linkedAccount,
     trainerStatus,
     betaTrainerSignupToken,
     betaAcademyHint,
