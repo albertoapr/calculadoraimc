@@ -1282,7 +1282,7 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
           (data.heightCm !== undefined ? ', altura_cm = :height' : ''),
         ConditionExpression: 'user_id = :user AND ativo = :active',
         ExpressionAttributeValues: {
-          ':name': { S: (data.name as string).trim().replace(/\\s+/g, ' ') },
+          ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ':updated': { S: new Date().toISOString() },
           ':user': { S: auth.profile!.userId }, ':active': { BOOL: true },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
