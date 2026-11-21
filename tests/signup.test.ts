@@ -404,6 +404,41 @@ test('signup modules preserve registration contracts, validation and confirmatio
       scope.stop()
     })
 
+    await t.test('perfil profissional reutiliza conta Google sem duplicar dados pessoais', async () => {
+      const scope = effectScope()
+      scopes.push(scope)
+      const active = ref(true)
+      const p = scope.run(() => useTrainerSignup({
+        onClose() {},
+        active,
+        linkedAccount: () => ({
+          name: 'Ana Cliente', email: 'ana@example.test',
+          sex: 'feminino', dateOfBirth: '1986-01-20',
+          whatsapp: '', googleCredential: 'signed-google-id-token',
+        }),
+      }))!
+      assert.equal(p.linkedAccount.value?.name, 'Ana Cliente')
+      assert.equal(p.trainerForm.name, 'Ana Cliente')
+      assert.equal(p.trainerForm.email, 'ana@example.test')
+      assert.equal(p.trainerForm.sex, 'feminino')
+      assert.equal(p.trainerForm.dateOfBirth, '1986-01-20')
+      assert.equal(p.trainerForm.phone, '')
+      assert.equal(p.trainerForm.slug, 'ana-cliente')
+      p.trainerForm.phone = '(21) 99999-9999'
+      p.trainerForm.cities = ['Mesquita']
+      p.trainerForm.instagram = '@ana.cliente'
+      status = 201
+      reply = { registered: true, verificationCode: 'verified-code', slug: 'ana-cliente' }
+      const before = calls.length
+      await p.sendTrainerSignup()
+      assert.equal(calls.length, before + 1)
+      const body = JSON.parse(String(calls.at(-1)?.init?.body ?? '{}'))
+      assert.equal(body.name, 'Ana Cliente')
+      assert.equal(body.email, 'ana@example.test')
+      assert.equal(body.googleCredential, 'signed-google-id-token')
+      scope.stop()
+    })
+
     await t.test(
       'personal duplicate clicks and unmount do not create a late confirmation link',
       async () => {
