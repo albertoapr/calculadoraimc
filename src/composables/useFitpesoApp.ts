@@ -428,6 +428,7 @@ export function useFitpesoApp() {
       whatsapp: customerForm.whatsapp,
       dateOfBirth: customerForm.dateOfBirth,
       googleCredential: sessionStorage.getItem('fitpeso-google-session') ?? '',
+      photoUrl: customerPhotoUrl.value,
     } : null,
     onClose: goHome,
     active: showTrainerSignup,
