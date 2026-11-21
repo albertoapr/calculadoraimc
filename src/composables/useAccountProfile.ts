@@ -32,6 +32,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
   const editingProfile = reactive<EditableProfile>({
     name: '',
     trainerId: '',
+    city: '',
     sex: '',
     heightCm: undefined,
     whatsapp: '',
@@ -57,6 +58,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
   function applyProfileForEditing(profile: AccountProfile) {
     editingProfile.name = profile.name ?? ''
     editingProfile.trainerId = 'trainerId' in profile ? profile.trainerId : ''
+    editingProfile.city = 'city' in profile ? profile.city ?? '' : ''
     const profileSex = 'sex' in profile ? profile.sex : undefined
     editingProfile.sex = profileSex === 'masculino' || profileSex === 'feminino' ? profileSex : ''
     editingProfile.heightCm = 'heightCm' in profile ? profile.heightCm : undefined
