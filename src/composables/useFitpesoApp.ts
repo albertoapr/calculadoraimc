@@ -665,6 +665,7 @@ export function useFitpesoApp() {
 
   async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (googleProfileTarget.value === 'client') {
+      customerLoginError.value = ''
       customerLoginStatus.value = 'Validando sua conta e buscando seu cadastro…'
       googleProfileStatus.value = ''
       try {
