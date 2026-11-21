@@ -2438,7 +2438,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds, #googlePhotoUrl',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -2451,6 +2451,7 @@ async function getActiveTrainersForCity(city: string) {
         '#cref': 'cref',
         '#academias': 'academias',
         '#academyIds': 'academyIds',
+        '#googlePhotoUrl': 'googlePhotoUrl',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -2466,7 +2467,7 @@ async function getActiveTrainersForCity(city: string) {
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, googlePhotoUrl: googleProfilePhotoUrl(item.googlePhotoUrl?.S), ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -2517,7 +2518,7 @@ async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]
         trainerId: trainer.trainerId,
         name: trainer.name,
         slug: trainer.slug,
-        ...(photos.get(trainer.trainerId) ? { googlePhotoUrl: photos.get(trainer.trainerId) } : {}),
+        ...((trainer.googlePhotoUrl || photos.get(trainer.trainerId)) ? { googlePhotoUrl: trainer.googlePhotoUrl || photos.get(trainer.trainerId) } : {}),
         sex: trainer.sex,
         ...(trainer.instagram ? { instagram: trainer.instagram } : {}),
         cref: trainer.cref,
