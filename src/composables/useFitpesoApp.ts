@@ -3,6 +3,7 @@ import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
 import { useAuthentication } from './useAuthentication'
 import { loadCustomerProfile, loadTrainerSession, switchProfileSession } from '../services/authenticationService'
+import { ApiError } from '../services/http/apiClient'
 import { useAccountProfile } from './useAccountProfile'
 import { useCustomerRequests } from './useCustomerRequests'
 import { useAdminTrainers } from './useAdminTrainers'
@@ -677,8 +678,41 @@ export function useFitpesoApp() {
         showCustomerLogin.value = false
         await returnToRequestFormAfterLogin()
       } catch (error) {
-        customerLoginStatus.value =
-          error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
+        // Uma identidade Google válida sem cadastro não é uma falha de login:
+        // inicia o cadastro com os dados sugeridos pelo Google. A API
+        // continuará exigindo verificação própria antes de ativar o perfil.
+        if (error instanceof ApiError && error.status === 404) {
+          try {
+            const payloadPart = response.credential.split('.')[1]
+            if (!payloadPart) throw new Error('Credencial Google incompleta.')
+            const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
+            const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))
+            const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+            const googleProfile = JSON.parse(new TextDecoder().decode(bytes)) as {
+              name?: string
+              email?: string
+            }
+            if (!googleProfile.email?.trim()) throw new Error('O Google não retornou o e-mail.')
+            customerForm.name = googleProfile.name?.trim() ?? ''
+            customerForm.email = googleProfile.email.trim().toLowerCase()
+            customerForm.whatsapp = ''
+            signupContact.value = customerForm.email
+            signupStep.value = 2
+            customerStatus.value =
+              'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
+            showCustomerLogin.value = false
+            showCustomerSignup.value = true
+            await nextTick()
+            document.getElementById('customer-whatsapp')?.focus()
+          } catch {
+            customerLoginError.value =
+              'Não foi possível preparar seu cadastro pelo Google. Tente novamente.'
+          }
+        } else {
+          customerLoginError.value =
+            error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
+        }
+        customerLoginStatus.value = customerLoginError.value
         googleProfileStatus.value = customerLoginStatus.value
         try {
           sessionStorage.removeItem('fitpeso-google-session')
