@@ -29,6 +29,7 @@ As tabelas antigas continuam existentes. `pessoa_id`, `user_id` e `identitySourc
 - `GET/POST /api/customers/profile` reconhece esse perfil sem WhatsApp. A edição passa a usar `customer_id` na tabela V2.
 - `FitpesoUserRequests` ganha um índice aditivo `RequestsByCustomerId`; cada nova solicitação inclui `customerId` e o número fornecido no momento do pedido fica apenas em `clientPhone`. Consultas e autorizações utilizam o `customerId` para clientes V2, com fallback ao número previamente verificado para legados.
 - A tabela `FitpesoRequestPhoneLocks` ainda usa o **telefone de contato da solicitação**, não a chave de identidade do cliente. Mudar essa chave é uma evolução separada.
+- Cadastros iniciados com WhatsApp ainda usam o registro legado como etapa de verificação pela Beta. Assim que o número é comprovado, o backend cria/vincula `pessoa`, `usuario` e `customer` V2; a linha legada fica preservada para compatibilidade.
 - Um número **digitado** no pedido não é automaticamente gravado em `pessoa_identificacao` como `WHATSAPP` verificado. Esse vínculo só pode ocorrer após prova do titular pelo canal apropriado.
 - A troca de perfil em sessão V2 usa uma sessão de cliente associada a `pessoa_id`, `user_id` e `customer_id`, com conferência do vínculo no backend.
 - Registros antigos em `FitpesoCustomers` mantêm a chave `whatsapp`, sem renomear a tabela ou alterar os dados históricos. Cadastros provisórios `GOOGLE#sub` criados em versões anteriores são migrados progressivamente após login Google validado, sem exclusão do registro original.
