@@ -10,6 +10,7 @@ const {
   customerPhotoUrl,
   customerIsAdmin,
   openAdminTrainers,
+  openAdminCustomers,
   openAdminAcademies,
   trainerSignedInName,
   trainerSignedInId,
@@ -142,6 +143,7 @@ onBeforeUnmount(() => {
             </button>
             <template v-if="customerIsAdmin && !trainerSignedInId">
               <button type="button" @click="openAdminTrainers()">Gerenciar profissionais</button>
+              <button type="button" @click="openAdminCustomers()">Gerenciar clientes</button>
               <button type="button" @click="openAdminAcademies()">Cadastro de academias</button>
             </template>
             <button type="button" @click="logout()">Sair</button>
