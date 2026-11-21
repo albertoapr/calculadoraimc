@@ -156,8 +156,11 @@ async function getPublicTrainerById(trainerId: string) {
   }))
   const profile = full.Item
   if (!profile || profile.active?.BOOL !== true) return null
+  const shared = await loadPersonFields(profile.pessoa_id?.S, {
+    name, googlePhotoUrl: '', dateOfBirth: '',
+  })
   return {
-    trainerId, name, slug: profile.slug?.S ?? '',
+    trainerId, name: shared.name, slug: profile.slug?.S ?? '',
     tagline: profile.tagline?.S ?? '',
     aboutMe: profile.aboutMe?.S ?? '',
     education: profile.education?.S ?? '',
@@ -2586,7 +2589,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds, #googlePhotoUrl',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds, #googlePhotoUrl, #pessoa_id',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -2600,6 +2603,7 @@ async function getActiveTrainersForCity(city: string) {
         '#academias': 'academias',
         '#academyIds': 'academyIds',
         '#googlePhotoUrl': 'googlePhotoUrl',
+        '#pessoa_id': 'pessoa_id',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -2607,15 +2611,46 @@ async function getActiveTrainersForCity(city: string) {
     items.push(...(result.Items ?? []))
     exclusiveStartKey = result.LastEvaluatedKey
   } while (exclusiveStartKey)
+  // Consultas públicas também usam os dados compartilhados da pessoa.
+  // BatchGet evita uma consulta individual por profissional.
+  const people = new Map<string, { name: string; photo: string }>()
+  const personTable = process.env.FITPESO_PESSOA_TABLE
+  const ids = [...new Set(items.map(item => item.pessoa_id?.S as string | undefined).filter(
+    (id): id is string => Boolean(id),
+  ))]
+  if (personTable && ids.length) {
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      let pending = ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
+      for (let attempt = 0; pending.length && attempt < 3; attempt += 1) {
+        try {
+          const page = await dynamodb.send(new BatchGetItemCommand({
+            RequestItems: { [personTable]: { Keys: pending } },
+          }))
+          for (const record of page.Responses?.[personTable] ?? []) {
+            const personId = record.pessoa_id?.S
+            if (personId) people.set(personId, {
+              name: record.nome?.S?.trim() ?? '',
+              photo: googleProfilePhotoUrl(record.googlePhotoUrl?.S),
+            })
+          }
+          pending = page.UnprocessedKeys?.[personTable]?.Keys ?? []
+        } catch {
+          // Não desabilitar a listagem pública caso a leitura complementar falhe.
+          break
+        }
+      }
+    }
+  }
   return items.flatMap(item => {
     const trainerId = item.trainerId?.S ?? ''
-    const name = item.name?.S?.trim() ?? ''
+    const shared = people.get(item.pessoa_id?.S ?? '')
+    const name = shared?.name || item.name?.S?.trim() || ''
     const whatsapp = normalizePhone(item.whatsapp?.S)
     const slug = item.slug?.S?.trim().toLowerCase() ?? ''
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, googlePhotoUrl: googleProfilePhotoUrl(item.googlePhotoUrl?.S), ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, googlePhotoUrl: shared?.photo || googleProfilePhotoUrl(item.googlePhotoUrl?.S), ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
