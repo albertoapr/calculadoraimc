@@ -512,6 +512,30 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         Key: { codeHash: { S: hashCode(token) } },
         ConsistentRead: true,
       }))
+      if (session.Item?.flow?.S === 'fitpeso-customer-v2-session' &&
+          Number(session.Item.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000)) {
+        const pessoaId = session.Item.pessoa_id?.S
+        const customerId = session.Item.customerId?.S
+        const userId = session.Item.userId?.S
+        if (!pessoaId || !customerId || !userId)
+          return response(401, { error: 'Sessão inválida.' })
+        const record = await dynamodb.send(new GetItemCommand({
+          TableName: process.env.FITPESO_CUSTOMER_V2_TABLE!,
+          Key: { customer_id: { S: customerId } }, ConsistentRead: true,
+        }))
+        const item = record.Item
+        if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false)
+          return response(401, { error: 'Perfil de cliente indisponível.' })
+        return response(200, { authenticated: true, profile: {
+          name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+          customerId, userId, email: item.email?.S ?? '',
+          dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
+          heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '', isAdmin: false,
+          identity: { pessoaId, usuarios: await listPersonProfiles(pessoaId) },
+          identityStatus: 'ready',
+        } })
+      }
       const whatsapp = session.Item?.flow?.S === 'fitpeso-customer-login-session' &&
         Number(session.Item.expiresAt?.N ?? 0) > Math.floor(Date.now() / 1000) ? session.Item.whatsapp?.S : ''
       if (!whatsapp) return response(401, { error: 'Sua sessão expirou. Entre novamente.' })
@@ -751,8 +775,17 @@ async function switchIdentityProfile(
         Key: { customer_id: { S: user.clienteId } }, ConsistentRead: true,
       }))
       const phone = linked.Item?.legacyWhatsapp?.S
-      if (linked.Item?.user_id?.S !== user.usuarioId || !phone)
+      if (linked.Item?.user_id?.S !== user.usuarioId)
         return response(409, { error: 'Vínculo de cliente inválido.' })
+      if (!phone) {
+        if (requestedRole === 'ADMIN' || linked.Item?.ativo?.BOOL === false ||
+            linked.Item?.customer_id?.S !== user.clienteId)
+          return response(403, { error: 'Perfil de cliente indisponível.' })
+        sessionItem = {
+          flow: { S: 'fitpeso-customer-v2-session' },
+          customerId: { S: user.clienteId }, userId: { S: user.usuarioId },
+        }
+      } else {
       const customer = await dynamodb.send(new GetItemCommand({
         TableName: process.env.FITPESO_CUSTOMERS_TABLE!,
         Key: { whatsapp: { S: phone } }, ConsistentRead: true,
@@ -763,6 +796,7 @@ async function switchIdentityProfile(
         return response(403, { error: 'Perfil de cliente indisponível.' })
       }
       sessionItem = { flow: { S: 'fitpeso-customer-login-session' }, whatsapp: { S: phone } }
+      }
     } else {
       if (!user.personalId) return response(409, { error: 'Perfil de personal ainda não disponível.' })
       const linked = await dynamodb.send(new GetItemCommand({
