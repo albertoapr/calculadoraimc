@@ -257,6 +257,11 @@ for (const table of [pessoasV2, identificacoesV2, usuariosV2]) {
 for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
   table.grantReadWriteData(profileDataPolicy)
 }
+// Edições administrativas de cliente atualizam V2 e cadastro legado atomicamente.
+profileDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:TransactWriteItems'],
+  resources: [customersV2.tableArn],
+}))
 // Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
