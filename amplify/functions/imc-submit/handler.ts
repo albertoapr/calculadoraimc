@@ -1387,6 +1387,13 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
           ...(data.heightCm !== undefined ? { ':height': { N: String(data.heightCm) } } : {}),
         },
       }))
+      const current = await getCustomerProfile(event)
+      if (current.statusCode === 200) {
+        const parsed = JSON.parse(current.body) as { profile?: { identity?: { pessoaId?: string } } }
+        if (parsed.profile?.identity?.pessoaId)
+          await savePersonFields(parsed.profile.identity.pessoaId, data.name as string,
+            typeof data.dateOfBirth === 'string' ? data.dateOfBirth : undefined)
+      }
       return getCustomerProfile(event)
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) return response(403, { error: 'Perfil indisponível.' })
@@ -1419,7 +1426,14 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
         ':googlePrefix': { S: 'GOOGLE#' },
       },
     }))
-    // Return an authoritative profile, including unchanged identity fields.
+    // Atualiza os campos compartilhados apenas quando o login comprovou a pessoa.
+    const linked = await getCustomerProfile(event)
+    if (linked.statusCode === 200) {
+      const parsed = JSON.parse(linked.body) as { profile?: { identity?: { pessoaId?: string } } }
+      if (parsed.profile?.identity?.pessoaId)
+        await savePersonFields(parsed.profile.identity.pessoaId, data.name as string,
+          typeof data.dateOfBirth === 'string' ? data.dateOfBirth : undefined)
+    }
     return getCustomerProfile(event)
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'Cadastro não está ativo. Entre novamente.' })
@@ -1580,6 +1594,19 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     for (const academyId of oldAcademyIds.filter(id => !academyLinks.ids.includes(id))) {
       changes.push({ Delete: { TableName: linksTable,
         Key: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } } } })
+    }
+    // Mesmo nome e nascimento devem aparecer ao entrar como cliente ou personal.
+    if (auth.legacyPessoaId) {
+      changes.push({ Update: {
+        TableName: process.env.FITPESO_PESSOA_TABLE!,
+        Key: { pessoa_id: { S: auth.legacyPessoaId } },
+        UpdateExpression: 'SET nome = :name' + (data.dateOfBirth ? ', nascimento = :dob' : ''),
+        ConditionExpression: 'attribute_exists(pessoa_id)',
+        ExpressionAttributeValues: {
+          ':name': { S: (data.name as string).trim().replace(/\\s+/g, ' ') },
+          ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+        },
+      } })
     }
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: changes }))
     const refreshed = await getTrainerSession(event)
