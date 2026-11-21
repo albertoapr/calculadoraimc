@@ -58,9 +58,14 @@ const {
 
     <form v-if="linkedAccount || betaTrainerSignupToken" class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
       <div v-if="linkedAccount" class="field-wide linked-person-summary">
+        <img v-if="linkedAccount.photoUrl" :src="linkedAccount.photoUrl" class="linked-account-photo" alt="Sua foto do Google" referrerpolicy="no-referrer" width="56" height="56" />
         <strong>Dados do seu cadastro</strong>
         <span>{{ linkedAccount.name }} · {{ linkedAccount.email }}</span>
         <small>Seu nome, e-mail, sexo e nascimento são reutilizados. Para alterá-los, acesse Meu cadastro.</small>
+        <p v-if="!linkedAccount.sex" class="status" role="alert">
+          Falta informar o sexo no cadastro pessoal.
+          <button type="button" class="secondary-button" @click="navigateTo('/meu-cadastro')">Completar meus dados</button>
+        </p>
       </div>
       <div v-if="!betaTrainerSignupToken && !linkedAccount" class="google-fill field-wide trainer-contact-reminder">
         <p>
@@ -248,7 +253,7 @@ const {
           placeholder="Ex.: CREF 000000-G/RJ"
         />
       </label>
-      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || (Boolean(linkedAccount) && !linkedAccount.googleCredential)">
+      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || (Boolean(linkedAccount) && (!linkedAccount.googleCredential || !linkedAccount.sex))">
         {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : linkedAccount ? 'Ativar perfil de personal' : 'Enviar cadastro' }}
         <span aria-hidden="true">→</span>
       </button>
