@@ -360,6 +360,8 @@ export function useFitpesoApp() {
   const {
     customerForm,
     signupContact,
+    signupGooglePhotoUrl,
+    signupGoogleCredential,
     signupStep,
     customerStatus,
     customerVerificationLink,
@@ -695,11 +697,20 @@ export function useFitpesoApp() {
                 atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')),
                 (char) => char.charCodeAt(0),
               )
-              const claims = JSON.parse(new TextDecoder().decode(bytes)) as { email?: string; name?: string }
+              const claims = JSON.parse(new TextDecoder().decode(bytes)) as { email?: string; name?: string; picture?: string }
               if (typeof claims.name === 'string') customerForm.name = claims.name.trim()
               if (typeof claims.email === 'string' && claims.email.trim()) {
                 const email = claims.email.trim().toLowerCase()
                 openCustomerSignupFromLogin(email)
+                signupGoogleCredential.value = response.credential
+                signupGooglePhotoUrl.value = (() => {
+                  try {
+                    const url = new URL(claims.picture ?? '')
+                    return url.protocol === 'https:' &&
+                      (url.hostname === 'googleusercontent.com' || url.hostname.endsWith('.googleusercontent.com')) &&
+                      !url.username && !url.password ? url.href : ''
+                  } catch { return '' }
+                })()
                 customerStatus.value =
                   'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
                 await nextTick()
@@ -857,6 +868,8 @@ export function useFitpesoApp() {
     customerForm.whatsapp = ''
     customerForm.email = ''
     customerForm.dateOfBirth = ''
+    signupGooglePhotoUrl.value = ''
+    signupGoogleCredential.value = ''
     signupStep.value = 1
     signupContact.value = ''
     requestBirthDate.value = ''
@@ -1334,6 +1347,7 @@ export function useFitpesoApp() {
     theme,
     customerForm,
     signupContact,
+    signupGooglePhotoUrl,
     signupStep,
     customerStatus,
     customerVerificationLink,
