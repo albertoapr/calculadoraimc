@@ -548,7 +548,8 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           customerId, userId, email: item.email?.S ?? '',
           dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
           heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
-          googlePhotoUrl: item.googlePhotoUrl?.S ?? '', isAdmin: false,
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+          isAdmin: (await listPersonProfiles(pessoaId)).some(role => role.tipo === 'ADMIN'),
           identity: { pessoaId, usuarios: await listPersonProfiles(pessoaId) },
           identityStatus: 'ready',
         } })
@@ -613,7 +614,8 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         customerId: canonical.customerId, userId: canonical.userId,
         email, dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
         heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
-        isAdmin: false, googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
+        isAdmin: canonical.usuarios.some(role => role.tipo === 'ADMIN'),
+        googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
         identity: { pessoaId: canonical.pessoaId, usuarios: canonical.usuarios },
         identityStatus: 'ready',
       } })
@@ -2142,15 +2144,11 @@ async function authorizeAdminCustomers(event: Parameters<APIGatewayProxyHandler>
     profile?: { identity?: { pessoaId?: string } }
   }
   const pessoaId = parsed.profile?.identity?.pessoaId
-  if (pessoaId) {
-    const roles = await listPersonProfiles(pessoaId)
-    if (roles.some(role => role.tipo === 'ADMIN'))
-      return { pessoaId }
-  }
-  const legacy = await authenticateAdmin(event)
-  if ('error' in legacy) return { error: response(403, { error: 'Acesso restrito a administradores.' }) }
-  const id = parsed.profile?.identity?.pessoaId ?? ''
-  return { pessoaId: id }
+  if (!pessoaId) return { error: response(403, { error: 'Perfil de administrador não vinculado à nova identidade.' }) }
+  const roles = await listPersonProfiles(pessoaId)
+  if (!roles.some(role => role.tipo === 'ADMIN'))
+    return { error: response(403, { error: 'Acesso restrito a administradores.' }) }
+  return { pessoaId }
 }
 
 async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
