@@ -8,7 +8,7 @@
 - **FitpesoPessoaIdentificacao** (`identificationKey`): chaves únicas `GOOGLE#sub`, `EMAIL#normalizado` e `WHATSAPP#+55...`, ligadas a uma `pessoa_id`. Índice `IdentificacoesByPessoa`.
 - **FitpesoUsuario** (`user_id`): um registro por pessoa e papel, com `pessoa_id`, `tipo_usuario_id` e `tipo`. Índice `UsuarioByPessoa`.
 - **FitpesoTipoUsuario**: códigos reservados `1=ADMIN`, `2=CLIENTE`, `3=PERSONAL`.
-- **FitpesoCustomerV2** (`customer_id`): `user_id`, `legacyWhatsapp`. Índice `CustomerByUsuario`.
+- **FitpesoCustomerV2** (`customer_id`): `user_id`, `nome`, `email`, `googlePhotoUrl`, `sexo`, `altura_cm` e contato opcional. O campo `legacyWhatsapp` existe somente para perfis migrados. Índice `CustomerByUsuario`.
 - **FitpesoPersonalV2** (`personal_id`): `user_id`, `legacyTrainerId`, `cidade`. Índice `PersonalByUsuario`.
 
 As tabelas antigas continuam existentes. `pessoa_id`, `user_id` e `identitySource` são acrescentados aos registros antigos sem excluir dados.
@@ -21,6 +21,19 @@ As tabelas antigas continuam existentes. `pessoa_id`, `user_id` e `identitySourc
 4. O cliente recebe `profile.identity = { pessoaId, usuarios }` e `profile.identityStatus = 'ready' | 'pending'`. A aplicação guarda os perfis na sessão Pinia.
 5. Falha na migração não bloqueia a autenticação antiga; o erro é registrado e `identityStatus='pending'`. Isso NÃO libera novos privilégios.
 6. Perfis ADMIN só podem ser criados com base no `isAdmin=true` da tabela legada, lida pelo servidor após autenticação.
+
+## Cadastro canônico sem WhatsApp (etapa atual)
+
+- O cadastro Google novo valida o ID token no backend, cria/vincula a `pessoa` e suas identificações verificadas `GOOGLE#sub` e `EMAIL#email` e cria o papel `CLIENTE` em `usuario`.
+- O novo cliente é criado **apenas** em `FitpesoCustomerV2` com `customer_id` derivado de `pessoa_id`, sem número como chave e sem registro fictício `GOOGLE#sub` no atributo `whatsapp` da tabela legada.
+- `GET/POST /api/customers/profile` reconhece esse perfil sem WhatsApp. A edição passa a usar `customer_id` na tabela V2.
+- `FitpesoUserRequests` ganha um índice aditivo `RequestsByCustomerId`; cada nova solicitação inclui `customerId` e o número fornecido no momento do pedido fica apenas em `clientPhone`. Consultas e autorizações utilizam o `customerId` para clientes V2, com fallback ao número previamente verificado para legados.
+- A tabela `FitpesoRequestPhoneLocks` ainda usa o **telefone de contato da solicitação**, não a chave de identidade do cliente. Mudar essa chave é uma evolução separada.
+- Um número **digitado** no pedido não é automaticamente gravado em `pessoa_identificacao` como `WHATSAPP` verificado. Esse vínculo só pode ocorrer após prova do titular pelo canal apropriado.
+- A troca de perfil em sessão V2 usa uma sessão de cliente associada a `pessoa_id`, `user_id` e `customer_id`, com conferência do vínculo no backend.
+- Registros antigos em `FitpesoCustomers` mantêm a chave `whatsapp`, sem renomear a tabela ou alterar os dados históricos. Cadastros provisórios `GOOGLE#sub` criados em versões anteriores são migrados progressivamente após login Google validado, sem exclusão do registro original.
+
+**Cautela:** a etapa atual não executa migração em massa; a consistência referencial entre dados antigos continua mantida por compatibilidade. Deploy requer validar permissões IAM e criação do índice GSI antes de habilitar fluxos dependentes dele.
 
 ## Segurança da conciliação
 
