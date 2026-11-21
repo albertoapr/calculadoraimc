@@ -77,7 +77,8 @@ function closeEditor() {
   message.value = ''
 }
 async function save() {
-  if (!selected.value || saving.value) return
+  const current = selected.value
+  if (!current || saving.value) return
   const session = token()
   if (!session) {
     message.value = 'Entre novamente como administrador.'
@@ -92,8 +93,8 @@ async function save() {
       ...(form.heightCm !== undefined && form.heightCm !== null && form.heightCm !== 0
         ? { heightCm: Number(form.heightCm) } : {}),
     }
-    await updateAdminCustomer(session, selected.value.customerId, payload)
-    const action = selected.value.active === payload.active
+    await updateAdminCustomer(session, current.customerId, payload)
+    const action = current.active === payload.active
       ? 'Cadastro atualizado com sucesso.'
       : payload.active ? 'Cliente reativado.' : 'Cliente desativado. O histórico foi preservado.'
     closeEditor()
