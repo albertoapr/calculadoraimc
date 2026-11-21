@@ -39,6 +39,7 @@ const photoUrl = computed(() => {
     return ''
   }
 })
+const photoFailed = ref(false)
 const crefFeedback = ref('')
 async function copyCref() {
   const cref = props.trainer.cref?.trim()
@@ -58,7 +59,7 @@ async function copyCref() {
     :class="{ 'is-selected': selectable && selected, 'is-disabled': selectable && disabled }"
   >
     <div class="trainer-profile-photo">
-      <img v-if="photoUrl" :src="photoUrl" :alt="'Foto de ' + displayName" loading="lazy" referrerpolicy="no-referrer" />
+      <img v-if="photoUrl && !photoFailed" :src="photoUrl" :alt="'Foto de ' + displayName" loading="lazy" referrerpolicy="no-referrer" @error="photoFailed = true" />
       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
         <circle cx="12" cy="8" r="4" />
         <path d="M4 21v-2a8 8 0 0 1 16 0v2" />
