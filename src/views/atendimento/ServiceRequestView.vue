@@ -13,6 +13,7 @@ const {
   publicTrainersLoading,
   publicTrainersError,
   customerSignedInName,
+  status,
   trainingDayOptions,
   supportedRequestCities,
   form,
@@ -614,6 +615,21 @@ const professionalGenderLabel = computed(() =>
     >
       Preencha a cidade, o local e pelo menos um dia de treino antes de continuar.
     </p>
+
+    <div v-if="customerSignedInName && !form.phone" class="field field-wide" style="margin-top: 12px">
+      <label for="request-whatsapp" class="field-label">WhatsApp com DDD (obrigatório para enviar)</label>
+      <input
+        id="request-whatsapp"
+        v-model="form.phone"
+        type="tel"
+        inputmode="tel"
+        autocomplete="tel"
+        maxlength="20"
+        placeholder="(21) 99999-9999"
+        required
+      />
+    </div>
+    <p v-if="status" class="request-accordion-warning" role="alert">{{ status }}</p>
 
     <button
       class="primary-button field-wide request-accordion-submit"
