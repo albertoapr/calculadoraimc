@@ -152,14 +152,6 @@ const {
     <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">
       {{ customerStatus }}
     </p>
-    <a
-      v-if="!customerVerificationLink"
-      href="/cadastro/personal"
-      @click.prevent="navigateTo('/cadastro/personal')"
-      class="secondary-button field-wide customer-signup-trainer-link"
-    >
-      Cadastrar-me como personal
-    </a>
     <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
     <div
       class="box-footer"
