@@ -3261,15 +3261,36 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
   if (!requestTable || !proposalsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   try {
     const customerId = auth.profile!.customerId
-    const result = await dynamodb.send(new QueryCommand(customerId
-      ? { TableName: requestTable, IndexName: 'RequestsByCustomerId', KeyConditionExpression: '#id = :id',
-          ExpressionAttributeNames: { '#id': 'customerId' }, ExpressionAttributeValues: { ':id': { S: customerId } },
-          ScanIndexForward: false, Limit: 30 }
-      : { TableName: requestTable, IndexName: 'RequestsByCustomer', KeyConditionExpression: '#phone = :phone',
-          ExpressionAttributeNames: { '#phone': 'clientPhone' }, ExpressionAttributeValues: { ':phone': { S: auth.profile!.whatsapp } },
-          ScanIndexForward: false, Limit: 30 }))
+    const phone = auth.profile!.whatsapp
+    // Durante a migracao de identidades, solicitacoes antigas podem nao ter customerId.
+    // Consulte ambos os indices para nao esconder pedidos que continuam bloqueando novas criacoes.
+    const [byCustomerId, byPhone] = await Promise.all([
+      customerId
+        ? dynamodb.send(new QueryCommand({
+            TableName: requestTable, IndexName: 'RequestsByCustomerId',
+            KeyConditionExpression: '#id = :id',
+            ExpressionAttributeNames: { '#id': 'customerId' },
+            ExpressionAttributeValues: { ':id': { S: customerId } },
+            ScanIndexForward: false, Limit: 30,
+          }))
+        : Promise.resolve(null),
+      phone
+        ? dynamodb.send(new QueryCommand({
+            TableName: requestTable, IndexName: 'RequestsByCustomer',
+            KeyConditionExpression: '#phone = :phone',
+            ExpressionAttributeNames: { '#phone': 'clientPhone' },
+            ExpressionAttributeValues: { ':phone': { S: phone } },
+            ScanIndexForward: false, Limit: 30,
+          }))
+        : Promise.resolve(null),
+    ])
+    const uniqueRequests = new Map<string, NonNullable<typeof byPhone>['Items'][number]>()
+    for (const item of [...(byCustomerId?.Items ?? []), ...(byPhone?.Items ?? [])]) {
+      const id = item.requestId?.S
+      if (id && customerOwnsRequest(item, auth.profile!)) uniqueRequests.set(id, item)
+    }
     const now = Math.floor(Date.now() / 1000)
-    const requests = await Promise.all((result.Items ?? []).map(async item => {
+    const requests = await Promise.all([...uniqueRequests.values()].map(async item => {
       const requestId = item.requestId?.S ?? ''
       const result = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
       const proposals = (result.Items ?? []).map(proposal => ({ trainerId: proposal.trainerId?.S ?? '', name: proposal.trainerName?.S ?? '', whatsapp: proposal.trainerWhatsapp?.S ?? '', ...(proposal.trainerInstagram?.S ? { instagram: proposal.trainerInstagram.S } : {}), monthlyPrice: Number(proposal.monthlyPrice?.N ?? 0), message: proposal.message?.S ?? '', status: proposal.status?.S ?? '', validUntil: Number(proposal.validUntil?.N ?? 0), expired: Number(proposal.validUntil?.N ?? 0) <= now }))
