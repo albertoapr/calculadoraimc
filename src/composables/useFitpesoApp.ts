@@ -1,3 +1,4 @@
+import { listAcademies, type Academy } from '../services/academiesService'
 import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
@@ -169,7 +170,34 @@ export function useFitpesoApp() {
   const requestSent = ref(false)
   const requestStep = ref(1)
   const selectingTrainersForDraft = ref(false)
-  const academyOptions = ['AquaticCenter', 'SmartFit', 'LifeFit', 'BodyTech', 'Outros']
+  const registeredAcademies = ref<Academy[]>([])
+  const academiesLoading = ref(false)
+  const academiesError = ref('')
+  async function refreshRegisteredAcademies() {
+    academiesLoading.value = true
+    academiesError.value = ''
+    try {
+      registeredAcademies.value = (await listAcademies()).filter(academy => academy.active)
+    } catch (error) {
+      registeredAcademies.value = []
+      academiesError.value = error instanceof Error ? error.message : 'Não foi possível consultar as academias cadastradas.'
+    } finally {
+      academiesLoading.value = false
+    }
+  }
+  const academyOptions = computed(() => registeredAcademies.value
+    .filter(academy => trainerForm.cities.includes(academy.city))
+    .map(academy => `${academy.name} — ${academy.neighborhood}`)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')))
+  const profileAcademyOptions = computed(() => registeredAcademies.value
+    .filter(academy => academy.city === editingProfile.city)
+    .map(academy => `${academy.name} — ${academy.neighborhood}`)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')))
+  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
+    if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
+  }, { immediate: true })
+  watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
+  watch(() => editingProfile.city, () => { profileAcademyChoice.value = '' })
   function addAcademy(list: string[], choice: string, other: string) {
     const name = (choice === 'Outros' ? other : choice).trim().replace(/\s+/g, ' ')
     if (
@@ -1325,6 +1353,10 @@ export function useFitpesoApp() {
     changeRequestVisibility,
     acceptProposal,
     academyOptions,
+    profileAcademyOptions,
+    academiesLoading,
+    academiesError,
+    refreshRegisteredAcademies,
     addAcademy,
     profileAcademyChoice,
     profileOtherAcademy,
