@@ -18,7 +18,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
-import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity } from './identity-bootstrap'
+import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity, registerGoogleCustomerIdentity, loadGoogleCustomerIdentity, syncProvisionalGoogleCustomerIdentity } from './identity-bootstrap'
 import { listPersonProfiles, resolveVerifiedIdentity } from './identity-store'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
@@ -247,8 +247,6 @@ async function registerCustomer(data: Record<string, unknown>) {
   }
   if (!whatsapp) {
     if (!googleSubject || !email) throw new Error('Conta Google verificada obrigatória para cadastro sem WhatsApp.')
-    // A chave interna não é um número telefônico e nunca deve ser usada para envio de mensagens.
-    const googleKey = `GOOGLE#${googleSubject}`
     const byEmail = await dynamodb.send(new QueryCommand({
       TableName: customersTable, IndexName: 'CustomerByEmail',
       KeyConditionExpression: '#email = :email',
@@ -257,21 +255,12 @@ async function registerCustomer(data: Record<string, unknown>) {
     }))
     if (byEmail.Items?.some(item => item.status?.S === 'ACTIVE'))
       throw new Error('Esta conta Google já está cadastrada. Entre em vez de cadastrar.')
-    const nowIso = new Date().toISOString()
-    await dynamodb.send(new PutItemCommand({
-      TableName: customersTable,
-      Item: {
-        whatsapp: { S: googleKey }, name: { S: name }, email: { S: email },
-        googleSubject: { S: googleSubject },
-        ...(verifiedGooglePhotoUrl ? { googlePhotoUrl: { S: verifiedGooglePhotoUrl } } : {}),
-        ...(sex ? { sex: { S: sex } } : {}),
-        ...(heightCm !== undefined ? { heightCm: { N: String(heightCm) } } : {}),
-        status: { S: 'ACTIVE' }, whatsappVerified: { BOOL: false },
-        createdAt: { S: nowIso },
-      },
-      ConditionExpression: 'attribute_not_exists(whatsapp)',
-    }))
-    return { googleOnly: true }
+    const profile = await registerGoogleCustomerIdentity({
+      sub: googleSubject, email, name,
+      googlePhotoUrl: verifiedGooglePhotoUrl, ...(sex ? { sex } : {}),
+      ...(heightCm !== undefined ? { heightCm } : {}),
+    })
+    return { googleOnly: true, customerId: profile.customerId }
   }
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
@@ -572,7 +561,21 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
     const payload = ticket.getPayload()
     const email = payload?.email?.trim().toLowerCase()
-    if (!payload?.email_verified || !email) return response(401, { error: 'Não foi possível validar sua conta Google.' })
+    if (!payload?.email_verified || !email || !payload.sub) return response(401, { error: 'Não foi possível validar sua conta Google.' })
+    const canonical = await loadGoogleCustomerIdentity(payload.sub)
+    if (canonical) {
+      const item = canonical.item
+      if (item.email?.S !== email) return response(409, { error: 'Os dados desta conta precisam de revisão.' })
+      return response(200, { authenticated: true, profile: {
+        name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+        customerId: canonical.customerId, userId: canonical.userId,
+        email, sex: item.sexo?.S ?? '',
+        heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
+        isAdmin: false, googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
+        identity: { pessoaId: canonical.pessoaId, usuarios: canonical.usuarios },
+        identityStatus: 'ready',
+      } })
+    }
     const result = await dynamodb.send(new QueryCommand({
       TableName: tableName,
       IndexName: 'CustomerByEmail',
@@ -590,8 +593,13 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       item.whatsapp?.S?.startsWith('GOOGLE#') ? item.googleSubject?.S === payload.sub : item.whatsappVerified?.BOOL === true)
     if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
     const googleOnly = customer.whatsapp?.S?.startsWith('GOOGLE#') === true
-    const identity = shouldResolveIdentity(event) && !googleOnly && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
-      ? await trySyncIdentity(() => syncGoogleCustomerIdentity({
+    const identity = shouldResolveIdentity(event) && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
+      ? await trySyncIdentity(() => googleOnly
+        ? syncProvisionalGoogleCustomerIdentity({
+            whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
+            email: customer.email?.S ?? '',
+          }, { sub: payload.sub!, email })
+        : syncGoogleCustomerIdentity({
         whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
         email: customer.email?.S ?? '', isAdmin: customer.isAdmin?.BOOL === true,
         pessoaId: customer.pessoa_id?.S, identitySource: customer.identitySource?.S,
