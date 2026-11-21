@@ -253,7 +253,7 @@ const {
           placeholder="Ex.: CREF 000000-G/RJ"
         />
       </label>
-      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || (Boolean(linkedAccount) && (!linkedAccount.googleCredential || !linkedAccount.sex))">
+      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || (!!linkedAccount && (!linkedAccount?.googleCredential || !linkedAccount?.sex))">
         {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : linkedAccount ? 'Ativar perfil de personal' : 'Enviar cadastro' }}
         <span aria-hidden="true">→</span>
       </button>
