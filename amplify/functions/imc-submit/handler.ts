@@ -1493,7 +1493,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       !Array.isArray(academias) || academias.length > 5 ||
-      academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 130) ||
+      academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 256) ||
       !Array.isArray(data.academyIds) || data.academyIds.length > 5 ||
       Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
