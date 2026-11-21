@@ -23,6 +23,7 @@ export async function updateAccountProfile(
         instagram: string
         cref: string
         academias: string[]
+        academyIds: string[]
         tagline?: string
         aboutMe?: string
         education?: string
