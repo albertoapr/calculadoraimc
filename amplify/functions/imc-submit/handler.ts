@@ -1283,6 +1283,7 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       city,
       name: item.name?.S ?? '',
       whatsapp,
+      googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
       email: item.email?.S ?? '',
       dateOfBirth: item.dateOfBirth?.S ?? '',
       instagram: item.instagram?.S ?? '',
@@ -1934,6 +1935,7 @@ async function registerTrainer(
             whatsapp: { S: whatsapp },
             ...(linkedPersonId ? {
               pessoa_id: { S: linkedPersonId }, identitySource: { S: 'GOOGLE' },
+              ...(linkedCustomer?.item.googlePhotoUrl?.S ? { googlePhotoUrl: { S: linkedCustomer.item.googlePhotoUrl.S } } : {}),
             } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
