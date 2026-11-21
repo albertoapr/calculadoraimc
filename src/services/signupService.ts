@@ -2,9 +2,9 @@ import { apiError, requestApi } from './http/apiClient'
 
 export type CustomerSignupInput = {
   name: string
-  whatsapp: string
+  whatsapp?: string
   email: string
-  sessionToken: string
+  sessionToken?: string
   sex: 'masculino' | 'feminino'
   heightCm?: number
   googleCredential?: string
@@ -25,6 +25,7 @@ export type TrainerSignupInput = {
 type CustomerSignupResponse = {
   registered?: boolean
   verificationCode?: string
+  googleOnly?: boolean
   error?: string
 }
 
@@ -34,9 +35,9 @@ export async function registerCustomer(payload: CustomerSignupInput, signal?: Ab
     signal,
     body: payload,
   })
-  if (!response.ok || response.body.registered !== true || !response.body.verificationCode)
+  if (!response.ok || response.body.registered !== true || (!response.body.verificationCode && !response.body.googleOnly))
     throw apiError(response, 'Não foi possível registrar o cadastro agora.')
-  return response.body.verificationCode
+  return response.body.googleOnly ? '' : response.body.verificationCode
 }
 
 export async function queryCustomerSignup(
