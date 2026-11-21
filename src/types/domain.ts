@@ -121,6 +121,7 @@ export type EditableProfile = {
   heightCm?: number
   name: string
   whatsapp: string
+  whatsappVerified: boolean
   email: string
   dateOfBirth: string
   instagram: string
