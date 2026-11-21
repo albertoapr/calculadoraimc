@@ -719,6 +719,7 @@ export function useFitpesoApp() {
               if (typeof claims.name === 'string') customerForm.name = claims.name.trim()
               if (typeof claims.email === 'string' && claims.email.trim()) {
                 const email = claims.email.trim().toLowerCase()
+                customerForm.whatsapp = ''
                 openCustomerSignupFromLogin(email)
                 signupGoogleCredential.value = response.credential
                 signupGooglePhotoUrl.value = (() => {
