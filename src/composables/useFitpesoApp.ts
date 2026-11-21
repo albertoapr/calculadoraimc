@@ -1047,7 +1047,7 @@ export function useFitpesoApp() {
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
-    customerPhotoUrl.value = ''
+    customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     try {
       sessionStorage.removeItem('fitpeso-customer-session')
       sessionStorage.removeItem('fitpeso-google-session')
