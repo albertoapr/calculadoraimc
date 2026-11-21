@@ -548,7 +548,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           return response(401, { error: 'Perfil de cliente indisponível.' })
         const personFields = await loadPersonFields(pessoaId, {
           name: item.nome?.S ?? '',
-          googlePhotoUrl: personFields.googlePhotoUrl,
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
           dateOfBirth: item.nascimento?.S ?? '',
         })
         return response(200, { authenticated: true, profile: {
@@ -556,7 +556,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           customerId, userId, email: item.email?.S ?? '',
           dateOfBirth: personFields.dateOfBirth, sex: item.sexo?.S ?? '',
           heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
-          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+          googlePhotoUrl: personFields.googlePhotoUrl,
           isAdmin: (await listPersonProfiles(pessoaId)).some(role => role.tipo === 'ADMIN'),
           identity: { pessoaId, usuarios: await listPersonProfiles(pessoaId) },
           identityStatus: 'ready',
@@ -1313,20 +1313,20 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     }))
     const cities = [...new Set((cityLookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
     const personFields = await loadPersonFields(item.pessoa_id?.S, {
-      name: personFields.name,
-      googlePhotoUrl: personFields.googlePhotoUrl,
-      dateOfBirth: personFields.dateOfBirth,
+      name: item.name?.S ?? '',
+      googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+      dateOfBirth: item.dateOfBirth?.S ?? '',
     })
     return { profile: {
       trainerId,
       city,
       cities: cities.length ? cities : [city],
       academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
-      name: item.name?.S ?? '',
+      name: personFields.name,
       whatsapp,
-      googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+      googlePhotoUrl: personFields.googlePhotoUrl,
       email: item.email?.S ?? '',
-      dateOfBirth: item.dateOfBirth?.S ?? '',
+      dateOfBirth: personFields.dateOfBirth,
       instagram: item.instagram?.S ?? '',
       cref: item.cref?.S ?? '',
       academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
