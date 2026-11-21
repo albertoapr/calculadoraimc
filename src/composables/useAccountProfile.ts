@@ -38,6 +38,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
     sex: '',
     heightCm: undefined,
     whatsapp: '',
+    whatsappVerified: false,
     email: '',
     dateOfBirth: '',
     instagram: '',
@@ -67,6 +68,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
     editingProfile.sex = profileSex === 'masculino' || profileSex === 'feminino' ? profileSex : ''
     editingProfile.heightCm = 'heightCm' in profile ? profile.heightCm : undefined
     editingProfile.whatsapp = profile.whatsapp ?? ''
+    editingProfile.whatsappVerified = 'whatsappVerified' in profile && profile.whatsappVerified === true
     editingProfile.email = profile.email ?? ''
     editingProfile.dateOfBirth = profile.dateOfBirth ?? ''
     editingProfile.instagram = 'instagram' in profile ? (profile.instagram ?? '') : ''
