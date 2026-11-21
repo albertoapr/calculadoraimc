@@ -102,9 +102,7 @@ const {
             placeholder="@usuario"
           />
         </label>
-        <label class="field field-wide" for="profile-slug"
-          ><span class="field-label">Endereço do perfil</span>
-          <fieldset class="availability-group field-wide">
+        <fieldset class="availability-group field-wide">
             <legend>Academias onde atende (até 5)</legend>
             <small v-if="academiesError" role="alert">{{ academiesError }}</small>
             <small v-else-if="!academiesLoading && !profileAcademyOptions.length">Nenhuma academia cadastrada na cidade do profissional.</small>
@@ -147,7 +145,9 @@ const {
               </button>
             </div>
             <small>{{ editingProfile.academias.length }}/5 academias</small>
-          </fieldset>
+        </fieldset>
+        <label class="field field-wide" for="profile-slug">
+          <span class="field-label">Endereço do perfil</span>
           <input
             id="profile-slug"
             :value="`https://fitpeso.com.br/personal/${editingProfile.slug}`"
