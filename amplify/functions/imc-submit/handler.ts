@@ -230,6 +230,18 @@ async function registerCustomer(data: Record<string, unknown>) {
   const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
   const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
   const heightCm = typeof data.heightCm === 'number' ? data.heightCm : undefined
+  let verifiedGooglePhotoUrl = ''
+  if (typeof data.googleCredential === 'string' && data.googleCredential) {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+    if (!clientId) throw new Error('Login Google indisponível.')
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({
+      idToken: data.googleCredential, audience: clientId,
+    })
+    const googlePayload = ticket.getPayload()
+    if (!googlePayload?.email_verified || !email || googlePayload.email?.trim().toLowerCase() !== email)
+      throw new Error('O e-mail do cadastro precisa ser o mesmo da conta Google autenticada.')
+    verifiedGooglePhotoUrl = googleProfilePhotoUrl(googlePayload.picture)
+  }
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
     Key: { whatsapp: { S: whatsapp } },
@@ -251,6 +263,7 @@ async function registerCustomer(data: Record<string, unknown>) {
             whatsapp: { S: whatsapp },
             name: { S: name },
             ...(email ? { email: { S: email } } : {}),
+            ...(verifiedGooglePhotoUrl ? { googlePhotoUrl: { S: verifiedGooglePhotoUrl } } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(sex ? { sex: { S: sex } } : {}),
             ...(heightCm !== undefined ? { heightCm: { N: String(heightCm) } } : {}),
