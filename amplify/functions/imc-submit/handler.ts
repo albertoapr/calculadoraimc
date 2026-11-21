@@ -2620,7 +2620,8 @@ async function getActiveTrainersForCity(city: string) {
   ))]
   if (personTable && ids.length) {
     for (let offset = 0; offset < ids.length; offset += 100) {
-      let pending = ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
+      let pending: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>[] =
+        ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
       for (let attempt = 0; pending.length && attempt < 3; attempt += 1) {
         try {
           const page = await dynamodb.send(new BatchGetItemCommand({
