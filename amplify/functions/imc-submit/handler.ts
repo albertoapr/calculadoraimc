@@ -211,7 +211,8 @@ function isValidCustomerRegistration(data: Record<string, unknown> | null) {
   const whatsapp = normalizePhone(data.whatsapp)
   const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
   const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
-  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(whatsapp) &&
+  return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) &&
+    (Boolean(whatsapp) || (typeof data.googleCredential === 'string' && data.googleCredential.length > 0)) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
     (data.sex === undefined || data.sex === 'masculino' || data.sex === 'feminino') &&
@@ -230,6 +231,7 @@ async function registerCustomer(data: Record<string, unknown>) {
   const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : ''
   const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
   const heightCm = typeof data.heightCm === 'number' ? data.heightCm : undefined
+  let googleSubject = ''
   let verifiedGooglePhotoUrl = ''
   if (typeof data.googleCredential === 'string' && data.googleCredential) {
     const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
@@ -240,7 +242,36 @@ async function registerCustomer(data: Record<string, unknown>) {
     const googlePayload = ticket.getPayload()
     if (!googlePayload?.email_verified || !email || googlePayload.email?.trim().toLowerCase() !== email)
       throw new Error('O e-mail do cadastro precisa ser o mesmo da conta Google autenticada.')
+    googleSubject = googlePayload.sub ?? ''
     verifiedGooglePhotoUrl = googleProfilePhotoUrl(googlePayload.picture)
+  }
+  if (!whatsapp) {
+    if (!googleSubject || !email) throw new Error('Conta Google verificada obrigatória para cadastro sem WhatsApp.')
+    // A chave interna não é um número telefônico e nunca deve ser usada para envio de mensagens.
+    const googleKey = `GOOGLE#${googleSubject}`
+    const byEmail = await dynamodb.send(new QueryCommand({
+      TableName: customersTable, IndexName: 'CustomerByEmail',
+      KeyConditionExpression: '#email = :email',
+      ExpressionAttributeNames: { '#email': 'email' },
+      ExpressionAttributeValues: { ':email': { S: email } },
+    }))
+    if (byEmail.Items?.some(item => item.status?.S === 'ACTIVE'))
+      throw new Error('Esta conta Google já está cadastrada. Entre em vez de cadastrar.')
+    const nowIso = new Date().toISOString()
+    await dynamodb.send(new PutItemCommand({
+      TableName: customersTable,
+      Item: {
+        whatsapp: { S: googleKey }, name: { S: name }, email: { S: email },
+        googleSubject: { S: googleSubject },
+        ...(verifiedGooglePhotoUrl ? { googlePhotoUrl: { S: verifiedGooglePhotoUrl } } : {}),
+        ...(sex ? { sex: { S: sex } } : {}),
+        ...(heightCm !== undefined ? { heightCm: { N: String(heightCm) } } : {}),
+        status: { S: 'ACTIVE' }, whatsappVerified: { BOOL: false },
+        createdAt: { S: nowIso },
+      },
+      ConditionExpression: 'attribute_not_exists(whatsapp)',
+    }))
+    return { googleOnly: true }
   }
   const existing = await dynamodb.send(new GetItemCommand({
     TableName: customersTable,
@@ -546,17 +577,20 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       TableName: tableName,
       IndexName: 'CustomerByEmail',
       KeyConditionExpression: '#email = :email',
-      FilterExpression: '#status = :active AND #verified = :verified',
+      FilterExpression: '#status = :active AND (#verified = :verified OR begins_with(whatsapp, :googlePrefix))',
       ExpressionAttributeNames: { '#email': 'email', '#status': 'status', '#verified': 'whatsappVerified' },
       ExpressionAttributeValues: {
         ':email': { S: email },
         ':active': { S: 'ACTIVE' },
         ':verified': { BOOL: true },
+        ':googlePrefix': { S: 'GOOGLE#' },
       },
     }))
-    const customer = result.Items?.[0]
+    const customer = result.Items?.find(item =>
+      item.whatsapp?.S?.startsWith('GOOGLE#') ? item.googleSubject?.S === payload.sub : item.whatsappVerified?.BOOL === true)
     if (!customer) return response(404, { error: 'Não encontrei um cadastro confirmado com este e-mail. Cadastre-se primeiro.' })
-    const identity = shouldResolveIdentity(event) && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
+    const googleOnly = customer.whatsapp?.S?.startsWith('GOOGLE#') === true
+    const identity = shouldResolveIdentity(event) && !googleOnly && result.Items?.length === 1 && !result.LastEvaluatedKey && payload.sub
       ? await trySyncIdentity(() => syncGoogleCustomerIdentity({
         whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
         email: customer.email?.S ?? '', isAdmin: customer.isAdmin?.BOOL === true,
@@ -573,13 +607,14 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           TableName: tableName,
           Key: { whatsapp: { S: customer.whatsapp!.S! } },
           UpdateExpression: 'SET googlePhotoUrl = :photo, updatedAt = :updated',
-          ConditionExpression: '#status = :active AND whatsappVerified = :verified AND email = :email',
+          ConditionExpression: '#status = :active AND (whatsappVerified = :verified OR begins_with(whatsapp, :googlePrefix)) AND email = :email',
           ExpressionAttributeNames: { '#status': 'status' },
           ExpressionAttributeValues: {
             ':photo': { S: verifiedPhotoUrl },
             ':updated': { S: new Date().toISOString() },
             ':active': { S: 'ACTIVE' },
             ':verified': { BOOL: true },
+            ':googlePrefix': { S: 'GOOGLE#' },
             ':email': { S: email },
           },
         }))
@@ -593,7 +628,8 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       authenticated: true,
       profile: {
         name: customer.name?.S ?? '',
-        whatsapp: customer.whatsapp?.S ?? '',
+        whatsapp: googleOnly ? '' : (customer.whatsapp?.S ?? ''),
+        accountKey: customer.whatsapp?.S ?? '',
         email,
         dateOfBirth: customer.dateOfBirth?.S ?? '',
         sex: customer.sex?.S ?? '',
@@ -3328,8 +3364,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const registration = parseBody(event)
     if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o nome, o WhatsApp e os dados informados.' })
     try {
-      const { verificationCode, verificationExpiresAt } = await registerCustomer(registration!)
-      return response(201, { registered: true, status: 'pending_verification', verificationCode, verificationExpiresAt })
+      const registered = await registerCustomer(registration!)
+      if ('googleOnly' in registered && registered.googleOnly)
+        return response(201, { registered: true, status: 'active', googleOnly: true })
+      return response(201, { registered: true, status: 'pending_verification', ...registered })
     } catch (error) {
       if (error instanceof Error && error.message === 'Esse WhatsApp já tem um cadastro confirmado.') return response(409, { error: error.message })
       if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
