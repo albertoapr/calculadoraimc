@@ -1,3 +1,4 @@
+import { seedPersonFields } from './person-profile'
 /**
  * Migracao progressiva e ADITIVA de cadastros existentes.
  *
@@ -201,6 +202,7 @@ export async function registerGoogleCustomerIdentity(input: {
 }) {
   const email = input.email.trim().toLowerCase()
   const pessoaId = await ensureGooglePerson(input.sub, email, input.name)
+  await seedPersonFields(pessoaId, { name: input.name, googlePhotoUrl: input.googlePhotoUrl, dateOfBirth: input.dateOfBirth })
   const userId = await ensureUserRole(pessoaId, 'CLIENTE')
   const customerId = customerIdForPerson(pessoaId)
   const now = new Date().toISOString()
