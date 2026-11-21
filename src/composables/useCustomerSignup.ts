@@ -30,6 +30,8 @@ export function useCustomerSignup(options: {
   const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '', sex: '' as '' | 'masculino' | 'feminino', heightCm: undefined as number | undefined })
 
   const signupContact = ref('')
+  const signupGooglePhotoUrl = ref('')
+  const signupGoogleCredential = ref('')
 
   const signupStep = ref<1 | 2>(1)
 
@@ -180,7 +182,8 @@ export function useCustomerSignup(options: {
         .replace(/\//g, '_')
         .replace(/=+$/g, '')
       const verificationCode = await registerCustomer(
-        { name, whatsapp, email, sex: customerForm.sex, heightCm: customerForm.heightCm, sessionToken },
+        { name, whatsapp, email, sex: customerForm.sex, heightCm: customerForm.heightCm, sessionToken,
+          googleCredential: signupGoogleCredential.value || undefined },
         controller.signal,
       )
       if (!isCurrent()) return
@@ -212,6 +215,8 @@ export function useCustomerSignup(options: {
   }
   function closeCustomerSignup() {
     stopCustomerVerification()
+    signupGooglePhotoUrl.value = ''
+    signupGoogleCredential.value = ''
     customerStatus.value = ''
     customerVerificationLink.value = ''
     customerVerificationCode.value = ''
@@ -234,6 +239,8 @@ export function useCustomerSignup(options: {
   return {
     customerForm,
     signupContact,
+    signupGooglePhotoUrl,
+    signupGoogleCredential,
     signupStep,
     customerStatus,
     customerVerificationLink,
