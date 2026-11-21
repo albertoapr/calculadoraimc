@@ -416,7 +416,7 @@ export async function activateGoogleTrainerIdentity(input: {
 export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity) {
   if (!legacy.trainerId || !legacy.city) throw new Error('INVALID_LEGACY_TRAINER')
   const phone = toE164Brazilian(legacy.whatsapp)
-  if (legacy.pessoaId && legacy.identitySource !== 'WHATSAPP')
+  if (legacy.pessoaId && !['WHATSAPP', 'GOOGLE'].includes(legacy.identitySource ?? ''))
     throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
   const existingPhonePerson = await findPersonIdByIdentification('WHATSAPP', phone)
   if (legacy.pessoaId && existingPhonePerson && legacy.pessoaId !== existingPhonePerson)
