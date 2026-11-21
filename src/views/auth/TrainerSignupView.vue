@@ -266,7 +266,7 @@ const {
     </form>
     <div v-else class="field-wide">
       <p class="intro">Use sua conta Google para criar o cadastro pessoal uma única vez.</p>
-      <button type="button" class="primary-button" @click="navigateTo('/entrar?redirect=/cadastro/personal')">Entrar ou cadastrar-se</button>
+      <button type="button" class="primary-button" @click="navigateTo('/entrar')">Entrar ou cadastrar-se</button>
     </div>
     <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     <div
