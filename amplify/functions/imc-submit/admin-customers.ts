@@ -102,7 +102,7 @@ export async function updateAdminCustomer(
     if (!pessoaId) return response(409, { error: 'Identidade do cliente incompleta.' })
     if (data.active === false && pessoaId === actingPersonId)
       return response(409, { error: 'Não é permitido desativar a própria conta administrativa.' })
-    const newActive = data.active ?? customer.ativo?.BOOL !== false
+    const newActive = data.active ?? (customer.ativo?.BOOL !== false)
     const oldActive = customer.ativo?.BOOL !== false
     const dob = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
     const sex = typeof data.sex === 'string' ? data.sex : ''
@@ -113,7 +113,7 @@ export async function updateAdminCustomer(
       ':active': { BOOL: newActive },
       ':dob': { S: dob },
       ':sex': { S: sex },
-      ':height': { N: String(typeof data.heightCm === 'number' ? data.heightCm : Number(customer.altura_cm?.N ?? 0)) },
+      ...(typeof data.heightCm === 'number' ? { ':height': { N: String(data.heightCm) } } : {}),
       ':updated': { S: new Date().toISOString() },
     }
     const update = {
