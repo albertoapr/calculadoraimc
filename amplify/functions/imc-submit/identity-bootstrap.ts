@@ -243,7 +243,9 @@ export async function loadGoogleCustomerIdentity(sub: string) {
   const item = record.Item
   if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false) return null
   const usuarios = await listPersonProfiles(pessoaId)
-  if (!usuarios.some(user => user.usuarioId === userId)) usuarios.push({
+  const cliente = usuarios.find(user => user.usuarioId === userId)
+  if (cliente) cliente.clienteId = customerId
+  else usuarios.push({
     usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE', clienteId: customerId,
   })
   return { pessoaId, userId, customerId, usuarios, item }
