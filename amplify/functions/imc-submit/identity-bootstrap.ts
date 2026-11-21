@@ -375,6 +375,43 @@ export async function syncEmailCustomerIdentity(legacy: LegacyCustomerIdentity, 
   return { pessoaId, usuarios }
 }
 
+/**
+ * A pessoa foi validada pelo Google no cadastro e pelo WhatsApp na ativação.
+ * Só então o perfil profissional é incorporado à mesma identidade.
+ */
+export async function activateGoogleTrainerIdentity(input: {
+  pessoaId: string; trainerId: string; cities: string[]; whatsapp: string
+}) {
+  if (!input.pessoaId || !input.trainerId || !input.cities.length)
+    throw new Error('INVALID_TRAINER_ACTIVATION')
+  const phone = toE164Brazilian(input.whatsapp)
+  const owner = await findPersonIdByIdentification('WHATSAPP', phone)
+  if (owner && owner !== input.pessoaId) throw new Error('IDENTITY_LINK_CONFLICT')
+  const userId = stableId('U', `${input.pessoaId}#PERSONAL`)
+  // O pessoal/profissional só compartilha uma pessoa quando ambas as provas existem.
+  for (const city of input.cities) {
+    await db.send(new UpdateItemCommand({
+      TableName: table('TRAINERS_TABLE'),
+      Key: { city: { S: city }, trainerId: { S: input.trainerId } },
+      UpdateExpression: 'SET user_id = if_not_exists(user_id, :user)',
+      ConditionExpression: 'active = :active AND whatsappVerified = :verified AND pessoa_id = :person AND identitySource = :google AND whatsapp = :phone AND (attribute_not_exists(user_id) OR user_id = :user)',
+      ExpressionAttributeValues: {
+        ':active': { BOOL: true }, ':verified': { BOOL: true },
+        ':person': { S: input.pessoaId }, ':user': { S: userId },
+        ':google': { S: 'GOOGLE' }, ':phone': { S: input.whatsapp },
+      },
+    }))
+  }
+  await attachVerifiedIdentification({
+    pessoaId: input.pessoaId, type: 'WHATSAPP', verifiedValue: phone,
+  })
+  await ensureUserRole(input.pessoaId, 'PERSONAL')
+  await ensureSpecificProfile('FITPESO_PERSONAL_V2_TABLE', 'personal_id',
+    input.trainerId, userId, {
+      legacyTrainerId: { S: input.trainerId }, cidade: { S: input.cities[0] },
+    })
+}
+
 /** PERSONAL e associado por telefone somente apos validacao de sessao WhatsApp do personal. */
 export async function syncWhatsappTrainerIdentity(legacy: LegacyTrainerIdentity) {
   if (!legacy.trainerId || !legacy.city) throw new Error('INVALID_LEGACY_TRAINER')
