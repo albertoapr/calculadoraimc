@@ -6,7 +6,9 @@ import { useAccountSession } from '../../stores/accountSession'
 const { customerPhotoUrl } = storeToRefs(useAccountSession())
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
-  academyOptions,
+  profileAcademyOptions,
+  academiesLoading,
+  academiesError,
   addAcademy,
   profileAcademyChoice,
   profileOtherAcademy,
@@ -104,15 +106,17 @@ const {
           ><span class="field-label">Endereço do perfil</span>
           <fieldset class="availability-group field-wide">
             <legend>Academias onde atende (até 5)</legend>
+            <small v-if="academiesError" role="alert">{{ academiesError }}</small>
+            <small v-else-if="!academiesLoading && !profileAcademyOptions.length">Nenhuma academia cadastrada na cidade do profissional.</small>
             <div class="public-academy-add">
               <select v-model="profileAcademyChoice" aria-label="Selecionar academia">
-                <option value="">Selecione uma academia</option>
-                <option v-for="option in academyOptions" :key="option" :value="option">
+                <option value="">{{ academiesLoading ? 'Carregando academias…' : 'Selecione uma academia' }}</option>
+                <option v-for="option in profileAcademyOptions" :key="option" :value="option">
                   {{ option }}
                 </option>
               </select>
               <input
-                v-if="profileAcademyChoice === 'Outros'"
+                v-if="false"
                 v-model="profileOtherAcademy"
                 type="text"
                 maxlength="60"
@@ -123,6 +127,7 @@ const {
                 type="button"
                 class="secondary-button"
                 :disabled="
+                  academiesLoading || !!academiesError || !profileAcademyOptions.includes(profileAcademyChoice) ||
                   editingProfile.academias.length >= 5 ||
                   !profileAcademyChoice ||
                   (profileAcademyChoice === 'Outros' && !profileOtherAcademy.trim())
