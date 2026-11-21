@@ -115,14 +115,7 @@ const {
                   {{ option }}
                 </option>
               </select>
-              <input
-                v-if="false"
-                v-model="profileOtherAcademy"
-                type="text"
-                maxlength="60"
-                placeholder="Nome da academia"
-                aria-label="Nome da academia"
-              />
+              
               <button
                 type="button"
                 class="secondary-button"
@@ -130,7 +123,6 @@ const {
                   academiesLoading || !!academiesError || !profileAcademyOptions.includes(profileAcademyChoice) ||
                   editingProfile.academias.length >= 5 ||
                   !profileAcademyChoice ||
-                  (profileAcademyChoice === 'Outros' && !profileOtherAcademy.trim())
                 "
                 @click="
                   () => {
