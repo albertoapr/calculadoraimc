@@ -36,6 +36,9 @@ const {
         Cadastro de cliente
       </h1>
     </header>
+    <p v-if="customerStatus && !customerVerificationLink" class="status" role="status" aria-live="polite">
+      {{ customerStatus }}
+    </p>
     <form
       v-if="!customerVerificationLink && signupStep === 1"
       class="form login-step-form"
