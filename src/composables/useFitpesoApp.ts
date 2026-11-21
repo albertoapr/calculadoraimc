@@ -190,9 +190,29 @@ export function useFitpesoApp() {
     .map(academy => `${academy.name} — ${academy.neighborhood}`)
     .sort((a, b) => a.localeCompare(b, 'pt-BR')))
   const profileAcademyOptions = computed(() => registeredAcademies.value
-    .filter(academy => academy.city === editingProfile.city)
-    .map(academy => `${academy.name} — ${academy.neighborhood}`)
-    .sort((a, b) => a.localeCompare(b, 'pt-BR')))
+    .filter(academy => editingProfile.cities.includes(academy.city))
+    .map(academy => ({
+      id: academy.academyId,
+      label: `${academy.name} — ${academy.neighborhood}`,
+      city: academy.city,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')))
+  function addProfileAcademy(academyId: string) {
+    const academy = profileAcademyOptions.value.find(item => item.id === academyId)
+    if (!academy || editingProfile.academyIds.includes(academyId) ||
+        editingProfile.academias.length >= 5) return
+    if (!editingProfile.academias.includes(academy.label)) editingProfile.academias.push(academy.label)
+    editingProfile.academyIds.push(academyId)
+    profileAcademyChoice.value = ''
+  }
+  function removeProfileAcademy(index: number) {
+    const name = editingProfile.academias[index]
+    const registered = registeredAcademies.value.find(academy =>
+      `${academy.name} — ${academy.neighborhood}` === name &&
+      editingProfile.academyIds.includes(academy.academyId))
+    if (registered) editingProfile.academyIds.splice(editingProfile.academyIds.indexOf(registered.academyId), 1)
+    editingProfile.academias.splice(index, 1)
+  }
   function addAcademy(list: string[], choice: string, other: string) {
     const name = (choice === 'Outros' ? other : choice).trim().replace(/\s+/g, ' ')
     if (
@@ -1356,6 +1376,8 @@ export function useFitpesoApp() {
     acceptProposal,
     academyOptions,
     profileAcademyOptions,
+    addProfileAcademy,
+    removeProfileAcademy,
     academiesLoading,
     academiesError,
     refreshRegisteredAcademies,
