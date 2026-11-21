@@ -395,6 +395,21 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
         }] : []),
       ],
     }))
+    // Ativação via Beta é prova suficiente para promover o cliente legado ao
+    // modelo canônico. Falha no backfill não invalida a prova do WhatsApp.
+    try {
+      await syncWhatsappCustomerIdentity({
+        whatsapp, name: acceptedName,
+        email: customer?.email?.S ?? '',
+        isAdmin: customer?.isAdmin?.BOOL === true,
+        pessoaId: customer?.pessoa_id?.S,
+        identitySource: customer?.identitySource?.S,
+      })
+    } catch (syncError) {
+      console.warn('[imc-submit] Customer V2 sync pending after WhatsApp verification', {
+        reason: syncError instanceof Error ? syncError.message : 'SYNC_FAILED',
+      })
+    }
     return response(200, { verified: true, whatsapp, name: acceptedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
