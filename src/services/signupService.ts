@@ -7,6 +7,7 @@ export type CustomerSignupInput = {
   sessionToken: string
   sex: 'masculino' | 'feminino'
   heightCm?: number
+  googleCredential?: string
 }
 export type TrainerSignupInput = {
   name: string
