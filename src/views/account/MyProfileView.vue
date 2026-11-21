@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import TrainerPageEditor from './TrainerPageEditor.vue'
+import PhoneVerification from './PhoneVerification.vue'
 import { storeToRefs } from 'pinia'
 import { useAccountSession } from '../../stores/accountSession'
 const { customerPhotoUrl } = storeToRefs(useAccountSession())
@@ -18,6 +19,7 @@ const {
   editingProfileLoading,
   editingProfileSaving,
   saveMyProfile,
+  openMyProfile,
   navigateTo,
   selectableProfiles,
 } = useFitpesoContext()
@@ -48,15 +50,14 @@ const {
           required
         />
       </label>
-      <label class="field field-wide" for="profile-whatsapp"
+      <PhoneVerification v-if="editingProfileType === 'customer'"
+        :whatsapp="editingProfile.whatsapp"
+        :verified="editingProfile.whatsappVerified"
+        @verified="openMyProfile" />
+      <label v-else class="field field-wide" for="profile-whatsapp"
         ><span class="field-label">WhatsApp confirmado</span>
-        <input
-          id="profile-whatsapp"
-          :value="editingProfile.whatsapp"
-          type="tel"
-          readonly
-          aria-readonly="true"
-        />
+        <input id="profile-whatsapp" :value="editingProfile.whatsapp" type="tel"
+          readonly aria-readonly="true" />
       </label>
       <label class="field field-wide" for="profile-email"
         ><span class="field-label">E-mail</span>
