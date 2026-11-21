@@ -57,6 +57,12 @@ function stableId(prefix: string, value: string) {
   return `${prefix}_${createHash('sha256').update(value).digest('hex').slice(0, 32)}`
 }
 
+/** ID estável de cliente derivado da pessoa, nunca de WhatsApp ou e-mail. */
+export function customerIdForPerson(pessoaId: string): string {
+  if (!pessoaId.trim()) throw new Error('pessoaId obrigatorio')
+  return stableId('C', `${pessoaId}#CLIENTE`)
+}
+
 function isConflict(error: unknown) {
   return error instanceof ConditionalCheckFailedException ||
     (error instanceof TransactionCanceledException &&
@@ -192,7 +198,7 @@ export async function registerGoogleCustomerIdentity(input: {
   const email = input.email.trim().toLowerCase()
   const pessoaId = await ensureGooglePerson(input.sub, email, input.name)
   const userId = await ensureUserRole(pessoaId, 'CLIENTE')
-  const customerId = stableId('C', `${pessoaId}#CLIENTE`)
+  const customerId = customerIdForPerson(pessoaId)
   const now = new Date().toISOString()
   try {
     await db.send(new PutItemCommand({
@@ -224,7 +230,7 @@ export async function loadGoogleCustomerIdentity(sub: string) {
   const pessoaId = await findPersonIdByIdentification('GOOGLE', sub)
   if (!pessoaId) return null
   const userId = stableId('U', `${pessoaId}#CLIENTE`)
-  const customerId = stableId('C', `${pessoaId}#CLIENTE`)
+  const customerId = customerIdForPerson(pessoaId)
   const record = await db.send(new GetItemCommand({
     TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
     Key: { customer_id: { S: customerId } }, ConsistentRead: true,
