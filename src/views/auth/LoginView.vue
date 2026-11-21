@@ -60,6 +60,10 @@ const {
       </p>
     </header>
 
+    <p v-if="customerLoginError && loginStep === 1" class="login-validation-error" role="alert" aria-live="assertive">
+      {{ customerLoginError }}
+    </p>
+
     <form
       v-if="loginStep === 1"
       class="form login-step-form"
