@@ -18,7 +18,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
-import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity, registerGoogleCustomerIdentity, loadGoogleCustomerIdentity, syncProvisionalGoogleCustomerIdentity } from './identity-bootstrap'
+import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity, registerGoogleCustomerIdentity, loadGoogleCustomerIdentity, syncProvisionalGoogleCustomerIdentity, activateGoogleTrainerIdentity } from './identity-bootstrap'
 import { listPersonProfiles, resolveVerifiedIdentity } from './identity-store'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
@@ -1807,14 +1807,34 @@ async function registerTrainer(
   if (!requestCodesTable) throw new Error('Trainer verification store is not configured')
   const slugTableName = process.env.TRAINER_SLUGS_TABLE
   if (!slugTableName) throw new Error('Trainer slug directory is not configured')
-  const name = String(data.name).trim().replace(/\s+/g, ' ')
-  const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
-  if (!sex) throw new Error('Selecione Masculino ou Feminino.')
+  // Login Google existente: não confiar em nome, e-mail ou sexo enviados pelo formulário.
+  // O sub assinado identifica a pessoa canônica e impede criar uma segunda conta.
+  let linkedPersonId = ''
+  let linkedCustomer: Awaited<ReturnType<typeof loadGoogleCustomerIdentity>> = null
+  if (typeof data.googleCredential === 'string' && data.googleCredential) {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+    if (!clientId) throw new Error('Login Google indisponível.')
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({
+      idToken: data.googleCredential, audience: clientId,
+    })
+    const payload = ticket.getPayload()
+    if (!payload?.sub || !payload.email_verified || !payload.email)
+      throw new Error('Conta Google não validada.')
+    linkedCustomer = await loadGoogleCustomerIdentity(payload.sub)
+    if (!linkedCustomer || linkedCustomer.item.email?.S !== payload.email.trim().toLowerCase())
+      throw new Error('Entre primeiro na conta Google cadastrada na FitPeso.')
+    linkedPersonId = linkedCustomer.pessoaId
+    if (linkedCustomer.usuarios.some(user => user.tipo === 'PERSONAL'))
+      throw new Error('Sua conta já possui um perfil de personal trainer.')
+  }
+  const name = linkedCustomer ? linkedCustomer.item.nome?.S ?? '' : String(data.name).trim().replace(/\s+/g, ' ')
+  const sex = linkedCustomer ? linkedCustomer.item.sexo?.S ?? '' : (data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : '')
+  if (sex !== 'masculino' && sex !== 'feminino') throw new Error('Informe o sexo em Meu cadastro antes de ativar o perfil.')
   const whatsapp = normalizePhone(data.whatsapp)
-  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const email = linkedCustomer ? linkedCustomer.item.email?.S ?? '' : (typeof data.email === 'string' ? data.email.trim().toLowerCase() : '')
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
-  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
+  const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
@@ -1912,6 +1932,9 @@ async function registerTrainer(
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
+            ...(linkedPersonId ? {
+              pessoa_id: { S: linkedPersonId }, identitySource: { S: 'GOOGLE' },
+            } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
@@ -1932,6 +1955,15 @@ async function registerTrainer(
       })),
     ],
   }))
+  if (betaSignup && linkedPersonId) {
+    try {
+      await activateGoogleTrainerIdentity({ pessoaId: linkedPersonId, trainerId, cities, whatsapp })
+    } catch (error) {
+      console.warn('[imc-submit] Verified Beta trainer profile linkage pending', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+    }
+  }
   return { slug, verificationCode: challenge.code }
 }
 
@@ -2691,7 +2723,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const trainerRecord = await dynamodb.send(new GetItemCommand({
       TableName: trainersTable,
       Key: { city: { S: cities[0] }, trainerId: { S: trainerId } },
-      ProjectionExpression: '#name, whatsapp',
+      ProjectionExpression: '#name, whatsapp, pessoa_id, identitySource',
       ExpressionAttributeNames: { '#name': 'name' },
       ConsistentRead: true,
     }))
@@ -2736,6 +2768,18 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
         })),
       ],
     }))
+    if (trainerRecord.Item?.pessoa_id?.S && trainerRecord.Item.identitySource?.S === 'GOOGLE') {
+      try {
+        await activateGoogleTrainerIdentity({
+          pessoaId: trainerRecord.Item.pessoa_id.S,
+          trainerId, cities, whatsapp,
+        })
+      } catch (error) {
+        console.warn('[imc-submit] Google trainer identity linkage pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    }
     return response(200, { verified: true, slug, whatsapp, name: confirmedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
