@@ -122,7 +122,7 @@ const {
                 :disabled="
                   academiesLoading || !!academiesError || !profileAcademyOptions.includes(profileAcademyChoice) ||
                   editingProfile.academias.length >= 5 ||
-                  !profileAcademyChoice ||
+                  !profileAcademyChoice
                 "
                 @click="
                   () => {
