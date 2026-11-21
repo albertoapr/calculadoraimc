@@ -1278,9 +1278,20 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) {
       return { error: response(401, { error: 'Cadastro do personal indisponível.' }) }
     }
+    const cityLookup = await dynamodb.send(new QueryCommand({
+      TableName: trainersTable,
+      IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: trainerId } },
+      ProjectionExpression: 'city',
+    }))
+    const cities = [...new Set((cityLookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
     return { profile: {
       trainerId,
       city,
+      cities: cities.length ? cities : [city],
+      academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
       name: item.name?.S ?? '',
       whatsapp,
       googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
@@ -1481,8 +1492,10 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
-      !validAcademias(academias) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', ...pageFields].includes(key))) {
+      !Array.isArray(academias) || academias.length > 5 ||
+      academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 130) ||
+      !Array.isArray(data.academyIds) || data.academyIds.length > 5 ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -1498,11 +1511,22 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     const rows = lookup.Items ?? []
     const cities = [...new Set(rows.map(row => row.city?.S ?? '').filter(Boolean))]
     if (cities.length < 1 || cities.length > 2) return response(409, { error: 'Não foi possível confirmar as cidades do cadastro.' })
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
+    const existing = rows[0]
+    const oldAcademyIds = (existing.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean)
+    const oldNames = new Set((existing.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean))
+    // Keep legacy names only if they were previously saved: new associations must use registered IDs.
+    const legacyNames = (academias as string[]).filter(name => oldNames.has(name) &&
+      !academyLinks.names.includes(name))
+    const academyNames = [...new Set([...legacyNames, ...academyLinks.names])]
+    if (academyNames.length > 5) return response(400, { error: 'Selecione no máximo cinco academias.' })
     const time = new Date().toISOString()
-    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+    const changes: any[] = cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' +
+        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, academyIds = :academyIds, updatedAt = :updated' +
           (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
           pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
@@ -1510,15 +1534,31 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
-          ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
+          ':instagram': { S: instagram }, ':cref': { S: cref },
+          ':academias': { L: academyNames.map(name => ({ S: name })) },
+          ':academyIds': { L: academyLinks.ids.map(id => ({ S: id })) }, ':updated': { S: time },
           ...Object.fromEntries(pageFields.filter(key => data[key] !== undefined).map(key => [':' + key, { S: (data[key] as string).trim() }])),
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
-    })) }))
+    })) })
+    for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
+      changes.push({ Put: { TableName: linksTable,
+        Item: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)' } })
+    }
+    for (const academyId of oldAcademyIds.filter(id => !academyLinks.ids.includes(id))) {
+      changes.push({ Delete: { TableName: linksTable,
+        Key: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } } } })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: changes }))
     const refreshed = await getTrainerSession(event)
     return refreshed.error ?? response(200, { authenticated: true, profile: refreshed.profile! })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
+      return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
+    if (error instanceof Error && error.message === 'ACADEMY_SERVICE_UNAVAILABLE')
+      return response(503, { error: 'Cadastro de academias indisponível.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou indisponível. Atualize a página e tente novamente.' })
     console.error('[imc-submit] Trainer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o perfil do personal.' })
