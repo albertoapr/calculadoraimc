@@ -421,6 +421,14 @@ export function useFitpesoApp() {
     sendTrainerSignup,
     stopTrainerRegistration,
   } = useTrainerSignup({
+    linkedAccount: () => customerSignedInName.value ? {
+      name: customerForm.name || customerSignedInName.value,
+      email: customerForm.email,
+      sex: customerForm.sex,
+      whatsapp: customerForm.whatsapp,
+      dateOfBirth: customerForm.dateOfBirth,
+      googleCredential: sessionStorage.getItem('fitpeso-google-session') ?? '',
+    } : null,
     onClose: goHome,
     active: showTrainerSignup,
     replaceUrl: (url) => router.replace(url),
@@ -1414,6 +1422,7 @@ export function useFitpesoApp() {
     signupAcademyChoice,
     signupOtherAcademy,
     trainerForm,
+    linkedAccount,
     betaTrainerSignupToken,
     betaAcademyHint,
     trainerStatus,
