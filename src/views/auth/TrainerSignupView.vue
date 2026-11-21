@@ -10,6 +10,7 @@ const {
   signupAcademyChoice,
   signupOtherAcademy,
   trainerForm,
+  linkedAccount,
   trainerStatus,
   betaTrainerSignupToken,
   betaAcademyHint,
@@ -22,6 +23,7 @@ const {
   toggleTrainerCity,
   suggestTrainerSlug,
   sendTrainerSignup,
+  navigateTo,
 } = useFitpesoContext()
 </script>
 
@@ -39,20 +41,28 @@ const {
         >
           &lt;
         </button>
-        Cadastro de personal
+        {{ linkedAccount ? 'Ativar perfil de personal trainer' : 'Cadastro de personal' }}
       </h1>
       <p v-if="betaTrainerSignupToken" class="intro">
         Seu WhatsApp já foi confirmado pela Beta. Complete os campos obrigatórios para ativar o
         perfil sem uma nova confirmação.
       </p>
+      <p v-else-if="linkedAccount" class="intro">
+        Seus dados pessoais já estão cadastrados. Informe apenas seus dados profissionais e
+        confirme o WhatsApp de contato com a Beta para ativar o perfil.
+      </p>
       <p v-else class="intro">
-        Preencha seus dados para receber solicitações de usuários. Confirme o WhatsApp informado
-        para ativar seu perfil.
+        Para ativar seu perfil profissional, entre primeiro com sua conta da FitPeso.
       </p>
     </header>
 
-    <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
-      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide trainer-contact-reminder">
+    <form v-if="linkedAccount || betaTrainerSignupToken" class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
+      <div v-if="linkedAccount" class="field-wide linked-person-summary">
+        <strong>Dados do seu cadastro</strong>
+        <span>{{ linkedAccount.name }} · {{ linkedAccount.email }}</span>
+        <small>Seu nome, e-mail, sexo e nascimento são reutilizados. Para alterá-los, acesse Meu cadastro.</small>
+      </div>
+      <div v-if="!betaTrainerSignupToken && !linkedAccount" class="google-fill field-wide trainer-contact-reminder">
         <p>
           Antes de enviar o cadastro, baixe e salve o cartão de contato da Beta para receber o
           retorno.
@@ -65,14 +75,14 @@ const {
         >
         <small>WhatsApp: +55 21 97111-8383</small>
       </div>
-      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide">
+      <div v-if="!betaTrainerSignupToken && !linkedAccount" class="google-fill field-wide">
         <p>Complete nome e e-mail com sua conta Google</p>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
         <small v-if="googleProfileStatus" role="status" aria-live="polite">{{
           googleProfileStatus
         }}</small>
       </div>
-      <label class="field field-wide" for="trainer-name"
+      <label v-if="!linkedAccount" class="field field-wide" for="trainer-name"
         ><span class="field-label">Nome completo</span>
         <input
           id="trainer-name"
@@ -87,7 +97,7 @@ const {
           required
         />
       </label>
-      <label class="field field-wide" for="trainer-sex"
+      <label v-if="!linkedAccount" class="field field-wide" for="trainer-sex"
         ><span class="field-label">Sexo</span>
         <select id="trainer-sex" v-model="trainerForm.sex" name="trainerSex" required>
           <option disabled value="">Selecione</option>
@@ -116,7 +126,7 @@ const {
         >
       </label>
       <label class="field field-wide" for="trainer-phone"
-        ><span class="field-label">Telefone</span>
+        ><span class="field-label">WhatsApp para contato profissional</span>
         <input
           id="trainer-phone"
           v-model="trainerForm.phone"
@@ -130,7 +140,7 @@ const {
           required
         />
       </label>
-      <label class="field field-wide" for="trainer-birth-date"
+      <label v-if="!linkedAccount" class="field field-wide" for="trainer-birth-date"
         ><span class="field-label">Data de nascimento <span>opcional</span></span>
         <BirthDatePicker
           id="trainer-birth-date"
@@ -138,7 +148,7 @@ const {
           name="trainerBirthDate"
         />
       </label>
-      <label class="field field-wide" for="trainer-email"
+      <label v-if="!linkedAccount" class="field field-wide" for="trainer-email"
         ><span class="field-label">E-mail <span>opcional</span></span>
         <input
           id="trainer-email"
@@ -238,8 +248,8 @@ const {
           placeholder="Ex.: CREF 000000-G/RJ"
         />
       </label>
-      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
-        {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : 'Enviar cadastro' }}
+      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || (Boolean(linkedAccount) && !linkedAccount.googleCredential)">
+        {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : linkedAccount ? 'Ativar perfil de personal' : 'Enviar cadastro' }}
         <span aria-hidden="true">→</span>
       </button>
       <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">
@@ -254,6 +264,10 @@ const {
         >Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a
       >
     </form>
+    <div v-else class="field-wide">
+      <p class="intro">Use sua conta Google para criar o cadastro pessoal uma única vez.</p>
+      <button type="button" class="primary-button" @click="navigateTo('/entrar?redirect=/cadastro/personal')">Entrar ou cadastrar-se</button>
+    </div>
     <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     <div
       class="box-footer"
