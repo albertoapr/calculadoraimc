@@ -193,11 +193,6 @@ export function useFitpesoApp() {
     .filter(academy => academy.city === editingProfile.city)
     .map(academy => `${academy.name} — ${academy.neighborhood}`)
     .sort((a, b) => a.localeCompare(b, 'pt-BR')))
-  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
-    if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
-  }, { immediate: true })
-  watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
-  watch(() => editingProfile.city, () => { profileAcademyChoice.value = '' })
   function addAcademy(list: string[], choice: string, other: string) {
     const name = (choice === 'Outros' ? other : choice).trim().replace(/\s+/g, ' ')
     if (
@@ -548,7 +543,12 @@ export function useFitpesoApp() {
         window.scrollTo(0, 0)
       }
     },
-  })
+  })  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
+    if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
+  }, { immediate: true })
+  watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
+  watch(() => editingProfile.city, () => { profileAcademyChoice.value = '' })
+
 
   const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
   const trainerRequestsStatus = ref('')
