@@ -3,7 +3,6 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
-  navigateTo,
   customerForm,
   signupContact,
   signupGooglePhotoUrl,
