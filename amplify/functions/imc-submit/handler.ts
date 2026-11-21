@@ -1,3 +1,4 @@
+import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
@@ -545,10 +546,15 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         const item = record.Item
         if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false)
           return response(401, { error: 'Perfil de cliente indisponível.' })
+        const personFields = await loadPersonFields(pessoaId, {
+          name: item.nome?.S ?? '',
+          googlePhotoUrl: personFields.googlePhotoUrl,
+          dateOfBirth: item.nascimento?.S ?? '',
+        })
         return response(200, { authenticated: true, profile: {
-          name: item.nome?.S ?? '', whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
+          name: personFields.name, whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
           customerId, userId, email: item.email?.S ?? '',
-          dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
+          dateOfBirth: personFields.dateOfBirth, sex: item.sexo?.S ?? '',
           heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
           googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
           isAdmin: (await listPersonProfiles(pessoaId)).some(role => role.tipo === 'ADMIN'),
@@ -611,13 +617,25 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     if (canonical) {
       const item = canonical.item
       if (item.email?.S !== email) return response(409, { error: 'Os dados desta conta precisam de revisão.' })
+      await seedPersonFields(canonical.pessoaId, {
+        name: item.nome?.S ?? '',
+        googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+        dateOfBirth: item.nascimento?.S ?? '',
+      })
+      const verifiedPhoto = googleProfilePhotoUrl(payload.picture)
+      if (verifiedPhoto) await setVerifiedGooglePersonPhoto(canonical.pessoaId, verifiedPhoto)
+      const personFields = await loadPersonFields(canonical.pessoaId, {
+        name: item.nome?.S ?? '',
+        googlePhotoUrl: verifiedPhoto || item.googlePhotoUrl?.S || '',
+        dateOfBirth: item.nascimento?.S ?? '',
+      })
       return response(200, { authenticated: true, profile: {
-        name: item.nome?.S ?? '', whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
+        name: personFields.name, whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
         customerId: canonical.customerId, userId: canonical.userId,
-        email, dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
+        email, dateOfBirth: personFields.dateOfBirth, sex: item.sexo?.S ?? '',
         heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
         isAdmin: canonical.usuarios.some(role => role.tipo === 'ADMIN'),
-        googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
+        googlePhotoUrl: personFields.googlePhotoUrl,
         identity: { pessoaId: canonical.pessoaId, usuarios: canonical.usuarios },
         identityStatus: 'ready',
       } })
@@ -1294,6 +1312,11 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
       ProjectionExpression: 'city',
     }))
     const cities = [...new Set((cityLookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
+    const personFields = await loadPersonFields(item.pessoa_id?.S, {
+      name: personFields.name,
+      googlePhotoUrl: personFields.googlePhotoUrl,
+      dateOfBirth: personFields.dateOfBirth,
+    })
     return { profile: {
       trainerId,
       city,
