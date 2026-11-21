@@ -195,14 +195,7 @@ const {
                 {{ option }}
               </option>
             </select>
-            <input
-              v-if="false"
-              v-model="signupOtherAcademy"
-              type="text"
-              maxlength="60"
-              placeholder="Nome da academia"
-              aria-label="Nome da academia"
-            />
+            
             <button
               type="button"
               class="secondary-button"
@@ -210,7 +203,6 @@ const {
                 academiesLoading || !!academiesError || !academyOptions.includes(signupAcademyChoice) ||
                 trainerForm.academias.length >= 5 ||
                 !signupAcademyChoice ||
-                (signupAcademyChoice === 'Outros' && !signupOtherAcademy.trim())
               "
               @click="
                 () => {
