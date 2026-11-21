@@ -666,6 +666,7 @@ export function useFitpesoApp() {
 
   async function fillFromGoogle(response: GoogleCredentialResponse) {
     if (googleProfileTarget.value === 'client') {
+      customerLoginError.value = ''
       customerLoginStatus.value = 'Validando sua conta e buscando seu cadastro…'
       googleProfileStatus.value = ''
       try {
@@ -696,20 +697,28 @@ export function useFitpesoApp() {
               )
               const claims = JSON.parse(new TextDecoder().decode(bytes)) as { email?: string; name?: string }
               if (typeof claims.name === 'string') customerForm.name = claims.name.trim()
-              if (typeof claims.email === 'string') {
-                openCustomerSignupFromLogin(claims.email.trim().toLowerCase())
+              if (typeof claims.email === 'string' && claims.email.trim()) {
+                const email = claims.email.trim().toLowerCase()
+                openCustomerSignupFromLogin(email)
+                customerStatus.value =
+                  'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
+                await nextTick()
+                document.getElementById('customer-whatsapp')?.focus()
                 return
               }
             }
           } catch {
             // Não confiar em dados malformados no preenchimento do formulário.
           }
-          openCustomerSignupFromLogin('')
+          customerLoginError.value =
+            'Não foi possível ler os dados do Google. Tente novamente ou informe seu e-mail.'
+          customerLoginStatus.value = ''
           return
         }
-        customerLoginStatus.value =
+        customerLoginError.value =
           error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
-        googleProfileStatus.value = customerLoginStatus.value
+        customerLoginStatus.value = ''
+        googleProfileStatus.value = customerLoginError.value
       }
       return
     }
