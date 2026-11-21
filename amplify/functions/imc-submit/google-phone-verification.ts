@@ -3,7 +3,7 @@ import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutIte
 import { OAuth2Client } from 'google-auth-library'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import { activateGoogleTrainerIdentity, loadGoogleCustomerIdentity } from './identity-bootstrap'
-import { attachVerifiedIdentification, findPersonIdByIdentification } from './identity-store'
+import { findPersonIdByIdentification, listPersonProfiles } from './identity-store'
 
 /** A confirmação chega somente do número informado pelo provedor da Beta.
  * O Google autentica a pessoa, mas nunca comprova titularidade do telefone. */
@@ -158,19 +158,28 @@ export async function verifyGooglePhoneFromBeta(data: Record<string, unknown> | 
   const pessoaId = challenge.pessoa_id?.S ?? ''
   if (!pessoaId) return reply(200, { verified: false })
   try {
-    const { listPersonProfiles } = await import('./identity-store')
     const profiles = await listPersonProfiles(pessoaId)
     const client = profiles.find(p => p.tipo === 'CLIENTE' && p.clienteId)
     if (!client?.clienteId) return reply(200, { verified: false })
     if (await phoneUsedByAnotherAccount(phone, pessoaId))
       return reply(409, { verified: false, error: 'WhatsApp já utilizado por outro cadastro.' })
-    await attachVerifiedIdentification({ pessoaId, type: 'WHATSAPP', verifiedValue: phone })
     const trainerRows = await trainerRowsForPerson(pessoaId)
     const personalUser = profiles.find(p => p.tipo === 'PERSONAL')?.usuarioId
     const validTrainerRows = trainerRows.filter(row => !row.userId || row.userId === personalUser)
     if (validTrainerRows.length !== trainerRows.length)
       return reply(409, { verified: false, error: 'Vínculo profissional precisa de revisão.' })
     const actions: import('@aws-sdk/client-dynamodb').TransactWriteItemsCommandInput['TransactItems'] = [
+      { Update: {
+        TableName: table('FITPESO_PESSOA_IDENTIFICACAO_TABLE'),
+        Key: { identificationKey: { S: 'WHATSAPP#' + phone } },
+        UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :person), #tipo = if_not_exists(#tipo, :type), verificado_em = if_not_exists(verificado_em, :verified)',
+        ConditionExpression: 'attribute_not_exists(identificationKey) OR pessoa_id = :person',
+        ExpressionAttributeNames: { '#tipo': 'tipo' },
+        ExpressionAttributeValues: {
+          ':person': { S: pessoaId }, ':type': { S: 'WHATSAPP' },
+          ':verified': { S: new Date(now * 1000).toISOString() },
+        },
+      } },
       { Update: {
         TableName: table('IMC_REQUESTS_TABLE'), Key: key,
         UpdateExpression: 'SET consumedAt = :now',
