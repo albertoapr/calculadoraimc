@@ -132,9 +132,12 @@ export async function updateAdminCustomer(
     const personUpdate = {
       TableName: personTable(),
       Key: { pessoa_id: { S: pessoaId } },
-      UpdateExpression: 'SET nome = :name',
+      UpdateExpression: 'SET nome = :name' + (dob ? ', nascimento = :dob' : ''),
       ConditionExpression: 'attribute_exists(pessoa_id)',
-      ExpressionAttributeValues: { ':name': { S: name } },
+      ExpressionAttributeValues: {
+        ':name': { S: name },
+        ...(dob ? { ':dob': { S: dob } } : {}),
+      },
     }
     const legacyKey = str(customer, 'legacyWhatsapp')
     if (legacyKey) {
