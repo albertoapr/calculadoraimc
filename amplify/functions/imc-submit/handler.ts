@@ -1,3 +1,4 @@
+import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
@@ -542,7 +543,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false)
           return response(401, { error: 'Perfil de cliente indisponível.' })
         return response(200, { authenticated: true, profile: {
-          name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+          name: item.nome?.S ?? '', whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
           customerId, userId, email: item.email?.S ?? '',
           dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
           heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
@@ -606,7 +607,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       const item = canonical.item
       if (item.email?.S !== email) return response(409, { error: 'Os dados desta conta precisam de revisão.' })
       return response(200, { authenticated: true, profile: {
-        name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+        name: item.nome?.S ?? '', whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
         customerId: canonical.customerId, userId: canonical.userId,
         email, dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
         heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
@@ -3484,6 +3485,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const challenge = await dynamodb.send(new GetItemCommand({
         TableName: codesTable, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
       }))
+      if (challenge.Item?.flow?.S === 'fitpeso-google-phone-verification') return verifyGooglePhoneFromBeta(loginData)
       if (challenge.Item?.flow?.S === 'fitpeso-trainer-login') return verifyTrainerLogin(loginData)
       if (challenge.Item?.flow?.S === 'fitpeso-customer-login') return verifyCustomerLogin(loginData)
       return response(200, { verified: false })
@@ -3493,6 +3495,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       })
       return response(503, { error: 'Não foi possível confirmar o login agora.' })
     }
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-phone-verification')) {
+    return startGooglePhoneVerification(event, parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/phone-verification-status')) {
+    return googlePhoneVerificationStatus(event, parseBody(event))
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/switch-profile')) {
