@@ -374,6 +374,12 @@ export function useFitpesoApp() {
     stopCustomerVerification,
   } = useCustomerSignup({
     onClose: onCustomerSignupClosed,
+    onGoogleAuthenticated: async (credential) => {
+      const profile = await loadCustomerProfile(credential)
+      sessionStorage.setItem('fitpeso-google-session', credential)
+      applyCustomerProfile(profile)
+      requireProfileSelection()
+    },
     onAuthenticated: (sessionToken, profile) => {
       try {
         sessionStorage.setItem('fitpeso-customer-session', sessionToken)
@@ -712,9 +718,9 @@ export function useFitpesoApp() {
                   } catch { return '' }
                 })()
                 customerStatus.value =
-                  'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
+                  'Conta Google confirmada. Complete seu cadastro. O WhatsApp será solicitado ao enviar um pedido de treinamento.'
                 await nextTick()
-                document.getElementById('customer-whatsapp')?.focus()
+                document.getElementById('customer-name')?.focus()
                 return
               }
             }
