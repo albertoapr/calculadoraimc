@@ -11,7 +11,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand,
+  ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, QueryCommand, PutItemCommand,
   TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
 import {
@@ -240,15 +240,30 @@ export async function loadGoogleCustomerIdentity(sub: string) {
     TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
     Key: { customer_id: { S: customerId } }, ConsistentRead: true,
   }))
-  const item = record.Item
-  if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false) return null
+  // Registros migrados antes da unificação usam customer_id baseado no telefone.
+  // Nesse caso, resolva exclusivamente pelo user_id canônico da pessoa comprovada.
+  let item = record.Item
+  let resolvedCustomerId = customerId
+  if (!item) {
+    const legacyProfiles = await db.send(new QueryCommand({
+      TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
+      IndexName: 'CustomerByUsuario',
+      KeyConditionExpression: 'user_id = :user',
+      ExpressionAttributeValues: { ':user': { S: userId } },
+    }))
+    const matches = legacyProfiles.Items ?? []
+    if (matches.length !== 1 || legacyProfiles.LastEvaluatedKey) return null
+    item = matches[0]
+    resolvedCustomerId = item.customer_id?.S ?? ''
+  }
+  if (!resolvedCustomerId || !item || item.user_id?.S !== userId || item.ativo?.BOOL === false) return null
   const usuarios = await listPersonProfiles(pessoaId)
   const cliente = usuarios.find(user => user.usuarioId === userId)
-  if (cliente) cliente.clienteId = customerId
+  if (cliente) cliente.clienteId = resolvedCustomerId
   else usuarios.push({
-    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE', clienteId: customerId,
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE', clienteId: resolvedCustomerId,
   })
-  return { pessoaId, userId, customerId, usuarios, item }
+  return { pessoaId, userId, customerId: resolvedCustomerId, usuarios, item }
 }
 
 /** Migra cadastros provisórios GOOGLE#sub sem apagar ou renomear sua chave legada. */
@@ -323,9 +338,12 @@ export async function syncWhatsappCustomerIdentity(legacy: LegacyCustomerIdentit
   const phone = toE164Brazilian(legacy.whatsapp)
   // Se o perfil foi vinculado pelo Google, telefone e Google precisam ser
   // comprovados juntos antes de mesclar os perfis.
-  if (legacy.pessoaId && legacy.identitySource !== 'WHATSAPP')
-    throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
   const existingPhonePerson = await findPersonIdByIdentification('WHATSAPP', phone)
+  // Conta originalmente Google: só reutilize a mesma pessoa quando o número
+  // já foi vinculado a ela com prova de WhatsApp. Não mescle pessoas distintas.
+  if (legacy.pessoaId && legacy.identitySource !== 'WHATSAPP' &&
+      !(legacy.identitySource === 'GOOGLE' && existingPhonePerson === legacy.pessoaId))
+    throw new Error('IDENTITY_LINK_REQUIRES_BOTH_PROOFS')
   if (existingPhonePerson && legacy.pessoaId && existingPhonePerson !== legacy.pessoaId)
     throw new Error('IDENTITY_LINK_CONFLICT')
   const personFromPhone = legacy.pessoaId ?? existingPhonePerson ?? await ensureWhatsappPerson(phone, legacy.name)
