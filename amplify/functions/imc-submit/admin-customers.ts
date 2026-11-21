@@ -107,7 +107,7 @@ export async function updateAdminCustomer(
     if (!pessoaId) return response(409, { error: 'Identidade do cliente incompleta.' })
     if (data.active === false && pessoaId === actingPersonId)
       return response(409, { error: 'Não é permitido desativar a própria conta administrativa.' })
-    const newActive = data.active ?? (customer.ativo?.BOOL !== false)
+    const newActive = typeof data.active === 'boolean' ? data.active : customer.ativo?.BOOL !== false
     const oldActive = customer.ativo?.BOOL !== false
     const dob = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
     const sex = typeof data.sex === 'string' ? data.sex : ''
