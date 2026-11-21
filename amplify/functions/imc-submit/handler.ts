@@ -569,7 +569,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       return response(200, { authenticated: true, profile: {
         name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
         customerId: canonical.customerId, userId: canonical.userId,
-        email, sex: item.sexo?.S ?? '',
+        email, dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
         heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
         isAdmin: false, googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
         identity: { pessoaId: canonical.pessoaId, usuarios: canonical.usuarios },
@@ -659,7 +659,7 @@ async function authenticateCustomer(event: Parameters<APIGatewayProxyHandler>[0]
   const profileResponse = await getCustomerProfile(event)
   if (profileResponse.statusCode !== 200) return { error: profileResponse }
   try {
-    const body = JSON.parse(profileResponse.body) as { profile?: { name?: string; whatsapp?: string; accountKey?: string; email?: string; dateOfBirth?: string } }
+    const body = JSON.parse(profileResponse.body) as { profile?: { name?: string; whatsapp?: string; accountKey?: string; customerId?: string; userId?: string; email?: string; dateOfBirth?: string } }
     const profile = body.profile
     if (!profile || typeof profile.name !== 'string' || typeof profile.whatsapp !== 'string') {
       return { error: response(401, { error: 'Entre para continuar.' }) }
@@ -677,6 +677,8 @@ async function authenticateCustomer(event: Parameters<APIGatewayProxyHandler>[0]
       name: profile.name.trim().replace(/\s+/g, ' '),
       whatsapp: normalizePhone(profile.whatsapp),
       accountKey: typeof profile.accountKey === 'string' ? profile.accountKey : normalizePhone(profile.whatsapp),
+      customerId: typeof profile.customerId === 'string' ? profile.customerId : '',
+      userId: typeof profile.userId === 'string' ? profile.userId : '',
       email: typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '',
       ...(age !== undefined ? { age } : {}),
     } }
@@ -1268,6 +1270,33 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   const tableName = process.env.FITPESO_CUSTOMERS_TABLE
   if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
   const whatsapp = auth.profile!.accountKey
+  if (auth.profile!.customerId && !whatsapp) {
+    try {
+      const customerId = auth.profile!.customerId
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: process.env.FITPESO_CUSTOMER_V2_TABLE!,
+        Key: { customer_id: { S: customerId } },
+        UpdateExpression: 'SET nome = :name, atualizado_em = :updated' +
+          (data.dateOfBirth ? ', nascimento = :dob' : '') +
+          (data.sex !== undefined ? ', sexo = :sex' : '') +
+          (data.heightCm !== undefined ? ', altura_cm = :height' : ''),
+        ConditionExpression: 'user_id = :user AND ativo = :active',
+        ExpressionAttributeValues: {
+          ':name': { S: (data.name as string).trim().replace(/\\s+/g, ' ') },
+          ':updated': { S: new Date().toISOString() },
+          ':user': { S: auth.profile!.userId }, ':active': { BOOL: true },
+          ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+          ...(data.sex !== undefined ? { ':sex': { S: data.sex as string } } : {}),
+          ...(data.heightCm !== undefined ? { ':height': { N: String(data.heightCm) } } : {}),
+        },
+      }))
+      return getCustomerProfile(event)
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) return response(403, { error: 'Perfil indisponível.' })
+      console.error('[imc-submit] Customer V2 profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
+      return response(503, { error: 'Não foi possível salvar seu cadastro.' })
+    }
+  }
   try {
     await dynamodb.send(new UpdateItemCommand({
       TableName: tableName,
@@ -2739,6 +2768,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     requestId: { S: requestId },
     clientName: { S: customer.name },
     clientPhone: { S: clientPhone },
+    ...(customer.customerId ? { customerId: { S: customer.customerId } } : {}),
     city: { S: city },
     status: { S: 'VALIDATED' },
     lifecycle: { S: 'OPEN' },
