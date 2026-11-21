@@ -1,4 +1,4 @@
-import { DynamoDBClient, GetItemCommand, ScanCommand, TransactWriteItemsCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
+import { DynamoDBClient, GetItemCommand, ScanCommand, TransactWriteItemsCommand } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 
 const db = new DynamoDBClient({})
@@ -10,6 +10,11 @@ const customerTable = () => {
 const legacyTable = () => {
   const value = process.env.FITPESO_CUSTOMERS_TABLE
   if (!value) throw new Error('Tabela de compatibilidade indisponível')
+  return value
+}
+const personTable = () => {
+  const value = process.env.FITPESO_PESSOA_TABLE
+  if (!value) throw new Error('Tabela de pessoas indisponível')
   return value
 }
 const userTable = () => {
@@ -124,6 +129,13 @@ export async function updateAdminCustomer(
       ConditionExpression: 'user_id = :uid',
       ExpressionAttributeValues: attrs,
     }
+    const personUpdate = {
+      TableName: personTable(),
+      Key: { pessoa_id: { S: pessoaId } },
+      UpdateExpression: 'SET nome = :name',
+      ConditionExpression: 'attribute_exists(pessoa_id)',
+      ExpressionAttributeValues: { ':name': { S: name } },
+    }
     const legacyKey = str(customer, 'legacyWhatsapp')
     if (legacyKey) {
       const legacy = (await db.send(new GetItemCommand({
@@ -135,6 +147,7 @@ export async function updateAdminCustomer(
         return response(409, { error: 'Vínculo legado inconsistente. Nenhuma alteração efetuada.' })
       await db.send(new TransactWriteItemsCommand({ TransactItems: [
         { Update: update },
+        { Update: personUpdate },
         { Update: {
           TableName: legacyTable(), Key: { whatsapp: { S: legacyKey } },
           UpdateExpression: 'SET #status = :target, #name = :name, dateOfBirth = :dob, sex = :sex' +
@@ -154,7 +167,9 @@ export async function updateAdminCustomer(
         } },
       ] }))
     } else {
-      await db.send(new UpdateItemCommand(update))
+      await db.send(new TransactWriteItemsCommand({ TransactItems: [
+        { Update: update }, { Update: personUpdate },
+      ] }))
     }
     return response(200, { updated: true })
   } catch (error) {
