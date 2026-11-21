@@ -126,6 +126,7 @@ export type EditableProfile = {
 }
 
 export type TrainerAccountProfile = IdentitySyncState & {
+  googlePhotoUrl?: string
   tagline?: string
   aboutMe?: string
   education?: string
