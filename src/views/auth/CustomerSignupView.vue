@@ -6,6 +6,7 @@ const {
   navigateTo,
   customerForm,
   signupContact,
+  signupGooglePhotoUrl,
   signupStep,
   customerStatus,
   customerVerificationLink,
@@ -63,6 +64,16 @@ const {
       </button>
     </form>
     <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
+      <div v-if="signupGooglePhotoUrl" class="field-wide" style="display: flex; justify-content: center; padding: 0.5rem 0">
+        <img
+          :src="signupGooglePhotoUrl"
+          alt="Foto do seu perfil Google"
+          referrerpolicy="no-referrer"
+          width="88"
+          height="88"
+          style="width: 88px; height: 88px; border-radius: 50%; object-fit: cover"
+        />
+      </div>
       <p class="field-wide intro">
         Informe seu nome e WhatsApp. O número será confirmado com a Beta e, ao concluir, você já
         estará conectado. A data de nascimento será solicitada apenas quando pedir atendimento.
