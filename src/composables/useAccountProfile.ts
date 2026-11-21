@@ -33,6 +33,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
     name: '',
     trainerId: '',
     city: '',
+    cities: [],
+    academyIds: [],
     sex: '',
     heightCm: undefined,
     whatsapp: '',
@@ -59,6 +61,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
     editingProfile.name = profile.name ?? ''
     editingProfile.trainerId = 'trainerId' in profile ? profile.trainerId : ''
     editingProfile.city = 'city' in profile ? profile.city ?? '' : ''
+    editingProfile.cities = 'cities' in profile ? [...(profile.cities ?? [])] : (editingProfile.city ? [editingProfile.city] : [])
+    editingProfile.academyIds = 'academyIds' in profile ? [...(profile.academyIds ?? [])] : []
     const profileSex = 'sex' in profile ? profile.sex : undefined
     editingProfile.sex = profileSex === 'masculino' || profileSex === 'feminino' ? profileSex : ''
     editingProfile.heightCm = 'heightCm' in profile ? profile.heightCm : undefined
@@ -140,7 +144,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
         type,
         token,
         trainer
-          ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias,
+          ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias, academyIds: editingProfile.academyIds,
               tagline: editingProfile.tagline, aboutMe: editingProfile.aboutMe,
               education: editingProfile.education, workingMethod: editingProfile.workingMethod,
               pricing: editingProfile.pricing }
