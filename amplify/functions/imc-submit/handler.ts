@@ -1,3 +1,4 @@
+import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
@@ -2133,6 +2134,25 @@ async function getTrainerRows(trainerId: string) {
   return results.flatMap(result => result.Item ? [result.Item] : [])
 }
 
+/** Revalida o papel ADMIN vinculado à pessoa autenticada; nunca confia no menu do frontend. */
+async function authorizeAdminCustomers(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const profile = await getCustomerProfile(event)
+  if (profile.statusCode !== 200) return { error: profile }
+  const parsed = JSON.parse(profile.body) as {
+    profile?: { identity?: { pessoaId?: string } }
+  }
+  const pessoaId = parsed.profile?.identity?.pessoaId
+  if (pessoaId) {
+    const roles = await listPersonProfiles(pessoaId)
+    if (roles.some(role => role.tipo === 'ADMIN'))
+      return { pessoaId }
+  }
+  const legacy = await authenticateAdmin(event)
+  if ('error' in legacy) return { error: response(403, { error: 'Acesso restrito a administradores.' }) }
+  const id = parsed.profile?.identity?.pessoaId ?? ''
+  return { pessoaId: id }
+}
+
 async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateAdmin(event)
   if ('error' in auth) return auth.error
@@ -3445,6 +3465,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return verifyTrainerLogin(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/received-requests')) return listTrainerReceivedRequests(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/customers')) {
+    const admin = await authorizeAdminCustomers(event)
+    if ('error' in admin) return admin.error
+    return listAdminCustomers()
+  }
+  if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/customers/{customerId}')) {
+    const admin = await authorizeAdminCustomers(event)
+    if ('error' in admin) return admin.error
+    return updateAdminCustomer(event, parseBody(event), admin.pessoaId)
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/trainers')) return listAdminTrainers(event)
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
