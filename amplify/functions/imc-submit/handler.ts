@@ -583,6 +583,7 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       return response(200, { authenticated: true, profile: {
         name: customer.Item.name?.S ?? '',
         whatsapp,
+        whatsappVerified: true,
         email: customer.Item.email?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
         sex: customer.Item.sex?.S ?? '',
