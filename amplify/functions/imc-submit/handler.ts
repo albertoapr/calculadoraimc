@@ -621,7 +621,13 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       ? await trySyncIdentity(() => googleOnly
         ? syncProvisionalGoogleCustomerIdentity({
             whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
-            email: customer.email?.S ?? '',
+            email: customer.email?.S ?? '', pessoaId: customer.pessoa_id?.S,
+            identitySource: customer.identitySource?.S,
+            googlePhotoUrl: customer.googlePhotoUrl?.S ?? '',
+            dateOfBirth: customer.dateOfBirth?.S,
+            sex: customer.sex?.S === 'masculino' || customer.sex?.S === 'feminino'
+              ? customer.sex.S : undefined,
+            heightCm: customer.heightCm?.N ? Number(customer.heightCm.N) : undefined,
           }, { sub: payload.sub!, email })
         : syncGoogleCustomerIdentity({
         whatsapp: customer.whatsapp?.S ?? '', name: customer.name?.S ?? '',
