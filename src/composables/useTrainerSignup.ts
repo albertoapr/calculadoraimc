@@ -19,7 +19,7 @@ export function useTrainerSignup(options: {
   onAuthenticated?: (sessionToken: string) => Promise<void> | void
   linkedAccount?: () => {
     name: string; email: string; sex: '' | 'masculino' | 'feminino'
-    whatsapp: string; dateOfBirth: string; googleCredential: string
+    whatsapp: string; dateOfBirth: string; googleCredential: string; photoUrl?: string
   } | null
 }) {
   let disposed = false
