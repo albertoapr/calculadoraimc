@@ -16,12 +16,18 @@ const {
   editingProfileLoading,
   editingProfileSaving,
   saveMyProfile,
+  navigateTo,
+  selectableProfiles,
 } = useFitpesoContext()
 </script>
 
 <template>
   <section class="customer-signup" aria-labelledby="page-title">
     <p class="intro">Consulte e atualize as informações do seu cadastro.</p>
+    <div v-if="editingProfileType === 'customer' && !selectableProfiles.some(profile => profile.tipo === 'PERSONAL')" class="profile-activation">
+      <p>Também quer receber solicitações de treinamento? Ative um perfil profissional sem criar outra conta.</p>
+      <button type="button" class="secondary-button" @click="navigateTo('/cadastro/personal')">Ativar perfil de personal trainer</button>
+    </div>
     <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
     <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
       <div v-if="editingProfileType === 'customer' && customerPhotoUrl" class="google-profile-photo field-wide">
@@ -176,4 +182,6 @@ const {
 .google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
 .google-profile-photo small { color: var(--muted); }
 .google-profile-photo a { color: var(--blue); font-size: 0.9rem; }
+.profile-activation { margin: 12px 0 20px; display: grid; gap: 8px; }
+.profile-activation p { margin: 0; color: var(--muted); }
 </style>
