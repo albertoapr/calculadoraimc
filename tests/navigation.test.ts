@@ -48,8 +48,8 @@ async function fixture(path: string, restoring = false) {
 test('direct public routes, state transitions and browser history stay synchronized', async () => {
   const f = await fixture('/cadastro/cliente')
   try {
-    assert.equal(f.state.showCustomerSignup.value, true)
-    f.state.showCustomerSignup.value = false
+    assert.equal(f.state.showCustomerLogin.value, true)
+    f.state.showCustomerLogin.value = false
     f.state.viewMode.value = 'assessment'
     await settle()
     assert.equal(f.router.currentRoute.value.path, '/avaliacao')
@@ -99,7 +99,7 @@ test('visitors keep their destination when changing between login and signup', a
     f.state.showCustomerLogin.value = false
     f.state.showCustomerSignup.value = true
     await settle()
-    assert.equal(f.router.currentRoute.value.path, '/cadastro/cliente')
+    assert.equal(f.router.currentRoute.value.path, '/cadastro/cliente/dados')
     assert.equal(f.router.currentRoute.value.query.redirect, '/minhas-solicitacoes')
     f.state.customerSignedInName.value = 'Ana Silva'
     await f.router.replace(String(f.router.currentRoute.value.query.redirect))

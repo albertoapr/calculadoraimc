@@ -21,7 +21,6 @@ const {
   openCustomerRequests,
   openMyProfile,
   openTrainerReceivedRequests,
-  openCustomerSignupFromLogin,
 } = useFitpesoContext()
 const profileLabel = computed(() =>
   activeRole.value === 'ADMIN' ? 'Administrador' : activeRole.value === 'PERSONAL' ? 'Personal' : 'Cliente',
@@ -73,13 +72,6 @@ onBeforeUnmount(() => {
         aria-label="Acesso de visitantes"
       >
         <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
-        <span class="header-auth-divider" aria-hidden="true">|</span>
-        <a
-          href="/cadastro/cliente"
-          class="header-signup-link"
-          @click.prevent="openCustomerSignupFromLogin()"
-          >Cadastre-se</a
-        >
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
         <img

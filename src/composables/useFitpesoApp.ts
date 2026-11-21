@@ -351,6 +351,7 @@ export function useFitpesoApp() {
       requireProfileSelection()
     },
     renderGoogleButton,
+    beginCustomerSignup: (contact) => openCustomerSignupFromLogin(contact),
     goHome,
     returnToRequestFormAfterLogin,
     replaceUrl: (url) => router.replace(url),
@@ -679,47 +680,45 @@ export function useFitpesoApp() {
         showCustomerLogin.value = false
         await returnToRequestFormAfterLogin()
       } catch (error) {
-        // Uma identidade Google válida sem cadastro não é uma falha de login:
-        // inicia o cadastro com os dados sugeridos pelo Google. A API
-        // continuará exigindo verificação própria antes de ativar o perfil.
-        if (error instanceof ApiError && error.status === 404) {
-          try {
-            const payloadPart = response.credential.split('.')[1]
-            if (!payloadPart) throw new Error('Credencial Google incompleta.')
-            const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
-            const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))
-            const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-            const googleProfile = JSON.parse(new TextDecoder().decode(bytes)) as {
-              name?: string
-              email?: string
-            }
-            if (!googleProfile.email?.trim()) throw new Error('O Google não retornou o e-mail.')
-            customerForm.name = googleProfile.name?.trim() ?? ''
-            customerForm.email = googleProfile.email.trim().toLowerCase()
-            customerForm.whatsapp = ''
-            signupContact.value = customerForm.email
-            signupStep.value = 2
-            customerStatus.value =
-              'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
-            showCustomerLogin.value = false
-            showCustomerSignup.value = true
-            await nextTick()
-            document.getElementById('customer-whatsapp')?.focus()
-          } catch {
-            customerLoginError.value =
-              'Não foi possível preparar seu cadastro pelo Google. Tente novamente.'
-          }
-        } else {
-          customerLoginError.value =
-            error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
-        }
-        customerLoginStatus.value = customerLoginError.value
-        googleProfileStatus.value = customerLoginStatus.value
         try {
           sessionStorage.removeItem('fitpeso-google-session')
         } catch {
           /* Storage pode estar desativado. */
         }
+        if (error instanceof ApiError && error.status === 404) {
+          // Google já validou a identidade; um cadastro novo ainda exige dados
+          // complementares e confirmação do WhatsApp.
+          try {
+            const part = response.credential.split('.')[1]
+            if (part) {
+              const bytes = Uint8Array.from(
+                atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')),
+                (char) => char.charCodeAt(0),
+              )
+              const claims = JSON.parse(new TextDecoder().decode(bytes)) as { email?: string; name?: string }
+              if (typeof claims.name === 'string') customerForm.name = claims.name.trim()
+              if (typeof claims.email === 'string' && claims.email.trim()) {
+                const email = claims.email.trim().toLowerCase()
+                openCustomerSignupFromLogin(email)
+                customerStatus.value =
+                  'Conta Google confirmada. Complete seu cadastro e confirme seu WhatsApp para continuar.'
+                await nextTick()
+                document.getElementById('customer-whatsapp')?.focus()
+                return
+              }
+            }
+          } catch {
+            // Não confiar em dados malformados no preenchimento do formulário.
+          }
+          customerLoginError.value =
+            'Não foi possível ler os dados do Google. Tente novamente ou informe seu e-mail.'
+          customerLoginStatus.value = ''
+          return
+        }
+        customerLoginError.value =
+          error instanceof Error ? error.message : 'Não foi possível entrar com o Google.'
+        customerLoginStatus.value = ''
+        googleProfileStatus.value = customerLoginError.value
       }
       return
     }
@@ -1050,10 +1049,19 @@ export function useFitpesoApp() {
     }
   }
 
-  function openCustomerSignupFromLogin() {
+  function openCustomerSignupFromLogin(contact = loginIdentifier.value) {
     clearPendingWhatsAppLogin()
-    signupStep.value = 1
-    signupContact.value = loginIdentifier.value.trim()
+    const identifier = contact.trim()
+    signupContact.value = identifier
+    // O contato já foi validado na tela unificada; apresentar somente os dados
+    // complementares do novo cadastro e manter a confirmação do WhatsApp.
+    signupStep.value = identifier ? 2 : 1
+    if (identifier.includes('@')) {
+      customerForm.email = identifier
+    } else if (identifier) {
+      customerForm.whatsapp = identifier
+      customerForm.email = ''
+    }
     showCustomerLogin.value = false
     showCustomerSignup.value = true
   }

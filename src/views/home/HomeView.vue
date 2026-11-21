@@ -1,14 +1,28 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import AcademySelectionDialog from '../profissionais/AcademySelectionDialog.vue'
 import rootHomePersonalImage from '../../assets/root-home-personal.jpg'
 const {
   publicTrainerAcademy,
   publicTrainerAcademies,
+  publicTrainerAcademyDetails,
   homeCity,
   publicTrainersLoading,
   startTrainingRequestFromHome,
   openPublicTrainers,
 } = useFitpesoContext()
+
+const academyDialogOpen = ref(false)
+const academyName = computed(() =>
+  publicTrainerAcademyDetails.value.name.trim().replace(/^academia\s+/i, ''),
+)
+function confirmAcademy(academy: string) {
+  if (!publicTrainerAcademies.value.includes(academy)) return
+  // A escolha na home não navega: o filtro e a persistência em sessão já são reativos.
+  publicTrainerAcademy.value = academy
+  academyDialogOpen.value = false
+}
 </script>
 
 <template>
@@ -27,33 +41,36 @@ const {
       loading="lazy"
     />
   </div>
-  <label class="home-academy-picker" for="home-academy">
-    <svg
-      class="home-academy-icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="4" y="3" width="16" height="18" rx="1.5" />
-      <path d="M8 7h2m4 0h2M8 11h2m4 0h2M8 15h2m4 0h2M10 21v-3h4v3" />
-    </svg>
-    <select
-      id="home-academy"
-      v-model="publicTrainerAcademy"
-      class="home-academy-select"
-      aria-label="Selecionar academia"
-      :disabled="!homeCity || publicTrainersLoading"
-    >
-      <option value="">Selecione uma academia</option>
-      <option v-for="academy in publicTrainerAcademies" :key="academy" :value="academy">
-        {{ academy }}
-      </option>
-    </select>
-  </label>
+  <div class="home-academy-heading" aria-label="Academia selecionada">
+    <div class="home-academy-heading-row">
+      <h2 class="home-academy-title">
+        <button
+          type="button"
+          class="home-academy-change-button"
+          :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
+          aria-haspopup="dialog"
+          title="Selecionar academia"
+          :disabled="!homeCity || publicTrainersLoading"
+          @click="academyDialogOpen = true"
+        >
+          <span>{{ academyName || 'Selecione uma academia' }}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </h2>
+    </div>
+    <p v-if="publicTrainerAcademyDetails.neighborhood" class="home-academy-neighborhood">
+      {{ publicTrainerAcademyDetails.neighborhood }}
+    </p>
+  </div>
+  <AcademySelectionDialog
+    v-if="academyDialogOpen"
+    :academies="publicTrainerAcademies"
+    :academy="publicTrainerAcademy"
+    @confirm="confirmAcademy"
+    @close="academyDialogOpen = false"
+  />
   <button
     class="primary-button home-training-request-button"
     type="button"
@@ -86,6 +103,65 @@ const {
 </template>
 
 <style scoped>
+.home-academy-heading {
+  margin: 14px 0 10px;
+  min-width: 0;
+}
+.home-academy-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.home-academy-title {
+  margin: 0;
+  min-width: 0;
+  font-size: clamp(20px, 5.4vw, 31px);
+  line-height: 1.16;
+  text-align: center;
+}
+.home-academy-change-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 3px 5px;
+  color: #263f33;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.home-academy-change-button svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: #286b4e;
+  transition: transform .15s ease;
+}
+.home-academy-change-button:hover svg { transform: translateY(2px); }
+.home-academy-change-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.home-academy-change-button:disabled { opacity: .5; cursor: not-allowed; }
+.home-academy-neighborhood {
+  margin: -5px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+}
+:global(html[data-theme='dark']) .home-academy-change-button { color: #ffffff; }
+:global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
 .home-training-request-button {
   display: block;
   width: 100%;

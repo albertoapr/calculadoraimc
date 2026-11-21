@@ -33,6 +33,9 @@ test('extracted screens preserve login, request age between steps and theme chan
   globalThis.fetch = async (input) => {
     const url = String(input)
     requestCalls.push(url)
+    if (url.endsWith('/api/customers/start-email-login')) {
+      return Response.json({ error: 'Não foi encontrado um cadastro ativo e confirmado com este e-mail.' }, { status: 400 })
+    }
     if (url.endsWith('/api/customers/profile') && allowCustomerProfile) {
       return Response.json({
         authenticated: true,
@@ -121,15 +124,19 @@ test('extracted screens preserve login, request age between steps and theme chan
   }
   try {
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
+    const shareButton = document.querySelector('[aria-label="Compartilhar FitPeso com um amigo"]')
+    assert.ok(shareButton, 'O rodapé deve oferecer compartilhamento da FitPeso')
     const citySelector = document.querySelector('#home-city')
     assert.ok(citySelector)
     assert.ok(citySelector.closest('.fitpeso-home-topbar'))
     assert.match((citySelector as HTMLSelectElement).options[1]?.text ?? '', /, RJ$/)
     assert.equal(document.querySelector('.home-gym-title'), null)
-    assert.equal(
-      (document.querySelector('#home-academy option[value=""]') as HTMLOptionElement)?.text,
-      'Selecione uma academia',
-    )
+    assert.equal(document.querySelector('.home-academy-title')?.textContent?.trim(), 'Selecione uma academia')
+    const changeAcademy = document.querySelector('.home-academy-change-button') as HTMLButtonElement
+    assert.ok(changeAcademy)
+    assert.match(changeAcademy.getAttribute('aria-label') ?? '', /^Alterar academia/)
+    assert.equal(changeAcademy.getAttribute('aria-haspopup'), 'dialog')
+    assert.equal(changeAcademy.querySelector('svg path')?.getAttribute('d'), 'm6 9 6 6 6-6')
     assert.match(
       document.querySelector('.home-training-title')?.textContent ?? '',
       /Personal.*Trainer/s,
@@ -195,15 +202,22 @@ test('extracted screens preserve login, request age between steps and theme chan
 
     await click(/^Cadastre-se$/)
     assert.equal(document.querySelectorAll('.fitpeso-home-topbar').length, 1)
-    const signupContact = document.querySelector('#signup-contact') as HTMLInputElement
-    assert.ok(signupContact)
+    const signupContact = document.querySelector('#login-identifier') as HTMLInputElement
+    assert.ok(signupContact, 'Entrar e Cadastre-se abrem a mesma tela')
+    const googleContainer = document.querySelector('.login-google-alternative')
+    assert.ok(googleContainer)
+    assert.ok(
+      Boolean(googleContainer.compareDocumentPosition(signupContact) & Node.DOCUMENT_POSITION_FOLLOWING),
+      'Google deve aparecer antes do campo de contato',
+    )
     signupContact.value = 'cliente@example.test'
     signupContact.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     document
       .querySelector('form')!
       .dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     await nextTick()
-    assert.ok(document.querySelector('#customer-name'))
+    assert.ok(document.querySelector('#customer-name'), 'Conta nova deve avançar para os dados complementares')
     await click(/^Cadastrar-me como personal$/)
     await new Promise((resolve) => setTimeout(resolve, 10))
     await nextTick()

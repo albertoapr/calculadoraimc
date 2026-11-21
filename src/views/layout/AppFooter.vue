@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+
 const { theme, viewMode } = useFitpesoContext()
+
+const invitation = 'Conheça a FitPeso! 💚 Encontre personal trainers e escolha o acompanhamento ideal para você. Acesse https://fitpeso.com.br e confira!'
+
+async function shareFitpeso() {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: 'Conheça a FitPeso', text: invitation })
+      return
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(invitation)}`, '_blank', 'noopener,noreferrer')
+}
 </script>
 
 <template>
@@ -26,6 +41,20 @@ const { theme, viewMode } = useFitpesoContext()
           />
         </svg>
       </a>
+      <button
+        type="button"
+        class="box-contact-link footer-share-button"
+        aria-label="Compartilhar FitPeso com um amigo"
+        title="Compartilhar FitPeso com um amigo"
+        @click="shareFitpeso"
+      >
+        <svg class="box-contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="2.5" />
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="18" cy="19" r="2.5" />
+          <path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6" />
+        </svg>
+      </button>
       <span class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
       <a
         v-if="viewMode === 'home'"
@@ -81,5 +110,11 @@ const { theme, viewMode } = useFitpesoContext()
 }
 .footer-menu-links .box-contact-link {
   justify-self: auto;
+}
+.footer-share-button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 </style>

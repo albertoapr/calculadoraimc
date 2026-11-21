@@ -4,6 +4,7 @@ import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
   customerLoginError,
+  customerLoginStatus,
   loginIdentifier,
   loginStep,
   loginIdentifierKind,
@@ -31,7 +32,6 @@ const {
   returnToLoginIdentifier,
   submitIdentityLogin,
   pollEmailLogin,
-  openCustomerSignupFromLogin,
 } = useFitpesoContext()
 </script>
 
@@ -49,26 +49,26 @@ const {
         >
           &lt;
         </button>
-        Login
+        Entrar ou cadastrar-se
       </h1>
       <p class="intro">
         {{
           loginStep === 1
-            ? 'Informe seu WhatsApp ou e-mail para acessar o FitPeso.'
+            ? 'Continue com o Google ou informe seu WhatsApp ou e-mail para entrar ou criar sua conta.'
             : 'Confirme seu acesso com segurança, sem senha nem data de nascimento.'
         }}
       </p>
     </header>
-
-    <p v-if="customerLoginError && loginStep === 1" class="login-validation-error" role="alert" aria-live="assertive">
-      {{ customerLoginError }}
-    </p>
 
     <form
       v-if="loginStep === 1"
       class="form login-step-form"
       @submit.prevent="continueLoginIdentifier"
     >
+      <div class="login-google-alternative field-wide">
+        <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
+        <span>ou</span>
+      </div>
       <label class="field field-wide" for="login-identifier">
         <span class="field-label">WhatsApp ou e-mail</span>
         <input
@@ -83,14 +83,19 @@ const {
           @input="emailLoginError = ''"
         />
       </label>
+      <p v-if="customerLoginStatus && !customerLoginError" class="login-validation-error field-wide" role="status">
+        {{ customerLoginStatus }}
+      </p>
+      <p v-if="customerLoginError && !emailLoginError" class="login-validation-error field-wide" role="alert">
+        {{ customerLoginError }}
+      </p>
       <p v-if="emailLoginError" class="login-validation-error field-wide" role="alert">
         {{ emailLoginError }}
       </p>
-      <button class="primary-button field-wide" type="submit">Continuar</button>
-      <div class="login-google-alternative field-wide">
-        <span>ou</span>
-        <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
-      </div>
+      <button class="primary-button field-wide" type="submit" :disabled="customerLoginSubmitting || emailLoginSubmitting">
+        {{ customerLoginSubmitting || emailLoginSubmitting ? 'Preparando acesso…' : 'Continuar' }}
+      </button>
+
     </form>
 
     <div v-else class="login-second-step">
@@ -150,14 +155,7 @@ const {
       </div>
     </div>
 
-    <button
-      v-if="loginStep === 1"
-      class="back-button"
-      type="button"
-      @click="openCustomerSignupFromLogin"
-    >
-      Criar cadastro
-    </button>
+
     <div
       v-if="trainerLoginDialog || showCustomerLoginDialog"
       class="success-overlay"

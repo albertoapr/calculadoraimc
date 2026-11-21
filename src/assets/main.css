@@ -3581,12 +3581,15 @@ html[data-theme='dark'] .home-training-subtitle {
   left: 4px;
 }
 
-/* Título da academia na listagem pública: contraste fixo no tema escuro. */
-html[data-theme='dark'] #page-title.academy-public-title .academy-title-prefix {
+/* Nome da academia branco no tema escuro em ambas as telas.
+   A regra global precisa prevalecer sobre os estilos gerais do título. */
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-name,
+html[data-theme='dark'] .home-academy-title .home-academy-change-button > span,
+html[data-theme='dark'] .home-academy-title .home-academy-change-button {
   color: #ffffff;
 }
-html[data-theme='dark'] #page-title.academy-public-title .academy-title-name {
-  color: #55d6a3;
+html[data-theme='dark'] #page-title.academy-public-title .academy-title-prefix {
+  color: #ffffff;
 }
 
 /* Modal de seleção de academia: manter todas as superfícies e textos no tema escuro.

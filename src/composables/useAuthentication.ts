@@ -24,6 +24,7 @@ export type AuthenticationOptions = {
   applyCustomerProfile: (profile: CustomerAccountProfile) => void
   applyTrainerSession: (profile: TrainerAccountProfile) => void
   renderGoogleButton: (target: 'client') => Promise<void>
+  beginCustomerSignup: (contact: string) => void
   goHome: () => void
   returnToRequestFormAfterLogin: () => Promise<void>
   replaceUrl: (url: string) => unknown
@@ -502,8 +503,14 @@ export function useAuthentication(options: AuthenticationOptions) {
         .replace(/=+$/g, '')
       const { ok, body } = await startWhatsAppSession('customer', { whatsapp, sessionToken })
       if (generation !== whatsappAttemptGeneration) return
-      if (!ok || body.started !== true || !body.verificationCode)
+      if (!ok || body.started !== true || !body.verificationCode) {
+        if (body.started === false &&
+            body.error?.includes('ainda não cadastrado')) {
+          options.beginCustomerSignup(whatsapp)
+          return
+        }
         throw new Error(body.error || 'Não foi possível iniciar o login agora.')
+      }
       customerLoginWhatsApp.value = whatsapp
       customerLoginCode.value = body.verificationCode
       customerLoginSessionToken.value = sessionToken
@@ -528,7 +535,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     }
   }
 
-  function continueLoginIdentifier() {
+  async function continueLoginIdentifier() {
     emailLoginError.value = ''
     customerLoginError.value = ''
     trainerLoginError.value = ''
@@ -548,7 +555,10 @@ export function useAuthentication(options: AuthenticationOptions) {
       loginIdentifier.value = contact.value
     }
     loginStep.value = 2
-    void nextTick(() => document.getElementById('login-confirm-action')?.focus())
+    await nextTick()
+    document.getElementById('login-confirm-action')?.focus()
+    // Um único Continuar inicia a confirmação. A segunda etapa permite repetir se necessário.
+    await submitIdentityLogin()
   }
 
   function returnToLoginIdentifier() {
@@ -595,8 +605,13 @@ export function useAuthentication(options: AuthenticationOptions) {
         sessionToken: token,
       })
       if (disposed) return
-      if (!ok || body.started !== true)
+      if (!ok || body.started !== true) {
+        if (!ok && body.error?.includes('Não foi encontrado um cadastro ativo')) {
+          options.beginCustomerSignup(loginIdentifier.value)
+          return
+        }
         throw new Error(body.error || 'Não foi possível enviar a confirmação.')
+      }
       emailLoginSessionToken.value = token
       emailLoginPending.value = true
       emailLoginStartedAt = Date.now()

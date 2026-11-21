@@ -57,3 +57,9 @@ com o mesmo cabeçalho secreto. Exemplo do JSON enviado:
 A API confere primeiro a assinatura HMAC e o texto aprovado. Se válidos, cria ou localiza o cadastro do cliente e envia link individual de login; para personal novo, devolve link de uso único que abre o formulário de cadastro profissional, sem academia predeterminada. O usuário poderá informar cidade, academia, Instagram e CREF depois. O link de login/cadastro expira em até 5 minutos, mas **o hash da mensagem fixa não expira por pessoa e é reutilizável entre várias pessoas**.
 
 O texto assinado fornece **integridade**, não comprovação de identidade civil, habilitação profissional ou vínculo a uma academia. A Beta nunca deve confiar em números de telefone digitados no texto. A automação WhatsApp externa precisa ser atualizada para encaminhar os dois modelos com o hash; o deploy da FitPeso isoladamente não atualiza o robô.
+
+## Compartilhamento pelo rodapé da FitPeso
+
+O botão de compartilhar no rodapé divulga a aplicação com uma mensagem simples contendo o link `https://fitpeso.com.br`. O convite não contém hash, link direto para a Beta ou comando de cadastro e não chama nenhuma API. No celular, utiliza o compartilhamento nativo quando disponível; nos demais navegadores, abre o WhatsApp para o usuário escolher o destinatário.
+
+**Importante:** isso não altera os dois templates assinados de cadastro direto pela Beta descritos acima. Os comandos enviados à Beta ainda exigem HMAC-SHA256 para serem aceitos. Apenas o convite de divulgação pública deixou de utilizar esse fluxo.
