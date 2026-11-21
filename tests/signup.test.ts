@@ -377,6 +377,33 @@ test('signup modules preserve registration contracts, validation and confirmatio
       },
     )
 
+    await t.test('cadastro Google sem WhatsApp ativa conta sem desafio Beta', async () => {
+      let authenticatedCredential = ''
+      let closedConfirmed = false
+      const scope = effectScope()
+      scopes.push(scope)
+      const c = scope.run(() => useCustomerSignup({
+        onClose(confirmed) { closedConfirmed = confirmed },
+        onGoogleAuthenticated: async credential => { authenticatedCredential = credential },
+      }))!
+      Object.assign(c.customerForm, {
+        name: 'Cliente Google', whatsapp: '', email: 'cliente@example.test', sex: 'feminino',
+      })
+      c.signupGoogleCredential.value = 'google-verified-id-token'
+      status = 201
+      reply = { registered: true, googleOnly: true }
+      const previousCalls = calls.length
+      await c.sendCustomerSignup()
+      assert.equal(calls.length, previousCalls + 1)
+      const sent = JSON.parse(String(calls.at(-1)?.init?.body ?? '{}'))
+      assert.equal(sent.googleCredential, 'google-verified-id-token')
+      assert.equal(sent.whatsapp, '')
+      assert.equal(authenticatedCredential, 'google-verified-id-token')
+      assert.equal(closedConfirmed, true)
+      assert.equal(c.customerVerificationLink.value, '')
+      scope.stop()
+    })
+
     await t.test(
       'personal duplicate clicks and unmount do not create a late confirmation link',
       async () => {
