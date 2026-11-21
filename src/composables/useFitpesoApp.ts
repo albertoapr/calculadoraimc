@@ -375,7 +375,19 @@ export function useFitpesoApp() {
   } = useCustomerSignup({
     onClose: onCustomerSignupClosed,
     onGoogleAuthenticated: async (credential) => {
-      const profile = await loadCustomerProfile(credential)
+      // O índice CustomerByEmail é eventualmente consistente após o primeiro cadastro.
+      // Repetir apenas o 404 evita mostrar erro apesar do cadastro ter sido salvo.
+      let profile: Awaited<ReturnType<typeof loadCustomerProfile>> | undefined
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+          profile = await loadCustomerProfile(credential)
+          break
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 404 || attempt === 4) throw error
+          await new Promise<void>(resolve => window.setTimeout(resolve, 400))
+        }
+      }
+      if (!profile) throw new Error('Não foi possível carregar o cadastro agora.')
       sessionStorage.setItem('fitpeso-google-session', credential)
       applyCustomerProfile(profile)
       requireProfileSelection()
