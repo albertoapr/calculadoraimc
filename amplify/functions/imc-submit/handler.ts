@@ -651,7 +651,7 @@ async function authenticateCustomer(event: Parameters<APIGatewayProxyHandler>[0]
   const profileResponse = await getCustomerProfile(event)
   if (profileResponse.statusCode !== 200) return { error: profileResponse }
   try {
-    const body = JSON.parse(profileResponse.body) as { profile?: { name?: string; whatsapp?: string; email?: string; dateOfBirth?: string } }
+    const body = JSON.parse(profileResponse.body) as { profile?: { name?: string; whatsapp?: string; accountKey?: string; email?: string; dateOfBirth?: string } }
     const profile = body.profile
     if (!profile || typeof profile.name !== 'string' || typeof profile.whatsapp !== 'string') {
       return { error: response(401, { error: 'Entre para continuar.' }) }
@@ -668,6 +668,7 @@ async function authenticateCustomer(event: Parameters<APIGatewayProxyHandler>[0]
     return { profile: {
       name: profile.name.trim().replace(/\s+/g, ' '),
       whatsapp: normalizePhone(profile.whatsapp),
+      accountKey: typeof profile.accountKey === 'string' ? profile.accountKey : normalizePhone(profile.whatsapp),
       email: typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '',
       ...(age !== undefined ? { age } : {}),
     } }
@@ -1258,7 +1259,7 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
   }
   const tableName = process.env.FITPESO_CUSTOMERS_TABLE
   if (!tableName) return response(503, { error: 'Cadastro indisponível.' })
-  const whatsapp = auth.profile!.whatsapp
+  const whatsapp = auth.profile!.accountKey
   try {
     await dynamodb.send(new UpdateItemCommand({
       TableName: tableName,
@@ -1267,7 +1268,7 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
         (data.dateOfBirth ? ', #dob = :dob' : '') +
         (data.sex !== undefined ? ', #sex = :sex' : '') +
         (data.heightCm !== undefined ? ', #height = :height' : ''),
-      ConditionExpression: '#status = :active AND whatsappVerified = :verified',
+      ConditionExpression: '#status = :active AND (whatsappVerified = :verified OR begins_with(whatsapp, :googlePrefix))',
       ExpressionAttributeNames: {
         '#name': 'name', '#status': 'status',
         ...(data.dateOfBirth ? { '#dob': 'dateOfBirth' } : {}),
@@ -1281,6 +1282,7 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
         ...(data.heightCm !== undefined ? { ':height': { N: String(data.heightCm) } } : {}),
         ':updated': { S: new Date().toISOString() },
         ':active': { S: 'ACTIVE' }, ':verified': { BOOL: true },
+        ':googlePrefix': { S: 'GOOGLE#' },
       },
     }))
     // Return an authoritative profile, including unchanged identity fields.
@@ -2677,10 +2679,14 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const customer = auth.profile!
   // A idade declarada na solicitação dispensa a data de nascimento no cadastro.
   // Para integrações antigas, mantém a idade calculada do cadastro como alternativa.
+  const requestPhone = customer.whatsapp || normalizePhone(data.clientPhone)
+  if (!requestPhone) return response(400, {
+    error: 'Informe um WhatsApp válido com DDD antes de enviar a solicitação de treinamento.',
+  })
   const requestData: Record<string, unknown> = {
     ...data,
     clientName: customer.name,
-    clientPhone: customer.whatsapp,
+    clientPhone: requestPhone,
     age: data.age ?? customer.age,
     ...(customer.email ? { email: customer.email } : {}),
     consent: data.consent === true,
@@ -2695,7 +2701,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const trainersTable = process.env.TRAINERS_TABLE
   if (!requestsTable || !locksTable || !trainersTable) throw new Error('Fitpeso request storage is not configured')
 
-  const clientPhone = customer.whatsapp
+  const clientPhone = requestPhone
   const city = String(requestData.city).trim()
   const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
   const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
