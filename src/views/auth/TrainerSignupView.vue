@@ -6,6 +6,8 @@ const {
   theme,
   availableCities,
   academyOptions,
+  academiesLoading,
+  academiesError,
   addAcademy,
   signupAcademyChoice,
   signupOtherAcademy,
@@ -184,15 +186,17 @@ const {
         <fieldset class="availability-group field-wide">
           <legend>Academias onde atende (até 5)</legend>
           <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
+          <small v-if="academiesError" role="alert">{{ academiesError }}</small>
+          <small v-else-if="!academiesLoading && trainerForm.cities.length && !academyOptions.length">Nenhuma academia cadastrada nas cidades selecionadas.</small>
           <div class="public-academy-add">
             <select v-model="signupAcademyChoice" aria-label="Selecionar academia">
-              <option value="">Selecione uma academia</option>
+              <option value="">{{ academiesLoading ? 'Carregando academias…' : 'Selecione uma academia' }}</option>
               <option v-for="option in academyOptions" :key="option" :value="option">
                 {{ option }}
               </option>
             </select>
             <input
-              v-if="signupAcademyChoice === 'Outros'"
+              v-if="false"
               v-model="signupOtherAcademy"
               type="text"
               maxlength="60"
@@ -203,6 +207,7 @@ const {
               type="button"
               class="secondary-button"
               :disabled="
+                academiesLoading || !!academiesError || !academyOptions.includes(signupAcademyChoice) ||
                 trainerForm.academias.length >= 5 ||
                 !signupAcademyChoice ||
                 (signupAcademyChoice === 'Outros' && !signupOtherAcademy.trim())
