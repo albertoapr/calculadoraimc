@@ -590,16 +590,22 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           : session.Item?.identityProof?.S === 'EMAIL' && session.Item.email?.S
             ? await trySyncIdentity(() => syncEmailCustomerIdentity(legacy, session.Item!.email!.S!))
             : { identityStatus: 'pending' as const }
-      return response(200, { authenticated: true, profile: {
+      const linkedPersonId = customer.Item.pessoa_id?.S
+      const personFields = await loadPersonFields(linkedPersonId, {
         name: customer.Item.name?.S ?? '',
+        googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
+        dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+      })
+      return response(200, { authenticated: true, profile: {
+        name: personFields.name,
         whatsapp,
         whatsappVerified: true,
         email: customer.Item.email?.S ?? '',
-        dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+        dateOfBirth: personFields.dateOfBirth,
         sex: customer.Item.sex?.S ?? '',
         heightCm: customer.Item.heightCm?.N ? Number(customer.Item.heightCm.N) : undefined,
         isAdmin: customer.Item.isAdmin?.BOOL === true,
-        googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
+        googlePhotoUrl: personFields.googlePhotoUrl,
         ...identity,
       } })
     } catch (error) {
@@ -676,7 +682,22 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       }, { sub: payload.sub!, email }))
       : shouldResolveIdentity(event) ? { identityStatus: 'pending' as const } : undefined
     const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
-    const googlePhotoUrl = verifiedPhotoUrl || customer.googlePhotoUrl?.S || ''
+    const linkedPersonId = customer.pessoa_id?.S ||
+      (identity && 'identity' in identity ? identity.identity?.pessoaId : undefined)
+    if (linkedPersonId) {
+      await seedPersonFields(linkedPersonId, {
+        name: customer.name?.S ?? '',
+        googlePhotoUrl: customer.googlePhotoUrl?.S ?? '',
+        dateOfBirth: customer.dateOfBirth?.S ?? '',
+      })
+      if (verifiedPhotoUrl) await setVerifiedGooglePersonPhoto(linkedPersonId, verifiedPhotoUrl)
+    }
+    const sharedPerson = await loadPersonFields(linkedPersonId, {
+      name: customer.name?.S ?? '',
+      googlePhotoUrl: verifiedPhotoUrl || customer.googlePhotoUrl?.S || '',
+      dateOfBirth: customer.dateOfBirth?.S ?? '',
+    })
+    const googlePhotoUrl = sharedPerson.googlePhotoUrl
     // Persist the trusted profile-picture URL on successful Google login.
     // A transient database write failure must not prevent an otherwise valid login.
     if (verifiedPhotoUrl && verifiedPhotoUrl !== customer.googlePhotoUrl?.S) {
@@ -705,11 +726,11 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     return response(200, {
       authenticated: true,
       profile: {
-        name: customer.name?.S ?? '',
+        name: sharedPerson.name,
         whatsapp: googleOnly ? '' : (customer.whatsapp?.S ?? ''),
         accountKey: customer.whatsapp?.S ?? '',
         email,
-        dateOfBirth: customer.dateOfBirth?.S ?? '',
+        dateOfBirth: sharedPerson.dateOfBirth,
         sex: customer.sex?.S ?? '',
         heightCm: customer.heightCm?.N ? Number(customer.heightCm.N) : undefined,
         isAdmin: customer.isAdmin?.BOOL === true,
