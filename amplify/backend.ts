@@ -75,6 +75,13 @@ fitpesoRequests.addGlobalSecondaryIndex({
   sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
   projectionType: dynamodb.ProjectionType.ALL,
 })
+// Índice aditivo: solicitações passam a pertencer ao customer_id, não ao número.
+fitpesoRequests.addGlobalSecondaryIndex({
+  indexName: 'RequestsByCustomerId',
+  partitionKey: { name: 'customerId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
 const fitpesoProposals = new dynamodb.Table(requestStack, 'FitpesoProposals', {
   partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
   sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
