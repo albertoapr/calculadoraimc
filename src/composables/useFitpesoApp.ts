@@ -522,6 +522,12 @@ export function useFitpesoApp() {
     },
   })
 
+  function openAdminCustomers() {
+    if (!actingAsAdmin.value) return
+    viewMode.value = 'admin-customers'
+    void nextTick(() => window.scrollTo(0, 0))
+  }
+
   function openAdminAcademies() {
     if (!actingAsAdmin.value) return
     viewMode.value = 'admin-academies'
@@ -1492,6 +1498,7 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     openAdminTrainers,
+    openAdminCustomers,
     openAdminAcademies,
     trainerSignedInName,
     trainerSignedInId,
