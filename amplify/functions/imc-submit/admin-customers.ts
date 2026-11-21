@@ -27,10 +27,10 @@ type Item = Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>
 const str = (row: Item, field: string) => row[field]?.S ?? ''
 const bool = (row: Item, field: string) => row[field]?.BOOL === true
 const validName = (name: unknown): name is string =>
-  typeof name === 'string' && name.trim().replace(/\\s+/g, ' ').length >= 2 &&
+  typeof name === 'string' && name.trim().replace(/\s+/g, ' ').length >= 2 &&
   name.trim().length <= 80 && !/[<>]/.test(name)
 const validBirth = (value: unknown): value is string =>
-  typeof value === 'string' && (!value || (/^\\d{4}-\\d{2}-\\d{2}$/.test(value) &&
+  typeof value === 'string' && (!value || (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
   !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value &&
   value >= '1900-01-01' && value <= new Date().toISOString().slice(0, 10)))
 const isDynamoConflict = (error: unknown) =>
@@ -106,7 +106,7 @@ export async function updateAdminCustomer(
     const oldActive = customer.ativo?.BOOL !== false
     const dob = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
     const sex = typeof data.sex === 'string' ? data.sex : ''
-    const name = data.name.trim().replace(/\\s+/g, ' ')
+    const name = data.name.trim().replace(/\s+/g, ' ')
     const attrs = {
       ':uid': { S: customer.user_id.S },
       ':name': { S: name },
@@ -119,7 +119,8 @@ export async function updateAdminCustomer(
     const update = {
       TableName: customerTable(),
       Key: { customer_id: { S: id } },
-      UpdateExpression: 'SET nome = :name, nascimento = :dob, sexo = :sex, altura_cm = :height, ativo = :active, atualizado_em = :updated',
+      UpdateExpression: 'SET nome = :name, nascimento = :dob, sexo = :sex, ativo = :active, atualizado_em = :updated' +
+        (typeof data.heightCm === 'number' ? ', altura_cm = :height' : ''),
       ConditionExpression: 'user_id = :uid',
       ExpressionAttributeValues: attrs,
     }
