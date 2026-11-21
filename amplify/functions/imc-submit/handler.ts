@@ -510,7 +510,9 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
   return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') ||
-    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
+    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
+    event.resource?.endsWith('/admin/customers') ||
+    event.resource?.endsWith('/admin/customers/{customerId}')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
