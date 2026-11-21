@@ -29,6 +29,10 @@ export type LegacyCustomerIdentity = {
   isAdmin?: boolean
   pessoaId?: string
   identitySource?: string
+  sex?: 'masculino' | 'feminino'
+  heightCm?: number
+  dateOfBirth?: string
+  googlePhotoUrl?: string
 }
 export type LegacyTrainerIdentity = {
   trainerId: string
@@ -193,7 +197,7 @@ async function linkLegacyCustomer(legacy: LegacyCustomerIdentity, pessoaId: stri
  */
 export async function registerGoogleCustomerIdentity(input: {
   sub: string; email: string; name: string; googlePhotoUrl?: string;
-  sex?: 'masculino' | 'feminino'; heightCm?: number;
+  sex?: 'masculino' | 'feminino'; heightCm?: number; dateOfBirth?: string;
 }) {
   const email = input.email.trim().toLowerCase()
   const pessoaId = await ensureGooglePerson(input.sub, email, input.name)
@@ -209,6 +213,7 @@ export async function registerGoogleCustomerIdentity(input: {
         ...(input.googlePhotoUrl ? { googlePhotoUrl: { S: input.googlePhotoUrl } } : {}),
         ...(input.sex ? { sexo: { S: input.sex } } : {}),
         ...(input.heightCm !== undefined ? { altura_cm: { N: String(input.heightCm) } } : {}),
+        ...(input.dateOfBirth ? { nascimento: { S: input.dateOfBirth } } : {}),
         ativo: { BOOL: true }, criado_em: { S: now },
       },
       ConditionExpression: 'attribute_not_exists(customer_id)',
@@ -250,9 +255,16 @@ export async function syncProvisionalGoogleCustomerIdentity(legacy: LegacyCustom
 }) {
   if (legacy.whatsapp !== `GOOGLE#${proof.sub}` || legacy.email?.toLowerCase() !== proof.email.toLowerCase())
     throw new Error('GOOGLE_LEGACY_EMAIL_MISMATCH')
+  const byGoogle = await findPersonIdByIdentification('GOOGLE', proof.sub)
+  if (legacy.pessoaId && byGoogle && legacy.pessoaId !== byGoogle)
+    throw new Error('IDENTITY_LINK_CONFLICT')
   const result = await registerGoogleCustomerIdentity({
     sub: proof.sub, email: proof.email, name: legacy.name,
+    googlePhotoUrl: legacy.googlePhotoUrl, sex: legacy.sex,
+    heightCm: legacy.heightCm, dateOfBirth: legacy.dateOfBirth,
   })
+  if (legacy.pessoaId && legacy.pessoaId !== result.pessoaId)
+    throw new Error('IDENTITY_LINK_CONFLICT')
   await db.send(new UpdateItemCommand({
     TableName: table('FITPESO_CUSTOMERS_TABLE'),
     Key: { whatsapp: { S: legacy.whatsapp } },
