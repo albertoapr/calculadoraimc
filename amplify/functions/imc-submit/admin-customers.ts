@@ -125,7 +125,7 @@ export async function updateAdminCustomer(
       ExpressionAttributeValues: attrs,
     }
     const legacyKey = str(customer, 'legacyWhatsapp')
-    if (newActive !== oldActive && legacyKey) {
+    if (legacyKey) {
       const legacy = (await db.send(new GetItemCommand({
         TableName: legacyTable(), Key: { whatsapp: { S: legacyKey } }, ConsistentRead: true,
       }))).Item
@@ -137,14 +137,19 @@ export async function updateAdminCustomer(
         { Update: update },
         { Update: {
           TableName: legacyTable(), Key: { whatsapp: { S: legacyKey } },
-          UpdateExpression: 'SET #status = :target',
+          UpdateExpression: 'SET #status = :target, #name = :name, dateOfBirth = :dob, sex = :sex' +
+            (typeof data.heightCm === 'number' ? ', heightCm = :height' : ''),
           ConditionExpression: '#status = :previous AND pessoa_id = :person AND user_id = :uid',
-          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeNames: { '#status': 'status', '#name': 'name' },
           ExpressionAttributeValues: {
             ':target': { S: newActive ? 'ACTIVE' : 'INACTIVE' },
             ':previous': { S: oldActive ? 'ACTIVE' : 'INACTIVE' },
             ':person': { S: pessoaId },
             ':uid': { S: customer.user_id.S },
+            ':name': { S: name },
+            ':dob': { S: dob },
+            ':sex': { S: sex },
+            ...(typeof data.heightCm === 'number' ? { ':height': { N: String(data.heightCm) } } : {}),
           },
         } },
       ] }))
