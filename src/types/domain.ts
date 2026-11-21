@@ -84,6 +84,7 @@ export type IdentitySummary = { pessoaId: string; usuarios: IdentityProfile[] }
 export type IdentitySyncState = { identity?: IdentitySummary; identityStatus?: 'ready' | 'pending' }
 
 export type CustomerAccountProfile = IdentitySyncState & {
+  whatsappVerified?: boolean
   googlePhotoUrl?: string
   sex?: 'masculino' | 'feminino'
   heightCm?: number
