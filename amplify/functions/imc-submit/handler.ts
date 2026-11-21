@@ -623,13 +623,19 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     if (canonical) {
       const item = canonical.item
       if (item.email?.S !== email) return response(409, { error: 'Os dados desta conta precisam de revisão.' })
-      await seedPersonFields(canonical.pessoaId, {
-        name: item.nome?.S ?? '',
-        googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
-        dateOfBirth: item.nascimento?.S ?? '',
-      })
       const verifiedPhoto = googleProfilePhotoUrl(payload.picture)
-      if (verifiedPhoto) await setVerifiedGooglePersonPhoto(canonical.pessoaId, verifiedPhoto)
+      try {
+        await seedPersonFields(canonical.pessoaId, {
+          name: item.nome?.S ?? '',
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+          dateOfBirth: item.nascimento?.S ?? '',
+        })
+        if (verifiedPhoto) await setVerifiedGooglePersonPhoto(canonical.pessoaId, verifiedPhoto)
+      } catch (error) {
+        console.warn('[imc-submit] Person Google photo synchronization pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
       const personFields = await loadPersonFields(canonical.pessoaId, {
         name: item.nome?.S ?? '',
         googlePhotoUrl: verifiedPhoto || item.googlePhotoUrl?.S || '',
@@ -682,15 +688,22 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       }, { sub: payload.sub!, email }))
       : shouldResolveIdentity(event) ? { identityStatus: 'pending' as const } : undefined
     const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
-    const linkedPersonId = customer.pessoa_id?.S ||
-      (identity && 'identity' in identity ? identity.identity?.pessoaId : undefined)
+    // Apenas um vínculo Google comprovado pode alterar a foto da pessoa.
+    const linkedPersonId = identity && 'identity' in identity
+      ? identity.identity?.pessoaId : undefined
     if (linkedPersonId) {
-      await seedPersonFields(linkedPersonId, {
-        name: customer.name?.S ?? '',
-        googlePhotoUrl: customer.googlePhotoUrl?.S ?? '',
-        dateOfBirth: customer.dateOfBirth?.S ?? '',
-      })
-      if (verifiedPhotoUrl) await setVerifiedGooglePersonPhoto(linkedPersonId, verifiedPhotoUrl)
+      try {
+        await seedPersonFields(linkedPersonId, {
+          name: customer.name?.S ?? '',
+          googlePhotoUrl: customer.googlePhotoUrl?.S ?? '',
+          dateOfBirth: customer.dateOfBirth?.S ?? '',
+        })
+        if (verifiedPhotoUrl) await setVerifiedGooglePersonPhoto(linkedPersonId, verifiedPhotoUrl)
+      } catch (error) {
+        console.warn('[imc-submit] Person Google photo synchronization pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
     }
     const sharedPerson = await loadPersonFields(linkedPersonId, {
       name: customer.name?.S ?? '',
