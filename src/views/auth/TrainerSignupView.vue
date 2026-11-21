@@ -202,7 +202,7 @@ const {
               :disabled="
                 academiesLoading || !!academiesError || !academyOptions.includes(signupAcademyChoice) ||
                 trainerForm.academias.length >= 5 ||
-                !signupAcademyChoice ||
+                !signupAcademyChoice
               "
               @click="
                 () => {
