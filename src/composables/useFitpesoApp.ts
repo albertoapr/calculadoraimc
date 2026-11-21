@@ -1380,6 +1380,7 @@ export function useFitpesoApp() {
     ref,
     loginAsTrainer,
     customerLoginError,
+    customerLoginStatus,
     loginIdentifier,
     loginStep,
     loginIdentifierKind,
