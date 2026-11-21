@@ -180,6 +180,90 @@ async function linkLegacyCustomer(legacy: LegacyCustomerIdentity, pessoaId: stri
   }))
 }
 
+/**
+ * Cadastro canônico de CLIENTE pelo Google.
+ * Não cria item na tabela legada nem usa WhatsApp como identificador de cliente.
+ * Apenas provas Google verificadas pela Lambda podem chamar esta operação.
+ */
+export async function registerGoogleCustomerIdentity(input: {
+  sub: string; email: string; name: string; googlePhotoUrl?: string;
+  sex?: 'masculino' | 'feminino'; heightCm?: number;
+}) {
+  const email = input.email.trim().toLowerCase()
+  const pessoaId = await ensureGooglePerson(input.sub, email, input.name)
+  const userId = await ensureUserRole(pessoaId, 'CLIENTE')
+  const customerId = stableId('C', `${pessoaId}#CLIENTE`)
+  const now = new Date().toISOString()
+  try {
+    await db.send(new PutItemCommand({
+      TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
+      Item: {
+        customer_id: { S: customerId }, user_id: { S: userId },
+        nome: { S: input.name }, email: { S: email },
+        ...(input.googlePhotoUrl ? { googlePhotoUrl: { S: input.googlePhotoUrl } } : {}),
+        ...(input.sex ? { sexo: { S: input.sex } } : {}),
+        ...(input.heightCm !== undefined ? { altura_cm: { N: String(input.heightCm) } } : {}),
+        ativo: { BOOL: true }, criado_em: { S: now },
+      },
+      ConditionExpression: 'attribute_not_exists(customer_id)',
+    }))
+  } catch (error) {
+    if (!isConflict(error)) throw error
+    const existing = await db.send(new GetItemCommand({
+      TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
+      Key: { customer_id: { S: customerId } }, ConsistentRead: true,
+    }))
+    if (existing.Item?.user_id?.S !== userId || existing.Item?.email?.S !== email)
+      throw new Error('CUSTOMER_IDENTITY_CONFLICT')
+  }
+  return { pessoaId, userId, customerId }
+}
+
+/** Consulta forte para novos clientes: não depende da consistência eventual dos GSIs. */
+export async function loadGoogleCustomerIdentity(sub: string) {
+  const pessoaId = await findPersonIdByIdentification('GOOGLE', sub)
+  if (!pessoaId) return null
+  const userId = stableId('U', `${pessoaId}#CLIENTE`)
+  const customerId = stableId('C', `${pessoaId}#CLIENTE`)
+  const record = await db.send(new GetItemCommand({
+    TableName: table('FITPESO_CUSTOMER_V2_TABLE'),
+    Key: { customer_id: { S: customerId } }, ConsistentRead: true,
+  }))
+  const item = record.Item
+  if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false) return null
+  const usuarios = await listPersonProfiles(pessoaId)
+  if (!usuarios.some(user => user.usuarioId === userId)) usuarios.push({
+    usuarioId: userId, tipoUsuarioId: ROLE_CODES.CLIENTE, tipo: 'CLIENTE', clienteId: customerId,
+  })
+  return { pessoaId, userId, customerId, usuarios, item }
+}
+
+/** Migra cadastros provisórios GOOGLE#sub sem apagar ou renomear sua chave legada. */
+export async function syncProvisionalGoogleCustomerIdentity(legacy: LegacyCustomerIdentity, proof: {
+  sub: string; email: string
+}) {
+  if (legacy.whatsapp !== `GOOGLE#${proof.sub}` || legacy.email?.toLowerCase() !== proof.email.toLowerCase())
+    throw new Error('GOOGLE_LEGACY_EMAIL_MISMATCH')
+  const result = await registerGoogleCustomerIdentity({
+    sub: proof.sub, email: proof.email, name: legacy.name,
+  })
+  await db.send(new UpdateItemCommand({
+    TableName: table('FITPESO_CUSTOMERS_TABLE'),
+    Key: { whatsapp: { S: legacy.whatsapp } },
+    UpdateExpression: 'SET pessoa_id = if_not_exists(pessoa_id, :person), user_id = if_not_exists(user_id, :user), identitySource = if_not_exists(identitySource, :source)',
+    ConditionExpression: '#status = :active AND googleSubject = :sub AND whatsappVerified = :false AND (attribute_not_exists(pessoa_id) OR pessoa_id = :person) AND (attribute_not_exists(user_id) OR user_id = :user)',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':active': { S: 'ACTIVE' }, ':false': { BOOL: false },
+      ':sub': { S: proof.sub }, ':person': { S: result.pessoaId },
+      ':user': { S: result.userId }, ':source': { S: 'GOOGLE' },
+    },
+  }))
+  const loaded = await loadGoogleCustomerIdentity(proof.sub)
+  if (!loaded) throw new Error('GOOGLE_PROFILE_PENDING')
+  return { pessoaId: loaded.pessoaId, usuarios: loaded.usuarios }
+}
+
 /** Converte acesso Google legado de CLIENTE sem declarar que o WhatsApp foi provado. */
 export async function syncGoogleCustomerIdentity(legacy: LegacyCustomerIdentity, proof: {
   sub: string; email: string
