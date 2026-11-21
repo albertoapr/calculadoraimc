@@ -543,7 +543,9 @@ export function useFitpesoApp() {
         window.scrollTo(0, 0)
       }
     },
-  })  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
+  })
+
+  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
     if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
   }, { immediate: true })
   watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
