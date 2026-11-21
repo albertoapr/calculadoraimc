@@ -107,6 +107,7 @@ export type TrainerReceivedRequest = {
 
 export type EditableProfile = {
   trainerId?: string
+  city?: string
   tagline: string
   aboutMe: string
   education: string
@@ -126,6 +127,7 @@ export type EditableProfile = {
 }
 
 export type TrainerAccountProfile = IdentitySyncState & {
+  city?: string
   googlePhotoUrl?: string
   tagline?: string
   aboutMe?: string
