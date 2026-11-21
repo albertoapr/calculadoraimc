@@ -2905,6 +2905,15 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
   }
 }
 
+function customerOwnsRequest(item: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> | undefined, profile: {
+  whatsapp: string; customerId?: string
+}) {
+  return Boolean(item && (
+    (profile.customerId && item.customerId?.S === profile.customerId) ||
+    (profile.whatsapp && item.clientPhone?.S === profile.whatsapp)
+  ))
+}
+
 async function sendCustomerRequestToTrainers(event: Parameters<APIGatewayProxyHandler>[0], data: Record<string, unknown> | null) {
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth.error
@@ -2924,7 +2933,7 @@ async function sendCustomerRequestToTrainers(event: Parameters<APIGatewayProxyHa
       TableName: requestsTable, Key: { requestId: { S: requestId } }, ConsistentRead: true,
     }))
     const item = result.Item
-    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (!item || !customerOwnsRequest(item, auth.profile!)) return response(404, { error: 'Solicitação não encontrada.' })
     if (item.lifecycle?.S !== 'OPEN' || Number(item.validUntil?.N ?? 0) <= now || Number(item.proposalCount?.N ?? 0) >= 5) {
       return response(409, { error: 'Esta solicitação não está aberta para novos envios.' })
     }
@@ -2945,7 +2954,7 @@ async function sendCustomerRequestToTrainers(event: Parameters<APIGatewayProxyHa
         (existing.length ? 'selectedTrainerIds = :previous' : 'attribute_not_exists(selectedTrainerIds)'),
       ExpressionAttributeNames: { '#lifecycle': 'lifecycle' },
       ExpressionAttributeValues: {
-        ':ids': { SS: combined }, ':phone': { S: auth.profile!.whatsapp }, ':open': { S: 'OPEN' },
+        ':ids': { SS: combined }, ':phone': { S: item.clientPhone!.S! }, ':open': { S: 'OPEN' },
         ':now': { N: String(now) }, ':max': { N: '5' },
         ...(existing.length ? { ':previous': { SS: existing } } : {}),
       },
@@ -2965,7 +2974,14 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
   const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
   if (!requestTable || !proposalsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   try {
-    const result = await dynamodb.send(new QueryCommand({ TableName: requestTable, IndexName: 'RequestsByCustomer', KeyConditionExpression: '#phone = :phone', ExpressionAttributeNames: { '#phone': 'clientPhone' }, ExpressionAttributeValues: { ':phone': { S: auth.profile!.whatsapp } }, ScanIndexForward: false, Limit: 30 }))
+    const customerId = auth.profile!.customerId
+    const result = await dynamodb.send(new QueryCommand(customerId
+      ? { TableName: requestTable, IndexName: 'RequestsByCustomerId', KeyConditionExpression: '#id = :id',
+          ExpressionAttributeNames: { '#id': 'customerId' }, ExpressionAttributeValues: { ':id': { S: customerId } },
+          ScanIndexForward: false, Limit: 30 }
+      : { TableName: requestTable, IndexName: 'RequestsByCustomer', KeyConditionExpression: '#phone = :phone',
+          ExpressionAttributeNames: { '#phone': 'clientPhone' }, ExpressionAttributeValues: { ':phone': { S: auth.profile!.whatsapp } },
+          ScanIndexForward: false, Limit: 30 }))
     const now = Math.floor(Date.now() / 1000)
     const requests = await Promise.all((result.Items ?? []).map(async item => {
       const requestId = item.requestId?.S ?? ''
@@ -3000,7 +3016,7 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
       TableName: tableName, Key: { requestId: { S: requestId } }, ConsistentRead: true,
     }))
     const item = existing.Item
-    if (!item || item.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (!item || !customerOwnsRequest(item, auth.profile!)) return response(404, { error: 'Solicitação não encontrada.' })
     if (Number(item.validUntil?.N ?? 0) <= now) return response(409, { error: 'O prazo de validade da solicitação terminou.' })
     if (action === 'deactivate') {
       if ((item.lifecycle?.S ?? 'OPEN') !== 'OPEN' ||
@@ -3019,11 +3035,11 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
         ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND (attribute_not_exists(lifecycle) OR lifecycle = :open) AND #status = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
-          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.status!.S! }, ':phone': { S: item.clientPhone!.S! },
           ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
         },
         } }, { Delete: {
-          TableName: locksTable, Key: { clientPhone: { S: auth.profile!.whatsapp } },
+          TableName: locksTable, Key: { clientPhone: { S: item.clientPhone!.S! } },
           ConditionExpression: 'attribute_not_exists(requestId) OR requestId = :id',
           ExpressionAttributeValues: { ':id': { S: requestId } },
         } }],
@@ -3041,12 +3057,12 @@ async function changeCustomerRequestVisibility(event: Parameters<APIGatewayProxy
         ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle = :inactive AND #status = :inactive AND previousStatus = :previous AND (attribute_not_exists(proposalCount) OR proposalCount = :zero)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
-          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: auth.profile!.whatsapp },
+          ':inactive': { S: 'INACTIVE' }, ':previous': { S: item.previousStatus!.S! }, ':phone': { S: item.clientPhone!.S! },
           ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':zero': { N: '0' }, ':updated': { S: nowIso },
         },
         } }, { Put: {
           TableName: locksTable,
-          Item: { clientPhone: { S: auth.profile!.whatsapp }, requestId: { S: requestId }, validUntil: { N: item.validUntil!.N! }, expiresAt: { N: item.validUntil!.N! } },
+          Item: { clientPhone: { S: item.clientPhone!.S! }, requestId: { S: requestId }, validUntil: { N: item.validUntil!.N! }, expiresAt: { N: item.validUntil!.N! } },
           ConditionExpression: 'attribute_not_exists(clientPhone) OR validUntil <= :now',
           ExpressionAttributeValues: { ':now': { N: String(now) } },
         } }],
@@ -3076,7 +3092,7 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
     const request = requestResult.Item
     const proposalResult = await dynamodb.send(new GetItemCommand({ TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: trainerId } }, ConsistentRead: true }))
     const proposal = proposalResult.Item
-    if (!request || request.clientPhone?.S !== auth.profile!.whatsapp) return response(404, { error: 'Solicitação não encontrada.' })
+    if (!request || !customerOwnsRequest(request, auth.profile!)) return response(404, { error: 'Solicitação não encontrada.' })
     if (!proposal || proposal.status?.S !== 'OPEN' || Number(proposal.validUntil?.N ?? 0) <= now || Number(request.validUntil?.N ?? 0) <= now || request.lifecycle?.S === 'ACCEPTED') return response(409, { error: 'Esta proposta não está mais disponível.' })
     const all = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
     const updates = (all.Items ?? []).flatMap(item => {
@@ -3085,12 +3101,12 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
       return [{ Update: { TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: proposalTrainerId } }, UpdateExpression: 'SET #status = :status', ConditionExpression: '#status = :open', ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ':status': { S: proposalTrainerId === trainerId ? 'ACCEPTED' : 'NOT_SELECTED' }, ':open': { S: 'OPEN' } } } }]
     })
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
-      { Update: { TableName: requestTable, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET lifecycle = :accepted, acceptedAt = :nowIso, acceptedTrainerId = :trainerId REMOVE expiresAt', ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle IN (:open, :closed)', ExpressionAttributeValues: { ':accepted': { S: 'ACCEPTED' }, ':nowIso': { S: new Date(now * 1000).toISOString() }, ':trainerId': { S: trainerId }, ':phone': { S: auth.profile!.whatsapp }, ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } } } },
-      { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: auth.profile!.whatsapp }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
+      { Update: { TableName: requestTable, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET lifecycle = :accepted, acceptedAt = :nowIso, acceptedTrainerId = :trainerId REMOVE expiresAt', ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle IN (:open, :closed)', ExpressionAttributeValues: { ':accepted': { S: 'ACCEPTED' }, ':nowIso': { S: new Date(now * 1000).toISOString() }, ':trainerId': { S: trainerId }, ':phone': { S: request.clientPhone!.S! }, ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } } } },
+      { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: request.clientPhone!.S! }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
       ...updates,
     ] }))
     if (process.env.FITPESO_REQUEST_LOCKS_TABLE) {
-      try { await dynamodb.send(new UpdateItemCommand({ TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: auth.profile!.whatsapp } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } } })) }
+      try { await dynamodb.send(new UpdateItemCommand({ TableName: process.env.FITPESO_REQUEST_LOCKS_TABLE, Key: { clientPhone: { S: request.clientPhone!.S! } }, UpdateExpression: 'SET validUntil = :now', ExpressionAttributeValues: { ':now': { N: String(now) } } })) }
       catch { /* O atendimento já foi registrado; a trava pode expirar naturalmente se não for atualizada. */ }
     }
     return response(200, { accepted: true, acceptedAt: new Date(now * 1000).toISOString() })
