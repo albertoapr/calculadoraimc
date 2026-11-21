@@ -7,6 +7,8 @@ const { customerPhotoUrl } = storeToRefs(useAccountSession())
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   profileAcademyOptions,
+  addProfileAcademy,
+  removeProfileAcademy,
   academiesLoading,
   academiesError,
   addAcademy,
@@ -111,8 +113,8 @@ const {
             <div class="public-academy-add">
               <select v-model="profileAcademyChoice" aria-label="Selecionar academia">
                 <option value="">{{ academiesLoading ? 'Carregando academias…' : 'Selecione uma academia' }}</option>
-                <option v-for="option in profileAcademyOptions" :key="option" :value="option">
-                  {{ option }}
+                <option v-for="option in profileAcademyOptions" :key="option.id" :value="option.id" :disabled="editingProfile.academyIds.includes(option.id)">
+                  {{ option.label }} ({{ option.city }})
                 </option>
               </select>
               
@@ -120,15 +122,13 @@ const {
                 type="button"
                 class="secondary-button"
                 :disabled="
-                  academiesLoading || !!academiesError || !profileAcademyOptions.includes(profileAcademyChoice) ||
+                  academiesLoading || !!academiesError || !profileAcademyOptions.some(option => option.id === profileAcademyChoice) ||
                   editingProfile.academias.length >= 5 ||
                   !profileAcademyChoice
                 "
                 @click="
                   () => {
-                    addAcademy(editingProfile.academias, profileAcademyChoice, profileOtherAcademy)
-                    profileAcademyChoice = ''
-                    profileOtherAcademy = ''
+                    addProfileAcademy(profileAcademyChoice)
                   }
                 "
               >
@@ -143,7 +143,7 @@ const {
               <span>{{ gym }}</span><button
                 type="button"
                 :aria-label="'Remover ' + gym"
-                @click="editingProfile.academias.splice(index, 1)"
+                @click="removeProfileAcademy(index)"
               >
                 Remover
               </button>
