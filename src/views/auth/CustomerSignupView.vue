@@ -75,8 +75,8 @@ const {
         />
       </div>
       <p class="field-wide intro">
-        Informe seu nome e WhatsApp. O número será confirmado com a Beta e, ao concluir, você já
-        estará conectado. A data de nascimento será solicitada apenas quando pedir atendimento.
+        Informe seu nome para concluir o cadastro. O WhatsApp é opcional agora e será obrigatório
+        quando você enviar uma solicitação de treinamento.
       </p>
       <label class="field field-wide" for="customer-name"
         ><span class="field-label">Seu nome</span>
@@ -93,7 +93,7 @@ const {
         />
       </label>
       <label class="field field-wide" for="customer-whatsapp"
-        ><span class="field-label">WhatsApp com DDD</span>
+        ><span class="field-label">WhatsApp com DDD <span>opcional no cadastro</span></span>
         <input
           id="customer-whatsapp"
           v-model="customerForm.whatsapp"
@@ -103,7 +103,6 @@ const {
           inputmode="tel"
           maxlength="20"
           placeholder="(21) 99999-9999"
-          required
         />
       </label>
       <label class="field field-wide" for="customer-email"
@@ -121,7 +120,7 @@ const {
       <label class="field field-wide" for="customer-sex"><span class="field-label">Sexo</span><select id="customer-sex" v-model="customerForm.sex" required><option value="" disabled>Selecione o sexo</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
       <label class="field field-wide" for="customer-height"><span class="field-label">Altura (cm)</span><input id="customer-height" v-model.number="customerForm.heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 172" /><small>Sua altura é importante para calcular o IMC e outros indicadores da avaliação física.</small></label>
       <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">
-        {{ customerSubmitting ? 'Preparando confirmação…' : 'Confirmar WhatsApp' }}
+        {{ customerSubmitting ? 'Preparando cadastro…' : customerForm.whatsapp ? 'Confirmar WhatsApp' : 'Concluir cadastro' }}
       </button>
     </form>
     <div v-else class="customer-signup-confirmation">
