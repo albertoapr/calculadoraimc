@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
       >
         <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
         <span class="header-link-separator" aria-hidden="true">|</span>
-        <RouterLink to="/cadastro/personal" class="header-signup-link">Sou personal</RouterLink>
+        <RouterLink to="/cadastro/personal" class="header-signup-link">Inscreva-se</RouterLink>
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
         <div class="signed-in-account-identity">
