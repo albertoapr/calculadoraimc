@@ -98,8 +98,8 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
-      <hr v-if="(viewMode === 'home' && !result && isRootHome) || viewMode === 'public-trainers'" class="home-city-divider" />
-      <div v-if="(viewMode === 'home' && !result && isRootHome) || viewMode === 'public-trainers'" class="home-city-row">
+      <hr v-if="(viewMode === 'home' && !result) || viewMode === 'public-trainers'" class="home-city-divider" />
+      <div v-if="(viewMode === 'home' && !result) || viewMode === 'public-trainers'" class="home-city-row">
         <CitySelector />
       </div>
       <PageHeader
