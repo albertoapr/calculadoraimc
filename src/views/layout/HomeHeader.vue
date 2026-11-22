@@ -80,7 +80,8 @@ onBeforeUnmount(() => {
         aria-label="Acesso de visitantes"
       >
         <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
-        <RouterLink to="/cadastro/personal" class="header-signup-link">Personal, Inscreva-se</RouterLink>
+        <span class="header-link-separator" aria-hidden="true">|</span>
+        <RouterLink to="/cadastro/personal" class="header-signup-link">Sou personal</RouterLink>
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
         <div class="signed-in-account-identity">
