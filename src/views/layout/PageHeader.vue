@@ -44,7 +44,7 @@ watch(viewMode, (mode) => {
     >
       Não foi possível localizar o personal.
     </p>
-    <hr v-if="viewMode !== 'home'" class="personal-divider" />
+    <hr v-if="viewMode !== 'home' && viewMode !== 'public-trainers'" class="personal-divider" />
     <h2
       v-if="viewMode === 'contact' && showRequestForm"
       id="contact-form-title"
