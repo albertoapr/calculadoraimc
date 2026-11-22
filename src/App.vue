@@ -99,7 +99,9 @@ const {
     >
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
-      <CitySelector v-if="viewMode === 'home' && !result && isRootHome" />
+      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-city-row">
+        <CitySelector />
+      </div>
       <PageHeader
         v-if="!viewMode.startsWith('admin-') && !(viewMode === 'home' && !result && isRootHome)"
       />
@@ -227,6 +229,17 @@ const {
 </template>
 
 <style scoped>
+.home-city-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+.home-city-row :deep(.home-city-selector) {
+  width: auto;
+  margin-left: auto;
+  margin-right: 0;
+}
 .home-city-divider {
   border: 0;
   border-top: 1px solid var(--line);
