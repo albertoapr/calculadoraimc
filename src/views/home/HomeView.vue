@@ -103,6 +103,10 @@ function confirmAcademy(academy: string) {
 </template>
 
 <style scoped>
+.home-training-title,
+.home-training-title .home-training-heading {
+  font-size: clamp(28px, 6vw, 38px);
+}
 .home-academy-heading {
   margin: 14px 0 10px;
   min-width: 0;
@@ -116,7 +120,7 @@ function confirmAcademy(academy: string) {
 .home-academy-title {
   margin: 0;
   min-width: 0;
-  font-size: clamp(20px, 5.4vw, 31px);
+  font-size: clamp(23px, 6vw, 35px);
   line-height: 1.16;
   text-align: center;
 }
