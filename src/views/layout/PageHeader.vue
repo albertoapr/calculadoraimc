@@ -37,6 +37,11 @@ watch(viewMode, (mode) => {
 
 <template>
   <header class="hero">
+    <hr
+      v-if="(viewMode !== 'home' && viewMode !== 'public-trainers') || (viewMode === 'home' && !isRootHome)"
+      class="personal-divider"
+      :class="{ 'personal-divider--compact': viewMode === 'contact' || (viewMode === 'home' && !isRootHome) }"
+    />
     <p
       v-if="(trainerIdFromPath || trainerSlugFromPath) && trainerProfileFailed"
       class="trainer-profile-status"
@@ -44,7 +49,6 @@ watch(viewMode, (mode) => {
     >
       Não foi possível localizar o personal.
     </p>
-    <hr v-if="viewMode !== 'home' && viewMode !== 'public-trainers'" class="personal-divider" :class="{ 'personal-divider--compact': viewMode === 'contact' }" />
     <h2
       v-if="viewMode === 'contact' && showRequestForm"
       id="contact-form-title"
