@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
           </nav>
         </div>
       </div>
-      <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
+      <CitySelector v-if="viewMode === 'public-trainers'" />
     </div>
   </div>
 </template>
