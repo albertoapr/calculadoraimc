@@ -98,8 +98,8 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
-      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
-      <div v-if="viewMode === 'home' && !result && isRootHome" class="home-city-row">
+      <hr v-if="(viewMode === 'home' && !result && isRootHome) || viewMode === 'public-trainers'" class="home-city-divider" />
+      <div v-if="(viewMode === 'home' && !result && isRootHome) || viewMode === 'public-trainers'" class="home-city-row">
         <CitySelector />
       </div>
       <PageHeader
@@ -255,6 +255,6 @@ const {
   border: 0;
   border-top: 1px solid var(--line);
   width: 100%;
-  margin: 10px 0 4px;
+  margin: 6px 0 2px;
 }
 </style>
