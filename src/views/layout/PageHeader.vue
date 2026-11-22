@@ -44,7 +44,7 @@ watch(viewMode, (mode) => {
     >
       Não foi possível localizar o personal.
     </p>
-    <hr v-if="viewMode !== 'home' && viewMode !== 'public-trainers'" class="personal-divider" />
+    <hr v-if="viewMode !== 'home' && viewMode !== 'public-trainers'" class="personal-divider" :class="{ 'personal-divider--compact': viewMode === 'contact' }" />
     <h2
       v-if="viewMode === 'contact' && showRequestForm"
       id="contact-form-title"
@@ -160,6 +160,11 @@ watch(viewMode, (mode) => {
 </template>
 
 <style scoped>
+/* Na tela Treinar com Personal, aproxima a linha do cabeçalho como na home. */
+.personal-divider--compact {
+  margin: 6px 0 12px;
+}
+
 .academy-public-heading {
   margin: 2px 0 12px;
   width: 100%;
