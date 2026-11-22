@@ -99,6 +99,7 @@ const {
     >
       <HomeHeader />
       <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
+      <CitySelector v-if="viewMode === 'home' && !result && isRootHome" />
       <PageHeader
         v-if="!viewMode.startsWith('admin-') && !(viewMode === 'home' && !result && isRootHome)"
       />
