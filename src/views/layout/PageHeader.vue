@@ -39,9 +39,9 @@ watch(viewMode, (mode) => {
 <template>
   <header class="hero">
     <hr
-      v-if="(viewMode !== 'home' && viewMode !== 'public-trainers') || (viewMode === 'home' && !isRootHome)"
+      v-if="viewMode !== 'home' && viewMode !== 'public-trainers'"
       class="personal-divider"
-      :class="{ 'personal-divider--compact': viewMode === 'contact' || (viewMode === 'home' && !isRootHome) }"
+      :class="{ 'personal-divider--compact': viewMode === 'contact' }"
     />
     <p
       v-if="(trainerIdFromPath || trainerSlugFromPath) && trainerProfileFailed"
