@@ -14,6 +14,7 @@ const {
   form,
   result,
   goBackFromTitle,
+  openPublicTrainers,
   publicTrainerAcademy,
   publicTrainerAcademies,
   changePublicAcademy,
@@ -59,16 +60,28 @@ watch(viewMode, (mode) => {
       </button>
       Treinar com Personal
     </h2>
-    <h1 v-if="viewMode === 'home' && !result && !isRootHome" class="home-tagline">
-      <span
-        v-if="trainerSlugFromPath && personalBrandFirstName"
-        class="personal-trainer-brand personal-trainer-home-title"
+    <div v-if="viewMode === 'home' && !result && !isRootHome" class="personal-page-heading">
+      <button
+        type="button"
+        class="title-back-button personal-profile-back-button"
+        aria-label="Voltar para a página de profissionais"
+        title="Voltar para profissionais"
+        @click="openPublicTrainers"
       >
-        <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
-        <span class="personal-trainer-role">Personal Trainer</span>
-      </span>
-      <span v-else>Treine com um personal</span>
-    </h1>
+        &lt;
+      </button>
+      <h1 class="home-tagline">
+        <span
+          v-if="trainerSlugFromPath && personalBrandFirstName"
+          class="personal-trainer-brand personal-trainer-home-title"
+        >
+          <span class="personal-trainer-first-name">{{ personalBrandFirstName }}</span>
+          <span class="personal-trainer-role">Personal Trainer</span>
+        </span>
+        <span v-else>Treine com um personal</span>
+      </h1>
+      <span aria-hidden="true"></span>
+    </div>
     <div v-if="viewMode === 'home' && !result && isRootHome" class="root-home-photo">
       <img
         class="root-home-personal-image"
@@ -164,6 +177,22 @@ watch(viewMode, (mode) => {
 </template>
 
 <style scoped>
+.personal-page-heading {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 24px;
+  width: 100%;
+}
+.personal-page-heading .home-tagline {
+  margin: 0;
+  min-width: 0;
+}
+.personal-profile-back-button {
+  padding: 0;
+  font-size: 27px;
+}
 /* Na tela Treinar com Personal, aproxima a linha do cabeçalho como na home. */
 .personal-divider--compact {
   margin: 6px 0 12px;
