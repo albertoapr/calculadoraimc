@@ -236,14 +236,25 @@ const {
   width: 100%;
 }
 .home-city-row :deep(.home-city-selector) {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 2px auto;
+}
+.home-city-row :deep(.home-city-select) {
   width: auto;
-  margin-left: auto;
-  margin-right: 0;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 6px 28px 6px 38px;
+  text-align: right;
+  text-align-last: right;
+}
+.home-city-row :deep(.home-city-selector svg) {
+  left: 8px;
 }
 .home-city-divider {
   border: 0;
   border-top: 1px solid var(--line);
   width: 100%;
-  margin: 10px 0 18px;
+  margin: 10px 0 4px;
 }
 </style>
