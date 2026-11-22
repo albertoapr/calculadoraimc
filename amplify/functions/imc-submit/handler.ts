@@ -130,9 +130,10 @@ async function getPublicTrainerById(trainerId: string) {
     IndexName: 'TrainerById',
     KeyConditionExpression: '#trainerId = :trainerId',
     FilterExpression: '#active = :active',
-    ProjectionExpression: '#name, #active',
+    ProjectionExpression: '#city, #name, #active',
     ExpressionAttributeNames: {
       '#trainerId': 'trainerId',
+      '#city': 'city',
       '#name': 'name',
       '#active': 'active',
     },
