@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import CitySelector from './CitySelector.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
@@ -152,7 +151,6 @@ onBeforeUnmount(() => {
           </nav>
         </div>
       </div>
-      <CitySelector v-if="viewMode === 'public-trainers'" />
     </div>
   </div>
 </template>
