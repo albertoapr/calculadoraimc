@@ -108,7 +108,7 @@ function confirmAcademy(academy: string) {
   font-size: clamp(28px, 6vw, 38px);
 }
 .home-academy-heading {
-  margin: 14px 0 10px;
+  margin: 2px 0 10px;
   min-width: 0;
 }
 .home-academy-heading-row {
