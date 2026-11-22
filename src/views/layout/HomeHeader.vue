@@ -80,6 +80,7 @@ onBeforeUnmount(() => {
         aria-label="Acesso de visitantes"
       >
         <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
+        <RouterLink to="/cadastro/personal" class="header-signup-link">Personal, Inscreva-se</RouterLink>
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
         <div class="signed-in-account-identity">
@@ -338,7 +339,7 @@ html[data-theme='dark'] .signed-in-menu-items {
 }
 .header-inline-links {
   flex-wrap: wrap;
-  column-gap: 5px;
+  column-gap: 12px;
   row-gap: 0;
   font-size: 13px;
 }
