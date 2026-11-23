@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand,
-  TransactWriteItemsCommand, UpdateItemCommand, type AttributeValue,
+  DynamoDBClient, GetItemCommand, QueryCommand,
+  TransactWriteItemsCommand, UpdateItemCommand, type AttributeValue, type TransactWriteItem,
 } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
+import { isAcademySlug, suggestAcademySlug } from '../../../shared/academy-slug'
 
 type Event = Parameters<APIGatewayProxyHandler>[0]
 type RecordItem = Record<string, AttributeValue>
@@ -41,11 +42,13 @@ function parseAcademy(event: Event) {
   const neighborhood = textField(body?.neighborhood, 80)
   const address = textField(body?.address ?? '', 160)
   const zipCode = textField(body?.zipCode ?? '', 9)
+  const slug = typeof body?.slug === 'string' ? body.slug.trim() : ''
   if (!name || name.length < 2 || !city || !allowedCities.includes(city) ||
       !neighborhood || neighborhood.length < 2 || address === null || zipCode === null ||
       (zipCode !== '' && !/^\d{5}-?\d{3}$/.test(zipCode)) ||
-      (body?.active !== undefined && typeof body.active !== 'boolean')) return null
-  return { name, city, neighborhood, address, zipCode, active: body?.active !== false }
+      (body?.active !== undefined && typeof body.active !== 'boolean') ||
+      (body?.slug !== undefined && (typeof body.slug !== 'string' || (slug !== '' && !isAcademySlug(slug))))) return null
+  return { name, city, neighborhood, address, zipCode, slug, active: body?.active !== false }
 }
 function keyFor(value: { name: string; city: string; neighborhood: string }) {
   return 'LOCK#' + createHash('sha256')
@@ -55,6 +58,7 @@ function keyFor(value: { name: string; city: string; neighborhood: string }) {
 function toItem(academyId: string, values: NonNullable<ReturnType<typeof parseAcademy>>, createdAt: string, updatedBy: string): RecordItem {
   return {
     academyId: { S: academyId },
+    ...(values.slug ? { slug: { S: values.slug } } : {}),
     name: { S: values.name },
     city: { S: values.city },
     neighborhood: { S: values.neighborhood },
@@ -70,6 +74,7 @@ function toItem(academyId: string, values: NonNullable<ReturnType<typeof parseAc
 function publicItem(item: RecordItem) {
   return {
     academyId: item.academyId?.S ?? '',
+    ...(item.slug?.S ? { slug: item.slug.S } : {}),
     name: item.name?.S ?? '',
     city: item.city?.S ?? '',
     neighborhood: item.neighborhood?.S ?? '',
@@ -83,6 +88,13 @@ function publicItem(item: RecordItem) {
 }
 function lockItem(lockId: string, academyId: string): RecordItem {
   return { academyId: { S: lockId }, ownerAcademyId: { S: academyId } }
+}
+function reserveSlug(tableName: string, slug: string, academyId: string): TransactWriteItem {
+  return { Put: {
+    TableName: tableName,
+    Item: lockItem('SLUG#' + slug, academyId),
+    ConditionExpression: 'attribute_not_exists(academyId)',
+  } }
 }
 function failedConditional(error: unknown) {
   return error instanceof Error &&
@@ -141,11 +153,34 @@ export async function getAcademy(event: Event, administrator = false) {
     return reply(503, { error: 'Não foi possível consultar a academia.' })
   }
 }
+export async function getAcademyBySlug(event: Event) {
+  const tableName = table()
+  if (!tableName) return reply(503, { error: 'Cadastro de academias indisponível.' })
+  const slug = event.pathParameters?.slug ?? ''
+  const notFound = () => reply(404, { error: 'Academia não encontrada.' })
+  if (!isAcademySlug(slug)) return notFound()
+  try {
+    const { Item: reservation } = await client.send(new GetItemCommand({
+      TableName: tableName, Key: { academyId: { S: 'SLUG#' + slug } }, ConsistentRead: true,
+    }))
+    const academyId = reservation?.ownerAcademyId?.S
+    if (!academyId) return notFound()
+    const { Item: academy } = await client.send(new GetItemCommand({
+      TableName: tableName, Key: { academyId: { S: academyId } }, ConsistentRead: true,
+    }))
+    if (!academy || academy.active?.BOOL !== true || academy.slug?.S !== slug) return notFound()
+    return reply(200, { academy: publicItem(academy) })
+  } catch {
+    return reply(503, { error: 'Não foi possível consultar a academia.' })
+  }
+}
 export async function createAcademy(event: Event, administratorPhone: string) {
   const tableName = table()
   if (!tableName) return reply(503, { error: 'Cadastro de academias indisponível.' })
   const values = parseAcademy(event)
-  if (!values) return reply(400, { error: 'Confira nome, cidade, bairro, endereço e CEP.' })
+  if (!values) return reply(400, { error: 'Confira os dados e use apenas letras minúsculas, números e hífens no slug.' })
+  values.slug ||= suggestAcademySlug(values.name, values.neighborhood)
+  if (!isAcademySlug(values.slug)) return reply(400, { error: 'Informe um slug válido para a academia.' })
   const academyId = randomUUID()
   const now = new Date().toISOString()
   const lockId = keyFor(values)
@@ -153,12 +188,13 @@ export async function createAcademy(event: Event, administratorPhone: string) {
     await client.send(new TransactWriteItemsCommand({
       TransactItems: [
         { Put: { TableName: tableName, Item: lockItem(lockId, academyId), ConditionExpression: 'attribute_not_exists(academyId)' } },
+        reserveSlug(tableName, values.slug, academyId),
         { Put: { TableName: tableName, Item: toItem(academyId, values, now, administratorPhone), ConditionExpression: 'attribute_not_exists(academyId)' } },
       ],
     }))
     return reply(201, { created: true, academyId })
   } catch (error) {
-    if (failedConditional(error)) return reply(409, { error: 'Já existe uma academia com este nome, cidade e bairro.' })
+    if (failedConditional(error)) return reply(409, { error: 'Já existe uma academia com este slug ou com o mesmo nome, cidade e bairro.' })
     console.error('[academies] Creation failed', { type: error instanceof Error ? error.name : typeof error })
     return reply(503, { error: 'Não foi possível cadastrar a academia.' })
   }
@@ -169,12 +205,16 @@ export async function updateAcademy(event: Event, administratorPhone: string) {
   const academyId = event.pathParameters?.academyId ?? ''
   if (!/^[a-f0-9-]{36}$/i.test(academyId)) return reply(404, { error: 'Academia não encontrada.' })
   const values = parseAcademy(event)
-  if (!values) return reply(400, { error: 'Confira nome, cidade, bairro, endereço e CEP.' })
+  if (!values) return reply(400, { error: 'Confira os dados e use apenas letras minúsculas, números e hífens no slug.' })
   try {
     const existing = await client.send(new GetItemCommand({
       TableName: tableName, Key: { academyId: { S: academyId } }, ConsistentRead: true,
     }))
     if (!existing.Item) return reply(404, { error: 'Academia não encontrada.' })
+    const previousSlug = existing.Item.slug?.S ?? ''
+    if (previousSlug && values.slug && previousSlug !== values.slug)
+      return reply(409, { error: 'O slug publicado é fixo para preservar o link da academia.' })
+    values.slug ||= previousSlug
     const oldLock = keyFor({
       name: existing.Item.name?.S ?? '',
       city: existing.Item.city?.S ?? '',
@@ -182,23 +222,30 @@ export async function updateAcademy(event: Event, administratorPhone: string) {
     })
     const newLock = keyFor(values)
     const item = toItem(academyId, values, existing.Item.createdAt?.S ?? new Date().toISOString(), administratorPhone)
+    const version = existing.Item.updatedAt?.S
+    const changes: TransactWriteItem[] = [{ Put: {
+      TableName: tableName,
+      Item: item,
+      ConditionExpression: 'attribute_exists(academyId) AND ' +
+        (version ? 'updatedAt = :version' : 'attribute_not_exists(updatedAt)') + ' AND ' +
+        (previousSlug ? 'slug = :slug' : 'attribute_not_exists(slug)'),
+      ExpressionAttributeValues: version || previousSlug ? {
+        ...(version ? { ':version': { S: version } } : {}),
+        ...(previousSlug ? { ':slug': { S: previousSlug } } : {}),
+      } : undefined,
+    } }]
+    if (values.slug && !previousSlug) changes.push(reserveSlug(tableName, values.slug, academyId))
     if (oldLock !== newLock) {
-      await client.send(new TransactWriteItemsCommand({ TransactItems: [
+      changes.push(
         { Put: { TableName: tableName, Item: lockItem(newLock, academyId), ConditionExpression: 'attribute_not_exists(academyId)' } },
-        { Put: { TableName: tableName, Item: item, ConditionExpression: 'attribute_exists(academyId) AND #n = :oldName AND #c = :oldCity AND #b = :oldNeighborhood',
-          ExpressionAttributeNames: { '#n': 'name', '#c': 'city', '#b': 'neighborhood' },
-          ExpressionAttributeValues: { ':oldName': existing.Item.name!, ':oldCity': existing.Item.city!, ':oldNeighborhood': existing.Item.neighborhood! } } },
         { Delete: { TableName: tableName, Key: { academyId: { S: oldLock } },
           ConditionExpression: 'ownerAcademyId = :owner', ExpressionAttributeValues: { ':owner': { S: academyId } } } },
-      ] }))
-    } else {
-      await client.send(new PutItemCommand({
-        TableName: tableName, Item: item, ConditionExpression: 'attribute_exists(academyId)',
-      }))
+      )
     }
+    await client.send(new TransactWriteItemsCommand({ TransactItems: changes }))
     return reply(200, { updated: true, academyId })
   } catch (error) {
-    if (failedConditional(error)) return reply(409, { error: 'Academia duplicada ou alterada simultaneamente. Atualize e tente novamente.' })
+    if (failedConditional(error)) return reply(409, { error: 'Slug ou academia duplicados, ou cadastro alterado simultaneamente. Confira os dados e tente novamente.' })
     console.error('[academies] Update failed', { type: error instanceof Error ? error.name : typeof error })
     return reply(503, { error: 'Não foi possível atualizar a academia.' })
   }

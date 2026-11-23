@@ -1,8 +1,8 @@
 import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { academyNameSlug, academyPath, academySlug, parseAcademyPath } from '../router/academyRoutes'
+import { academyNameSlug, academyPath, academySlug, parseAcademyPath, parseSharedAcademySlug } from '../router/academyRoutes'
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
-import { listAcademies, type Academy } from '../services/academiesService'
+import { getAcademyBySlug, listAcademies, type Academy } from '../services/academiesService'
 import { useTrainerDirectory } from './useTrainerDirectory'
 import { useSupportedCity } from './useSupportedCity'
 import type { CustomerRequest, EligibleTrainer } from '../types/domain'
@@ -50,6 +50,9 @@ export function useHome(options: {
   const loadedTrainersCity = ref('')
   const publicTrainerCity = ref('')
   const publicTrainerAcademy = ref('')
+  const sharedSlug = computed(() => parseSharedAcademySlug(router.currentRoute.value.path))
+  const sharedAcademyLoading = ref(false)
+  const sharedAcademyError = ref('')
   // A preferência fica no dispositivo entre visitas, vinculada à cidade escolhida.
   const HOME_ACADEMY_STORAGE = 'fitpeso:home-academy:v2'
   const HOME_ACADEMY_SESSION = 'fitpeso:home-academy-session:v1'
@@ -140,6 +143,11 @@ export function useHome(options: {
   let activeAcademyLoadCity = ''
   let activeAcademyLoad: Promise<void> | null = null
 
+  function loadHomeAcademies() {
+    if (sharedSlug.value && loadedAcademiesCity.value !== publicTrainerCity.value)
+      void loadCityAcademies(publicTrainerCity.value)
+  }
+
   async function loadCityAcademies(city: string): Promise<void> {
     if (city && activeAcademyLoadCity === city && activeAcademyLoad) {
       return activeAcademyLoad
@@ -156,7 +164,7 @@ export function useHome(options: {
         if (id === academyLookupId) registeredAcademies.value = result
       } catch {
         // Instalações antigas continuam apresentando as academias cadastradas pelos personais.
-        if (id === academyLookupId) registeredAcademies.value = []
+        if (id === academyLookupId && !sharedSlug.value) registeredAcademies.value = []
       } finally {
         if (id === academyLookupId) loadedAcademiesCity.value = city
       }
@@ -175,6 +183,7 @@ export function useHome(options: {
   watch(
     publicTrainerCity,
     (city) => {
+      if (sharedSlug.value) return
       registeredAcademies.value = []
       loadedAcademiesCity.value = ''
       void loadCityAcademies(city)
@@ -183,6 +192,7 @@ export function useHome(options: {
   )
   watch(viewMode, (mode) => {
     if (
+      !sharedSlug.value &&
       (mode === 'home' || mode === 'public-trainers' || mode === 'select-trainers') &&
       publicTrainerCity.value
     )
@@ -255,6 +265,7 @@ export function useHome(options: {
   watch(
     [publicTrainerAcademies, publicTrainerCity],
     ([academies, city], previousValues) => {
+      if (sharedSlug.value) return
       const previousCity = previousValues?.[1]
       if (city !== previousCity) {
         publicTrainerAcademy.value = ''
@@ -271,19 +282,30 @@ export function useHome(options: {
     },
     { immediate: true },
   )
-  watch(publicTrainerAcademy, (academy, previousAcademy) => {
-    if (viewMode.value === 'home' && isRootHome.value && academy) {
-      try {
-        localStorage.setItem(HOME_ACADEMY_STORAGE, JSON.stringify({
-          city: publicTrainerCity.value,
-          academy,
-        }))
-        sessionStorage.setItem(HOME_ACADEMY_SESSION, academy)
-        sessionStorage.setItem(HOME_ACADEMY_CITY_SESSION, publicTrainerCity.value)
-      } catch {
-        /* navegação privada */
-      }
+  function saveHomeAcademy(academy: string) {
+    try {
+      localStorage.setItem(HOME_ACADEMY_STORAGE, JSON.stringify({
+        city: publicTrainerCity.value,
+        academy,
+      }))
+      sessionStorage.setItem(HOME_ACADEMY_SESSION, academy)
+      sessionStorage.setItem(HOME_ACADEMY_CITY_SESSION, publicTrainerCity.value)
+    } catch {
+      /* navegação privada */
     }
+  }
+  function selectHomeAcademy(academy: string) {
+    if (!publicTrainerAcademies.value.includes(academy)) return
+    publicTrainerAcademy.value = academy
+    if (sharedSlug.value) {
+      saveNavigationPreference(NAV_CITY, publicTrainerCity.value)
+      saveHomeAcademy(academy)
+      void router.push('/')
+    }
+  }
+  watch(publicTrainerAcademy, (academy, previousAcademy) => {
+    if (viewMode.value === 'home' && isRootHome.value && !sharedSlug.value && academy)
+      saveHomeAcademy(academy)
     if (
       (viewMode.value === 'home' || viewMode.value === 'public-trainers') &&
       academy !== previousAcademy
@@ -445,12 +467,12 @@ export function useHome(options: {
     homeCity,
     homeCityManuallySelected,
     matchSupportedRequestCity,
-    selectHomeCity,
+    selectHomeCity: applyHomeCitySelection,
     detectRequestCity,
     cancelRequestCityDetection,
   } = useSupportedCity({
     viewMode,
-    isRootHome,
+    isRootHome: computed(() => isRootHome.value && !sharedSlug.value),
     publicTrainerCity,
     sharingRequestMessage,
     selectedTrainerIds: homeSelectedTrainerIds,
@@ -464,11 +486,61 @@ export function useHome(options: {
     searchHomeTrainers,
   })
 
+  function selectHomeCity(event: Event) {
+    applyHomeCitySelection(event)
+    if (sharedSlug.value) void router.push('/')
+  }
+
+  watch(sharedSlug, async (slug, previousSlug, onCleanup) => {
+    sharedAcademyError.value = ''
+    sharedAcademyLoading.value = Boolean(slug)
+    if (!slug) {
+      if (previousSlug && router.currentRoute.value.path === '/') {
+        const city = matchSupportedRequestCity(readNavigationPreference(NAV_CITY))
+        homeCity.value = city
+        publicTrainerAcademy.value = ''
+        if (publicTrainerCity.value === city && city) void loadCityAcademies(city)
+        publicTrainerCity.value = city
+      }
+      return
+    }
+
+    let current = true
+    onCleanup(() => { current = false })
+    cancelRequestCityDetection()
+    academyLookupId += 1
+    activeAcademyLoadCity = ''
+    activeAcademyLoad = null
+    registeredAcademies.value = []
+    loadedAcademiesCity.value = ''
+    publicTrainerCity.value = ''
+    publicTrainerAcademy.value = ''
+    homeCity.value = ''
+    try {
+      const academy = await getAcademyBySlug(slug)
+      if (!current) return
+      homeCity.value = academy.city
+      publicTrainerCity.value = academy.city
+      registeredAcademies.value = [academy]
+      publicTrainerAcademy.value = `${academy.name} — ${academy.neighborhood}`
+    } catch (error) {
+      if (current) sharedAcademyError.value = error instanceof Error
+        ? error.message
+        : 'Não foi possível consultar a academia.'
+    } finally {
+      if (current) sharedAcademyLoading.value = false
+    }
+  }, { immediate: true })
+
   return {
     publicTrainers,
     publicTrainerCity,
     publicTrainerAcademy,
     homeAcademySelected,
+    sharedAcademyLoading,
+    sharedAcademyError,
+    selectHomeAcademy,
+    loadHomeAcademies,
     publicTrainerAcademies,
     publicTrainerAcademyDetails,
     academyRouteLoading,

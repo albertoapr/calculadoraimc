@@ -2,6 +2,7 @@ import { apiError, requestApi } from './http/apiClient'
 
 export type Academy = {
   academyId: string
+  slug?: string
   name: string
   city: string
   neighborhood: string
@@ -15,8 +16,17 @@ export type Academy = {
 
 export type AcademyWrite = Pick<
   Academy,
-  'name' | 'city' | 'neighborhood' | 'address' | 'zipCode' | 'active'
+  'name' | 'slug' | 'city' | 'neighborhood' | 'address' | 'zipCode' | 'active'
 >
+
+export async function getAcademyBySlug(slug: string): Promise<Academy> {
+  const response = await requestApi<{ academy?: Academy; error?: string }>(
+    `/api/academies/by-slug/${encodeURIComponent(slug)}`,
+  )
+  if (!response.ok || !response.body.academy)
+    throw apiError(response, 'Não foi possível consultar a academia.')
+  return response.body.academy
+}
 
 export async function listAcademies(city?: string): Promise<Academy[]> {
   const response = await requestApi<{ academies?: Academy[]; error?: string }>('/api/academies', {

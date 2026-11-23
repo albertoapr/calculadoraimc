@@ -19,7 +19,7 @@ import ConsultarProfissionaisView from '../views/profissionais/ConsultarProfissi
 import SelecionarProfissionaisView from '../views/atendimento/SelecionarProfissionaisView.vue'
 import { useApplicationNavigation } from './useApplicationNavigation'
 import { safeReturnPath, type AppScreen } from '../router/screens'
-import { parseAcademyPath } from '../router/academyRoutes'
+import { parseAcademyPath, parseSharedAcademySlug } from '../router/academyRoutes'
 import { useAssessment } from './useAssessment'
 import { usePublicTrainerProfile } from './usePublicTrainerProfile'
 import { useHome } from './useHome'
@@ -156,7 +156,10 @@ export function useFitpesoApp() {
   } = useTrainerProposal(trainerRequestToken)
   const { trainerIdFromPath, trainerSlugFromPath, personalBrandFirstName, publicTrainer, publicTrainerBanner, trainerProfileFailed } =
     usePublicTrainerProfile(router)
-  const isRootHome = computed(() => router.currentRoute.value.path === '/')
+  const isRootHome = computed(() => {
+    const path = router.currentRoute.value.path
+    return path === '/' || Boolean(parseSharedAcademySlug(path))
+  })
 
   const viewMode = ref<AppViewMode>(
     trainerRequestToken
@@ -306,6 +309,10 @@ export function useFitpesoApp() {
     publicTrainerCity,
     publicTrainerAcademy,
     homeAcademySelected,
+    sharedAcademyLoading,
+    sharedAcademyError,
+    selectHomeAcademy,
+    loadHomeAcademies,
     publicTrainerAcademies,
     publicTrainerAcademyDetails,
     academyRouteLoading,
@@ -1252,7 +1259,7 @@ export function useFitpesoApp() {
     ([path, details, city, routeError]) => {
       const directory = path === '/profissionais' || Boolean(parseAcademyPath(path))
       updatePageSeo(
-        path === '/' || path.startsWith('/personal/') || path.startsWith('/p/')
+        isRootHome.value || path.startsWith('/personal/') || path.startsWith('/p/')
           ? 'home'
           : directory
             ? 'directory'
@@ -1271,7 +1278,7 @@ export function useFitpesoApp() {
   )
 
   onMounted(() => {
-    if (viewMode.value === 'home' && isRootHome.value && homeCity.value) {
+    if (viewMode.value === 'home' && router.currentRoute.value.path === '/' && homeCity.value) {
       publicTrainerCity.value = homeCity.value
       void loadPublicTrainers()
     }
@@ -1297,7 +1304,7 @@ export function useFitpesoApp() {
       void router.replace({ path: '/proposta', query })
     }
     void loadTrainerRequest()
-    if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
+    if (router.currentRoute.value.path === '/' && !homeCityManuallySelected.value) void detectRequestCity('home')
     startAuthentication()
   })
 
@@ -1315,6 +1322,10 @@ export function useFitpesoApp() {
     publicTrainerCity,
     publicTrainerAcademy,
     homeAcademySelected,
+    sharedAcademyLoading,
+    sharedAcademyError,
+    selectHomeAcademy,
+    loadHomeAcademies,
     openRequestForTrainer,
     homeSelectedTrainerIds,
     sharingRequestId,

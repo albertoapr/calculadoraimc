@@ -16,6 +16,12 @@ export const router = createRouter({
     // Fallback when Amplify serves the SPA shell instead of the static Swagger HTML.
     { path: '/swagger/index.html', name: 'swagger-ui', component: () => import('../views/docs/SwaggerView.vue') },
     {
+      path: '/academias/:slug([a-z0-9-]+)',
+      name: 'academy-home',
+      component: application,
+      meta: { screen: 'home', access: 'public' },
+    },
+    {
       path: '/:city/academia/:academy/:neighborhood?',
       name: 'academy-professionals',
       component: application,

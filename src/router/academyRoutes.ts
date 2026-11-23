@@ -33,3 +33,11 @@ export function parseAcademyPath(path: string) {
     neighborhood: (match[3] ?? '').toLowerCase(),
   }
 }
+
+export function sharedAcademyPath(slug: string) {
+  return `/academias/${encodeURIComponent(slug)}`
+}
+
+export function parseSharedAcademySlug(path: string) {
+  return /^\/academias\/([a-z0-9-]+)\/?$/i.exec(path)?.[1]?.toLowerCase() ?? ''
+}
