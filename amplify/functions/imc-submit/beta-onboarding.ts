@@ -363,6 +363,8 @@ export async function completeBetaTrainerSignup(
   } catch (error) {
     if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)
       return reply(409, { error: 'Cadastro alterado ou confirmação já utilizada. Solicite outro link.' })
+    if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
+      return reply(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
     if (error instanceof Error && error.name === 'TrainerSlugUnavailableError')
       return reply(409, { error: 'Endereço do perfil já está em uso. Escolha outro.' })
     console.error('[beta-onboarding] Trainer complete failed', { errorClass: error instanceof Error ? error.name : typeof error })
