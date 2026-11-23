@@ -190,7 +190,7 @@ export function useFitpesoApp() {
     .map(academy => `${academy.name} — ${academy.neighborhood}`)
     .sort((a, b) => a.localeCompare(b, 'pt-BR')))
   const profileAcademyOptions = computed(() => registeredAcademies.value
-    .filter(academy => editingProfile.cities.includes(academy.city))
+    .filter(academy => !editingProfile.cities.length || editingProfile.cities.includes(academy.city))
     .map(academy => ({
       id: academy.academyId,
       label: `${academy.name} — ${academy.neighborhood}`,
@@ -497,6 +497,7 @@ export function useFitpesoApp() {
     adminTrainerSearch,
     adminTrainerActivityFilter,
     adminAcademies,
+    adminAcademiesError,
     availableAcademiesForTrainer,
     selectedAdminTrainerId,
     adminTrainerFormVisible,
