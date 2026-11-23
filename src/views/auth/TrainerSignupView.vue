@@ -9,6 +9,7 @@ const {
   addAcademy,
   signupAcademyChoice,
   signupOtherAcademy,
+  referralCode,
   trainerForm,
   trainerStatus,
   betaTrainerSignupToken,
@@ -72,6 +73,11 @@ const {
           googleProfileStatus
         }}</small>
       </div>
+      <label v-if="referralCode" class="field field-wide" for="trainer-referral">
+        <span class="field-label">Indicado por outro personal</span>
+        <input id="trainer-referral" :value="referralCode" readonly aria-readonly="true" />
+        <small>Este código será associado ao seu cadastro quando você concluir a inscrição.</small>
+      </label>
       <label class="field field-wide" for="trainer-name"
         ><span class="field-label">Nome completo</span>
         <input
