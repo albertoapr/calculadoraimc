@@ -20,6 +20,7 @@ export type TrainerSignupInput = {
   academias: string[]
   instagram: string
   cref?: string
+  referralCode?: string
   googleCredential?: string
 }
 
