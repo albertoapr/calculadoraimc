@@ -1065,7 +1065,15 @@ export function useFitpesoApp() {
     loginIdentifier.value = ''
     emailLoginPending.value = false
     emailLoginError.value = ''
-    if (fromRequest) showRequestForm.value = false
+    if (fromRequest) {
+      // A origem da autenticação precisa estar também na URL. Caso contrário,
+      // uma sincronização do roteador pode perder o retorno e abrir a home.
+      await router.push({
+        path: '/entrar',
+        query: { redirect: '/solicitar-treinamento' },
+      })
+      showRequestForm.value = false
+    }
     showCustomerLogin.value = true
     await nextTick()
     await renderGoogleButton('client')
@@ -1078,15 +1086,17 @@ export function useFitpesoApp() {
       await router.replace(returnPath)
       return
     }
-    if (!requestLoginReturn.value) {
+    if (!requestLoginReturn.value && !returnPath.startsWith('/solicitar-treinamento')) {
       goHome()
       return
     }
-    requestLoginReturn.value = false
+    // Primeiro retorna à rota do rascunho, sem descartá-lo nem voltar à home.
     viewMode.value = 'contact'
     showRequestForm.value = true
     requestStep.value = 5
+    await router.replace('/solicitar-treinamento')
     showCustomerLogin.value = false
+    requestLoginReturn.value = false
     await nextTick()
     window.scrollTo(0, 0)
   }
