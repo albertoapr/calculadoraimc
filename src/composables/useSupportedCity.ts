@@ -106,10 +106,9 @@ export function useSupportedCity<T extends string>(options: {
             localityInfo?: { administrative?: Array<{ name?: string }> }
           }
           if (
-            cityDetectionScope === 'request' &&
-            (lookupId !== requestCityLookupId ||
-              !options.showRequestForm.value ||
-              options.requestStep.value > 3)
+            lookupId !== requestCityLookupId ||
+            (cityDetectionScope === 'request' &&
+              (!options.showRequestForm.value || options.requestStep.value > 3))
           )
             return
           const candidates = [

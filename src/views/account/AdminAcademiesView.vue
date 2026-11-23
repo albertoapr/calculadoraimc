@@ -9,6 +9,13 @@ import {
   type AcademyWrite,
 } from '../../services/academiesService'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
+import { sharedAcademyPath } from '../../router/academyRoutes'
+import {
+  ACADEMY_SLUG_MAX_LENGTH,
+  ACADEMY_SLUG_PATTERN,
+  isAcademySlug,
+  suggestAcademySlug,
+} from '../../../shared/academy-slug'
 
 const { goHome, supportedRequestCities } = useFitpesoContext()
 const academies = ref<Academy[]>([])
@@ -20,8 +27,10 @@ const cityFilter = ref('')
 const activeFilter = ref('all')
 const selectedId = ref('')
 const editing = ref(false)
+const savedSlug = ref('')
 const empty = (): AcademyWrite => ({
   name: '',
+  slug: '',
   city: 'Mesquita',
   neighborhood: '',
   address: '',
@@ -29,6 +38,7 @@ const empty = (): AcademyWrite => ({
   active: true,
 })
 const form = reactive<AcademyWrite>(empty())
+const slugSuggestion = computed(() => suggestAcademySlug(form.name, form.neighborhood))
 // AcademyWrite.city vem da API como string; as cidades suportadas são uma lista literal.
 const supportedCities = new Set<string>(supportedRequestCities)
 
@@ -40,7 +50,7 @@ const visible = computed(() => {
       (activeFilter.value === 'all' ||
         (activeFilter.value === 'active' ? academy.active : !academy.active)) &&
       (!query ||
-        [academy.name, academy.neighborhood, academy.address].some((text) =>
+        [academy.name, academy.neighborhood, academy.address, academy.slug ?? ''].some((text) =>
           text.toLocaleLowerCase('pt-BR').includes(query),
         )),
   )
@@ -75,14 +85,17 @@ async function refresh() {
 function newAcademy() {
   Object.assign(form, empty())
   selectedId.value = ''
+  savedSlug.value = ''
   editing.value = true
   status.value = ''
 }
 
 function editAcademy(academy: Academy) {
   selectedId.value = academy.academyId
+  savedSlug.value = academy.slug ?? ''
   Object.assign(form, {
     name: academy.name,
+    slug: savedSlug.value,
     city: academy.city,
     neighborhood: academy.neighborhood,
     address: academy.address,
@@ -113,14 +126,20 @@ async function save() {
     status.value = 'Preencha nome, cidade e bairro válidos.'
     return
   }
+  const slug = form.slug || slugSuggestion.value
+  if (!isAcademySlug(slug)) {
+    status.value = 'Informe um slug com letras minúsculas, números e hífens.'
+    return
+  }
+  const academy = { ...form, slug }
   saving.value = true
   status.value = ''
   try {
     if (selectedId.value) {
-      await updateAdminAcademy(session, selectedId.value, { ...form })
+      await updateAdminAcademy(session, selectedId.value, academy)
       status.value = 'Academia atualizada com sucesso.'
     } else {
-      await createAdminAcademy(session, { ...form })
+      await createAdminAcademy(session, academy)
       status.value = 'Academia cadastrada com sucesso.'
     }
     cancelEdit()
@@ -131,6 +150,20 @@ async function save() {
     status.value = error instanceof Error ? error.message : 'Não foi possível salvar a academia.'
   } finally {
     saving.value = false
+  }
+}
+
+function publicAcademyLink(slug: string) {
+  return new URL(sharedAcademyPath(slug), window.location.origin).href
+}
+
+async function copyAcademyLink(slug: string) {
+  const url = publicAcademyLink(slug)
+  try {
+    await navigator.clipboard.writeText(url)
+    status.value = 'Link da unidade copiado.'
+  } catch {
+    status.value = url
   }
 }
 
@@ -180,7 +213,7 @@ onMounted(() => {
 
     <div class="academy-filters">
       <label class="field">
-        <span class="field-label">Nome ou bairro</span>
+        <span class="field-label">Nome, bairro ou slug</span>
         <input v-model="search" type="search" placeholder="Buscar academia" />
       </label>
       <label class="field">
@@ -210,10 +243,18 @@ onMounted(() => {
         <div class="academy-card-info">
           <strong>{{ academy.name }}</strong>
           <span>{{ academy.neighborhood }} · {{ academy.city }}, {{ academy.state }}</span>
+          <small>Slug {{ academy.slug || '—' }}</small>
           <small>{{ academy.active ? 'Ativa' : 'Inativa' }}</small>
         </div>
         <div class="academy-card-actions">
           <button type="button" :disabled="saving" @click="editAcademy(academy)">Editar</button>
+          <button
+            v-if="academy.active && academy.slug"
+            type="button"
+            @click="copyAcademyLink(academy.slug)"
+          >
+            Copiar link da unidade
+          </button>
           <button
             v-if="academy.active"
             type="button"
@@ -250,6 +291,20 @@ onMounted(() => {
       <label class="field">
         <span class="field-label">Bairro *</span>
         <input v-model.trim="form.neighborhood" required minlength="2" maxlength="80" />
+      </label>
+      <label class="field">
+        <span class="field-label">Slug</span>
+        <input
+          v-model.trim="form.slug"
+          :readonly="Boolean(savedSlug)"
+          :maxlength="ACADEMY_SLUG_MAX_LENGTH"
+          :pattern="ACADEMY_SLUG_PATTERN"
+          :placeholder="slugSuggestion || 'aquaticcenter-vilaemil'"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+        <small v-if="!savedSlug">Deixe em branco para usar a sugestão. O slug fica fixo após salvar.</small>
       </label>
       <label class="field">
         <span class="field-label">Endereço</span>

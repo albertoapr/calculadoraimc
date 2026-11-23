@@ -9,6 +9,10 @@ const {
   publicTrainerAcademyDetails,
   homeCity,
   publicTrainersLoading,
+  sharedAcademyLoading,
+  sharedAcademyError,
+  selectHomeAcademy,
+  loadHomeAcademies,
   openPublicTrainers,
   viewMode,
 } = useFitpesoContext()
@@ -18,10 +22,12 @@ const academyName = computed(() =>
   publicTrainerAcademyDetails.value.name.trim().replace(/^academia\s+/i, ''),
 )
 function confirmAcademy(academy: string) {
-  if (!publicTrainerAcademies.value.includes(academy)) return
-  // A escolha na home não navega: o filtro e a persistência em sessão já são reativos.
-  publicTrainerAcademy.value = academy
+  selectHomeAcademy(academy)
   academyDialogOpen.value = false
+}
+function openAcademyDialog() {
+  loadHomeAcademies()
+  academyDialogOpen.value = true
 }
 </script>
 
@@ -35,10 +41,10 @@ function confirmAcademy(academy: string) {
           :aria-label="`Alterar academia. ${academyName || 'Selecione uma academia'}`"
           aria-haspopup="dialog"
           title="Selecionar academia"
-          :disabled="!homeCity || publicTrainersLoading"
-          @click="academyDialogOpen = true"
+          :disabled="!homeCity || publicTrainersLoading || sharedAcademyLoading"
+          @click="openAcademyDialog"
         >
-          <span>{{ academyName || 'Selecione uma academia' }}</span>
+          <span>{{ sharedAcademyLoading ? 'Carregando academia…' : academyName || 'Selecione uma academia' }}</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="m6 9 6 6 6-6" />
           </svg>
@@ -48,6 +54,7 @@ function confirmAcademy(academy: string) {
     <p v-if="publicTrainerAcademyDetails.neighborhood" class="home-academy-neighborhood">
       {{ publicTrainerAcademyDetails.neighborhood }}
     </p>
+    <p v-if="sharedAcademyError" class="home-academy-neighborhood" role="status">{{ sharedAcademyError }}</p>
   </div>
   <div class="root-home-photo home-training-photo">
     <img
@@ -74,6 +81,7 @@ function confirmAcademy(academy: string) {
   <button
     class="primary-button home-find-personal-button"
     type="button"
+    :disabled="sharedAcademyLoading"
     @click="openPublicTrainers"
   >
     <svg

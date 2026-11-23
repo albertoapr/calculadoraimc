@@ -1,7 +1,7 @@
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
-import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
+import { listAcademies, getAcademy, getAcademyBySlug, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
@@ -3590,6 +3590,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return listAcademies(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies/{academyId}'))
     return getAcademy(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies/by-slug/{slug}'))
+    return getAcademyBySlug(event)
   if (event.resource?.includes('/admin/academies')) {
     const auth = await authenticateAdmin(event)
     if ('error' in auth) return auth.error

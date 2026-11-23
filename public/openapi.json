@@ -157,6 +157,48 @@
         }
       }
     },
+    "/api/academies/by-slug/{slug}": {
+      "get": {
+        "operationId": "getAcademyBySlug",
+        "summary": "Consultar unidade ativa pelo slug público",
+        "tags": ["Academias"],
+        "security": [],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 80, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Academia encontrada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AcademyEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "Academia indisponível para este slug",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Cadastro temporariamente indisponível",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/academies/{academyId}": {
       "get": {
         "operationId": "getAcademy",
@@ -5483,6 +5525,12 @@
           "active"
         ],
         "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Identificador público único. Ausente em cadastros antigos até ser configurado."
+          },
           "academyId": {
             "type": "string"
           },
@@ -5527,6 +5575,12 @@
           "active"
         ],
         "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 80,
+            "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)?$",
+            "description": "Identificador público único. Na criação, pode ser gerado pelo servidor. Após o primeiro preenchimento, é fixo."
+          },
           "name": {
             "type": "string",
             "minLength": 2,
