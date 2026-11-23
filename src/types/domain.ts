@@ -142,6 +142,8 @@ export type TrainerAccountProfile = IdentitySyncState & {
   pricing?: string
   bannerUpdatedAt?: string
   trainerId: string
+  referralCode?: string
+  referredByTrainerId?: string
   name: string
   whatsapp: string
   email?: string
@@ -155,6 +157,8 @@ export type TrainerAccountProfile = IdentitySyncState & {
 
 export type AdminTrainer = {
   trainerId: string
+  referralCode?: string
+  referredByTrainerId?: string
   name: string
   whatsapp: string
   email: string
