@@ -2118,11 +2118,11 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
     return response(403, { error: 'Acesso exclusivo do administrador.' })
   }
   const data = parseBody(event)
-  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth) {
-    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidade e endereço válido.' })
+  if (!isValidTrainerRegistration(data) || !data?.dateOfBirth) {
+    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, Instagram, cidade e endereço válido.' })
   }
   const whatsapp = normalizePhone(data.whatsapp)
-  const cref = String(data.cref).trim().toUpperCase()
+  const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
   // Check all supported cities, not only the selected ones.
   for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
@@ -2133,7 +2133,7 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
         ExpressionAttributeNames: { '#city': 'city' }, ExpressionAttributeValues: { ':city': { S: city } },
         ExclusiveStartKey: lastKey,
       }))
-      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref)) {
+      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || (cref !== '' && item.cref?.S?.trim().toUpperCase() === cref))) {
         return response(409, { error: 'Já existe um profissional com esse WhatsApp ou CREF.' })
       }
       lastKey = page.LastEvaluatedKey
@@ -2298,11 +2298,11 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
   const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Profissional inválido.' })
   const data = parseBody(event)
-  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth || typeof data.active !== 'boolean') {
-    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidades e endereço.' })
+  if (!isValidTrainerRegistration(data) || !data?.dateOfBirth || typeof data.active !== 'boolean') {
+    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, Instagram, cidades e endereço.' })
   }
   const whatsapp = normalizePhone(data.whatsapp)
-  const cref = String(data.cref).trim().toUpperCase()
+  const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
   const slug = String(data.slug).trim().toLowerCase()
   try {
@@ -2315,7 +2315,7 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
         ExpressionAttributeNames: { '#city': 'city' },
         ExpressionAttributeValues: { ':city': { S: city } },
       }))
-      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref))) {
+      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || (cref !== '' && item.cref?.S?.trim().toUpperCase() === cref)))) {
         return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
       }
     }
