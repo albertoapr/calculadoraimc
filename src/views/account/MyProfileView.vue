@@ -25,11 +25,10 @@ const {
   selectableProfiles,
 } = useFitpesoContext()
 
-const referralCode = computed(() =>
-  /^[a-f0-9]{32}$/i.test(editingProfile.trainerId)
-    ? 'FP' + editingProfile.trainerId.toUpperCase()
-    : '',
-)
+const referralCode = computed(() => {
+  const trainerId = editingProfile.trainerId
+  return trainerId && /^[a-f0-9]{32}$/i.test(trainerId) ? 'FP' + trainerId.toUpperCase() : ''
+})
 const referralLink = computed(() =>
   referralCode.value
     ? `https://fitpeso.com.br/cadastro/personal?ref=${encodeURIComponent(referralCode.value)}`
