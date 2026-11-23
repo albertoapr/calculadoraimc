@@ -1357,6 +1357,8 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     })
     return { profile: {
       trainerId,
+      referralCode: trainerReferralCode(trainerId),
+      referredByTrainerId: item.referredByTrainerId?.S ?? '',
       city,
       cities: cities.length ? cities : [city],
       academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
@@ -1927,6 +1929,21 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   return { slug, verificationCode: challenge.code }
 }
 
+// Código único estável, inclusive para registros anteriores à implantação.
+function trainerReferralCode(trainerId: string) {
+  return /^[a-f0-9]{32}$/.test(trainerId) ? 'FP' + trainerId.toUpperCase() : ''
+}
+async function resolveReferringTrainer(value: unknown) {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value !== 'string' || !/^FP[A-F0-9]{32}$/.test(value.trim().toUpperCase()))
+    throw new Error('INVALID_TRAINER_REFERRAL')
+  const id = value.trim().slice(2).toLowerCase()
+  const rows = await getTrainerRows(id)
+  if (!rows.some(row => row.active?.BOOL === true && row.whatsappVerified?.BOOL === true))
+    throw new Error('INVALID_TRAINER_REFERRAL')
+  return id
+}
+
 async function registerTrainer(
   data: Record<string, unknown>,
   betaSignup?: {
@@ -1981,6 +1998,7 @@ async function registerTrainer(
     academias.includes(betaSignup.academyName)
     ? (await resolveRegisteredAcademies([betaSignup.academyId], cities)).ids : []
   const trainerId = randomBytes(16).toString('hex')
+  const referredByTrainerId = await resolveReferringTrainer(data.referralCode)
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
 
@@ -2064,6 +2082,8 @@ async function registerTrainer(
           Item: {
             city: { S: city },
             trainerId: { S: trainerId },
+            referralCode: { S: trainerReferralCode(trainerId) },
+            ...(referredByTrainerId ? { referredByTrainerId: { S: referredByTrainerId } } : {}),
             slug: { S: slug },
             name: { S: name },
             sex: { S: sex },
@@ -2152,6 +2172,7 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
       { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
       ...cities.map(city => ({ Put: { TableName: tableName, Item: {
         city: { S: city }, trainerId: { S: trainerId }, slug: { S: slug },
+        referralCode: { S: trainerReferralCode(trainerId) },
         name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
         sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
         email: { S: String(data.email ?? '').trim().toLowerCase() },
@@ -2268,6 +2289,8 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
       const item = trainerRows[0]
       return {
         trainerId,
+        referralCode: trainerReferralCode(trainerId),
+        referredByTrainerId: item.referredByTrainerId?.S ?? '',
         name: item.name?.S ?? '',
         whatsapp: item.whatsapp?.S ?? '',
         email: item.email?.S ?? '',
@@ -2331,6 +2354,8 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
     const now = new Date().toISOString()
     const sharedItem = {
       trainerId: { S: trainerId }, slug: { S: slug },
+      referralCode: { S: trainerReferralCode(trainerId) },
+      ...(first.referredByTrainerId?.S ? { referredByTrainerId: { S: first.referredByTrainerId.S } } : {}),
       name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
       sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
       email: { S: String(data.email ?? '').trim().toLowerCase() },
@@ -3839,6 +3864,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
     } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
+        return response(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
       if (error instanceof TrainerSlugUnavailableError) {
         return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
       }
