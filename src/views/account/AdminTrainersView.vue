@@ -5,6 +5,8 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   availableCities,
   availableAcademiesForTrainer,
+  adminAcademiesError,
+  loadAdminAcademyOptions,
   adminTrainerSearch,
   adminTrainerActivityFilter,
   selectedAdminTrainerId,
@@ -198,9 +200,13 @@ const {
           <input v-model="adminTrainerForm.academyIds" type="checkbox" :value="academy.academyId" />
           {{ academy.name }} — {{ academy.neighborhood }} ({{ academy.city }})
         </label>
-        <small v-if="!availableAcademiesForTrainer.length">
-          Selecione uma cidade com academias ativas ou cadastre uma academia.
+        <small v-if="adminAcademiesError" role="alert">{{ adminAcademiesError }}</small>
+        <small v-else-if="!availableAcademiesForTrainer.length">
+          Nenhuma academia ativa encontrada para a cidade selecionada.
         </small>
+        <button v-if="adminAcademiesError" type="button" class="secondary-button" @click="loadAdminAcademyOptions">
+          Tentar novamente
+        </button>
       </fieldset>
 
       <label class="field field-wide">
