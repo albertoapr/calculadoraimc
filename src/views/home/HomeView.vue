@@ -72,7 +72,7 @@ function confirmAcademy(academy: string) {
     @close="academyDialogOpen = false"
   />
   <button
-    class="secondary-button home-find-personal-button"
+    class="primary-button home-find-personal-button"
     type="button"
     @click="openPublicTrainers"
   >
