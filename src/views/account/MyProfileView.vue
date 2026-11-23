@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import TrainerPageEditor from './TrainerPageEditor.vue'
 import PhoneVerification from './PhoneVerification.vue'
@@ -23,6 +24,37 @@ const {
   navigateTo,
   selectableProfiles,
 } = useFitpesoContext()
+
+const referralCode = computed(() =>
+  /^[a-f0-9]{32}$/i.test(editingProfile.trainerId)
+    ? 'FP' + editingProfile.trainerId.toUpperCase()
+    : '',
+)
+const referralLink = computed(() =>
+  referralCode.value
+    ? `https://fitpeso.com.br/cadastro/personal?ref=${encodeURIComponent(referralCode.value)}`
+    : '',
+)
+const referralShareStatus = ref('')
+async function shareTrainerReferral() {
+  if (!referralLink.value) return
+  const text = 'Conheça a FitPeso! Cadastre-se como personal trainer pelo meu convite.'
+  referralShareStatus.value = ''
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Convite FitPeso', text, url: referralLink.value })
+      referralShareStatus.value = 'Convite compartilhado.'
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(referralLink.value)
+      referralShareStatus.value = 'Link de convite copiado.'
+    } else {
+      referralShareStatus.value = 'Copie o endereço acima para convidar seu colega.'
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name !== 'AbortError')
+      referralShareStatus.value = 'Não foi possível compartilhar. Copie o link exibido.'
+  }
+}
 </script>
 
 <template>
@@ -80,6 +112,16 @@ const {
       </label>
       <template v-if="editingProfileType === 'customer'"><label class="field field-wide" for="profile-sex"><span class="field-label">Sexo</span><select id="profile-sex" v-model="editingProfile.sex" required><option value="" disabled>Selecione o sexo</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label><label class="field field-wide" for="profile-height"><span class="field-label">Altura (cm)</span><input id="profile-height" v-model.number="editingProfile.heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 172" /><small>Sua altura é importante para calcular o IMC e outros indicadores da avaliação física.</small></label></template>
 
+      <div v-if="editingProfileType === 'trainer' && referralCode" class="field field-wide trainer-referral-panel">
+        <strong>Indique a FitPeso para outro personal</strong>
+        <small>Seu código de indicação é {{ referralCode }}.</small>
+        <label for="trainer-referral-link">Link de convite</label>
+        <input id="trainer-referral-link" :value="referralLink" type="text" readonly aria-readonly="true" />
+        <button type="button" class="secondary-button" @click="shareTrainerReferral">
+          Compartilhar convite
+        </button>
+        <small v-if="referralShareStatus" role="status">{{ referralShareStatus }}</small>
+      </div>
       <TrainerPageEditor v-if="editingProfileType === 'trainer'" />
       <template v-if="editingProfileType === 'trainer'">
         <label class="field field-wide" for="profile-cref"
@@ -173,6 +215,8 @@ const {
 </template>
 
 <style scoped>
+.trainer-referral-panel { display: grid; gap: 8px; }
+.trainer-referral-panel small { color: var(--muted); }
 .google-profile-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .google-profile-photo img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
 .google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
