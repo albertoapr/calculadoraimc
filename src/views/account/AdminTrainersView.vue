@@ -154,8 +154,8 @@ const {
         </select>
       </label>
       <label class="field">
-        <span class="field-label">CREF</span>
-        <input v-model="adminTrainerForm.cref" required maxlength="40" placeholder="000000-G/RJ" />
+        <span class="field-label">CREF (opcional)</span>
+        <input v-model="adminTrainerForm.cref" maxlength="40" placeholder="000000-G/RJ (opcional)" />
       </label>
       <label class="field">
         <span class="field-label">Instagram</span>
