@@ -16,6 +16,7 @@ const {
   adminTrainerBusy,
   adminTrainerForm,
   filteredAdminTrainers,
+  referringTrainerName,
   selectAdminTrainer,
   startNewAdminTrainer,
   cancelAdminTrainerEdit,
@@ -84,7 +85,9 @@ const {
       >
         <span class="admin-trainer-list-main">
           <strong>{{ trainer.name }}</strong>
-          <small>{{ trainer.cref }} · {{ trainer.cities.join(', ') }}</small>
+          <small>{{ trainer.cref || 'Sem CREF' }} · {{ trainer.cities.join(', ') }}</small>
+          <small>Código: {{ trainer.referralCode || '—' }}</small>
+          <small>Indicado por: {{ referringTrainerName(trainer.referredByTrainerId) }}</small>
         </span>
         <span class="admin-trainer-state" :class="trainer.active ? 'is-active' : 'is-inactive'">
           {{ trainer.active ? 'Ativo' : 'Inativo' }}
