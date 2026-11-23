@@ -253,6 +253,17 @@ export function useAuthentication(options: AuthenticationOptions) {
     void checkPendingWhatsAppLogin()
   }
 
+  // Amplify fornece AWS_BRANCH no build; o domínio publicado também identifica develop.
+  // Sem identificação explícita, usa-se sempre o comando de produção.
+  function buildWhatsAppLoginLink(code: string): string {
+    const isDevelop =
+      window.location.hostname === 'develop.fitpeso.com.br' ||
+      (window.location.hostname !== 'fitpeso.com.br' &&
+        import.meta.env.VITE_FITPESO_BRANCH === 'develop')
+    const message = isDevelop ? `/login develop ${code}` : `/login ${code}`
+    return 'https://wa.me/5521971118383?text=' + encodeURIComponent(message)
+  }
+
   function restoreWhatsAppAttempt() {
     try {
       const raw = sessionStorage.getItem(pendingWhatsAppKey)
@@ -284,9 +295,7 @@ export function useAuthentication(options: AuthenticationOptions) {
       customerLoginWhatsApp.value = a.whatsapp
       loginStep.value = 2
       customerLoginMethod.value = 'whatsapp'
-      const link =
-        'https://wa.me/5521971118383?text=' +
-        encodeURIComponent(`Confirmar login FitPeso ${a.code}\nWhatsApp: ${a.whatsapp}`)
+      const link = buildWhatsAppLoginLink(a.code)
       if (a.role === 'trainer') {
         trainerLoginCode.value = a.code
         trainerLoginToken.value = a.token
@@ -450,11 +459,7 @@ export function useAuthentication(options: AuthenticationOptions) {
         throw new Error(body.error || 'Não foi possível iniciar o login.')
       trainerLoginCode.value = body.verificationCode
       trainerLoginToken.value = token
-      trainerLoginLink.value =
-        'https://wa.me/5521971118383?text=' +
-        encodeURIComponent(
-          'Confirmar login FitPeso ' + body.verificationCode + '\nWhatsApp: ' + whatsapp,
-        )
+      trainerLoginLink.value = buildWhatsAppLoginLink(body.verificationCode)
       trainerLoginDialog.value = true
       saveNewWhatsAppAttempt('trainer', whatsapp, body.verificationCode, token, body.expiresAt)
       trainerLoginStatus.value =
@@ -514,7 +519,7 @@ export function useAuthentication(options: AuthenticationOptions) {
       customerLoginWhatsApp.value = whatsapp
       customerLoginCode.value = body.verificationCode
       customerLoginSessionToken.value = sessionToken
-      customerLoginVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(`Confirmar login FitPeso ${body.verificationCode}\nWhatsApp: ${whatsapp}`)}`
+      customerLoginVerificationLink.value = buildWhatsAppLoginLink(body.verificationCode)
       saveNewWhatsAppAttempt(
         'customer',
         whatsapp,
