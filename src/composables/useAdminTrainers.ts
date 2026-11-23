@@ -60,6 +60,11 @@ export function useAdminTrainers(options: {
     },
   )
 
+  function referringTrainerName(trainerId?: string) {
+    if (!trainerId) return 'Sem indicação'
+    return adminTrainers.value.find(trainer => trainer.trainerId === trainerId)?.name ?? 'Personal não localizado'
+  }
+
   const filteredAdminTrainers = computed(() => {
     const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
     return adminTrainers.value
@@ -70,6 +75,8 @@ export function useAdminTrainers(options: {
         return [
           trainer.name,
           trainer.cref,
+          trainer.referralCode ?? '',
+          referringTrainerName(trainer.referredByTrainerId),
           trainer.whatsapp,
           trainer.email,
           trainer.instagram,
@@ -295,6 +302,7 @@ export function useAdminTrainers(options: {
     adminTrainerBusy,
     saveAdminTrainer,
     adminTrainers,
+    referringTrainerName,
     adminAcademies,
     adminAcademiesError,
     availableAcademiesForTrainer,
