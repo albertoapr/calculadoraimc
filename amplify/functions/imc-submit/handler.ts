@@ -1047,10 +1047,9 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
       ConsistentRead: true,
     }))
     const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
-    // O mesmo número validado pode ter apenas perfil PERSONAL. A criação de CLIENTE
-    // é permitida somente se não houver nenhum registro de cliente preexistente.
-    // Cadastro pendente/inativo NUNCA pode ser reativado por esse atalho.
-    const trainer = !customer.Item ? await findVerifiedTrainerForCustomerLogin(whatsapp) : null
+    // O login unificado começa pela pessoa. Um personal criado pelo administrador
+    // ainda não confirmou o WhatsApp, mas pode fazê-lo neste mesmo desafio.
+    const trainer = await findClaimableTrainerForCustomerLogin(whatsapp)
     if (!eligibleCustomer && !trainer) {
       return response(200, {
         started: false,
@@ -1069,7 +1068,7 @@ async function beginCustomerLogin(data: Record<string, unknown> | null) {
         whatsapp: { S: whatsapp },
         eligible: { BOOL: true },
         ...(trainer ? {
-          createCustomerProfile: { BOOL: true },
+          ...(!customer.Item ? { createCustomerProfile: { BOOL: true } } : {}),
           trainerId: { S: trainer.trainerId },
           city: { S: trainer.city },
         } : {}),
@@ -1110,10 +1109,10 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     }
     const customer = await dynamodb.send(new GetItemCommand({ TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true }))
     const eligibleCustomer = customer.Item?.status?.S === 'ACTIVE' && customer.Item.whatsappVerified?.BOOL === true
-    // O desafio foi emitido especificamente para um personal já confirmado.
-    // Confere-se novamente o vínculo do telefone antes de criar o perfil CLIENTE.
-    const trainer = challenge.createCustomerProfile?.BOOL === true && !customer.Item
-      ? await getVerifiedTrainerForCustomerLogin(
+    // A confirmação feita pela Beta também comprova o WhatsApp do personal que
+    // foi criado diretamente pelo administrador.
+    const trainer = challenge.trainerId?.S && challenge.city?.S
+      ? await getClaimableTrainerForCustomerLogin(
         whatsapp, challenge.trainerId?.S ?? '', challenge.city?.S ?? '',
       )
       : null
@@ -1132,6 +1131,9 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
     if (!/^[a-f0-9]{64}$/.test(sessionHash)) return response(200, { verified: false })
     const sessionExpiry = now + 12 * 60 * 60
     const loginLink = newWhatsAppLoginLink(code, whatsapp, 'customer', Number(challenge.expiresAt!.N))
+    const trainerRows = trainer && !trainer.whatsappVerified
+      ? await getTrainerRows(trainer.trainerId)
+      : []
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: {
         TableName: codesTable, Key: { codeHash: { S: codeHash } },
@@ -1146,8 +1148,17 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
         ConditionExpression: 'attribute_not_exists(codeHash)',
       } },
       { Put: { TableName: codesTable, Item: loginLink.item, ConditionExpression: 'attribute_not_exists(codeHash)' } },
-      ...(trainer ? [
-        // Impede que um personal removido/desativado autorize um novo cliente.
+      ...trainerRows.map(row => ({ Update: {
+        TableName: process.env.TRAINERS_TABLE!,
+        Key: { city: { S: row.city!.S! }, trainerId: { S: trainer!.trainerId } },
+        UpdateExpression: 'SET whatsappVerified = :yes, whatsappVerifiedAt = if_not_exists(whatsappVerifiedAt, :now)',
+        ConditionExpression: '#active = :yes AND whatsapp = :phone AND attribute_exists(createdByAdmin)',
+        ExpressionAttributeNames: { '#active': 'active' },
+        ExpressionAttributeValues: {
+          ':yes': { BOOL: true }, ':phone': { S: whatsapp }, ':now': { N: String(now) },
+        },
+      } })),
+      ...(trainer && trainer.whatsappVerified && challenge.createCustomerProfile?.BOOL === true ? [
         { ConditionCheck: {
           TableName: process.env.TRAINERS_TABLE!,
           Key: { city: { S: trainer.city }, trainerId: { S: trainer.trainerId } },
@@ -1155,6 +1166,8 @@ async function verifyCustomerLogin(data: Record<string, unknown> | null) {
           ExpressionAttributeNames: { '#active': 'active' },
           ExpressionAttributeValues: { ':yes': { BOOL: true }, ':phone': { S: whatsapp } },
         } },
+      ] : []),
+      ...(trainer && challenge.createCustomerProfile?.BOOL === true ? [
         { Put: {
           TableName: customersTable,
           Item: {
@@ -1251,10 +1264,11 @@ async function findActiveTrainerByWhatsApp(whatsapp: string) {
 }
 
 /**
- * Confirma a titularidade de um perfil PERSONAL já ativo, sem confiar apenas
- * na existência de um registro público do profissional.
+ * Um perfil já confirmado pode ser associado diretamente. Um perfil criado
+ * pelo administrador só se torna associável dentro de um desafio que confirme
+ * a titularidade do mesmo WhatsApp.
  */
-async function getVerifiedTrainerForCustomerLogin(whatsapp: string, trainerId: string, city: string) {
+async function getClaimableTrainerForCustomerLogin(whatsapp: string, trainerId: string, city: string) {
   if (!trainerId || !city || !process.env.TRAINERS_TABLE) return null
   const result = await dynamodb.send(new GetItemCommand({
     TableName: process.env.TRAINERS_TABLE,
@@ -1262,20 +1276,29 @@ async function getVerifiedTrainerForCustomerLogin(whatsapp: string, trainerId: s
     ConsistentRead: true,
   }))
   const item = result.Item
-  if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) return null
+  const whatsappVerified = item?.whatsappVerified?.BOOL === true
+  const createdByAdmin = Boolean(item?.createdByAdmin?.S)
+  if (item?.active?.BOOL !== true || item.whatsapp?.S !== whatsapp ||
+      (!whatsappVerified && !createdByAdmin)) return null
   const name = item.name?.S?.trim() ?? ''
   if (name.length < 2) return null
   return {
-    trainerId, city, name, dateOfBirth: item.dateOfBirth?.S ?? '',
+    trainerId, city, name, whatsappVerified, createdByAdmin,
+    dateOfBirth: item.dateOfBirth?.S ?? '',
     email: item.email?.S ?? '',
     pessoaId: item.pessoa_id?.S,
     identitySource: item.identitySource?.S,
   }
 }
 
-async function findVerifiedTrainerForCustomerLogin(whatsapp: string) {
+async function findClaimableTrainerForCustomerLogin(whatsapp: string) {
   const match = await findActiveTrainerByWhatsApp(whatsapp)
-  return match ? getVerifiedTrainerForCustomerLogin(whatsapp, match.trainerId, match.city) : null
+  return match ? getClaimableTrainerForCustomerLogin(whatsapp, match.trainerId, match.city) : null
+}
+
+async function findVerifiedTrainerForCustomerLogin(whatsapp: string) {
+  const trainer = await findClaimableTrainerForCustomerLogin(whatsapp)
+  return trainer?.whatsappVerified ? trainer : null
 }
 
 /**
