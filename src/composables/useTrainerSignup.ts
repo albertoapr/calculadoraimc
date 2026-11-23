@@ -29,6 +29,7 @@ export function useTrainerSignup(options: {
   const signupAcademyChoice = ref('')
 
   const signupOtherAcademy = ref('')
+  const referralCode = ref('')
 
   const trainerForm = reactive({
     name: '',
@@ -105,7 +106,10 @@ export function useTrainerSignup(options: {
   }
 
   if (options.active) watch(options.active, active => {
-    if (active) fillTrainerFromAccount()
+    if (active) {
+      fillTrainerFromAccount()
+      referralCode.value = new URLSearchParams(window.location.search).get('ref')?.trim().toUpperCase() ?? ''
+    }
   }, { immediate: true })
   watch(linkedAccount, account => {
     if (account && options.active?.value) fillTrainerFromAccount()
@@ -146,6 +150,10 @@ export function useTrainerSignup(options: {
     const cref = trainerForm.cref.trim()
     const account = linkedAccount.value
     let validationError = ''
+    if (referralCode.value && !/^FP[A-F0-9]{32}$/.test(referralCode.value)) {
+      trainerStatus.value = 'Código de indicação inválido. Abra novamente o link enviado pelo colega.'
+      return
+    }
     if (account && !account.googleCredential) {
       validationError = 'Para ativar o perfil com a mesma conta, entre novamente com Google.'
     } else if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
@@ -188,6 +196,7 @@ export function useTrainerSignup(options: {
         academias: [...trainerForm.academias],
         instagram,
         ...(cref ? { cref } : {}),
+        ...(referralCode.value ? { referralCode: referralCode.value } : {}),
         ...(account?.googleCredential ? { googleCredential: account.googleCredential } : {}),
       }
       if (betaTrainerSignupToken.value) {
@@ -237,6 +246,7 @@ export function useTrainerSignup(options: {
     availableCities,
     signupAcademyChoice,
     signupOtherAcademy,
+    referralCode,
     trainerForm,
     linkedAccount,
     trainerStatus,
