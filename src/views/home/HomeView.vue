@@ -9,7 +9,6 @@ const {
   publicTrainerAcademyDetails,
   homeCity,
   publicTrainersLoading,
-  startTrainingRequestFromHome,
   openPublicTrainers,
 } = useFitpesoContext()
 
@@ -71,14 +70,6 @@ function confirmAcademy(academy: string) {
     @confirm="confirmAcademy"
     @close="academyDialogOpen = false"
   />
-  <button
-    class="primary-button home-training-request-button"
-    type="button"
-    :disabled="!homeCity"
-    @click="startTrainingRequestFromHome"
-  >
-    Treinar com Personal
-  </button>
   <button
     class="secondary-button home-find-personal-button"
     type="button"
@@ -166,11 +157,6 @@ function confirmAcademy(academy: string) {
 }
 :global(html[data-theme='dark']) .home-academy-change-button { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
-.home-training-request-button {
-  display: block;
-  width: 100%;
-  margin: 12px 0 12px;
-}
 .home-find-personal-button {
   display: flex;
   align-items: center;
