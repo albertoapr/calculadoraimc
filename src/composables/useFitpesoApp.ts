@@ -1398,6 +1398,7 @@ export function useFitpesoApp() {
     changeRequestVisibility,
     acceptProposal,
     academyOptions,
+    registeredAcademies,
     profileAcademyOptions,
     addProfileAcademy,
     removeProfileAcademy,
