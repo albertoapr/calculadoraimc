@@ -53,19 +53,6 @@ const {
     </header>
 
     <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
-      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide trainer-contact-reminder">
-        <p>
-          Antes de enviar o cadastro, baixe e salve o cartão de contato da Beta para receber o
-          retorno.
-        </p>
-        <a
-          class="trainer-contact-card"
-          href="https://drive.usercontent.google.com/download?id=1itlX4W0doax1jYpc7GkGa-hM2v8rZ98l&amp;export=download"
-          download="Beta.vcf"
-          >Baixar cartão de contato da Beta</a
-        >
-        <small>WhatsApp: +55 21 97111-8383</small>
-      </div>
       <div v-if="!betaTrainerSignupToken" class="google-fill field-wide">
         <p>Complete nome e e-mail com sua conta Google</p>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
