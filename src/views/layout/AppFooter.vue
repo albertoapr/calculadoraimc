@@ -56,20 +56,6 @@ async function shareFitpeso() {
         </svg>
       </button>
       <span class="header-auth-divider" aria-hidden="true" style="margin: 0 8px">|</span>
-      <a
-        v-if="viewMode === 'home'"
-        href="/avaliacao"
-        class="box-contact-link"
-        @click.prevent="viewMode = 'assessment'"
-        >Avaliação</a
-      >
-      <span
-        v-if="viewMode === 'home'"
-        class="header-auth-divider"
-        aria-hidden="true"
-        style="margin: 0 8px"
-        >|</span
-      >
       <a href="/sobre" class="box-contact-link" @click.prevent="viewMode = 'about'">Sobre</a>
     </nav>
     <div class="box-theme-actions" style="margin-left: auto">

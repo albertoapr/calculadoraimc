@@ -1,3 +1,4 @@
+import { listAcademies, type Academy } from '../services/academiesService'
 import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
 import { isValidBirthDate } from '../utils/validation'
@@ -169,7 +170,49 @@ export function useFitpesoApp() {
   const requestSent = ref(false)
   const requestStep = ref(1)
   const selectingTrainersForDraft = ref(false)
-  const academyOptions = ['AquaticCenter', 'SmartFit', 'LifeFit', 'BodyTech', 'Outros']
+  const registeredAcademies = ref<Academy[]>([])
+  const academiesLoading = ref(false)
+  const academiesError = ref('')
+  async function refreshRegisteredAcademies() {
+    academiesLoading.value = true
+    academiesError.value = ''
+    try {
+      registeredAcademies.value = (await listAcademies()).filter(academy => academy.active)
+    } catch (error) {
+      registeredAcademies.value = []
+      academiesError.value = error instanceof Error ? error.message : 'Não foi possível consultar as academias cadastradas.'
+    } finally {
+      academiesLoading.value = false
+    }
+  }
+  const academyOptions = computed(() => registeredAcademies.value
+    .filter(academy => trainerForm.cities.includes(academy.city))
+    .map(academy => `${academy.name} — ${academy.neighborhood}`)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')))
+  const profileAcademyOptions = computed(() => registeredAcademies.value
+    .filter(academy => !editingProfile.cities.length || editingProfile.cities.includes(academy.city))
+    .map(academy => ({
+      id: academy.academyId,
+      label: `${academy.name} — ${academy.neighborhood}`,
+      city: academy.city,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')))
+  function addProfileAcademy(academyId: string) {
+    const academy = profileAcademyOptions.value.find(item => item.id === academyId)
+    if (!academy || editingProfile.academyIds.includes(academyId) ||
+        editingProfile.academias.length >= 5) return
+    if (!editingProfile.academias.includes(academy.label)) editingProfile.academias.push(academy.label)
+    editingProfile.academyIds.push(academyId)
+    profileAcademyChoice.value = ''
+  }
+  function removeProfileAcademy(index: number) {
+    const name = editingProfile.academias[index]
+    const registered = registeredAcademies.value.find(academy =>
+      `${academy.name} — ${academy.neighborhood}` === name &&
+      editingProfile.academyIds.includes(academy.academyId))
+    if (registered) editingProfile.academyIds.splice(editingProfile.academyIds.indexOf(registered.academyId), 1)
+    editingProfile.academias.splice(index, 1)
+  }
   function addAcademy(list: string[], choice: string, other: string) {
     const name = (choice === 'Outros' ? other : choice).trim().replace(/\s+/g, ' ')
     if (
@@ -408,7 +451,9 @@ export function useFitpesoApp() {
     availableCities,
     signupAcademyChoice,
     signupOtherAcademy,
+    referralCode,
     trainerForm,
+    linkedAccount,
     trainerStatus,
     betaTrainerSignupToken,
     betaAcademyHint,
@@ -421,6 +466,15 @@ export function useFitpesoApp() {
     sendTrainerSignup,
     stopTrainerRegistration,
   } = useTrainerSignup({
+    linkedAccount: () => customerSignedInName.value ? {
+      name: customerForm.name || customerSignedInName.value,
+      email: customerForm.email,
+      sex: customerForm.sex,
+      whatsapp: customerForm.whatsapp,
+      dateOfBirth: customerForm.dateOfBirth,
+      googleCredential: sessionStorage.getItem('fitpeso-google-session') ?? '',
+      photoUrl: customerPhotoUrl.value,
+    } : null,
     onClose: goHome,
     active: showTrainerSignup,
     replaceUrl: (url) => router.replace(url),
@@ -444,6 +498,8 @@ export function useFitpesoApp() {
     adminTrainerSearch,
     adminTrainerActivityFilter,
     adminAcademies,
+    adminAcademiesError,
+    loadAdminAcademyOptions,
     availableAcademiesForTrainer,
     selectedAdminTrainerId,
     adminTrainerFormVisible,
@@ -452,6 +508,7 @@ export function useFitpesoApp() {
     adminTrainerEditBusy,
     adminTrainerEditForm,
     filteredAdminTrainers,
+    referringTrainerName,
     selectAdminTrainer,
     startNewAdminTrainer,
     cancelAdminTrainerEdit,
@@ -468,6 +525,12 @@ export function useFitpesoApp() {
       viewMode.value = 'admin-trainers'
     },
   })
+
+  function openAdminCustomers() {
+    if (!actingAsAdmin.value) return
+    viewMode.value = 'admin-customers'
+    void nextTick(() => window.scrollTo(0, 0))
+  }
 
   function openAdminAcademies() {
     if (!actingAsAdmin.value) return
@@ -511,6 +574,13 @@ export function useFitpesoApp() {
       }
     },
   })
+
+  watch([showTrainerSignup, viewMode], ([signup, screen]) => {
+    if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
+  }, { immediate: true })
+  watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
+  watch(() => editingProfile.city, () => { profileAcademyChoice.value = '' })
+
 
   const trainerReceivedRequests = ref<TrainerReceivedRequest[]>([])
   const trainerRequestsStatus = ref('')
@@ -999,7 +1069,15 @@ export function useFitpesoApp() {
     loginIdentifier.value = ''
     emailLoginPending.value = false
     emailLoginError.value = ''
-    if (fromRequest) showRequestForm.value = false
+    if (fromRequest) {
+      // A origem da autenticação precisa estar também na URL. Caso contrário,
+      // uma sincronização do roteador pode perder o retorno e abrir a home.
+      await router.push({
+        path: '/entrar',
+        query: { redirect: '/solicitar-treinamento' },
+      })
+      showRequestForm.value = false
+    }
     showCustomerLogin.value = true
     await nextTick()
     await renderGoogleButton('client')
@@ -1012,15 +1090,17 @@ export function useFitpesoApp() {
       await router.replace(returnPath)
       return
     }
-    if (!requestLoginReturn.value) {
+    if (!requestLoginReturn.value && !returnPath.startsWith('/solicitar-treinamento')) {
       goHome()
       return
     }
-    requestLoginReturn.value = false
+    // Primeiro retorna à rota do rascunho, sem descartá-lo nem voltar à home.
     viewMode.value = 'contact'
     showRequestForm.value = true
     requestStep.value = 5
+    await router.replace('/solicitar-treinamento')
     showCustomerLogin.value = false
+    requestLoginReturn.value = false
     await nextTick()
     window.scrollTo(0, 0)
   }
@@ -1038,7 +1118,7 @@ export function useFitpesoApp() {
     trainerSignedInId.value = profile.trainerId
     trainerSignedInName.value = profile.name
     customerSignedInName.value = ''
-    customerPhotoUrl.value = ''
+    customerPhotoUrl.value = profile.googlePhotoUrl ?? ''
     try {
       sessionStorage.removeItem('fitpeso-customer-session')
       sessionStorage.removeItem('fitpeso-google-session')
@@ -1297,6 +1377,8 @@ export function useFitpesoApp() {
     adminTrainerSearch,
     adminTrainerActivityFilter,
     adminAcademies,
+    adminAcademiesError,
+    loadAdminAcademyOptions,
     availableAcademiesForTrainer,
     selectedAdminTrainerId,
     adminTrainerFormVisible,
@@ -1305,6 +1387,7 @@ export function useFitpesoApp() {
     adminTrainerEditBusy,
     adminTrainerEditForm,
     filteredAdminTrainers,
+    referringTrainerName,
     selectAdminTrainer,
     startNewAdminTrainer,
     cancelAdminTrainerEdit,
@@ -1315,6 +1398,13 @@ export function useFitpesoApp() {
     changeRequestVisibility,
     acceptProposal,
     academyOptions,
+    registeredAcademies,
+    profileAcademyOptions,
+    addProfileAcademy,
+    removeProfileAcademy,
+    academiesLoading,
+    academiesError,
+    refreshRegisteredAcademies,
     addAcademy,
     profileAcademyChoice,
     profileOtherAcademy,
@@ -1380,6 +1470,7 @@ export function useFitpesoApp() {
     ref,
     loginAsTrainer,
     customerLoginError,
+    customerLoginStatus,
     loginIdentifier,
     loginStep,
     loginIdentifierKind,
@@ -1412,7 +1503,9 @@ export function useFitpesoApp() {
     openCustomerSignupFromLogin,
     signupAcademyChoice,
     signupOtherAcademy,
+    referralCode,
     trainerForm,
+    linkedAccount,
     betaTrainerSignupToken,
     betaAcademyHint,
     trainerStatus,
@@ -1424,6 +1517,7 @@ export function useFitpesoApp() {
     suggestTrainerSlug,
     sendTrainerSignup,
     openAdminTrainers,
+    openAdminCustomers,
     openAdminAcademies,
     trainerSignedInName,
     trainerSignedInId,

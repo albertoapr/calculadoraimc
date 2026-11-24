@@ -50,7 +50,8 @@ export function useHome(options: {
   const loadedTrainersCity = ref('')
   const publicTrainerCity = ref('')
   const publicTrainerAcademy = ref('')
-  // A escolha da academia na home dura apenas a sessão atual do navegador.
+  // A preferência fica no dispositivo entre visitas, vinculada à cidade escolhida.
+  const HOME_ACADEMY_STORAGE = 'fitpeso:home-academy:v2'
   const HOME_ACADEMY_SESSION = 'fitpeso:home-academy-session:v1'
   const HOME_ACADEMY_CITY_SESSION = 'fitpeso:home-academy-city-session:v1'
   const homeAcademySelected = computed(() =>
@@ -62,11 +63,19 @@ export function useHome(options: {
   function restoreHomeAcademy(city: string, academies: string[]) {
     if (!city || !academies.length || publicTrainerAcademy.value) return
     try {
-      if (sessionStorage.getItem(HOME_ACADEMY_CITY_SESSION) !== city) return
-      const saved = sessionStorage.getItem(HOME_ACADEMY_SESSION) ?? ''
-      if (saved && academies.includes(saved)) publicTrainerAcademy.value = saved
+      const saved = localStorage.getItem(HOME_ACADEMY_STORAGE)
+      const preference = saved ? JSON.parse(saved) as { city?: string; academy?: string } : null
+      if (preference?.city === city && preference.academy && academies.includes(preference.academy)) {
+        publicTrainerAcademy.value = preference.academy
+        return
+      }
+      // Migração da preferência que existia apenas na sessão.
+      if (!saved && sessionStorage.getItem(HOME_ACADEMY_CITY_SESSION) === city) {
+        const previous = sessionStorage.getItem(HOME_ACADEMY_SESSION) ?? ''
+        if (previous && academies.includes(previous)) publicTrainerAcademy.value = previous
+      }
     } catch {
-      /* navegação privada */
+      /* armazenamento indisponível: seleção manual continua funcionando */
     }
   }
 
@@ -247,11 +256,14 @@ export function useHome(options: {
     [publicTrainerAcademies, publicTrainerCity],
     ([academies, city], previousValues) => {
       const previousCity = previousValues?.[1]
-      if (
-        city !== previousCity ||
-        (publicTrainerAcademy.value &&
-          academies.length &&
-          !academies.includes(publicTrainerAcademy.value))
+      if (city !== previousCity) {
+        publicTrainerAcademy.value = ''
+      } else if (
+        publicTrainerAcademy.value &&
+        academies.length &&
+        loadedAcademiesCity.value === city &&
+        loadedTrainersCity.value === city &&
+        !academies.includes(publicTrainerAcademy.value)
       ) {
         publicTrainerAcademy.value = ''
       }
@@ -262,6 +274,10 @@ export function useHome(options: {
   watch(publicTrainerAcademy, (academy, previousAcademy) => {
     if (viewMode.value === 'home' && isRootHome.value && academy) {
       try {
+        localStorage.setItem(HOME_ACADEMY_STORAGE, JSON.stringify({
+          city: publicTrainerCity.value,
+          academy,
+        }))
         sessionStorage.setItem(HOME_ACADEMY_SESSION, academy)
         sessionStorage.setItem(HOME_ACADEMY_CITY_SESSION, publicTrainerCity.value)
       } catch {

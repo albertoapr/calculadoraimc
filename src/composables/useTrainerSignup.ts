@@ -1,4 +1,4 @@
-import { onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
+import { computed, onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
 import { registerTrainer, redeemBetaTrainerSignup, completeBetaTrainerSignup } from '../services/signupService'
 import {
   isValidBirthDate,
@@ -17,6 +17,10 @@ export function useTrainerSignup(options: {
   active?: Ref<boolean>
   replaceUrl?: (url: string) => unknown
   onAuthenticated?: (sessionToken: string) => Promise<void> | void
+  linkedAccount?: () => {
+    name: string; email: string; sex: '' | 'masculino' | 'feminino'
+    whatsapp: string; dateOfBirth: string; googleCredential: string; photoUrl?: string
+  } | null
 }) {
   let disposed = false
   let registrationRequest: AbortController | undefined
@@ -25,6 +29,7 @@ export function useTrainerSignup(options: {
   const signupAcademyChoice = ref('')
 
   const signupOtherAcademy = ref('')
+  const referralCode = ref('')
 
   const trainerForm = reactive({
     name: '',
@@ -39,6 +44,8 @@ export function useTrainerSignup(options: {
     academias: [] as string[],
   })
 
+  const linkedAccount = computed(() => options.linkedAccount?.() ?? null)
+  // O cadastro pessoal existente alimenta a ativação profissional; não criar outra pessoa.
   const trainerStatus = ref('')
   const betaTrainerSignupToken = ref('')
   const betaAcademyHint = ref('')
@@ -87,6 +94,27 @@ export function useTrainerSignup(options: {
     options.onClose()
   }
 
+  function fillTrainerFromAccount() {
+    const account = linkedAccount.value
+    if (!account) return
+    trainerForm.name = account.name
+    trainerForm.email = account.email
+    trainerForm.sex = account.sex
+    trainerForm.dateOfBirth = account.dateOfBirth
+    if (account.whatsapp && !trainerForm.phone) trainerForm.phone = account.whatsapp
+    suggestTrainerSlug()
+  }
+
+  if (options.active) watch(options.active, active => {
+    if (active) {
+      fillTrainerFromAccount()
+      referralCode.value = new URLSearchParams(window.location.search).get('ref')?.trim().toUpperCase() ?? ''
+    }
+  }, { immediate: true })
+  watch(linkedAccount, account => {
+    if (account && options.active?.value) fillTrainerFromAccount()
+  })
+
   function toggleTrainerCity(city: string) {
     const index = trainerForm.cities.indexOf(city)
     if (index >= 0) {
@@ -120,8 +148,15 @@ export function useTrainerSignup(options: {
     const dateOfBirth = trainerForm.dateOfBirth
     const instagram = normalizeInstagramHandle(trainerForm.instagram)
     const cref = trainerForm.cref.trim()
+    const account = linkedAccount.value
     let validationError = ''
-    if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
+    if (referralCode.value && !/^FP[A-F0-9]{32}$/.test(referralCode.value)) {
+      trainerStatus.value = 'Código de indicação inválido. Abra novamente o link enviado pelo colega.'
+      return
+    }
+    if (account && !account.googleCredential) {
+      validationError = 'Para ativar o perfil com a mesma conta, entre novamente com Google.'
+    } else if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
     else if (sex !== 'masculino' && sex !== 'feminino')
       validationError = 'Selecione Masculino ou Feminino.'
     else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
@@ -161,6 +196,8 @@ export function useTrainerSignup(options: {
         academias: [...trainerForm.academias],
         instagram,
         ...(cref ? { cref } : {}),
+        ...(referralCode.value ? { referralCode: referralCode.value } : {}),
+        ...(account?.googleCredential ? { googleCredential: account.googleCredential } : {}),
       }
       if (betaTrainerSignupToken.value) {
         const sessionToken = await completeBetaTrainerSignup(
@@ -209,7 +246,9 @@ export function useTrainerSignup(options: {
     availableCities,
     signupAcademyChoice,
     signupOtherAcademy,
+    referralCode,
     trainerForm,
+    linkedAccount,
     trainerStatus,
     betaTrainerSignupToken,
     betaAcademyHint,

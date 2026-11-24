@@ -1,14 +1,16 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
   availableCities,
-  academyOptions,
-  addAcademy,
-  signupAcademyChoice,
-  signupOtherAcademy,
+  registeredAcademies,
+  academiesLoading,
+  academiesError,
+  refreshRegisteredAcademies,
+  referralCode,
   trainerForm,
   trainerStatus,
   betaTrainerSignupToken,
@@ -19,14 +21,59 @@ const {
   googleProfileStatus,
   goBackFromTitle,
   closeTrainerSignup,
-  toggleTrainerCity,
   suggestTrainerSlug,
   sendTrainerSignup,
 } = useFitpesoContext()
+
+const signupCity = ref('')
+const signupAcademyId = ref('')
+const cityByAcademy = ref<Record<string, string>>({})
+const academyLabel = (academy: { name: string; neighborhood: string }) => `${academy.name} — ${academy.neighborhood}`
+const signupOptions = computed(() => registeredAcademies.value
+  .filter(academy => academy.city === signupCity.value)
+  .sort((a, b) => academyLabel(a).localeCompare(academyLabel(b), 'pt-BR')))
+watch(signupCity, () => { signupAcademyId.value = '' })
+function cityForAcademy(name: string) {
+  const matches = registeredAcademies.value.filter(academy => academyLabel(academy) === name || academy.name === name)
+  return matches.find(academy => academy.city === cityByAcademy.value[name])?.city ??
+    (matches.length === 1 ? matches[0]?.city : matches.find(academy => trainerForm.cities.includes(academy.city))?.city)
+}
+const actingCities = computed(() => [...new Set(trainerForm.academias.map(cityForAcademy).filter((city): city is string => Boolean(city)))])
+const chosenAcademy = computed(() => signupOptions.value.find(academy => academy.academyId === signupAcademyId.value))
+const canAdd = computed(() => {
+  const academy = chosenAcademy.value
+  return Boolean(academy && trainerForm.academias.length < 5 &&
+    !trainerForm.academias.includes(academyLabel(academy)) &&
+    (actingCities.value.includes(academy.city) || actingCities.value.length < 2))
+})
+function addSignupAcademy() {
+  const academy = chosenAcademy.value
+  if (!academy || !canAdd.value) return
+  const label = academyLabel(academy)
+  cityByAcademy.value[label] = academy.city
+  trainerForm.academias.push(label)
+  trainerForm.cities = [...actingCities.value]
+  signupAcademyId.value = ''
+}
+function removeSignupAcademy(index: number) {
+  const name = trainerForm.academias[index]
+  if (name) delete cityByAcademy.value[name]
+  trainerForm.academias.splice(index, 1)
+  trainerForm.cities = [...actingCities.value]
+}
+function submitSignup() {
+  if (academiesLoading.value || academiesError.value || !trainerForm.academias.length ||
+      trainerForm.academias.some(name => !cityForAcademy(name))) {
+    trainerStatus.value = 'Selecione pelo menos uma academia cadastrada e confira as academias informadas.'
+    return
+  }
+  trainerForm.cities = [...actingCities.value]
+  void sendTrainerSignup()
+}
 </script>
 
 <template>
-  <section class="calculator" aria-labelledby="page-title">
+  <section class="calculator trainer-signup-screen" aria-labelledby="page-title">
     <HomeHeader />
     <header class="hero">
       <hr class="personal-divider" />
@@ -51,20 +98,7 @@ const {
       </p>
     </header>
 
-    <form class="form contact-fields trainer-signup-form" @submit.prevent="sendTrainerSignup">
-      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide trainer-contact-reminder">
-        <p>
-          Antes de enviar o cadastro, baixe e salve o cartão de contato da Beta para receber o
-          retorno.
-        </p>
-        <a
-          class="trainer-contact-card"
-          href="https://drive.usercontent.google.com/download?id=1itlX4W0doax1jYpc7GkGa-hM2v8rZ98l&amp;export=download"
-          download="Beta.vcf"
-          >Baixar cartão de contato da Beta</a
-        >
-        <small>WhatsApp: +55 21 97111-8383</small>
-      </div>
+    <form class="form contact-fields trainer-signup-form" @submit.prevent="submitSignup">
       <div v-if="!betaTrainerSignupToken" class="google-fill field-wide">
         <p>Complete nome e e-mail com sua conta Google</p>
         <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
@@ -72,6 +106,11 @@ const {
           googleProfileStatus
         }}</small>
       </div>
+      <label v-if="referralCode" class="field field-wide" for="trainer-referral">
+        <span class="field-label">Indicado por outro personal</span>
+        <input id="trainer-referral" :value="referralCode" readonly aria-readonly="true" />
+        <small>Este código será associado ao seu cadastro quando você concluir a inscrição.</small>
+      </label>
       <label class="field field-wide" for="trainer-name"
         ><span class="field-label">Nome completo</span>
         <input
@@ -150,70 +189,38 @@ const {
           placeholder="voce@exemplo.com"
         />
       </label>
-      <fieldset class="availability-group field-wide trainer-city-group">
-        <legend>Cidades de atuação <span>(escolha de 1 a 2)</span></legend>
-        <div class="availability-options">
-          <label v-for="city in availableCities" :key="city" class="availability-option">
-            <input
-              type="checkbox"
-              :checked="trainerForm.cities.includes(city)"
-              :disabled="!trainerForm.cities.includes(city) && trainerForm.cities.length >= 2"
-              @change="toggleTrainerCity(city)"
-            />
-            <span>{{ city }}</span>
-          </label>
+      <fieldset class="availability-group field-wide">
+        <legend>Academias onde atende (até 5)</legend>
+        <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
+        <label class="field field-wide" for="signup-city">
+          <span class="field-label">Cidade</span>
+          <select id="signup-city" v-model="signupCity">
+            <option value="">Selecione a cidade</option>
+            <option v-for="city in availableCities" :key="city" :value="city">{{ city }}</option>
+          </select>
+        </label>
+        <p v-if="academiesLoading" role="status">Carregando academias…</p>
+        <div v-else-if="academiesError" role="alert">
+          {{ academiesError }}
+          <button type="button" class="secondary-button" @click="refreshRegisteredAcademies">Tentar novamente</button>
         </div>
+        <div class="public-academy-add">
+          <select v-model="signupAcademyId" aria-label="Selecionar academia" :disabled="!signupCity || academiesLoading || Boolean(academiesError)">
+            <option value="">Selecione uma academia</option>
+            <option v-for="academy in signupOptions" :key="academy.academyId" :value="academy.academyId">{{ academyLabel(academy) }}</option>
+          </select>
+          <button type="button" class="secondary-button" :disabled="!canAdd" @click="addSignupAcademy">Adicionar</button>
+        </div>
+        <small v-if="signupCity && !academiesLoading && !academiesError && !signupOptions.length">Nenhuma academia cadastrada nesta cidade.</small>
+        <div v-for="(gym, index) in trainerForm.academias" :key="gym" class="public-academy-item">
+          <span>{{ gym }} — {{ cityForAcademy(gym) || 'Cidade não identificada' }}</span>
+          <button type="button" :aria-label="'Remover ' + gym" @click="removeSignupAcademy(index)">Remover</button>
+        </div>
+        <small>{{ trainerForm.academias.length }}/5 academias</small>
+        <small>Cidades de atuação: {{ actingCities.join(', ') || 'Nenhuma academia selecionada' }} (até 2)</small>
       </fieldset>
-      <label class="field field-wide" for="trainer-instagram"
-        ><span class="field-label">Perfil do Instagram <span v-if="betaTrainerSignupToken">(opcional; pode preencher depois)</span></span>
-        <fieldset class="availability-group field-wide">
-          <legend>Academias onde atende (até 5)</legend>
-          <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
-          <div class="public-academy-add">
-            <select v-model="signupAcademyChoice" aria-label="Selecionar academia">
-              <option value="">Selecione uma academia</option>
-              <option v-for="option in academyOptions" :key="option" :value="option">
-                {{ option }}
-              </option>
-            </select>
-            <input
-              v-if="signupAcademyChoice === 'Outros'"
-              v-model="signupOtherAcademy"
-              type="text"
-              maxlength="60"
-              placeholder="Nome da academia"
-              aria-label="Nome da academia"
-            />
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="
-                trainerForm.academias.length >= 5 ||
-                !signupAcademyChoice ||
-                (signupAcademyChoice === 'Outros' && !signupOtherAcademy.trim())
-              "
-              @click="
-                () => {
-                  addAcademy(trainerForm.academias, signupAcademyChoice, signupOtherAcademy)
-                  signupAcademyChoice = ''
-                  signupOtherAcademy = ''
-                }
-              "
-            >
-              Adicionar
-            </button>
-          </div>
-          <div v-for="(gym, index) in trainerForm.academias" :key="gym" class="public-academy-item">
-            <span>{{ gym }}</span><button
-              type="button"
-              :aria-label="'Remover ' + gym"
-              @click="trainerForm.academias.splice(index, 1)"
-            >
-              Remover
-            </button>
-          </div>
-          <small>{{ trainerForm.academias.length }}/5 academias</small>
-        </fieldset>
+      <label class="field field-wide" for="trainer-instagram">
+        <span class="field-label">Perfil do Instagram <span v-if="betaTrainerSignupToken">(opcional; pode preencher depois)</span></span>
         <input
           id="trainer-instagram"
           v-model="trainerForm.instagram"
@@ -313,3 +320,12 @@ const {
     </div>
   </section>
 </template>
+
+<style scoped>
+.trainer-signup-screen :deep(.fitpeso-home-topbar) {
+  margin-bottom: 0;
+}
+.trainer-signup-screen .personal-divider {
+  margin-top: 2px;
+}
+</style>

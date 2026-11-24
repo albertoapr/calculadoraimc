@@ -5,7 +5,7 @@ import {
   updateAdminTrainer,
 } from '../services/adminTrainersService'
 import type { AdminTrainer } from '../types/domain'
-import { listAdminAcademies, type Academy } from '../services/academiesService'
+import { listAcademies, type Academy } from '../services/academiesService'
 import { isValidBirthDate } from '../utils/validation'
 
 type ActivityFilter = 'all' | 'active' | 'inactive'
@@ -34,6 +34,7 @@ export function useAdminTrainers(options: {
 }) {
   const adminTrainers = ref<AdminTrainer[]>([])
   const adminAcademies = ref<Academy[]>([])
+  const adminAcademiesError = ref('')
   const adminTrainerSearch = ref('')
   const adminTrainerActivityFilter = ref<ActivityFilter>('all')
   const selectedAdminTrainerId = ref('')
@@ -59,6 +60,11 @@ export function useAdminTrainers(options: {
     },
   )
 
+  function referringTrainerName(trainerId?: string) {
+    if (!trainerId) return 'Sem indicação'
+    return adminTrainers.value.find(trainer => trainer.trainerId === trainerId)?.name ?? 'Personal não localizado'
+  }
+
   const filteredAdminTrainers = computed(() => {
     const search = adminTrainerSearch.value.trim().toLocaleLowerCase('pt-BR')
     return adminTrainers.value
@@ -69,6 +75,8 @@ export function useAdminTrainers(options: {
         return [
           trainer.name,
           trainer.cref,
+          trainer.referralCode ?? '',
+          referringTrainerName(trainer.referredByTrainerId),
           trainer.whatsapp,
           trainer.email,
           trainer.instagram,
@@ -151,11 +159,15 @@ export function useAdminTrainers(options: {
       return
     }
     adminTrainersLoading.value = true
+    adminAcademiesError.value = ''
     adminTrainersStatus.value = 'Carregando profissionais…'
     try {
       const [trainers, academies] = await Promise.all([
         listAdminTrainers(token),
-        listAdminAcademies(token).catch(() => [] as Academy[]),
+        listAcademies().catch((error: unknown) => {
+          adminAcademiesError.value = error instanceof Error ? error.message : 'Não foi possível carregar as academias.'
+          return [] as Academy[]
+        }),
       ])
       adminTrainers.value = trainers
       adminAcademies.value = academies
@@ -179,9 +191,11 @@ export function useAdminTrainers(options: {
     const token = options.getToken()
     if (!options.isAdmin.value || !token) return
     try {
-      adminAcademies.value = await listAdminAcademies(token)
-    } catch {
+      adminAcademiesError.value = ''
+      adminAcademies.value = await listAcademies()
+    } catch (error) {
       adminAcademies.value = []
+      adminAcademiesError.value = error instanceof Error ? error.message : 'Não foi possível carregar as academias.'
     }
   }
 
@@ -288,7 +302,9 @@ export function useAdminTrainers(options: {
     adminTrainerBusy,
     saveAdminTrainer,
     adminTrainers,
+    referringTrainerName,
     adminAcademies,
+    adminAcademiesError,
     availableAcademiesForTrainer,
     loadAdminAcademyOptions,
     adminTrainerSearch,

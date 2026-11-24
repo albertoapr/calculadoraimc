@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import CitySelector from './CitySelector.vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   viewMode,
@@ -10,6 +9,7 @@ const {
   customerPhotoUrl,
   customerIsAdmin,
   openAdminTrainers,
+  openAdminCustomers,
   openAdminAcademies,
   trainerSignedInName,
   trainerSignedInId,
@@ -25,6 +25,13 @@ const {
 const profileLabel = computed(() =>
   activeRole.value === 'ADMIN' ? 'Administrador' : activeRole.value === 'PERSONAL' ? 'Personal' : 'Cliente',
 )
+const avatarLoadFailed = ref(false)
+const menuAvatarUrl = computed(() => avatarLoadFailed.value ? '' : (customerPhotoUrl.value || ''))
+const menuInitials = computed(() => {
+  const name = (trainerSignedInId.value ? trainerSignedInName.value : customerSignedInName.value).trim()
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'FP'
+})
+watch(customerPhotoUrl, () => { avatarLoadFailed.value = false })
 const menuOpen = ref(false)
 const menuContainer = ref<HTMLElement | null>(null)
 const closeMenu = () => {
@@ -72,17 +79,10 @@ onBeforeUnmount(() => {
         aria-label="Acesso de visitantes"
       >
         <a href="/entrar" class="header-login-link" @click.prevent="openCustomerLogin()">Entrar</a>
+        <span class="header-link-separator" aria-hidden="true">|</span>
+        <RouterLink to="/cadastro/cliente/dados" class="header-signup-link">Inscreva-se</RouterLink>
       </nav>
       <div v-if="trainerSignedInId || customerSignedInName" class="signed-in-header-row">
-        <img
-          v-if="!trainerSignedInId && customerPhotoUrl"
-          :src="customerPhotoUrl"
-          class="account-avatar"
-          alt="Foto do perfil Google"
-          referrerpolicy="no-referrer"
-          width="34"
-          height="34"
-        />
         <div class="signed-in-account-identity">
           <span class="account-greeting">
             Olá,
@@ -107,22 +107,23 @@ onBeforeUnmount(() => {
         <div ref="menuContainer" class="signed-in-menu">
           <button
             type="button"
-            class="signed-in-menu-trigger"
-            aria-label="Abrir menu de navegação"
+            class="signed-in-menu-trigger avatar-menu-trigger"
+            aria-label="Abrir menu da conta"
             aria-controls="signed-in-menu-items"
             :aria-expanded="menuOpen"
             @click="menuOpen = !menuOpen"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              aria-hidden="true"
-            >
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <img
+              v-if="menuAvatarUrl"
+              :src="menuAvatarUrl"
+              class="account-avatar"
+              alt=""
+              referrerpolicy="no-referrer"
+              width="38"
+              height="38"
+              @error="avatarLoadFailed = true"
+            />
+            <span v-else class="account-avatar-fallback" aria-hidden="true">{{ menuInitials }}</span>
           </button>
           <nav
             v-if="menuOpen"
@@ -143,13 +144,13 @@ onBeforeUnmount(() => {
             </button>
             <template v-if="customerIsAdmin && !trainerSignedInId">
               <button type="button" @click="openAdminTrainers()">Gerenciar profissionais</button>
+              <button type="button" @click="openAdminCustomers()">Gerenciar clientes</button>
               <button type="button" @click="openAdminAcademies()">Cadastro de academias</button>
             </template>
             <button type="button" @click="logout()">Sair</button>
           </nav>
         </div>
       </div>
-      <CitySelector v-if="(viewMode === 'home' && isRootHome) || viewMode === 'public-trainers'" />
     </div>
   </div>
 </template>
@@ -219,9 +220,32 @@ onBeforeUnmount(() => {
   color: inherit;
   cursor: pointer;
 }
-.signed-in-menu-trigger svg {
-  width: 24px;
-  height: 24px;
+.avatar-menu-trigger {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.avatar-menu-trigger .account-avatar {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.account-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+.avatar-menu-trigger:hover {
+  border-color: var(--blue);
 }
 .signed-in-menu-trigger:focus-visible {
   outline: 2px solid var(--blue);
@@ -314,7 +338,7 @@ html[data-theme='dark'] .signed-in-menu-items {
 }
 .header-inline-links {
   flex-wrap: wrap;
-  column-gap: 5px;
+  column-gap: 12px;
   row-gap: 0;
   font-size: 13px;
 }

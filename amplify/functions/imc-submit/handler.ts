@@ -1,3 +1,6 @@
+import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields } from './person-profile'
+import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
+import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
@@ -18,7 +21,7 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import nodemailer from 'nodemailer'
 import { OAuth2Client } from 'google-auth-library'
-import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity, registerGoogleCustomerIdentity, loadGoogleCustomerIdentity, syncProvisionalGoogleCustomerIdentity } from './identity-bootstrap'
+import { syncGoogleCustomerIdentity, syncWhatsappCustomerIdentity, syncWhatsappTrainerIdentity, syncEmailCustomerIdentity, syncEmailTrainerIdentity, registerGoogleCustomerIdentity, loadGoogleCustomerIdentity, syncProvisionalGoogleCustomerIdentity, activateGoogleTrainerIdentity } from './identity-bootstrap'
 import { listPersonProfiles, resolveVerifiedIdentity } from './identity-store'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
@@ -127,9 +130,10 @@ async function getPublicTrainerById(trainerId: string) {
     IndexName: 'TrainerById',
     KeyConditionExpression: '#trainerId = :trainerId',
     FilterExpression: '#active = :active',
-    ProjectionExpression: '#name, #active',
+    ProjectionExpression: '#city, #name, #active',
     ExpressionAttributeNames: {
       '#trainerId': 'trainerId',
+      '#city': 'city',
       '#name': 'name',
       '#active': 'active',
     },
@@ -153,8 +157,11 @@ async function getPublicTrainerById(trainerId: string) {
   }))
   const profile = full.Item
   if (!profile || profile.active?.BOOL !== true) return null
+  const shared = await loadPersonFields(profile.pessoa_id?.S, {
+    name, googlePhotoUrl: '', dateOfBirth: '',
+  })
   return {
-    trainerId, name, slug: profile.slug?.S ?? '',
+    trainerId, name: shared.name, slug: profile.slug?.S ?? '',
     tagline: profile.tagline?.S ?? '',
     aboutMe: profile.aboutMe?.S ?? '',
     education: profile.education?.S ?? '',
@@ -508,7 +515,9 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
   return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') ||
-    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile')
+    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
+    event.resource?.endsWith('/admin/customers') ||
+    event.resource?.endsWith('/admin/customers/{customerId}')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -541,12 +550,18 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
         const item = record.Item
         if (!item || item.user_id?.S !== userId || item.ativo?.BOOL === false)
           return response(401, { error: 'Perfil de cliente indisponível.' })
+        const personFields = await loadPersonFields(pessoaId, {
+          name: item.nome?.S ?? '',
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+          dateOfBirth: item.nascimento?.S ?? '',
+        })
         return response(200, { authenticated: true, profile: {
-          name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+          name: personFields.name, whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
           customerId, userId, email: item.email?.S ?? '',
-          dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
+          dateOfBirth: personFields.dateOfBirth, sex: item.sexo?.S ?? '',
           heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
-          googlePhotoUrl: item.googlePhotoUrl?.S ?? '', isAdmin: false,
+          googlePhotoUrl: personFields.googlePhotoUrl,
+          isAdmin: (await listPersonProfiles(pessoaId)).some(role => role.tipo === 'ADMIN'),
           identity: { pessoaId, usuarios: await listPersonProfiles(pessoaId) },
           identityStatus: 'ready',
         } })
@@ -579,15 +594,22 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
           : session.Item?.identityProof?.S === 'EMAIL' && session.Item.email?.S
             ? await trySyncIdentity(() => syncEmailCustomerIdentity(legacy, session.Item!.email!.S!))
             : { identityStatus: 'pending' as const }
-      return response(200, { authenticated: true, profile: {
+      const linkedPersonId = customer.Item.pessoa_id?.S
+      const personFields = await loadPersonFields(linkedPersonId, {
         name: customer.Item.name?.S ?? '',
-        whatsapp,
-        email: customer.Item.email?.S ?? '',
+        googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
         dateOfBirth: customer.Item.dateOfBirth?.S ?? '',
+      })
+      return response(200, { authenticated: true, profile: {
+        name: personFields.name,
+        whatsapp,
+        whatsappVerified: true,
+        email: customer.Item.email?.S ?? '',
+        dateOfBirth: personFields.dateOfBirth,
         sex: customer.Item.sex?.S ?? '',
         heightCm: customer.Item.heightCm?.N ? Number(customer.Item.heightCm.N) : undefined,
         isAdmin: customer.Item.isAdmin?.BOOL === true,
-        googlePhotoUrl: customer.Item.googlePhotoUrl?.S ?? '',
+        googlePhotoUrl: personFields.googlePhotoUrl,
         ...identity,
       } })
     } catch (error) {
@@ -605,12 +627,31 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     if (canonical) {
       const item = canonical.item
       if (item.email?.S !== email) return response(409, { error: 'Os dados desta conta precisam de revisão.' })
+      const verifiedPhoto = googleProfilePhotoUrl(payload.picture)
+      try {
+        await seedPersonFields(canonical.pessoaId, {
+          name: item.nome?.S ?? '',
+          googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+          dateOfBirth: item.nascimento?.S ?? '',
+        })
+        if (verifiedPhoto) await setVerifiedGooglePersonPhoto(canonical.pessoaId, verifiedPhoto)
+      } catch (error) {
+        console.warn('[imc-submit] Person Google photo synchronization pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
+      const personFields = await loadPersonFields(canonical.pessoaId, {
+        name: item.nome?.S ?? '',
+        googlePhotoUrl: verifiedPhoto || item.googlePhotoUrl?.S || '',
+        dateOfBirth: item.nascimento?.S ?? '',
+      })
       return response(200, { authenticated: true, profile: {
-        name: item.nome?.S ?? '', whatsapp: '', accountKey: '',
+        name: personFields.name, whatsapp: item.whatsapp?.S ?? '', whatsappVerified: item.whatsappVerified?.BOOL === true, accountKey: '',
         customerId: canonical.customerId, userId: canonical.userId,
-        email, dateOfBirth: item.nascimento?.S ?? '', sex: item.sexo?.S ?? '',
+        email, dateOfBirth: personFields.dateOfBirth, sex: item.sexo?.S ?? '',
         heightCm: item.altura_cm?.N ? Number(item.altura_cm.N) : undefined,
-        isAdmin: false, googlePhotoUrl: googleProfilePhotoUrl(payload.picture) || item.googlePhotoUrl?.S || '',
+        isAdmin: canonical.usuarios.some(role => role.tipo === 'ADMIN'),
+        googlePhotoUrl: personFields.googlePhotoUrl,
         identity: { pessoaId: canonical.pessoaId, usuarios: canonical.usuarios },
         identityStatus: 'ready',
       } })
@@ -651,7 +692,29 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
       }, { sub: payload.sub!, email }))
       : shouldResolveIdentity(event) ? { identityStatus: 'pending' as const } : undefined
     const verifiedPhotoUrl = googleProfilePhotoUrl(payload.picture)
-    const googlePhotoUrl = verifiedPhotoUrl || customer.googlePhotoUrl?.S || ''
+    // Apenas um vínculo Google comprovado pode alterar a foto da pessoa.
+    const linkedPersonId = identity && 'identity' in identity
+      ? identity.identity?.pessoaId : undefined
+    if (linkedPersonId) {
+      try {
+        await seedPersonFields(linkedPersonId, {
+          name: customer.name?.S ?? '',
+          googlePhotoUrl: customer.googlePhotoUrl?.S ?? '',
+          dateOfBirth: customer.dateOfBirth?.S ?? '',
+        })
+        if (verifiedPhotoUrl) await setVerifiedGooglePersonPhoto(linkedPersonId, verifiedPhotoUrl)
+      } catch (error) {
+        console.warn('[imc-submit] Person Google photo synchronization pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    }
+    const sharedPerson = await loadPersonFields(linkedPersonId, {
+      name: customer.name?.S ?? '',
+      googlePhotoUrl: verifiedPhotoUrl || customer.googlePhotoUrl?.S || '',
+      dateOfBirth: customer.dateOfBirth?.S ?? '',
+    })
+    const googlePhotoUrl = sharedPerson.googlePhotoUrl
     // Persist the trusted profile-picture URL on successful Google login.
     // A transient database write failure must not prevent an otherwise valid login.
     if (verifiedPhotoUrl && verifiedPhotoUrl !== customer.googlePhotoUrl?.S) {
@@ -680,11 +743,11 @@ async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) 
     return response(200, {
       authenticated: true,
       profile: {
-        name: customer.name?.S ?? '',
+        name: sharedPerson.name,
         whatsapp: googleOnly ? '' : (customer.whatsapp?.S ?? ''),
         accountKey: customer.whatsapp?.S ?? '',
         email,
-        dateOfBirth: customer.dateOfBirth?.S ?? '',
+        dateOfBirth: sharedPerson.dateOfBirth,
         sex: customer.sex?.S ?? '',
         heightCm: customer.heightCm?.N ? Number(customer.heightCm.N) : undefined,
         isAdmin: customer.isAdmin?.BOOL === true,
@@ -1278,13 +1341,32 @@ async function getTrainerSession(event: Parameters<APIGatewayProxyHandler>[0]) {
     if (item?.active?.BOOL !== true || item.whatsappVerified?.BOOL !== true || item.whatsapp?.S !== whatsapp) {
       return { error: response(401, { error: 'Cadastro do personal indisponível.' }) }
     }
+    const cityLookup = await dynamodb.send(new QueryCommand({
+      TableName: trainersTable,
+      IndexName: 'TrainerById',
+      KeyConditionExpression: '#id = :id',
+      ExpressionAttributeNames: { '#id': 'trainerId' },
+      ExpressionAttributeValues: { ':id': { S: trainerId } },
+      ProjectionExpression: 'city',
+    }))
+    const cities = [...new Set((cityLookup.Items ?? []).map(row => row.city?.S ?? '').filter(Boolean))]
+    const personFields = await loadPersonFields(item.pessoa_id?.S, {
+      name: item.name?.S ?? '',
+      googlePhotoUrl: item.googlePhotoUrl?.S ?? '',
+      dateOfBirth: item.dateOfBirth?.S ?? '',
+    })
     return { profile: {
       trainerId,
+      referralCode: trainerReferralCode(trainerId),
+      referredByTrainerId: item.referredByTrainerId?.S ?? '',
       city,
-      name: item.name?.S ?? '',
+      cities: cities.length ? cities : [city],
+      academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
+      name: personFields.name,
       whatsapp,
+      googlePhotoUrl: personFields.googlePhotoUrl,
       email: item.email?.S ?? '',
-      dateOfBirth: item.dateOfBirth?.S ?? '',
+      dateOfBirth: personFields.dateOfBirth,
       instagram: item.instagram?.S ?? '',
       cref: item.cref?.S ?? '',
       academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [],
@@ -1345,6 +1427,13 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
           ...(data.heightCm !== undefined ? { ':height': { N: String(data.heightCm) } } : {}),
         },
       }))
+      const current = await getCustomerProfile(event)
+      if (current.statusCode === 200) {
+        const parsed = JSON.parse(current.body) as { profile?: { identity?: { pessoaId?: string } } }
+        if (parsed.profile?.identity?.pessoaId)
+          await savePersonFields(parsed.profile.identity.pessoaId, data.name as string,
+            typeof data.dateOfBirth === 'string' ? data.dateOfBirth : undefined)
+      }
       return getCustomerProfile(event)
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) return response(403, { error: 'Perfil indisponível.' })
@@ -1377,7 +1466,14 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
         ':googlePrefix': { S: 'GOOGLE#' },
       },
     }))
-    // Return an authoritative profile, including unchanged identity fields.
+    // Atualiza os campos compartilhados apenas quando o login comprovou a pessoa.
+    const linked = await getCustomerProfile(event)
+    if (linked.statusCode === 200) {
+      const parsed = JSON.parse(linked.body) as { profile?: { identity?: { pessoaId?: string } } }
+      if (parsed.profile?.identity?.pessoaId)
+        await savePersonFields(parsed.profile.identity.pessoaId, data.name as string,
+          typeof data.dateOfBirth === 'string' ? data.dateOfBirth : undefined)
+    }
     return getCustomerProfile(event)
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException) return response(409, { error: 'Cadastro não está ativo. Entre novamente.' })
@@ -1480,8 +1576,10 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
-      !validAcademias(academias) ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', ...pageFields].includes(key))) {
+      !Array.isArray(academias) || academias.length > 5 ||
+      academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 256) ||
+      !Array.isArray(data.academyIds) || data.academyIds.length > 5 ||
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -1497,11 +1595,22 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     const rows = lookup.Items ?? []
     const cities = [...new Set(rows.map(row => row.city?.S ?? '').filter(Boolean))]
     if (cities.length < 1 || cities.length > 2) return response(409, { error: 'Não foi possível confirmar as cidades do cadastro.' })
+    const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
+    const existing = rows[0]
+    const oldAcademyIds = (existing.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean)
+    const oldNames = new Set((existing.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean))
+    // Keep legacy names only if they were previously saved: new associations must use registered IDs.
+    const legacyNames = (academias as string[]).filter(name => oldNames.has(name) &&
+      !academyLinks.names.includes(name))
+    const academyNames = [...new Set([...legacyNames, ...academyLinks.names])]
+    if (academyNames.length > 5) return response(400, { error: 'Selecione no máximo cinco academias.' })
     const time = new Date().toISOString()
-    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: cities.map(city => ({
+    const changes: any[] = cities.map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, updatedAt = :updated' +
+        UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, academyIds = :academyIds, updatedAt = :updated' +
           (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
           pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
@@ -1509,15 +1618,44 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
-          ':instagram': { S: instagram }, ':cref': { S: cref }, ':academias': { L: (academias as string[]).map(name => ({ S: name })) }, ':updated': { S: time },
+          ':instagram': { S: instagram }, ':cref': { S: cref },
+          ':academias': { L: academyNames.map(name => ({ S: name })) },
+          ':academyIds': { L: academyLinks.ids.map(id => ({ S: id })) }, ':updated': { S: time },
           ...Object.fromEntries(pageFields.filter(key => data[key] !== undefined).map(key => [':' + key, { S: (data[key] as string).trim() }])),
           ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
-    })) }))
+    }))
+    for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
+      changes.push({ Put: { TableName: linksTable,
+        Item: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } },
+        ConditionExpression: 'attribute_not_exists(trainerId)' } })
+    }
+    for (const academyId of oldAcademyIds.filter(id => !academyLinks.ids.includes(id))) {
+      changes.push({ Delete: { TableName: linksTable,
+        Key: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } } } })
+    }
+    // Mesmo nome e nascimento devem aparecer ao entrar como cliente ou personal.
+    if (auth.legacyPessoaId) {
+      changes.push({ Update: {
+        TableName: process.env.FITPESO_PESSOA_TABLE!,
+        Key: { pessoa_id: { S: auth.legacyPessoaId } },
+        UpdateExpression: 'SET nome = :name' + (data.dateOfBirth ? ', nascimento = :dob' : ''),
+        ConditionExpression: 'attribute_exists(pessoa_id)',
+        ExpressionAttributeValues: {
+          ':name': { S: (data.name as string).trim().replace(/\\s+/g, ' ') },
+          ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+        },
+      } })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: changes }))
     const refreshed = await getTrainerSession(event)
     return refreshed.error ?? response(200, { authenticated: true, profile: refreshed.profile! })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
+      return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
+    if (error instanceof Error && error.message === 'ACADEMY_SERVICE_UNAVAILABLE')
+      return response(503, { error: 'Cadastro de academias indisponível.' })
     if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou indisponível. Atualize a página e tente novamente.' })
     console.error('[imc-submit] Trainer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o perfil do personal.' })
@@ -1791,6 +1929,21 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   return { slug, verificationCode: challenge.code }
 }
 
+// Código único estável, inclusive para registros anteriores à implantação.
+function trainerReferralCode(trainerId: string) {
+  return /^[a-f0-9]{32}$/.test(trainerId) ? 'FP' + trainerId.toUpperCase() : ''
+}
+async function resolveReferringTrainer(value: unknown) {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value !== 'string' || !/^FP[A-F0-9]{32}$/.test(value.trim().toUpperCase()))
+    throw new Error('INVALID_TRAINER_REFERRAL')
+  const id = value.trim().slice(2).toLowerCase()
+  const rows = await getTrainerRows(id)
+  if (!rows.some(row => row.active?.BOOL === true && row.whatsappVerified?.BOOL === true))
+    throw new Error('INVALID_TRAINER_REFERRAL')
+  return id
+}
+
 async function registerTrainer(
   data: Record<string, unknown>,
   betaSignup?: {
@@ -1807,14 +1960,34 @@ async function registerTrainer(
   if (!requestCodesTable) throw new Error('Trainer verification store is not configured')
   const slugTableName = process.env.TRAINER_SLUGS_TABLE
   if (!slugTableName) throw new Error('Trainer slug directory is not configured')
-  const name = String(data.name).trim().replace(/\s+/g, ' ')
-  const sex = data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : ''
-  if (!sex) throw new Error('Selecione Masculino ou Feminino.')
+  // Login Google existente: não confiar em nome, e-mail ou sexo enviados pelo formulário.
+  // O sub assinado identifica a pessoa canônica e impede criar uma segunda conta.
+  let linkedPersonId = ''
+  let linkedCustomer: Awaited<ReturnType<typeof loadGoogleCustomerIdentity>> = null
+  if (typeof data.googleCredential === 'string' && data.googleCredential) {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+    if (!clientId) throw new Error('Login Google indisponível.')
+    const ticket = await new OAuth2Client(clientId).verifyIdToken({
+      idToken: data.googleCredential, audience: clientId,
+    })
+    const payload = ticket.getPayload()
+    if (!payload?.sub || !payload.email_verified || !payload.email)
+      throw new Error('Conta Google não validada.')
+    linkedCustomer = await loadGoogleCustomerIdentity(payload.sub)
+    if (!linkedCustomer || linkedCustomer.item.email?.S !== payload.email.trim().toLowerCase())
+      throw new Error('Entre primeiro na conta Google cadastrada na FitPeso.')
+    linkedPersonId = linkedCustomer.pessoaId
+    if (linkedCustomer.usuarios.some(user => user.tipo === 'PERSONAL'))
+      throw new Error('Sua conta já possui um perfil de personal trainer.')
+  }
+  const name = linkedCustomer ? linkedCustomer.item.nome?.S ?? '' : String(data.name).trim().replace(/\s+/g, ' ')
+  const sex = linkedCustomer ? linkedCustomer.item.sexo?.S ?? '' : (data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : '')
+  if (sex !== 'masculino' && sex !== 'feminino') throw new Error('Informe o sexo em Meu cadastro antes de ativar o perfil.')
   const whatsapp = normalizePhone(data.whatsapp)
-  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const email = linkedCustomer ? linkedCustomer.item.email?.S ?? '' : (typeof data.email === 'string' ? data.email.trim().toLowerCase() : '')
   const slug = String(data.slug).trim().toLowerCase()
   const instagram = String(data.instagram).trim()
-  const dateOfBirth = typeof data.dateOfBirth === 'string' ? data.dateOfBirth : ''
+  const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
@@ -1825,6 +1998,7 @@ async function registerTrainer(
     academias.includes(betaSignup.academyName)
     ? (await resolveRegisteredAcademies([betaSignup.academyId], cities)).ids : []
   const trainerId = randomBytes(16).toString('hex')
+  const referredByTrainerId = await resolveReferringTrainer(data.referralCode)
   const submittedAt = String(Math.floor(Date.now() / 1000))
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
 
@@ -1908,10 +2082,16 @@ async function registerTrainer(
           Item: {
             city: { S: city },
             trainerId: { S: trainerId },
+            referralCode: { S: trainerReferralCode(trainerId) },
+            ...(referredByTrainerId ? { referredByTrainerId: { S: referredByTrainerId } } : {}),
             slug: { S: slug },
             name: { S: name },
             sex: { S: sex },
             whatsapp: { S: whatsapp },
+            ...(linkedPersonId ? {
+              pessoa_id: { S: linkedPersonId }, identitySource: { S: 'GOOGLE' },
+              ...(linkedCustomer?.item.googlePhotoUrl?.S ? { googlePhotoUrl: { S: linkedCustomer.item.googlePhotoUrl.S } } : {}),
+            } : {}),
             ...(dateOfBirth ? { dateOfBirth: { S: dateOfBirth } } : {}),
             ...(email ? { email: { S: email } } : {}),
             instagram: { S: instagram },
@@ -1932,6 +2112,15 @@ async function registerTrainer(
       })),
     ],
   }))
+  if (betaSignup && linkedPersonId) {
+    try {
+      await activateGoogleTrainerIdentity({ pessoaId: linkedPersonId, trainerId, cities, whatsapp })
+    } catch (error) {
+      console.warn('[imc-submit] Verified Beta trainer profile linkage pending', {
+        errorClass: error instanceof Error ? error.name : typeof error,
+      })
+    }
+  }
   return { slug, verificationCode: challenge.code }
 }
 
@@ -1949,11 +2138,11 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
     return response(403, { error: 'Acesso exclusivo do administrador.' })
   }
   const data = parseBody(event)
-  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth) {
-    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidade e endereço válido.' })
+  if (!isValidTrainerRegistration(data) || !data?.dateOfBirth) {
+    return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, Instagram, cidade e endereço válido.' })
   }
   const whatsapp = normalizePhone(data.whatsapp)
-  const cref = String(data.cref).trim().toUpperCase()
+  const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
   // Check all supported cities, not only the selected ones.
   for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
@@ -1964,7 +2153,7 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
         ExpressionAttributeNames: { '#city': 'city' }, ExpressionAttributeValues: { ':city': { S: city } },
         ExclusiveStartKey: lastKey,
       }))
-      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref)) {
+      if (page.Items?.some(item => item.whatsapp?.S === whatsapp || (cref !== '' && item.cref?.S?.trim().toUpperCase() === cref))) {
         return response(409, { error: 'Já existe um profissional com esse WhatsApp ou CREF.' })
       }
       lastKey = page.LastEvaluatedKey
@@ -1983,6 +2172,7 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
       { Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } },
       ...cities.map(city => ({ Put: { TableName: tableName, Item: {
         city: { S: city }, trainerId: { S: trainerId }, slug: { S: slug },
+        referralCode: { S: trainerReferralCode(trainerId) },
         name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
         sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
         email: { S: String(data.email ?? '').trim().toLowerCase() },
@@ -2057,6 +2247,23 @@ async function getTrainerRows(trainerId: string) {
   return results.flatMap(result => result.Item ? [result.Item] : [])
 }
 
+/** Revalida o papel ADMIN vinculado à pessoa autenticada; nunca confia no menu do frontend. */
+async function authorizeAdminCustomers(event: Parameters<APIGatewayProxyHandler>[0]): Promise<
+  { ok: true; pessoaId: string } | { ok: false; error: ReturnType<typeof response> }
+> {
+  const profile = await getCustomerProfile(event)
+  if (profile.statusCode !== 200) return { ok: false, error: profile }
+  const parsed = JSON.parse(profile.body) as {
+    profile?: { identity?: { pessoaId?: string } }
+  }
+  const pessoaId = parsed.profile?.identity?.pessoaId
+  if (!pessoaId) return { ok: false, error: response(403, { error: 'Perfil de administrador não vinculado à nova identidade.' }) }
+  const roles = await listPersonProfiles(pessoaId)
+  if (!roles.some(role => role.tipo === 'ADMIN'))
+    return { ok: false, error: response(403, { error: 'Acesso restrito a administradores.' }) }
+  return { ok: true, pessoaId }
+}
+
 async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await authenticateAdmin(event)
   if ('error' in auth) return auth.error
@@ -2082,6 +2289,8 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
       const item = trainerRows[0]
       return {
         trainerId,
+        referralCode: trainerReferralCode(trainerId),
+        referredByTrainerId: item.referredByTrainerId?.S ?? '',
         name: item.name?.S ?? '',
         whatsapp: item.whatsapp?.S ?? '',
         email: item.email?.S ?? '',
@@ -2112,11 +2321,11 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
   const trainerId = event.pathParameters?.trainerId?.trim() ?? ''
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { error: 'Profissional inválido.' })
   const data = parseBody(event)
-  if (!isValidTrainerRegistration(data) || !data?.cref || !data?.dateOfBirth || typeof data.active !== 'boolean') {
-    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, CREF, Instagram, cidades e endereço.' })
+  if (!isValidTrainerRegistration(data) || !data?.dateOfBirth || typeof data.active !== 'boolean') {
+    return response(400, { error: 'Confira nome, WhatsApp, nascimento, gênero, Instagram, cidades e endereço.' })
   }
   const whatsapp = normalizePhone(data.whatsapp)
-  const cref = String(data.cref).trim().toUpperCase()
+  const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
   const slug = String(data.slug).trim().toLowerCase()
   try {
@@ -2129,7 +2338,7 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
         ExpressionAttributeNames: { '#city': 'city' },
         ExpressionAttributeValues: { ':city': { S: city } },
       }))
-      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || item.cref?.S?.trim().toUpperCase() === cref))) {
+      if ((page.Items ?? []).some(item => item.trainerId?.S !== trainerId && (item.whatsapp?.S === whatsapp || (cref !== '' && item.cref?.S?.trim().toUpperCase() === cref)))) {
         return response(409, { error: 'Já existe outro profissional com esse WhatsApp ou CREF.' })
       }
     }
@@ -2145,6 +2354,8 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
     const now = new Date().toISOString()
     const sharedItem = {
       trainerId: { S: trainerId }, slug: { S: slug },
+      referralCode: { S: trainerReferralCode(trainerId) },
+      ...(first.referredByTrainerId?.S ? { referredByTrainerId: { S: first.referredByTrainerId.S } } : {}),
       name: { S: String(data.name).trim().replace(/\s+/g, ' ') },
       sex: { S: String(data.sex) }, whatsapp: { S: whatsapp },
       email: { S: String(data.email ?? '').trim().toLowerCase() },
@@ -2404,7 +2615,7 @@ async function getActiveTrainersForCity(city: string) {
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       FilterExpression: '#active = :active',
-      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds, #googlePhotoUrl',
+      ProjectionExpression: '#city, #trainerId, #name, #whatsapp, #active, #slug, #instagram, #sex, #cref, #academias, #academyIds, #googlePhotoUrl, #pessoa_id',
       ExpressionAttributeNames: {
         '#city': 'city',
         '#trainerId': 'trainerId',
@@ -2418,6 +2629,7 @@ async function getActiveTrainersForCity(city: string) {
         '#academias': 'academias',
         '#academyIds': 'academyIds',
         '#googlePhotoUrl': 'googlePhotoUrl',
+        '#pessoa_id': 'pessoa_id',
       },
       ExpressionAttributeValues: { ':city': { S: city }, ':active': { BOOL: true } },
       ExclusiveStartKey: exclusiveStartKey,
@@ -2425,15 +2637,47 @@ async function getActiveTrainersForCity(city: string) {
     items.push(...(result.Items ?? []))
     exclusiveStartKey = result.LastEvaluatedKey
   } while (exclusiveStartKey)
+  // Consultas públicas também usam os dados compartilhados da pessoa.
+  // BatchGet evita uma consulta individual por profissional.
+  const people = new Map<string, { name: string; photo: string }>()
+  const personTable = process.env.FITPESO_PESSOA_TABLE
+  const ids = [...new Set(items.map(item => item.pessoa_id?.S as string | undefined).filter(
+    (id): id is string => Boolean(id),
+  ))]
+  if (personTable && ids.length) {
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      let pending: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>[] =
+        ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
+      for (let attempt = 0; pending.length && attempt < 3; attempt += 1) {
+        try {
+          const page = await dynamodb.send(new BatchGetItemCommand({
+            RequestItems: { [personTable]: { Keys: pending } },
+          }))
+          for (const record of page.Responses?.[personTable] ?? []) {
+            const personId = record.pessoa_id?.S
+            if (personId) people.set(personId, {
+              name: record.nome?.S?.trim() ?? '',
+              photo: googleProfilePhotoUrl(record.googlePhotoUrl?.S),
+            })
+          }
+          pending = page.UnprocessedKeys?.[personTable]?.Keys ?? []
+        } catch {
+          // Não desabilitar a listagem pública caso a leitura complementar falhe.
+          break
+        }
+      }
+    }
+  }
   return items.flatMap(item => {
     const trainerId = item.trainerId?.S ?? ''
-    const name = item.name?.S?.trim() ?? ''
+    const shared = people.get(item.pessoa_id?.S ?? '')
+    const name = shared?.name || item.name?.S?.trim() || ''
     const whatsapp = normalizePhone(item.whatsapp?.S)
     const slug = item.slug?.S?.trim().toLowerCase() ?? ''
     if (!trainerId || !name || !whatsapp || !/^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug)) return []
     const instagram = typeof item.instagram?.S === 'string' ? item.instagram.S.trim() : ''
     const sex = item.sex?.S === 'masculino' || item.sex?.S === 'feminino' ? item.sex.S : ''
-    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, googlePhotoUrl: googleProfilePhotoUrl(item.googlePhotoUrl?.S), ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
+    return [{ trainerId, city: item.city?.S ?? '', name, whatsapp, slug, sex, googlePhotoUrl: shared?.photo || googleProfilePhotoUrl(item.googlePhotoUrl?.S), ...(instagram ? { instagram } : {}), cref: item.cref?.S ?? '', academias: item.academias?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [], academyIds: item.academyIds?.L?.map((x: { S?: string }) => x.S ?? '').filter(Boolean) ?? [] }]
   })
 }
 
@@ -2692,7 +2936,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const trainerRecord = await dynamodb.send(new GetItemCommand({
       TableName: trainersTable,
       Key: { city: { S: cities[0] }, trainerId: { S: trainerId } },
-      ProjectionExpression: '#name, whatsapp',
+      ProjectionExpression: '#name, whatsapp, pessoa_id, identitySource',
       ExpressionAttributeNames: { '#name': 'name' },
       ConsistentRead: true,
     }))
@@ -2737,6 +2981,18 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
         })),
       ],
     }))
+    if (trainerRecord.Item?.pessoa_id?.S && trainerRecord.Item.identitySource?.S === 'GOOGLE') {
+      try {
+        await activateGoogleTrainerIdentity({
+          pessoaId: trainerRecord.Item.pessoa_id.S,
+          trainerId, cities, whatsapp,
+        })
+      } catch (error) {
+        console.warn('[imc-submit] Google trainer identity linkage pending', {
+          errorClass: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    }
     return response(200, { verified: true, slug, whatsapp, name: confirmedName })
   } catch (error) {
     if (error instanceof TransactionCanceledException && error.CancellationReasons?.some(reason => reason.Code === 'ConditionalCheckFailed')) {
@@ -3031,15 +3287,36 @@ async function listCustomerRequests(event: Parameters<APIGatewayProxyHandler>[0]
   if (!requestTable || !proposalsTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   try {
     const customerId = auth.profile!.customerId
-    const result = await dynamodb.send(new QueryCommand(customerId
-      ? { TableName: requestTable, IndexName: 'RequestsByCustomerId', KeyConditionExpression: '#id = :id',
-          ExpressionAttributeNames: { '#id': 'customerId' }, ExpressionAttributeValues: { ':id': { S: customerId } },
-          ScanIndexForward: false, Limit: 30 }
-      : { TableName: requestTable, IndexName: 'RequestsByCustomer', KeyConditionExpression: '#phone = :phone',
-          ExpressionAttributeNames: { '#phone': 'clientPhone' }, ExpressionAttributeValues: { ':phone': { S: auth.profile!.whatsapp } },
-          ScanIndexForward: false, Limit: 30 }))
+    const phone = auth.profile!.whatsapp
+    // Durante a migracao de identidades, solicitacoes antigas podem nao ter customerId.
+    // Consulte ambos os indices para nao esconder pedidos que continuam bloqueando novas criacoes.
+    const [byCustomerId, byPhone] = await Promise.all([
+      customerId
+        ? dynamodb.send(new QueryCommand({
+            TableName: requestTable, IndexName: 'RequestsByCustomerId',
+            KeyConditionExpression: '#id = :id',
+            ExpressionAttributeNames: { '#id': 'customerId' },
+            ExpressionAttributeValues: { ':id': { S: customerId } },
+            ScanIndexForward: false, Limit: 30,
+          }))
+        : Promise.resolve(null),
+      phone
+        ? dynamodb.send(new QueryCommand({
+            TableName: requestTable, IndexName: 'RequestsByCustomer',
+            KeyConditionExpression: '#phone = :phone',
+            ExpressionAttributeNames: { '#phone': 'clientPhone' },
+            ExpressionAttributeValues: { ':phone': { S: phone } },
+            ScanIndexForward: false, Limit: 30,
+          }))
+        : Promise.resolve(null),
+    ])
+    const uniqueRequests = new Map<string, Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>>()
+    for (const item of [...(byCustomerId?.Items ?? []), ...(byPhone?.Items ?? [])]) {
+      const id = item.requestId?.S
+      if (id && customerOwnsRequest(item, auth.profile!)) uniqueRequests.set(id, item)
+    }
     const now = Math.floor(Date.now() / 1000)
-    const requests = await Promise.all((result.Items ?? []).map(async item => {
+    const requests = await Promise.all([...uniqueRequests.values()].map(async item => {
       const requestId = item.requestId?.S ?? ''
       const result = await dynamodb.send(new QueryCommand({ TableName: proposalsTable, KeyConditionExpression: 'requestId = :requestId', ExpressionAttributeValues: { ':requestId': { S: requestId } } }))
       const proposals = (result.Items ?? []).map(proposal => ({ trainerId: proposal.trainerId?.S ?? '', name: proposal.trainerName?.S ?? '', whatsapp: proposal.trainerWhatsapp?.S ?? '', ...(proposal.trainerInstagram?.S ? { instagram: proposal.trainerInstagram.S } : {}), monthlyPrice: Number(proposal.monthlyPrice?.N ?? 0), message: proposal.message?.S ?? '', status: proposal.status?.S ?? '', validUntil: Number(proposal.validUntil?.N ?? 0), expired: Number(proposal.validUntil?.N ?? 0) <= now }))
@@ -3357,6 +3634,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return verifyTrainerLogin(parseBody(event))
   }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/received-requests')) return listTrainerReceivedRequests(event)
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/customers')) {
+    const admin = await authorizeAdminCustomers(event)
+    if (!admin.ok) return admin.error
+    return listAdminCustomers()
+  }
+  if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/customers/{customerId}')) {
+    const admin = await authorizeAdminCustomers(event)
+    if (!admin.ok) return admin.error
+    return updateAdminCustomer(event, parseBody(event), admin.pessoaId)
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/admin/trainers')) return listAdminTrainers(event)
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/trainers/{trainerId}')) return updateAdminTrainer(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/profile')) {
@@ -3398,6 +3685,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const challenge = await dynamodb.send(new GetItemCommand({
         TableName: codesTable, Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true,
       }))
+      if (challenge.Item?.flow?.S === 'fitpeso-google-phone-verification') return verifyGooglePhoneFromBeta(loginData)
       if (challenge.Item?.flow?.S === 'fitpeso-trainer-login') return verifyTrainerLogin(loginData)
       if (challenge.Item?.flow?.S === 'fitpeso-customer-login') return verifyCustomerLogin(loginData)
       return response(200, { verified: false })
@@ -3407,6 +3695,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       })
       return response(503, { error: 'Não foi possível confirmar o login agora.' })
     }
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/start-phone-verification')) {
+    return startGooglePhoneVerification(event, parseBody(event))
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/phone-verification-status')) {
+    return googlePhoneVerificationStatus(event, parseBody(event))
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/profile')) return getCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/switch-profile')) {
@@ -3570,6 +3864,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
     } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
+        return response(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
       if (error instanceof TrainerSlugUnavailableError) {
         return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
       }

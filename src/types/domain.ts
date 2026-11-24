@@ -84,6 +84,7 @@ export type IdentitySummary = { pessoaId: string; usuarios: IdentityProfile[] }
 export type IdentitySyncState = { identity?: IdentitySummary; identityStatus?: 'ready' | 'pending' }
 
 export type CustomerAccountProfile = IdentitySyncState & {
+  whatsappVerified?: boolean
   googlePhotoUrl?: string
   sex?: 'masculino' | 'feminino'
   heightCm?: number
@@ -107,6 +108,9 @@ export type TrainerReceivedRequest = {
 
 export type EditableProfile = {
   trainerId?: string
+  city?: string
+  cities: string[]
+  academyIds: string[]
   tagline: string
   aboutMe: string
   education: string
@@ -117,6 +121,7 @@ export type EditableProfile = {
   heightCm?: number
   name: string
   whatsapp: string
+  whatsappVerified: boolean
   email: string
   dateOfBirth: string
   instagram: string
@@ -126,6 +131,10 @@ export type EditableProfile = {
 }
 
 export type TrainerAccountProfile = IdentitySyncState & {
+  city?: string
+  cities?: string[]
+  academyIds?: string[]
+  googlePhotoUrl?: string
   tagline?: string
   aboutMe?: string
   education?: string
@@ -133,6 +142,8 @@ export type TrainerAccountProfile = IdentitySyncState & {
   pricing?: string
   bannerUpdatedAt?: string
   trainerId: string
+  referralCode?: string
+  referredByTrainerId?: string
   name: string
   whatsapp: string
   email?: string
@@ -146,6 +157,8 @@ export type TrainerAccountProfile = IdentitySyncState & {
 
 export type AdminTrainer = {
   trainerId: string
+  referralCode?: string
+  referredByTrainerId?: string
   name: string
   whatsapp: string
   email: string

@@ -1,14 +1,23 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import RequestAccordionItem from '../../components/RequestAccordionItem.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
 const { openRequestForm, publicTrainer, publicTrainerBanner } = useFitpesoContext()
 
 const sections = [
-  { key: 'aboutMe', label: 'Sobre mim' },
-  { key: 'education', label: 'Formação' },
-  { key: 'workingMethod', label: 'Forma de trabalho' },
-  { key: 'pricing', label: 'Valores' },
+  { key: 'aboutMe', label: 'Sobre mim', icon: '👤' },
+  { key: 'education', label: 'Formação', icon: '🎓' },
+  { key: 'workingMethod', label: 'Forma de trabalho', icon: '🏋️' },
+  { key: 'pricing', label: 'Valores', icon: '💰' },
 ] as const
+
+type ProfileSection = (typeof sections)[number]['key']
+const expandedSection = ref<ProfileSection | null>(null)
+
+function toggleSection(section: ProfileSection) {
+  expandedSection.value = expandedSection.value === section ? null : section
+}
 </script>
 
 <template>
@@ -21,16 +30,41 @@ const sections = [
     </div>
 
     <div class="personal-info-accordion">
-      <details v-for="section in sections" :key="section.key" class="personal-info-item">
-        <summary>{{ section.label }}</summary>
-        <div class="personal-info-content">{{ publicTrainer?.[section.key] || 'Informações em breve.' }}</div>
-      </details>
+      <RequestAccordionItem
+        v-for="section in sections"
+        :key="section.key"
+        :open="expandedSection === section.key"
+      >
+        <template #header>
+          <h3 class="request-accordion-heading">
+            <button
+              type="button"
+              class="request-accordion-toggle"
+              :aria-expanded="expandedSection === section.key"
+              :aria-controls="`public-personal-panel-${section.key}`"
+              @click="toggleSection(section.key)"
+            >
+              <span class="request-accordion-icon" aria-hidden="true">{{ section.icon }}</span>
+              <span class="request-accordion-title">{{ section.label }}</span>
+              <span class="request-accordion-preview"></span>
+              <span class="request-accordion-chevron" aria-hidden="true"></span>
+            </button>
+          </h3>
+        </template>
+        <div
+          v-if="expandedSection === section.key"
+          :id="`public-personal-panel-${section.key}`"
+          class="request-accordion-panel personal-info-content"
+        >
+          {{ publicTrainer?.[section.key] || 'Informações em breve.' }}
+        </div>
+      </RequestAccordionItem>
     </div>
 
     <div class="home-actions">
       <div class="home-action">
         <button class="primary-button" type="button" @click="openRequestForm">
-          Solicitar Proposta
+          Treine comigo
         </button>
       </div>
     </div>
@@ -43,9 +77,6 @@ const sections = [
 .personal-banner { width: 100%; aspect-ratio: 1069 / 594; overflow: hidden; border-radius: 10px; background: var(--line); margin-bottom: 18px; }
 .personal-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .personal-banner-loading { display: grid; place-items: center; height: 100%; color: var(--muted); }
-.personal-info-accordion { display: grid; gap: 8px; margin: 12px 0 24px; }
-.personal-info-item { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.personal-info-item summary { padding: 14px 16px; font-weight: 700; cursor: pointer; list-style-position: inside; }
-.personal-info-item[open] summary { border-bottom: 1px solid var(--line); }
-.personal-info-content { white-space: pre-wrap; line-height: 1.55; padding: 16px; overflow-wrap: anywhere; }
+.personal-info-accordion { display: grid; gap: 12px; margin: 12px 0 24px; }
+.personal-info-content { white-space: pre-wrap; line-height: 1.55; overflow-wrap: anywhere; }
 </style>

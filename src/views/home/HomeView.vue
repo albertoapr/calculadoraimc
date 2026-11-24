@@ -9,8 +9,8 @@ const {
   publicTrainerAcademyDetails,
   homeCity,
   publicTrainersLoading,
-  startTrainingRequestFromHome,
   openPublicTrainers,
+  viewMode,
 } = useFitpesoContext()
 
 const academyDialogOpen = ref(false)
@@ -26,21 +26,6 @@ function confirmAcademy(academy: string) {
 </script>
 
 <template>
-  <h1 class="home-training-title">
-    <span class="home-training-heading">
-      <span class="brand-peso">Personal</span>
-      <span class="brand-fit">Trainer</span>
-    </span>
-  </h1>
-  <p class="home-training-subtitle">para todos os bolsos e rotinas</p>
-  <div class="root-home-photo home-training-photo">
-    <img
-      class="root-home-personal-image"
-      :src="rootHomePersonalImage"
-      alt="Personal trainer orientando uma aluna durante um exercício na academia"
-      loading="lazy"
-    />
-  </div>
   <div class="home-academy-heading" aria-label="Academia selecionada">
     <div class="home-academy-heading-row">
       <h2 class="home-academy-title">
@@ -64,6 +49,21 @@ function confirmAcademy(academy: string) {
       {{ publicTrainerAcademyDetails.neighborhood }}
     </p>
   </div>
+  <div class="root-home-photo home-training-photo">
+    <img
+      class="root-home-personal-image"
+      :src="rootHomePersonalImage"
+      alt="Personal trainer orientando uma aluna durante um exercício na academia"
+      loading="lazy"
+    />
+  </div>
+  <h1 class="home-training-title">
+    <span class="home-training-heading">
+      <span class="brand-peso">Personal</span>
+      <span class="brand-fit">Trainer</span>
+    </span>
+  </h1>
+  <p class="home-training-subtitle">para todos os bolsos e rotinas</p>
   <AcademySelectionDialog
     v-if="academyDialogOpen"
     :academies="publicTrainerAcademies"
@@ -72,15 +72,7 @@ function confirmAcademy(academy: string) {
     @close="academyDialogOpen = false"
   />
   <button
-    class="primary-button home-training-request-button"
-    type="button"
-    :disabled="!homeCity"
-    @click="startTrainingRequestFromHome"
-  >
-    Treinar com Personal
-  </button>
-  <button
-    class="secondary-button home-find-personal-button"
+    class="primary-button home-find-personal-button"
     type="button"
     @click="openPublicTrainers"
   >
@@ -100,11 +92,22 @@ function confirmAcademy(academy: string) {
     </svg>
     Buscar Profissionais
   </button>
+  <button
+    class="secondary-button home-assessment-button"
+    type="button"
+    @click="viewMode = 'assessment'"
+  >
+    Avaliação Corporal
+  </button>
 </template>
 
 <style scoped>
+.home-training-title,
+.home-training-title .home-training-heading {
+  font-size: clamp(28px, 6vw, 38px);
+}
 .home-academy-heading {
-  margin: 14px 0 10px;
+  margin: 2px 0 10px;
   min-width: 0;
 }
 .home-academy-heading-row {
@@ -116,7 +119,7 @@ function confirmAcademy(academy: string) {
 .home-academy-title {
   margin: 0;
   min-width: 0;
-  font-size: clamp(20px, 5.4vw, 31px);
+  font-size: clamp(23px, 6vw, 35px);
   line-height: 1.16;
   text-align: center;
 }
@@ -162,11 +165,6 @@ function confirmAcademy(academy: string) {
 }
 :global(html[data-theme='dark']) .home-academy-change-button { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
-.home-training-request-button {
-  display: block;
-  width: 100%;
-  margin: 12px 0 12px;
-}
 .home-find-personal-button {
   display: flex;
   align-items: center;
@@ -179,5 +177,12 @@ function confirmAcademy(academy: string) {
   width: 23px;
   height: 23px;
   flex: none;
+}
+.home-assessment-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: -8px 0 20px;
 }
 </style>

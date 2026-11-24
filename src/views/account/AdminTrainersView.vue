@@ -5,6 +5,8 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
   availableCities,
   availableAcademiesForTrainer,
+  adminAcademiesError,
+  loadAdminAcademyOptions,
   adminTrainerSearch,
   adminTrainerActivityFilter,
   selectedAdminTrainerId,
@@ -14,6 +16,7 @@ const {
   adminTrainerBusy,
   adminTrainerForm,
   filteredAdminTrainers,
+  referringTrainerName,
   selectAdminTrainer,
   startNewAdminTrainer,
   cancelAdminTrainerEdit,
@@ -82,7 +85,9 @@ const {
       >
         <span class="admin-trainer-list-main">
           <strong>{{ trainer.name }}</strong>
-          <small>{{ trainer.cref }} · {{ trainer.cities.join(', ') }}</small>
+          <small>{{ trainer.cref || 'Sem CREF' }} · {{ trainer.cities.join(', ') }}</small>
+          <small>Código: {{ trainer.referralCode || '—' }}</small>
+          <small>Indicado por: {{ referringTrainerName(trainer.referredByTrainerId) }}</small>
         </span>
         <span class="admin-trainer-state" :class="trainer.active ? 'is-active' : 'is-inactive'">
           {{ trainer.active ? 'Ativo' : 'Inativo' }}
@@ -154,8 +159,8 @@ const {
         </select>
       </label>
       <label class="field">
-        <span class="field-label">CREF</span>
-        <input v-model="adminTrainerForm.cref" required maxlength="40" placeholder="000000-G/RJ" />
+        <span class="field-label">CREF (opcional)</span>
+        <input v-model="adminTrainerForm.cref" maxlength="40" placeholder="000000-G/RJ (opcional)" />
       </label>
       <label class="field">
         <span class="field-label">Instagram</span>
@@ -198,9 +203,13 @@ const {
           <input v-model="adminTrainerForm.academyIds" type="checkbox" :value="academy.academyId" />
           {{ academy.name }} — {{ academy.neighborhood }} ({{ academy.city }})
         </label>
-        <small v-if="!availableAcademiesForTrainer.length">
-          Selecione uma cidade com academias ativas ou cadastre uma academia.
+        <small v-if="adminAcademiesError" role="alert">{{ adminAcademiesError }}</small>
+        <small v-else-if="!availableAcademiesForTrainer.length">
+          Nenhuma academia ativa encontrada para a cidade selecionada.
         </small>
+        <button v-if="adminAcademiesError" type="button" class="secondary-button" @click="loadAdminAcademyOptions">
+          Tentar novamente
+        </button>
       </fieldset>
 
       <label class="field field-wide">

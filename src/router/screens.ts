@@ -25,6 +25,7 @@ export const screenRoutes: Array<{
   { path: '/registro-profissional', screen: 'professional-registration', access: 'public' },
   { path: '/admin/academias', screen: 'admin-academies', access: 'admin' },
   { path: '/admin/profissionais', screen: 'admin-trainers', access: 'admin' },
+  { path: '/admin/clientes', screen: 'admin-customers', access: 'admin' },
   { path: '/admin/profissionais/novo', screen: 'admin-trainers', access: 'admin' },
   { path: '/proposta', screen: 'trainer-request', access: 'public' },
 ]

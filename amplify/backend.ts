@@ -257,6 +257,11 @@ for (const table of [pessoasV2, identificacoesV2, usuariosV2]) {
 for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
   table.grantReadWriteData(profileDataPolicy)
 }
+// Edições administrativas de cliente atualizam V2 e cadastro legado atomicamente.
+profileDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:TransactWriteItems'],
+  resources: [customersV2.tableArn],
+}))
 // Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
@@ -325,6 +330,9 @@ adminAcademyItem.addMethod('DELETE', lambdaIntegration())
 const academiesResource = apiResource.addResource('academies')
 academiesResource.addMethod('GET', lambdaIntegration())
 academiesResource.addResource('{academyId}').addMethod('GET', lambdaIntegration())
+const adminCustomersResource = adminResource.addResource('customers')
+adminCustomersResource.addMethod('GET', lambdaIntegration())
+adminCustomersResource.addResource('{customerId}').addMethod('PUT', lambdaIntegration())
 const adminTrainersResource = adminResource.addResource('trainers')
 adminTrainersResource.addMethod('GET', lambdaIntegration())
 adminTrainersResource.addMethod('POST', lambdaIntegration())
@@ -360,6 +368,8 @@ const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('verification-status').addMethod('POST', lambdaIntegration())
+customersResource.addResource('start-phone-verification').addMethod('POST', lambdaIntegration())
+customersResource.addResource('phone-verification-status').addMethod('POST', lambdaIntegration())
 customersResource.addResource('login').addMethod('POST', lambdaIntegration())
 customersResource.addResource('start-email-login').addMethod('POST', lambdaIntegration())
 customersResource.addResource('email-login-status').addMethod('POST', lambdaIntegration())

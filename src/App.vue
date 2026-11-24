@@ -14,6 +14,7 @@ import TrainerRequestView from './views/account/TrainerRequestView.vue'
 import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
 import CustomerRequestsView from './views/account/CustomerRequestsView.vue'
 import AdminTrainersView from './views/account/AdminTrainersView.vue'
+import AdminCustomersView from './views/account/AdminCustomersView.vue'
 import AdminAcademiesView from './views/account/AdminAcademiesView.vue'
 import ProfessionalRegistrationView from './views/account/ProfessionalRegistrationView.vue'
 import AssessmentFormView from './views/assessment/AssessmentFormView.vue'
@@ -97,7 +98,10 @@ const {
       :aria-label="viewMode === 'home' && !result ? 'FitPeso' : undefined"
     >
       <HomeHeader />
-      <hr v-if="viewMode === 'home' && !result && isRootHome" class="home-city-divider" />
+      <hr v-if="(viewMode === 'home' && !result) || viewMode === 'public-trainers'" class="home-city-divider" />
+      <div v-if="(viewMode === 'home' && !result) || viewMode === 'public-trainers'" class="home-city-row">
+        <CitySelector />
+      </div>
       <PageHeader
         v-if="!viewMode.startsWith('admin-') && !(viewMode === 'home' && !result && isRootHome)"
       />
@@ -120,6 +124,7 @@ const {
       <CustomerRequestsView v-if="viewMode === 'customer-requests'" />
 
       <AdminTrainersView v-if="viewMode === 'admin-trainers' && customerIsAdmin" />
+      <AdminCustomersView v-if="viewMode === 'admin-customers' && customerIsAdmin" />
       <AdminAcademiesView v-if="viewMode === 'admin-academies' && customerIsAdmin" />
       <ProfessionalRegistrationView v-if="viewMode === 'professional-registration'" />
 
@@ -224,10 +229,32 @@ const {
 </template>
 
 <style scoped>
+.home-city-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+.home-city-row :deep(.home-city-selector) {
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 2px auto;
+}
+.home-city-row :deep(.home-city-select) {
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 6px 28px 6px 38px;
+  text-align: right;
+  text-align-last: right;
+}
+.home-city-row :deep(.home-city-selector svg) {
+  left: 8px;
+}
 .home-city-divider {
   border: 0;
   border-top: 1px solid var(--line);
   width: 100%;
-  margin: 10px 0 18px;
+  margin: 6px 0 2px;
 }
 </style>
