@@ -73,7 +73,7 @@ function submitSignup() {
 </script>
 
 <template>
-  <section class="calculator" aria-labelledby="page-title">
+  <section class="calculator trainer-signup-screen" aria-labelledby="page-title">
     <HomeHeader />
     <header class="hero">
       <hr class="personal-divider" />
@@ -320,3 +320,12 @@ function submitSignup() {
     </div>
   </section>
 </template>
+
+<style scoped>
+.trainer-signup-screen :deep(.fitpeso-home-topbar) {
+  margin-bottom: 0;
+}
+.trainer-signup-screen .personal-divider {
+  margin-top: 2px;
+}
+</style>
