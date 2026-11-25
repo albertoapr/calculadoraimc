@@ -114,6 +114,29 @@ function toggleSection(section: AboutSection) {
             <li>Organize as solicitações e propostas recebidas, reduzindo o trabalho de prospecção.</li>
             <li>Tenha mais oportunidades de conquistar novos alunos e ocupar horários disponíveis.</li>
           </ul>
+          <h3>Sem assinatura ou mensalidade</h3>
+          <p>
+            O cadastro, a divulgação do perfil, o recebimento de solicitações e o envio de propostas
+            são gratuitos. A FitPeso recebe apenas 10% do valor total do treinamento contratado
+            pela plataforma. Considere essa comissão ao definir o valor da sua proposta.
+          </p>
+          <p>
+            Para ativar o atendimento, o cliente paga 10% à FitPeso e os 90% restantes diretamente
+            ao personal, conforme combinado. Não há acréscimo ao valor da proposta.
+            Por exemplo, em um treinamento de R$ 1.000, R$ 100 correspondem à comissão da FitPeso
+            e R$ 900 ao recebimento do profissional.
+          </p>
+          <h3>Como manter seu perfil ativo</h3>
+          <ul>
+            <li>Novos profissionais têm 180 dias de carência para conseguir a primeira contratação.</li>
+            <li>Após a carência, mantenha pelo menos dois atendimentos contratados pela plataforma nos últimos 12 meses ou tenha um atendimento ativo.</li>
+            <li>Somente contratações com a comissão efetivamente paga são contabilizadas.</li>
+            <li>Se não atender aos critérios, seu perfil fica temporariamente oculto na busca pública, sem perda do cadastro.</li>
+            <li>A reativação é gratuita mediante uma nova contratação pela FitPeso. Você pode compartilhar sua página profissional para receber solicitações de novos alunos.</li>
+          </ul>
+          <p>
+            <strong>Sem custo fixo: a FitPeso só ganha quando você conquista um aluno pela plataforma.</strong>
+          </p>
         </div>
       </RequestAccordionItem>
 
@@ -188,6 +211,12 @@ function toggleSection(section: AboutSection) {
 }
 .about-panel {
   display: block;
+}
+.about-panel h3 {
+  margin: 18px 0 8px;
+  font-size: 21px;
+  line-height: 1.35;
+  color: var(--ink);
 }
 .about-panel ul,
 .about-panel ol {
