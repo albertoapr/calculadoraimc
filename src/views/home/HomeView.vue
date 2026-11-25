@@ -11,7 +11,6 @@ const {
   publicTrainersLoading,
   startTrainingRequestFromHome,
   openPublicTrainers,
-  viewMode,
 } = useFitpesoContext()
 
 const academyDialogOpen = ref(false)
@@ -101,13 +100,6 @@ function confirmAcademy(academy: string) {
     </svg>
     Buscar Profissionais
   </button>
-  <button
-    class="secondary-button home-assessment-button"
-    type="button"
-    @click="viewMode = 'assessment'"
-  >
-    Avaliação Corporal
-  </button>
 </template>
 
 <style scoped>
@@ -191,12 +183,5 @@ function confirmAcademy(academy: string) {
   width: 23px;
   height: 23px;
   flex: none;
-}
-.home-assessment-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  margin: -8px 0 20px;
 }
 </style>
