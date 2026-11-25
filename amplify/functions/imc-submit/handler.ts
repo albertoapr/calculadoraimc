@@ -55,6 +55,14 @@ function getBetaDisplayName(data: Record<string, unknown> | null): string {
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) ? name : ''
 }
 
+function isValidPreferredStartDate(value: unknown) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(value + 'T00:00:00Z')
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return false
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  return value >= today
+}
+
 function isValidRequest(data: Record<string, unknown> | null) {
   if (!data || data.consent !== true) return false
   const name = typeof data.clientName === 'string' ? data.clientName.trim().replace(/\s+/g, ' ') : ''
@@ -2560,6 +2568,8 @@ function deserializeFitpesoRequest(item: Record<string, any>) {
     trainerGenderPreference: item.trainerGenderPreference?.S ?? 'indiferente',
     ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
     singleLesson: item.singleLesson?.BOOL ?? false,
+    ...(item.singleLesson?.BOOL ? { singleLessonCount: Number(item.singleLessonCount?.N ?? '1') } : {}),
+    ...(item.preferredStartDate?.S ? { preferredStartDate: item.preferredStartDate.S } : {}),
     withCompanion: item.withCompanion?.BOOL ?? false,
     attendsGym: item.attendsGym?.BOOL ?? false,
     ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
@@ -2860,6 +2870,8 @@ async function getTrainerRequest(event: Parameters<APIGatewayProxyHandler>[0]) {
       ...(item.objective?.S ? { objective: item.objective.S } : {}),
       ...(item.desiredDuration?.S ? { desiredDuration: item.desiredDuration.S } : {}),
       singleLesson: item.singleLesson?.BOOL ?? false,
+      ...(item.singleLesson?.BOOL ? { singleLessonCount: Number(item.singleLessonCount?.N ?? '1') } : {}),
+      ...(item.preferredStartDate?.S ? { preferredStartDate: item.preferredStartDate.S } : {}),
     withCompanion: item.withCompanion?.BOOL ?? false,
     attendsGym: item.attendsGym?.BOOL ?? false,
       ...(item.gymName?.S ? { gymName: item.gymName.S } : {}),
@@ -3043,6 +3055,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   if (!Number.isInteger(requestData.age) || Number(requestData.age) < 1 || Number(requestData.age) > 120) {
     return response(400, { error: 'Informe uma idade válida, de 1 a 120 anos.' })
   }
+  if (!isValidPreferredStartDate(requestData.preferredStartDate)) return response(400, { error: 'A data inicial pretendida deve ser válida e não pode ser anterior à data atual.' })
+  if (requestData.singleLesson === true && (!Number.isInteger(requestData.singleLessonCount) || Number(requestData.singleLessonCount) < 1 || Number(requestData.singleLessonCount) > 5)) return response(400, { error: 'Escolha de 1 a 5 aulas avulsas.' })
   if (!isValidRequest(requestData)) return response(400, { error: 'Confira os dados do atendimento, como objetivo, academia e disponibilidade.' })
 
   const requestsTable = process.env.FITPESO_USER_REQUESTS_TABLE
@@ -3096,6 +3110,8 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
     ...(typeof requestData.objective === 'string' && requestData.objective ? { objective: { S: requestData.objective } } : {}),
     trainerGenderPreference: { S: preference },
     singleLesson: { BOOL: requestData.singleLesson === true },
+    ...(requestData.singleLesson === true ? { singleLessonCount: { N: String(requestData.singleLessonCount) } } : {}),
+    preferredStartDate: { S: String(requestData.preferredStartDate) },
     withCompanion: { BOOL: requestData.withCompanion === true },
     ...(typeof requestData.desiredDuration === 'string' && requestData.desiredDuration ? { desiredDuration: { S: requestData.desiredDuration } } : {}),
     ...(typeof requestData.attendsGym === 'boolean' ? { attendsGym: { BOOL: requestData.attendsGym } } : {}),
