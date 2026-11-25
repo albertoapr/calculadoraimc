@@ -11,7 +11,7 @@ import {
 import { minutesToTime } from '../utils/time'
 import { trainerDisplayName } from '../utils/trainer'
 import type { AppViewMode } from '../types/navigation'
-import type { useTrainingDraft } from '../stores/trainingDraft'
+import { trainingDate, type useTrainingDraft } from '../stores/trainingDraft'
 import type { useHome } from './useHome'
 
 export function useTrainingRequest(options: {
@@ -133,6 +133,8 @@ export function useTrainingRequest(options: {
     trainingEndMinutes.value = 1260
     form.desiredDuration = '1 mês'
     form.singleLesson = true
+    form.singleLessonCount = 1
+    form.preferredStartDate = trainingDate(3)
     form.withCompanion = false
     selectedTrainerIds.value = []
     form.gymName = publicTrainerAcademy.value || defaultAcademyForCity(form.city)
@@ -267,6 +269,14 @@ export function useTrainingRequest(options: {
     window.scrollTo(0, 0)
   }
   async function confirmServiceRequest() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.preferredStartDate) || form.preferredStartDate < trainingDate() || !Number.isFinite(Date.parse(form.preferredStartDate)) || new Date(form.preferredStartDate).toISOString().slice(0, 10) !== form.preferredStartDate) {
+      status.value = 'A data inicial pretendida deve ser válida e não pode ser anterior à data atual.'
+      return
+    }
+    if (form.singleLesson && (!Number.isInteger(form.singleLessonCount) || form.singleLessonCount < 1 || form.singleLessonCount > 5)) {
+      status.value = 'Escolha de 1 a 5 aulas avulsas.'
+      return
+    }
     if (!selectedTrainerIds.value.length) {
       status.value = 'Selecione pelo menos um personal antes de enviar a solicitação.'
       return
@@ -286,6 +296,14 @@ export function useTrainingRequest(options: {
   async function sendResult() {
     if (!form.shareContactConsent || submittingRequest.value) return
     status.value = ''
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.preferredStartDate) || form.preferredStartDate < trainingDate() || !Number.isFinite(Date.parse(form.preferredStartDate)) || new Date(form.preferredStartDate).toISOString().slice(0, 10) !== form.preferredStartDate) {
+      status.value = 'A data inicial pretendida deve ser válida e não pode ser anterior à data atual.'
+      return
+    }
+    if (form.singleLesson && (!Number.isInteger(form.singleLessonCount) || form.singleLessonCount < 1 || form.singleLessonCount > 5)) {
+      status.value = 'Escolha de 1 a 5 aulas avulsas.'
+      return
+    }
 
     const clientName = normalizePersonName(form.name)
     const normalizedPhone = normalizeBrazilianPhone(form.phone)
@@ -341,6 +359,8 @@ export function useTrainingRequest(options: {
           trainerGenderPreference: form.trainerGenderPreference,
           desiredDuration: form.singleLesson ? 'Aula avulsa' : form.desiredDuration,
           singleLesson: form.singleLesson,
+          ...(form.singleLesson ? { singleLessonCount: form.singleLessonCount } : {}),
+          preferredStartDate: form.preferredStartDate,
           withCompanion: form.withCompanion,
           attendsGym: form.attendsGym,
           ...(form.attendsGym && form.gymName.trim()
