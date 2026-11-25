@@ -15,7 +15,7 @@ const {
 
 const academyDialogOpen = ref(false)
 const academyName = computed(() =>
-  publicTrainerAcademyDetails.value.name.trim().replace(/^academia\s+/i, ''),
+  publicTrainerAcademyDetails.value.name.trim(),
 )
 function confirmAcademy(academy: string) {
   if (!publicTrainerAcademies.value.includes(academy)) return
