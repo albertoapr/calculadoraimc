@@ -53,6 +53,12 @@ const {
           <dt>Tempo de acompanhamento</dt>
           <dd>{{ trainerRequest.desiredDuration }}</dd>
         </div>
+        <div v-if="trainerRequest.singleLesson">
+          <dt>Quantidade de aulas</dt><dd>{{ trainerRequest.singleLessonCount ?? 1 }}</dd>
+        </div>
+        <div v-if="trainerRequest.preferredStartDate">
+          <dt>Data inicial pretendida</dt><dd>{{ trainerRequest.preferredStartDate.split('-').reverse().join('/') }}</dd>
+        </div>
         <div v-if="trainerRequest.attendsGym">
           <dt>Frequenta academia</dt>
           <dd>Sim</dd>
