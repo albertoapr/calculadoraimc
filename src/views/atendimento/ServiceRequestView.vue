@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { trainingDate } from '../../stores/trainingDraft'
 import { trainerDisplayName } from '../../utils/trainer'
 import RequestAccordionItem from '../../components/RequestAccordionItem.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
@@ -81,7 +82,7 @@ function toggleSection(section: AccordionSection) {
 }
 
 const estimatedValue = computed(() => {
-  const lessons = form.singleLesson ? 1 : Number(form.sessionsPerWeek) * 4
+  const lessons = form.singleLesson ? form.singleLessonCount : Number(form.sessionsPerWeek) * 4
   const amount = lessons * 40 * (form.withCompanion ? 2 : 1)
   return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 })
@@ -114,7 +115,7 @@ const professionalGenderLabel = computed(() =>
       <div class="request-accordion-estimate-text">
         <span>Valor estimado</span>
         <strong
-          >a partir de {{ estimatedValue }}{{ form.singleLesson ? ' / aula' : ' / mês' }}</strong
+          >a partir de {{ estimatedValue }}{{ form.singleLesson ? (form.singleLessonCount === 1 ? ' / aula' : ' / pacote') : ' / mês' }}</strong
         >
       </div>
     </div>
@@ -236,7 +237,7 @@ const professionalGenderLabel = computed(() =>
             <span class="request-accordion-icon" aria-hidden="true">⏳</span>
             <span class="request-accordion-title">Duração</span>
             <span class="request-accordion-preview">{{
-              form.singleLesson ? 'Aula avulsa' : form.desiredDuration
+              (form.singleLesson ? `${form.singleLessonCount} ${form.singleLessonCount === 1 ? 'aula avulsa' : 'aulas avulsas'}` : form.desiredDuration) + ' · ' + form.preferredStartDate.split('-').reverse().join('/')
             }}</span>
             <span class="request-accordion-chevron" aria-hidden="true"></span>
           </button>
@@ -250,6 +251,12 @@ const professionalGenderLabel = computed(() =>
           <label class="request-accordion-check"
             ><input v-model="form.singleLesson" type="checkbox" /> Aula avulsa</label
           >
+          <template v-if="form.singleLesson">
+            <label for="single-lesson-count" class="request-accordion-label">Quantidade de aulas</label>
+            <select id="single-lesson-count" v-model.number="form.singleLessonCount" class="request-accordion-select">
+              <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
+            </select>
+          </template>
           <label for="accordion-duration" class="request-accordion-label"
             >Duração do acompanhamento</label
           >
@@ -267,6 +274,8 @@ const professionalGenderLabel = computed(() =>
               {{ months }} {{ months === 1 ? 'mês' : 'meses' }}
             </option>
           </select>
+          <label for="preferred-start-date" class="request-accordion-label">Data inicial pretendida</label>
+          <input id="preferred-start-date" v-model="form.preferredStartDate" type="date" :min="trainingDate()" required class="request-accordion-select" />
         </div>
     </RequestAccordionItem>
 
