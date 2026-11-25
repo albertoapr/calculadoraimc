@@ -77,6 +77,19 @@ function confirmAcademy(academy: string) {
     :disabled="!homeCity"
     @click="startTrainingRequestFromHome"
   >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="6" width="4" height="12" rx="1" />
+      <rect x="17" y="6" width="4" height="12" rx="1" />
+      <path d="M7 12h10M1 10v4m22-4v4M1 12h2m18 0h2" />
+    </svg>
     Treinar com Personal
   </button>
   <button
@@ -167,9 +180,12 @@ function confirmAcademy(academy: string) {
 :global(html[data-theme='dark']) .home-academy-change-button { color: #ffffff; }
 :global(html[data-theme='dark']) .home-academy-change-button svg { color: #55d6a3; }
 .home-training-request-button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
-  margin: 12px 0 12px;
+  margin: 12px 0;
 }
 .home-find-personal-button {
   display: flex;
@@ -179,6 +195,21 @@ function confirmAcademy(academy: string) {
   width: 100%;
   margin: 0 0 20px;
 }
+.home-find-personal-button.primary-button {
+  background: #315d83;
+  color: #fff;
+}
+.home-find-personal-button.primary-button:hover:not(:disabled) {
+  background: #254a6b;
+}
+:global(html[data-theme='dark']) .home-find-personal-button.primary-button {
+  background: #55d6a3;
+  color: #182019;
+}
+:global(html[data-theme='dark']) .home-find-personal-button.primary-button:hover:not(:disabled) {
+  background: #73e2b5;
+}
+.home-training-request-button svg,
 .home-find-personal-button svg {
   width: 23px;
   height: 23px;
