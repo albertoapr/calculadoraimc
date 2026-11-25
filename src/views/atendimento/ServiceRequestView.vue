@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { trainingDate } from '../../stores/trainingDraft'
 import { trainerDisplayName } from '../../utils/trainer'
+import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import RequestAccordionItem from '../../components/RequestAccordionItem.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
@@ -275,7 +276,9 @@ const professionalGenderLabel = computed(() =>
             </option>
           </select>
           <label for="preferred-start-date" class="request-accordion-label">Data inicial pretendida</label>
-          <input id="preferred-start-date" v-model="form.preferredStartDate" type="date" :min="trainingDate()" required class="request-accordion-select" />
+          <div class="request-start-date">
+            <BirthDatePicker id="preferred-start-date" v-model="form.preferredStartDate" :min="trainingDate()" max="" required />
+          </div>
         </div>
     </RequestAccordionItem>
 
@@ -644,7 +647,7 @@ const professionalGenderLabel = computed(() =>
         (form.gymName === 'Outros' && !otherGymName.trim()) ||
         !form.trainingDays.length
       "
-      @click="selectedTrainerIds.length ? confirmServiceRequest() : toggleSection('professionals')"
+      @click="!form.preferredStartDate || form.preferredStartDate < trainingDate() ? toggleSection('duration') : selectedTrainerIds.length ? confirmServiceRequest() : toggleSection('professionals')"
     >
       {{
         submittingRequest
@@ -660,6 +663,24 @@ const professionalGenderLabel = computed(() =>
 </template>
 
 <style scoped>
+.request-start-date {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.request-start-date :deep(.date-input-with-picker) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.request-start-date :deep(input[type="text"]) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .request-trainer-scroll {
   max-height: 290px;
   overflow-y: auto;
