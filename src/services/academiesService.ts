@@ -4,6 +4,7 @@ export type Academy = {
   academyId: string
   name: string
   city: string
+  cityId?: string
   neighborhood: string
   state: string
   address: string

@@ -13,3 +13,4 @@ export type AppViewMode =
   | 'admin-trainers'
   | 'admin-customers'
   | 'admin-academies'
+  | 'admin-cities'

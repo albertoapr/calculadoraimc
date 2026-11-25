@@ -2,7 +2,7 @@
 
 ## 25/11/2026 — Cadastro de cidades
 
-**Status:** decisão registrada. Implementação pendente.
+**Status:** implementado na branch `develop`.
 
 ### Decisões
 
@@ -29,7 +29,14 @@ O modelo inicial proposto inclui identificador, nome, UF, slug e status da cidad
 - Atendimento presencial em residência ou parque, sem vínculo com academia na cidade, contará para a disponibilidade pública?
 - Como tratar as páginas públicas e a preferência de cidade já salva quando a cidade sair do seletor?
 
-### Sequência sugerida de implementação
+### Implementação
+
+- O menu administrativo abre **Cadastro de cidades** em `/admin/cidades`. É possível cadastrar, ativar, inativar e editar os preços.
+- Mesquita, Nilópolis, Nova Iguaçu e Rio de Janeiro são cadastradas automaticamente, com preços em branco. Os registros existentes continuam vinculados pela chave de cidade original. As novas gravações de academias incluem o identificador da cidade.
+- O seletor público usa a existência de pelo menos um personal ativo com academia ativa. Atendimentos sem academia ficam pendentes de decisão. Uma preferência salva só é aplicada enquanto a cidade estiver disponível.
+- A tela de solicitação usa o preço mínimo para estimar o valor das aulas e apresenta a média como estimativa, quando cadastrada.
+
+### Etapas previstas originalmente
 
 1. Criar o cadastro administrativo de cidades e preparar os registros iniciais de Mesquita, Nilópolis, Nova Iguaçu e Rio de Janeiro.
 2. Vincular as academias existentes às cidades, preservando os endereços públicos já divulgados.

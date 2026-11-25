@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
 const {
-  availableCities,
+  activeCities,
+  activeCitiesError,
+  loadActiveCities,
   availableAcademiesForTrainer,
   adminAcademiesError,
   loadAdminAcademyOptions,
@@ -24,6 +27,11 @@ const {
   deactivateAdminTrainer,
   goHome,
 } = useFitpesoContext()
+const cityOptions = computed(() => {
+  const labels = new Map(activeCities.value.map(city => [city.cityKey, city.name + ', ' + city.state]))
+  for (const city of adminTrainerForm.cities) if (!labels.has(city)) labels.set(city, city)
+  return [...labels]
+})
 </script>
 
 <template>
@@ -184,7 +192,11 @@ const {
 
       <fieldset class="field field-wide admin-trainer-options">
         <legend>Cidades atendidas <small>(selecione até duas)</small></legend>
-        <label v-for="city in availableCities" :key="city">
+        <div v-if="activeCitiesError" role="alert">
+          {{ activeCitiesError }}
+          <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
+        </div>
+        <label v-for="[city, label] in cityOptions" :key="city">
           <input
             v-model="adminTrainerForm.cities"
             type="checkbox"
@@ -193,7 +205,7 @@ const {
               adminTrainerForm.cities.length >= 2 && !adminTrainerForm.cities.includes(city)
             "
           />
-          {{ city }}
+          {{ label }}
         </label>
       </fieldset>
 

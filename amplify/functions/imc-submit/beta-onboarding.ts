@@ -1,3 +1,4 @@
+import { getCityKeys } from './cities'
 import { createHash, randomBytes } from 'node:crypto'
 import {
   ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand,
@@ -75,7 +76,7 @@ async function resolveBetaAcademy(request: BetaOnboardingMessage) {
 
 export async function betaTrainersByPhone(whatsapp: string) {
   const found: Array<{ trainerId: string; city: string; active: boolean; verified: boolean }> = []
-  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
+  for (const city of await getCityKeys()) {
     let cursor: Record<string, AttributeValue> | undefined
     do {
       const page = await db.send(new QueryCommand({
@@ -363,6 +364,10 @@ export async function completeBetaTrainerSignup(
   } catch (error) {
     if (error instanceof TransactionCanceledException || error instanceof ConditionalCheckFailedException)
       return reply(409, { error: 'Cadastro alterado ou confirmação já utilizada. Solicite outro link.' })
+    if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
+      return reply(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
+    if (error instanceof Error && error.message === 'INVALID_CITY')
+      return reply(400, { error: 'Selecione cidades ativas.' })
     if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
       return reply(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
     if (error instanceof Error && error.name === 'TrainerSlugUnavailableError')

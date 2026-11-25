@@ -5,9 +5,10 @@ import {
 } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
+import { getCities } from './cities'
+
 type Event = Parameters<APIGatewayProxyHandler>[0]
 type RecordItem = Record<string, AttributeValue>
-const allowedCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 const table = () => process.env.ACADEMIES_TABLE
 const client = new DynamoDBClient({})
 const headers = {
@@ -39,11 +40,11 @@ function parseAcademy(event: Event) {
 }
 function parseAcademyFields(body: Record<string, unknown> | null) {
   const name = textField(body?.name, 80)
-  const city = textField(body?.city, 50)
+  const city = textField(body?.city, 84)
   const neighborhood = textField(body?.neighborhood, 80)
   const address = textField(body?.address ?? '', 160)
   const zipCode = textField(body?.zipCode ?? '', 9)
-  if (!name || name.length < 2 || !city || !allowedCities.includes(city) ||
+  if (!name || name.length < 2 || !city ||
       !neighborhood || neighborhood.length < 2 || address === null || zipCode === null ||
       (zipCode !== '' && !/^\d{5}-?\d{3}$/.test(zipCode)) ||
       (body?.active !== undefined && typeof body.active !== 'boolean')) return null
@@ -54,7 +55,7 @@ function keyFor(value: { name: string; city: string; neighborhood: string }) {
     .update([value.city, value.neighborhood, value.name].map(normalize).join('|'))
     .digest('hex')
 }
-function toItem(academyId: string, values: NonNullable<ReturnType<typeof parseAcademy>>, createdAt: string, updatedBy: string): RecordItem {
+function toItem(academyId: string, values: NonNullable<ReturnType<typeof parseAcademy>>, createdAt: string, updatedBy: string, city: { cityId: string; state: string }): RecordItem {
   return {
     academyId: { S: academyId },
     name: { S: values.name },
@@ -62,18 +63,20 @@ function toItem(academyId: string, values: NonNullable<ReturnType<typeof parseAc
     neighborhood: { S: values.neighborhood },
     address: { S: values.address },
     zipCode: { S: values.zipCode },
-    state: { S: 'RJ' },
+    cityId: { S: city.cityId },
+    state: { S: city.state },
     active: { BOOL: values.active },
     createdAt: { S: createdAt },
     updatedAt: { S: new Date().toISOString() },
     updatedBy: { S: updatedBy },
   }
 }
-function publicItem(item: RecordItem) {
+function publicItem(item: RecordItem, cityId?: string) {
   return {
     academyId: item.academyId?.S ?? '',
     name: item.name?.S ?? '',
     city: item.city?.S ?? '',
+    cityId: item.cityId?.S ?? cityId,
     neighborhood: item.neighborhood?.S ?? '',
     state: item.state?.S ?? 'RJ',
     address: item.address?.S ?? '',
@@ -90,7 +93,7 @@ function failedConditional(error: unknown) {
   return error instanceof Error &&
     ['ConditionalCheckFailedException', 'TransactionCanceledException'].includes(error.name)
 }
-async function queryCity(tableName: string, city: string) {
+export async function queryAcademiesByCity(tableName: string, city: string) {
   const found: RecordItem[] = []
   let cursor: RecordItem | undefined
   do {
@@ -111,11 +114,13 @@ export async function listAcademies(event: Event, administrator = false) {
   const tableName = table()
   if (!tableName) return reply(503, { error: 'Cadastro de academias indisponível.' })
   const city = event.queryStringParameters?.city?.trim() ?? ''
-  if (city && !allowedCities.includes(city)) return reply(400, { error: 'Cidade inválida.' })
   try {
-    const cities = city ? [city] : allowedCities
-    const result = await Promise.all(cities.map(value => queryCity(tableName, value)))
-    const academies = result.flat().map(publicItem)
+    const catalog = (await getCities()).filter(item => administrator || item.active)
+    if (city && !catalog.some(item => item.cityKey === city)) return reply(400, { error: 'Cidade inválida.' })
+    const result = await Promise.all(catalog.filter(item => !city || item.cityKey === city).map(async item =>
+      (await queryAcademiesByCity(tableName, item.cityKey)).map(academy => publicItem(academy, item.cityId)),
+    ))
+    const academies = result.flat()
       .filter(item => administrator || item.active)
       .sort((a, b) => a.city.localeCompare(b.city, 'pt-BR') ||
         a.name.localeCompare(b.name, 'pt-BR') ||
@@ -152,10 +157,12 @@ export async function createAcademy(event: Event, administratorPhone: string) {
   const now = new Date().toISOString()
   const lockId = keyFor(values)
   try {
+    const city = (await getCities()).find(item => item.cityKey === values.city && item.active)
+    if (!city) return reply(400, { error: 'Selecione uma cidade ativa.' })
     await client.send(new TransactWriteItemsCommand({
       TransactItems: [
         { Put: { TableName: tableName, Item: lockItem(lockId, academyId), ConditionExpression: 'attribute_not_exists(academyId)' } },
-        { Put: { TableName: tableName, Item: toItem(academyId, values, now, administratorPhone), ConditionExpression: 'attribute_not_exists(academyId)' } },
+        { Put: { TableName: tableName, Item: toItem(academyId, values, now, administratorPhone, city), ConditionExpression: 'attribute_not_exists(academyId)' } },
       ],
     }))
     return reply(201, { created: true, academyId })
@@ -183,7 +190,10 @@ export async function updateAcademy(event: Event, administratorPhone: string) {
       neighborhood: existing.Item.neighborhood?.S ?? '',
     })
     const newLock = keyFor(values)
-    const item = toItem(academyId, values, existing.Item.createdAt?.S ?? new Date().toISOString(), administratorPhone)
+    const city = (await getCities()).find(item => item.cityKey === values.city &&
+      (item.active || existing.Item?.city?.S === values.city))
+    if (!city) return reply(400, { error: 'Selecione uma cidade ativa.' })
+    const item = toItem(academyId, values, existing.Item.createdAt?.S ?? new Date().toISOString(), administratorPhone, city)
     if (oldLock !== newLock) {
       await client.send(new TransactWriteItemsCommand({ TransactItems: [
         { Put: { TableName: tableName, Item: lockItem(newLock, academyId), ConditionExpression: 'attribute_not_exists(academyId)' } },
@@ -253,7 +263,10 @@ export async function planSignupAcademies(academies: SignupAcademy[], verifiedPh
   if (!academies.length) return { writes, ids }
   const tableName = table()
   if (!tableName) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  const cities = await getCities()
   for (const academy of academies) {
+    const city = cities.find(item => item.cityKey === academy.city && item.active)
+    if (!city) throw new Error('INVALID_CITY')
     const lockId = keyFor(academy)
     const lock = await client.send(new GetItemCommand({ TableName: tableName, Key: { academyId: { S: lockId } }, ConsistentRead: true }))
     const owner = lock.Item?.ownerAcademyId?.S
@@ -264,7 +277,7 @@ export async function planSignupAcademies(academies: SignupAcademy[], verifiedPh
       continue
     }
     // Existing imported records may predate the uniqueness lock.
-    const legacy = (await queryCity(tableName, academy.city)).find(item => keyFor({
+    const legacy = (await queryAcademiesByCity(tableName, academy.city)).find(item => keyFor({
       name: item.name?.S ?? '', city: item.city?.S ?? '', neighborhood: item.neighborhood?.S ?? '',
     }) === lockId)
     const legacyId = legacy?.academyId?.S
@@ -277,7 +290,7 @@ export async function planSignupAcademies(academies: SignupAcademy[], verifiedPh
     const id = randomUUID()
     writes.push(
       { Put: { TableName: tableName, Item: lockItem(lockId, id), ConditionExpression: 'attribute_not_exists(academyId)' } },
-      { Put: { TableName: tableName, Item: { ...toItem(id, academy, new Date().toISOString(), verifiedPhone), source: { S: 'TRAINER_SIGNUP' } }, ConditionExpression: 'attribute_not_exists(academyId)' } },
+      { Put: { TableName: tableName, Item: { ...toItem(id, academy, new Date().toISOString(), verifiedPhone, city), source: { S: 'TRAINER_SIGNUP' } }, ConditionExpression: 'attribute_not_exists(academyId)' } },
     )
     ids.push(id)
   }

@@ -6,7 +6,10 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
-  availableCities,
+  activeCities,
+  activeCitiesError,
+  activeCitiesLoading,
+  loadActiveCities,
   registeredAcademies,
   academiesLoading,
   academiesError,
@@ -34,7 +37,7 @@ const addingAcademy = ref(false)
 const newAcademyName = ref('')
 const newAcademyNeighborhood = ref('')
 const academyCreateError = ref('')
-const academyChoices = computed(() => [...registeredAcademies.value, ...newAcademies.value.map((academy, index) => ({ ...academy, academyId: `draft-${index}`, state: 'RJ', createdAt: '', updatedAt: '' }))])
+const academyChoices = computed(() => [...registeredAcademies.value, ...newAcademies.value.map((academy, index) => ({ ...academy, academyId: `draft-${index}`, state: activeCities.value.find(city => city.cityKey === academy.city)?.state ?? '', createdAt: '', updatedAt: '' }))])
 const academyLabel = (academy: { name: string; neighborhood: string }) => `${academy.name} — ${academy.neighborhood}`
 const signupOptions = computed(() => academyChoices.value
   .filter(academy => academy.city === signupCity.value)
@@ -106,7 +109,15 @@ function submitSignup() {
     academyCreateError.value = 'Salve ou cancele a nova academia antes de concluir.'
     return
   }
-  void sendTrainerSignup(newAcademies.value.filter(academy => trainerForm.academias.includes(academyLabel(academy))))
+  const academyIds = registeredAcademies.value.filter(academy =>
+    trainerForm.academias.some(name => (academyLabel(academy) === name || academy.name === name) &&
+      cityForAcademy(name) === academy.city),
+  ).map(academy => academy.academyId)
+  void sendTrainerSignup(
+    newAcademies.value.filter(academy => trainerForm.academias.includes(academyLabel(academy)) &&
+      cityForAcademy(academyLabel(academy)) === academy.city),
+    academyIds,
+  )
 }
 </script>
 
@@ -232,11 +243,15 @@ function submitSignup() {
         <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
         <label class="field field-wide" for="signup-city">
           <span class="field-label">Cidade</span>
-          <select id="signup-city" v-model="signupCity">
+          <select id="signup-city" v-model="signupCity" :disabled="activeCitiesLoading">
             <option value="">Selecione a cidade</option>
-            <option v-for="city in availableCities" :key="city" :value="city">{{ city }}</option>
+            <option v-for="city in activeCities" :key="city.cityId" :value="city.cityKey">{{ city.name }}, {{ city.state }}</option>
           </select>
         </label>
+        <div v-if="activeCitiesError" role="alert">
+          {{ activeCitiesError }}
+          <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
+        </div>
         <p v-if="academiesLoading" role="status">Carregando academias…</p>
         <div v-else-if="academiesError" role="alert">
           {{ academiesError }}

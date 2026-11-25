@@ -1,8 +1,8 @@
 import { ref, watch, type ComputedRef, type Ref } from 'vue'
-
-const supportedRequestCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'] as const
+import type { useCityCatalog } from './useCityCatalog'
 
 export function useSupportedCity<T extends string>(options: {
+  catalog: ReturnType<typeof useCityCatalog>
   viewMode: Ref<T>
   isRootHome: ComputedRef<boolean>
   publicTrainerCity: Ref<string>
@@ -19,30 +19,31 @@ export function useSupportedCity<T extends string>(options: {
 }) {
   const detectingRequestCity = ref(false)
   const requestCityLocationMessage = ref('')
-  const storedHomeCity = options.readPreference(options.cityPreferenceKey)
+  const { cities: publicCities, load: loadPublicCities } = options.catalog.public
   const homeCity = ref('')
-  const homeCityManuallySelected = ref(
-    storedHomeCity !== '' && supportedRequestCities.some((city) => city === storedHomeCity),
-  )
-  if (homeCityManuallySelected.value) homeCity.value = storedHomeCity
+  const homeCityManuallySelected = ref(false)
   let requestCityLookupId = 0
 
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+
   function matchSupportedRequestCity(value: string): string {
-    const normalized = value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .toLowerCase()
-    return (
-      supportedRequestCities.find(
-        (city) =>
-          city
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase() === normalized,
-      ) ?? ''
-    )
+    const normalized = normalize(value)
+    const exact = publicCities.value.find(city => normalize(city.cityKey) === normalized)
+    if (exact) return exact.cityKey
+    const matches = publicCities.value.filter(city => normalize(city.name) === normalized)
+    return matches.length === 1 ? matches[0]!.cityKey : ''
   }
+
+  watch(publicCities, (cities) => {
+    const city = options.readPreference(options.cityPreferenceKey)
+    if (city && cities.some(item => item.cityKey === city)) {
+      homeCityManuallySelected.value = true
+      homeCity.value = city
+    } else if (!cities.some(item => item.cityKey === homeCity.value)) {
+      homeCityManuallySelected.value = false
+      homeCity.value = ''
+    }
+  }, { immediate: true, flush: 'sync' })
 
   function updateHomeCity(city: string) {
     if (homeCityManuallySelected.value || homeCity.value === city) return
@@ -57,7 +58,7 @@ export function useSupportedCity<T extends string>(options: {
 
   function selectHomeCity(event: Event) {
     const city = (event.target as HTMLSelectElement).value
-    if (!supportedRequestCities.some((item) => item === city)) return
+    if (!publicCities.value.some(item => item.cityKey === city)) return
     homeCityManuallySelected.value = true
     homeCity.value = city
     options.savePreference(options.cityPreferenceKey, city)
@@ -117,6 +118,8 @@ export function useSupportedCity<T extends string>(options: {
             location.locality ?? '',
             ...(location.localityInfo?.administrative ?? []).map((item) => item.name ?? ''),
           ]
+          await loadPublicCities()
+          if (cityDetectionScope === 'request' && lookupId !== requestCityLookupId) return
           const city = candidates.map(matchSupportedRequestCity).find(Boolean) ?? ''
           if (city) {
             updateHomeCity(city)
@@ -151,7 +154,7 @@ export function useSupportedCity<T extends string>(options: {
   }
 
   return {
-    supportedRequestCities,
+    publicCities,
     detectingRequestCity,
     requestCityLocationMessage,
     homeCity,

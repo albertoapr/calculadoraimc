@@ -39,6 +39,11 @@ const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const cities = new dynamodb.Table(requestStack, 'FitpesoCities', {
+  partitionKey: { name: 'cityId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 const academies = new dynamodb.Table(requestStack, 'FitpesoAcademies', {
   partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -133,6 +138,7 @@ trainers.addGlobalSecondaryIndex({
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
+cities.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Scan', 'dynamodb:PutItem')
 academies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
@@ -173,6 +179,7 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 }))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
+backend.imcSubmit.addEnvironment('CITIES_TABLE', cities.tableName)
 backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
@@ -341,6 +348,11 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const adminResource = apiResource.addResource('admin')
+apiResource.addResource('cities').addMethod('GET', lambdaIntegration())
+const adminCitiesResource = adminResource.addResource('cities')
+adminCitiesResource.addMethod('GET', lambdaIntegration())
+adminCitiesResource.addMethod('POST', lambdaIntegration())
+adminCitiesResource.addResource('{cityId}').addMethod('PUT', lambdaIntegration())
 const adminAcademiesResource = adminResource.addResource('academies')
 adminAcademiesResource.addMethod('GET', lambdaIntegration())
 adminAcademiesResource.addMethod('POST', lambdaIntegration())

@@ -1,7 +1,8 @@
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
-import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
+import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
+import { listAcademies, queryAcademiesByCity, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
@@ -84,7 +85,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     Boolean(phone) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     typeof instagram === 'string' && (instagram === '' || (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
-    ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
+    (city.length >= 2 && city.length <= 84) &&
     (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120) &&
     (data.clientGender === undefined || clientGenderOptions.includes(String(data.clientGender))) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
@@ -218,7 +219,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null, allowM
     (data.academias === undefined || validAcademias(data.academias)) &&
     (data.newAcademies === undefined || (Array.isArray(cities) && Array.isArray(data.academias) && parseSignupAcademies(data.newAcademies, cities, data.academias) !== null)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
-    new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
+    new Set(cities).size === cities.length && cities.every(city => typeof city === 'string' && city.length >= 2 && city.length <= 84)
 }
 
 function isValidCustomerRegistration(data: Record<string, unknown> | null) {
@@ -1229,7 +1230,7 @@ async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
 async function findActiveTrainerByWhatsApp(whatsapp: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
-  const cities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const cities = await getCityKeys()
   const matches = (await Promise.all(cities.map(async city => {
     const found: { trainerId: string; city: string }[] = []
     let cursor: Record<string, any> | undefined
@@ -1952,13 +1953,19 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   if (!matchingSignup) throw new TrainerSlugUnavailableError()
 
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
+  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
   const newAcademies = parseSignupAcademies(data.newAcademies, cities, academias) ?? []
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
       {
         Put: {
           TableName: requestCodesTable,
-          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
+          Item: {
+            ...challenge.item,
+            ...(academyIds.length ? { signupAcademyIds: { SS: academyIds } } : {}),
+            ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) } } : {}),
+            ...(academyIds.length || newAcademies.length ? { signupAcademias: { S: JSON.stringify(academias) } } : {}),
+          },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       },
@@ -2038,6 +2045,8 @@ async function registerTrainer(
   const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
+  const activeCities = await getActiveCityKeys()
+  if (!cities.every(city => activeCities.includes(city))) throw new Error('INVALID_CITY')
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
   // The academy ID is trusted only when confirmed by the server before issuing the Beta token
   // and still active in the selected city at the moment the profile is saved.
@@ -2062,8 +2071,9 @@ async function registerTrainer(
     if (betaSignup) throw new TrainerSlugUnavailableError()
     return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
   }
+  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
   const academyPlan = betaSignup ? await planSignupAcademies(newAcademies, whatsapp) : { writes: [], ids: [] }
-  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids])]
+  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids, ...(betaSignup ? academyIds : [])])]
 
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
@@ -2071,7 +2081,12 @@ async function registerTrainer(
       ...(!betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
-          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
+          Item: {
+            ...challenge.item,
+            ...(academyIds.length ? { signupAcademyIds: { SS: academyIds } } : {}),
+            ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) } } : {}),
+            ...(academyIds.length || newAcademies.length ? { signupAcademias: { S: JSON.stringify(academias) } } : {}),
+          },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       }] : [{
@@ -2196,8 +2211,10 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   const whatsapp = normalizePhone(data.whatsapp)
   const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
-  // Check all supported cities, not only the selected ones.
-  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
+  const activeCities = await getActiveCityKeys()
+  if (!cities.every(city => activeCities.includes(city))) return response(400, { error: 'Selecione cidades ativas.' })
+  // Check all cities, including inactive ones, for existing registrations.
+  for (const city of await getCityKeys()) {
     let lastKey: Record<string, any> | undefined
     do {
       const page = await dynamodb.send(new QueryCommand({
@@ -2249,8 +2266,6 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   }
 }
 
-const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-
 async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
   const ids = raw === undefined ? [] : raw
   if (!Array.isArray(ids) || ids.length > 20 ||
@@ -2291,7 +2306,7 @@ async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
 async function getTrainerRows(trainerId: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
-  const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new GetItemCommand({
+  const results = await Promise.all((await getCityKeys()).map(city => dynamodb.send(new GetItemCommand({
     TableName: tableName,
     Key: { city: { S: city }, trainerId: { S: trainerId } },
     ConsistentRead: true,
@@ -2322,7 +2337,7 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) return response(503, { error: 'Serviço indisponível.' })
   try {
-    const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new QueryCommand({
+    const results = await Promise.all((await getCityKeys()).map(city => dynamodb.send(new QueryCommand({
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       ExpressionAttributeNames: { '#city': 'city' },
@@ -2383,7 +2398,10 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
   try {
     const existingRows = await getTrainerRows(trainerId)
     if (!existingRows.length) return response(404, { error: 'Profissional não encontrado.' })
-    for (const city of supportedTrainerCities) {
+    const activeCities = await getActiveCityKeys()
+    if (!cities.every(city => activeCities.includes(city) || existingRows.some(row => row.city?.S === city)))
+      return response(400, { error: 'Selecione cidades ativas para novos vínculos.' })
+    for (const city of await getCityKeys()) {
       const page = await dynamodb.send(new QueryCommand({
         TableName: tableName,
         KeyConditionExpression: '#city = :city',
@@ -2641,11 +2659,11 @@ function createTrainerRequestToken(requestId: string, trainerId: string, expires
 async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0]) {
   if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Integração Beta não configurada.' })
   if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
-  const supportedCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
   const city = event.queryStringParameters?.cidade?.trim() || event.queryStringParameters?.city?.trim() || ''
-  if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
   try {
-    const results = await Promise.all((city ? [city] : supportedCities).map(getActiveTrainersForCity))
+    const supportedCities = await getActiveCityKeys()
+    if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
+    const results = await Promise.all((city ? [city] : supportedCities).map(value => getActiveTrainersForCity(value)))
     const unique = [...new Map(results.flat().map(trainer => [trainer.trainerId, trainer])).values()]
     const personais = unique.map(trainer => ({
       id: trainer.trainerId, nome: trainer.name, cidades: results.flat().filter(item => item.trainerId === trainer.trainerId).map(item => item.city),
@@ -2659,7 +2677,7 @@ async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0])
   }
 }
 
-async function getActiveTrainersForCity(city: string) {
+async function getActiveTrainersForCity(city: string, includePersonData = true) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
   const items: Record<string, any>[] = []
@@ -2698,7 +2716,7 @@ async function getActiveTrainersForCity(city: string) {
   const ids = [...new Set(items.map(item => item.pessoa_id?.S as string | undefined).filter(
     (id): id is string => Boolean(id),
   ))]
-  if (personTable && ids.length) {
+  if (includePersonData && personTable && ids.length) {
     for (let offset = 0; offset < ids.length; offset += 100) {
       let pending: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>[] =
         ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
@@ -2769,11 +2787,12 @@ async function trainerGooglePhotos(trainers: { trainerId: string; whatsapp: stri
 async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const city = event.queryStringParameters?.city?.trim() ?? ''
   const preference = event.queryStringParameters?.gender?.trim() ?? 'indiferente'
-  if (!['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city) ||
+  if (!city ||
       !['indiferente', 'feminino', 'masculino'].includes(preference)) {
     return response(400, { error: 'Selecione uma cidade e uma preferência válida.' })
   }
   try {
+    if (!(await getActiveCityKeys()).includes(city)) return response(400, { error: 'Cidade inválida ou inativa.' })
     const trainers = await getActiveTrainersForCity(city)
     const photos = await trainerGooglePhotos(trainers)
     const eligible = trainers
@@ -3002,8 +3021,12 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const signupAcademias: string[] = item.signupAcademias?.S ? JSON.parse(item.signupAcademias.S) : []
     const newAcademies = parseSignupAcademies(item.newAcademies?.S ? JSON.parse(item.newAcademies.S) : undefined, cities, signupAcademias)
     if (!newAcademies) return response(400, { verified: false, error: 'Confira as academias informadas.' })
+    const activeCities = await getActiveCityKeys()
+    if (!cities.every(city => activeCities.includes(city)))
+      return response(400, { verified: false, error: 'Uma cidade do cadastro foi inativada. Atualize o cadastro.' })
     const academyPlan = await planSignupAcademies(newAcademies, whatsapp)
-    const academyIds = [...new Set(academyPlan.ids)]
+    const registered = await resolveRegisteredAcademies(item.signupAcademyIds?.SS, cities)
+    const academyIds = [...new Set([...registered.ids, ...academyPlan.ids])]
     const linksTable = process.env.TRAINER_ACADEMIES_TABLE
     if (academyIds.length && !linksTable) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
 
@@ -3127,6 +3150,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const clientPhone = requestPhone
   const city = String(requestData.city).trim()
   const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
+  if (!(await getActiveCityKeys()).includes(city)) return response(400, { error: 'Selecione uma cidade ativa.' })
   const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
   const selectedTrainerIds = [...new Set(rawTrainerIds.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))]
   if (selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
@@ -3724,8 +3748,71 @@ async function consumeCode(data: Record<string, unknown> | null) {
   }
 }
 
+function normalizeAcademyLabel(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[—–]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').trim().toLocaleLowerCase('pt-BR')
+}
+
+async function listPublicCities(registration: boolean) {
+  const cities = (await getCities()).filter(city => city.active)
+  if (registration) return cities
+  const table = process.env.ACADEMIES_TABLE
+  if (!table) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  const available: typeof cities = []
+  // Bound DynamoDB fan-out as the catalog expands.
+  for (let offset = 0; offset < cities.length; offset += 8) {
+    const matches = await Promise.all(cities.slice(offset, offset + 8).map(async city => {
+      const academies = await queryAcademiesByCity(table, city.cityKey)
+      const active = academies.filter(academy => academy.active?.BOOL === true)
+      if (!active.length) return null
+      const ids = new Set(active.map(academy => academy.academyId?.S))
+      const activeNames = new Set(active.map(academy => normalizeAcademyLabel(academy.name?.S ?? '')))
+      const labels = new Set<string>()
+      const names = new Map<string, number>()
+      for (const academy of academies) {
+        const name = normalizeAcademyLabel(academy.name?.S ?? '')
+        names.set(name, (names.get(name) ?? 0) + 1)
+        if (academy.active?.BOOL === true)
+          labels.add(normalizeAcademyLabel(`${academy.name?.S ?? ''} — ${academy.neighborhood?.S ?? ''}`))
+      }
+      const trainers = await getActiveTrainersForCity(city.cityKey, false)
+      // Older registrations stored the academy label before academy IDs were supported.
+      const hasTrainer = trainers.some(trainer => {
+        if (trainer.academyIds.length) return trainer.academyIds.some((id: string) => ids.has(id))
+        return trainer.academias.some((label: string) => {
+          const normalized = normalizeAcademyLabel(label)
+          return labels.has(normalized) || (names.get(normalized) === 1 && activeNames.has(normalized))
+        })
+      })
+      return hasTrainer ? city : null
+    }))
+    for (const city of matches) if (city) available.push(city)
+  }
+  return available
+}
+
+async function handleCities(event: Parameters<APIGatewayProxyHandler>[0], administrator: boolean) {
+  try {
+    if (!administrator) {
+      const cities = await listPublicCities(event.queryStringParameters?.scope === 'registration')
+      return response(200, { cities })
+    }
+    const auth = await authenticateAdmin(event)
+    if ('error' in auth) return auth.error
+    if (event.httpMethod === 'GET') return response(200, { cities: await getCities() })
+    const result = await writeCity(parseBody(event), event.pathParameters?.cityId)
+    return response(result.status, result.body)
+  } catch (error) {
+    console.error('[cities] Request failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'O cadastro de cidades está temporariamente indisponível.' })
+  }
+}
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/cities')) return handleCities(event, false)
+  if (event.resource?.endsWith('/admin/cities') || event.resource?.endsWith('/admin/cities/{cityId}'))
+    return handleCities(event, true)
   // Consulta pública e manutenção administrativa de academias.
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies'))
     return listAcademies(event)
@@ -4017,6 +4104,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
     } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
+        return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
+      if (error instanceof Error && error.message === 'INVALID_CITY')
+        return response(400, { error: 'Selecione cidades ativas.' })
       if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
         return response(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
       if (error instanceof TrainerSlugUnavailableError) {
@@ -4036,8 +4127,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/verify')) return consumeCode(data)
   if (!isValidRequest(data)) return response(400, { error: 'Confira os dados e o consentimento.' })
 
-  let failureStage = 'request_code_creation'
+  let failureStage = 'city_validation'
   try {
+    if (!(await getActiveCityKeys()).includes(String(data!.city).trim())) return response(400, { error: 'Selecione uma cidade ativa.' })
+    failureStage = 'request_code_creation'
     const issued = await createCode()
     failureStage = 'gmail_smtp_delivery'
     const delivery = await sendRequestEmail(data!, issued.code)

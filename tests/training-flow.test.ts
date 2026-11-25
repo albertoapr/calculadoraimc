@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computed, effectScope, nextTick, ref } from 'vue'
+import { computed, createApp, effectScope, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { JSDOM } from 'jsdom'
+import { useCityCatalog } from '../src/composables/useCityCatalog'
 import { useHome } from '../src/composables/useHome'
 import { useTrainingRequest } from '../src/composables/useTrainingRequest'
 import { useTrainingDraft } from '../src/stores/trainingDraft'
@@ -28,6 +30,9 @@ test('home selection survives the training flow and submission preserves the req
       payloads.push(JSON.parse(String(init?.body)))
       return Response.json({ created: true, requestId: 'r1' })
     }
+    if (url.includes('/api/cities')) return Response.json({
+      cities: [{ cityId: 'mesquita', cityKey: 'Mesquita', name: 'Mesquita', state: 'RJ', slug: 'mesquita', active: true }],
+    })
     if (url.includes('/api/academies')) return Response.json({ academies: [] })
     return Response.json({
       trainers: [
@@ -38,7 +43,12 @@ test('home selection survives the training flow and submission preserves the req
   setActivePinia(createPinia())
   const scope = effectScope()
   try {
-    const flow = scope.run(() => {
+    const catalog = useCityCatalog()
+    await catalog.public.load()
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: {} }] })
+    const app = createApp({}).use(router)
+    await router.push('/')
+    const flow = app.runWithContext(() => scope.run(() => {
       const draft = useTrainingDraft()
       const { trainingStartMinutes, trainingEndMinutes } = storeToRefs(draft)
       const viewMode = ref<AppViewMode>('home')
@@ -54,6 +64,7 @@ test('home selection survives the training flow and submission preserves the req
       let loginRequests = 0
       let request: ReturnType<typeof useTrainingRequest>
       const home = useHome({
+        catalog,
         viewMode,
         isRootHome: computed(() => true),
         form: draft.form,
@@ -102,7 +113,7 @@ test('home selection survives the training flow and submission preserves the req
         customerSignedInName,
         getLoginRequests: () => loginRequests,
       }
-    })!
+    }))!
     flow.home.publicTrainerCity.value = 'Mesquita'
     await flow.home.loadPublicTrainers()
     await nextTick()

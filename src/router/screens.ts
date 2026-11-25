@@ -23,6 +23,7 @@ export const screenRoutes: Array<{
   { path: '/meu-cadastro', screen: 'my-profile', access: 'account' },
   { path: '/sobre', screen: 'about', access: 'public' },
   { path: '/registro-profissional', screen: 'professional-registration', access: 'public' },
+  { path: '/admin/cidades', screen: 'admin-cities', access: 'admin' },
   { path: '/admin/academias', screen: 'admin-academies', access: 'admin' },
   { path: '/admin/profissionais', screen: 'admin-trainers', access: 'admin' },
   { path: '/admin/clientes', screen: 'admin-customers', access: 'admin' },
