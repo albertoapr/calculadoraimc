@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { uploadAccountPhoto } from '../../services/accountProfileService'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import TrainerPageEditor from './TrainerPageEditor.vue'
 import PhoneVerification from './PhoneVerification.vue'
@@ -34,6 +35,58 @@ const referralLink = computed(() =>
     ? `https://fitpeso.com.br/cadastro/personal?ref=${encodeURIComponent(referralCode.value)}`
     : '',
 )
+const uploadingPhoto = ref(false)
+const photoStatus = ref('')
+const photoFailed = ref(false)
+async function changeProfilePhoto(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || uploadingPhoto.value) return
+  photoStatus.value = ''
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+    photoStatus.value = 'Selecione JPG, PNG ou WebP de até 10 MB.'
+    return
+  }
+  const type = editingProfileType.value
+  const getToken = () => type === 'trainer'
+    ? sessionStorage.getItem('fitpeso-trainer-session') ?? ''
+    : sessionStorage.getItem('fitpeso-customer-session') ?? sessionStorage.getItem('fitpeso-google-session') ?? ''
+  const token = getToken()
+  if (!token) { photoStatus.value = 'Entre novamente para alterar a foto.'; return }
+  uploadingPhoto.value = true
+  let bitmap: ImageBitmap | undefined
+  try {
+    bitmap = await createImageBitmap(file)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Não foi possível processar a foto.')
+    let imageBase64 = ''
+    for (const size of [256, 224, 192, 160, 128]) {
+      canvas.width = canvas.height = size
+      const side = Math.min(bitmap.width, bitmap.height)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size)
+      for (const quality of [0.85, 0.7, 0.55, 0.4]) {
+        const candidate = canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? ''
+        if (candidate && candidate.length <= 16384) { imageBase64 = candidate; break }
+      }
+      if (imageBase64) break
+    }
+    if (!imageBase64) throw new Error('Não foi possível reduzir o tamanho da foto.')
+    const url = await uploadAccountPhoto(type, token, imageBase64)
+    if (getToken() !== token || editingProfileType.value !== type) return
+    customerPhotoUrl.value = url
+    photoFailed.value = false
+    photoStatus.value = 'Foto de perfil atualizada.'
+  } catch (error) {
+    photoStatus.value = error instanceof Error ? error.message : 'Não foi possível atualizar a foto.'
+  } finally {
+    bitmap?.close()
+    uploadingPhoto.value = false
+  }
+}
 const referralShareStatus = ref('')
 async function shareTrainerReferral() {
   if (!referralLink.value) return
@@ -65,9 +118,16 @@ async function shareTrainerReferral() {
     </div>
     <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
     <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
-      <div v-if="editingProfileType === 'customer' && customerPhotoUrl" class="google-profile-photo field-wide">
-        <img :src="customerPhotoUrl" alt="Sua foto do Google" width="88" height="88" referrerpolicy="no-referrer" />
-        <div><strong>Foto do perfil Google</strong><small>Imagem vinculada à sua conta Google.</small><a :href="customerPhotoUrl" target="_blank" rel="noopener noreferrer">Abrir foto</a></div>
+      <div class="google-profile-photo field-wide">
+        <img v-if="customerPhotoUrl && !photoFailed" :src="customerPhotoUrl" alt="Sua foto de perfil" width="88" height="88" referrerpolicy="no-referrer" @error="photoFailed = true" />
+        <div v-else class="profile-photo-placeholder" aria-hidden="true">{{ editingProfile.name.charAt(0).toUpperCase() || '?' }}</div>
+        <div class="profile-photo-controls">
+          <strong>Foto de perfil</strong>
+          <small>A mesma foto é utilizada nos seus perfis.</small>
+          <label for="profile-photo-file" class="secondary-button">{{ uploadingPhoto ? 'Enviando foto…' : 'Alterar foto' }}</label>
+          <input id="profile-photo-file" type="file" accept="image/jpeg,image/png,image/webp" :disabled="uploadingPhoto || editingProfileSaving" @change="changeProfilePhoto" />
+          <small v-if="photoStatus" role="status">{{ photoStatus }}</small>
+        </div>
       </div>
       <label class="field field-wide" for="profile-name"
         ><span class="field-label">Nome completo</span>
@@ -203,7 +263,7 @@ async function shareTrainerReferral() {
         >Para alterar WhatsApp, e-mail ou endereço do perfil profissional, é necessária uma nova
         verificação com a Beta.</small
       >
-      <button class="primary-button field-wide" type="submit" :disabled="editingProfileSaving">
+      <button class="primary-button field-wide" type="submit" :disabled="editingProfileSaving || uploadingPhoto">
         {{ editingProfileSaving ? 'Salvando…' : 'Salvar alterações' }}
       </button>
     </form>
@@ -220,7 +280,10 @@ async function shareTrainerReferral() {
 .google-profile-photo img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); }
 .google-profile-photo div { display: flex; flex-direction: column; gap: 4px; }
 .google-profile-photo small { color: var(--muted); }
-.google-profile-photo a { color: var(--blue); font-size: 0.9rem; }
+.profile-photo-placeholder { width: 88px; height: 88px; border-radius: 50%; background: var(--line); align-items: center; justify-content: center; font-size: 30px; font-weight: 700; }
+.profile-photo-controls { flex: 1; min-width: 0; }
+.profile-photo-controls input { width: 100%; max-width: 100%; }
+.profile-photo-controls label { cursor: pointer; text-align: center; }
 .profile-activation { margin: 12px 0 20px; display: grid; gap: 8px; }
 .profile-activation p { margin: 0; color: var(--muted); }
 </style>

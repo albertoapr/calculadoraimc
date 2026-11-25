@@ -21,7 +21,7 @@ export async function loadPersonFields(
   if (!record.Item) throw new Error('PERSON_NOT_FOUND')
   return {
     name: record.Item.nome?.S || fallback.name,
-    googlePhotoUrl: record.Item.googlePhotoUrl?.S || fallback.googlePhotoUrl,
+    googlePhotoUrl: record.Item.profilePhoto?.S || record.Item.googlePhotoUrl?.S || fallback.googlePhotoUrl,
     dateOfBirth: record.Item.nascimento?.S || fallback.dateOfBirth,
   }
 }
@@ -74,5 +74,15 @@ export async function savePersonFields(pessoaId: string, name: string, dateOfBir
     UpdateExpression: expression,
     ConditionExpression: 'attribute_exists(pessoa_id)',
     ExpressionAttributeValues: values,
+  }))
+}
+
+/** Foto personalizada tem precedência sobre a foto Google, sem alterar o dado do provedor. */
+export async function savePersonPhoto(pessoaId: string, photo: string) {
+  await db.send(new UpdateItemCommand({
+    TableName: table(), Key: { pessoa_id: { S: pessoaId } },
+    UpdateExpression: 'SET profilePhoto = :photo',
+    ConditionExpression: 'attribute_exists(pessoa_id)',
+    ExpressionAttributeValues: { ':photo': { S: photo } },
   }))
 }

@@ -22,6 +22,7 @@ function toggleSection(section: ProfileSection) {
 
 <template>
   <div class="personal-public-page">
+    <img v-if="publicTrainer?.googlePhotoUrl" class="personal-avatar" :src="publicTrainer.googlePhotoUrl" :alt="'Foto de ' + publicTrainer.name" referrerpolicy="no-referrer" />
     <p v-if="publicTrainer?.tagline" class="personal-subtitle">{{ publicTrainer.tagline }}</p>
     <div v-if="publicTrainer?.bannerUpdatedAt" class="personal-banner">
       <img v-if="publicTrainerBanner" :src="publicTrainerBanner" :alt="`Banner de ${publicTrainer.name}`"
@@ -73,6 +74,7 @@ function toggleSection(section: ProfileSection) {
 
 <style scoped>
 .personal-public-page { width: 100%; }
+.personal-avatar { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 50%; margin: 10px auto; }
 .personal-subtitle { margin: 8px auto 16px; text-align: center; font-size: clamp(16px, 3.8vw, 21px); font-weight: 600; line-height: 1.35; color: var(--muted); }
 .personal-banner { width: 100%; aspect-ratio: 1069 / 594; overflow: hidden; border-radius: 10px; background: var(--line); margin-bottom: 18px; }
 .personal-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }

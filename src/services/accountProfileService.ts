@@ -55,3 +55,13 @@ export async function uploadTrainerBanner(token: string, imageBase64: string) {
     throw apiError(response, 'Não foi possível enviar o banner.')
   return response.body.bannerUpdatedAt
 }
+
+export async function uploadAccountPhoto(type: AccountProfileType, token: string, imageBase64: string) {
+  const resource = type === 'trainer' ? 'trainers' : 'customers'
+  const response = await requestApi<{ uploaded?: boolean; photoUrl?: string; error?: string }>(
+    `/api/${resource}/upload-photo`, { method: 'POST', token, body: { imageBase64 } },
+  )
+  if (!response.ok || !response.body.uploaded || !response.body.photoUrl)
+    throw apiError(response, 'Não foi possível atualizar a foto.')
+  return response.body.photoUrl
+}

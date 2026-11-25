@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { trainerInstagramUrl } from '../../utils/trainer'
 
 export type TrainerCardData = {
@@ -30,6 +30,7 @@ const profileUrl = computed(() =>
 )
 const photoUrl = computed(() => {
   const url = props.trainer.googlePhotoUrl ?? ''
+  if (url.length <= 16407 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) return url
   try {
     const parsed = new URL(url)
     return parsed.protocol === 'https:' &&
@@ -40,6 +41,7 @@ const photoUrl = computed(() => {
   }
 })
 const photoFailed = ref(false)
+watch(photoUrl, () => { photoFailed.value = false })
 const crefFeedback = ref('')
 async function copyCref() {
   const cref = props.trainer.cref?.trim()

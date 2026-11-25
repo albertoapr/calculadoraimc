@@ -1,4 +1,4 @@
-import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields } from './person-profile'
+import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
@@ -166,10 +166,10 @@ async function getPublicTrainerById(trainerId: string) {
   const profile = full.Item
   if (!profile || profile.active?.BOOL !== true) return null
   const shared = await loadPersonFields(profile.pessoa_id?.S, {
-    name, googlePhotoUrl: '', dateOfBirth: '',
+    name, googlePhotoUrl: googleProfilePhotoUrl(profile.googlePhotoUrl?.S), dateOfBirth: '',
   })
   return {
-    trainerId, name: shared.name, slug: profile.slug?.S ?? '',
+    trainerId, name: shared.name, googlePhotoUrl: shared.googlePhotoUrl, slug: profile.slug?.S ?? '',
     tagline: profile.tagline?.S ?? '',
     aboutMe: profile.aboutMe?.S ?? '',
     education: profile.education?.S ?? '',
@@ -523,7 +523,7 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 }
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
-  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') ||
+  return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') || event.resource?.endsWith('/customers/upload-photo') ||
     event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
     event.resource?.endsWith('/admin/customers') ||
     event.resource?.endsWith('/admin/customers/{customerId}')
@@ -1493,6 +1493,44 @@ async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0
 
 // Uploads are private S3 objects. The public image endpoint verifies that the
 // professional is active before returning the binary image.
+async function uploadProfilePhoto(event: Parameters<APIGatewayProxyHandler>[0], trainer: boolean) {
+  let pessoaId: string | undefined
+  if (trainer) {
+    const auth = await getTrainerSession(event)
+    if (auth.error) return auth.error
+    pessoaId = auth.legacyPessoaId
+    if (!pessoaId && auth.identityProof === 'WHATSAPP') {
+      const sync = await trySyncIdentity(() => syncWhatsappTrainerIdentity({
+        trainerId: auth.profile!.trainerId, city: auth.profile!.city,
+        whatsapp: auth.profile!.whatsapp, name: auth.profile!.name, email: auth.profile!.email,
+        pessoaId: auth.legacyPessoaId, identitySource: auth.legacyIdentitySource,
+      }))
+      pessoaId = sync.identity?.pessoaId
+    }
+  } else {
+    const auth = await getCustomerProfile(event)
+    if (auth.statusCode !== 200) return auth
+    pessoaId = (JSON.parse(auth.body) as { profile?: { identity?: { pessoaId?: string } } }).profile?.identity?.pessoaId
+  }
+  if (!pessoaId) return response(409, { error: 'Entre novamente para vincular seu cadastro antes de alterar a foto.' })
+  const raw = event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : event.body ?? ''
+  if (Buffer.byteLength(raw, 'utf8') > 18000) return response(413, { error: 'Foto muito grande.' })
+  let data: { imageBase64?: unknown } | null
+  try { data = JSON.parse(raw) } catch { return response(400, { error: 'Foto inválida.' }) }
+  if (typeof data?.imageBase64 !== 'string' || data.imageBase64.length > 16384 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(data.imageBase64)) return response(400, { error: 'Informe uma foto JPEG válida.' })
+  const bytes = Buffer.from(data.imageBase64, 'base64')
+  if (bytes.length < 100 || bytes.length > 12288 || bytes[0] !== 255 || bytes[1] !== 216 || bytes[2] !== 255 ||
+      bytes[bytes.length - 2] !== 255 || bytes[bytes.length - 1] !== 217) return response(400, { error: 'Foto JPEG inválida.' })
+  const photoUrl = 'data:image/jpeg;base64,' + bytes.toString('base64')
+  try {
+    await savePersonPhoto(pessoaId, photoUrl)
+    return response(200, { uploaded: true, photoUrl })
+  } catch {
+    return response(503, { error: 'Não foi possível salvar a foto.' })
+  }
+}
+
 async function uploadTrainerBanner(event: Parameters<APIGatewayProxyHandler>[0]) {
   const auth = await getTrainerSession(event)
   if (auth.error) return auth.error
@@ -2673,7 +2711,7 @@ async function getActiveTrainersForCity(city: string) {
             const personId = record.pessoa_id?.S
             if (personId) people.set(personId, {
               name: record.nome?.S?.trim() ?? '',
-              photo: googleProfilePhotoUrl(record.googlePhotoUrl?.S),
+              photo: record.profilePhoto?.S || googleProfilePhotoUrl(record.googlePhotoUrl?.S),
             })
           }
           pending = page.UnprocessedKeys?.[personTable]?.Keys ?? []
@@ -3725,6 +3763,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return completeBetaTrainerSignup(parseBody(event), (data) => isValidTrainerRegistration(data, true), registerTrainer)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/auth/verify-whatsapp-link'))
     return redeemWhatsAppLoginLink(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-photo')) return uploadProfilePhoto(event, true)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/upload-photo')) return uploadProfilePhoto(event, false)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
