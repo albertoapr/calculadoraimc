@@ -22,12 +22,12 @@ function toggleSection(section: ProfileSection) {
 
 <template>
   <div class="personal-public-page">
-    <p v-if="publicTrainer?.tagline" class="personal-subtitle">{{ publicTrainer.tagline }}</p>
     <div v-if="publicTrainer?.bannerUpdatedAt" class="personal-banner">
       <img v-if="publicTrainerBanner" :src="publicTrainerBanner" :alt="`Banner de ${publicTrainer.name}`"
         width="1069" height="594" decoding="async" />
       <div v-else class="personal-banner-loading">Carregando foto…</div>
     </div>
+    <p v-if="publicTrainer?.tagline" class="personal-subtitle">{{ publicTrainer.tagline }}</p>
 
     <div class="personal-info-accordion">
       <RequestAccordionItem
