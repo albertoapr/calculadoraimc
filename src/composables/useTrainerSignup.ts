@@ -213,7 +213,14 @@ export function useTrainerSignup(options: {
       } else {
         const body = await registerTrainer(payload, controller.signal)
         if (disposed || controller.signal.aborted) return
-        const message = `Confirmar personal Fitpeso ${body.verificationCode}\nWhatsApp: ${phone}\nNome: ${name}`
+        // Match the environment selection used by the WhatsApp login command.
+        const isDevelop =
+          window.location.hostname === 'develop.fitpeso.com.br' ||
+          (window.location.hostname !== 'fitpeso.com.br' &&
+            import.meta.env.VITE_FITPESO_BRANCH === 'develop')
+        const message = isDevelop
+          ? `/personal develop ${body.verificationCode}`
+          : `/personal ${body.verificationCode}`
         trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
         trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
       }
