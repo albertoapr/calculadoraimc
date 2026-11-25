@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { getPublicTrainerPhoto } from '../../services/profissionaisService'
 import { trainerInstagramUrl } from '../../utils/trainer'
 
 export type TrainerCardData = {
@@ -28,9 +29,19 @@ const instagramUrl = computed(() => trainerInstagramUrl(props.trainer.instagram 
 const profileUrl = computed(() =>
   props.trainer.slug ? `/personal/${encodeURIComponent(props.trainer.slug)}` : `/p/${encodeURIComponent(props.trainer.trainerId)}`,
 )
+const resolvedPhoto = ref('')
+watch(() => [props.trainer.trainerId, props.trainer.googlePhotoUrl] as const, ([trainerId, reference], _, onCleanup) => {
+  resolvedPhoto.value = ''
+  if (!reference?.startsWith('fitpeso-photo:')) return
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
+  void getPublicTrainerPhoto(trainerId, reference).then(url => {
+    if (!cancelled) resolvedPhoto.value = url
+  }).catch(() => undefined)
+}, { immediate: true })
 const photoUrl = computed(() => {
-  const url = props.trainer.googlePhotoUrl ?? ''
-  if (url.length <= 16407 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) return url
+  const url = resolvedPhoto.value || props.trainer.googlePhotoUrl || ''
+  if (url.length <= 87407 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url)) return url
   try {
     const parsed = new URL(url)
     return parsed.protocol === 'https:' &&

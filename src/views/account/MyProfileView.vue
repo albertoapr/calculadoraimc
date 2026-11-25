@@ -62,7 +62,7 @@ async function changeProfilePhoto(event: Event) {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Não foi possível processar a foto.')
     let imageBase64 = ''
-    for (const size of [256, 224, 192, 160, 128]) {
+    for (const size of [384, 320, 256, 224, 192, 160, 128]) {
       canvas.width = canvas.height = size
       const side = Math.min(bitmap.width, bitmap.height)
       ctx.fillStyle = '#ffffff'
@@ -70,7 +70,7 @@ async function changeProfilePhoto(event: Event) {
       ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size)
       for (const quality of [0.85, 0.7, 0.55, 0.4]) {
         const candidate = canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? ''
-        if (candidate && candidate.length <= 16384) { imageBase64 = candidate; break }
+        if (candidate && candidate.length <= 87380) { imageBase64 = candidate; break }
       }
       if (imageBase64) break
     }

@@ -85,3 +85,29 @@ export async function getPublicTrainerBanner(trainerId: string): Promise<string>
     throw apiError(response, 'Não foi possível carregar a foto do profissional.')
   return 'data:image/jpeg;base64,' + response.body.imageBase64
 }
+
+const photoCache = new Map<string, { expiresAt: number; url: string }>()
+const pendingPhotos = new Map<string, Promise<string>>()
+let photoQueue: Promise<unknown> = Promise.resolve()
+
+/** Resolve only the photo of a displayed trainer, through the existing active-profile endpoint. */
+export function getPublicTrainerPhoto(trainerId: string, reference: string): Promise<string> {
+  const key = trainerId + ':' + reference
+  const cached = photoCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.url)
+  const pending = pendingPhotos.get(key)
+  if (pending) return pending
+  const task = photoQueue.catch(() => undefined).then(async () => {
+    const profile = await getPublicTrainerProfile({ trainerId })
+    const url = profile.googlePhotoUrl ?? ''
+    if (url && !url.startsWith('fitpeso-photo:')) {
+      if (photoCache.size >= 200) photoCache.delete(photoCache.keys().next().value!)
+      photoCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, url })
+    }
+    return url
+  })
+  photoQueue = task
+  pendingPhotos.set(key, task)
+  void task.finally(() => pendingPhotos.delete(key)).catch(() => undefined)
+  return task
+}

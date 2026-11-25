@@ -1,4 +1,4 @@
-import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto } from './person-profile'
+import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
@@ -1514,17 +1514,17 @@ async function uploadProfilePhoto(event: Parameters<APIGatewayProxyHandler>[0], 
   }
   if (!pessoaId) return response(409, { error: 'Entre novamente para vincular seu cadastro antes de alterar a foto.' })
   const raw = event.isBase64Encoded && event.body ? Buffer.from(event.body, 'base64').toString('utf8') : event.body ?? ''
-  if (Buffer.byteLength(raw, 'utf8') > 18000) return response(413, { error: 'Foto muito grande.' })
+  if (Buffer.byteLength(raw, 'utf8') > 90000) return response(413, { error: 'Foto muito grande.' })
   let data: { imageBase64?: unknown } | null
   try { data = JSON.parse(raw) } catch { return response(400, { error: 'Foto inválida.' }) }
-  if (typeof data?.imageBase64 !== 'string' || data.imageBase64.length > 16384 ||
+  if (typeof data?.imageBase64 !== 'string' || data.imageBase64.length > 87384 ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(data.imageBase64)) return response(400, { error: 'Informe uma foto JPEG válida.' })
   const bytes = Buffer.from(data.imageBase64, 'base64')
-  if (bytes.length < 100 || bytes.length > 12288 || bytes[0] !== 255 || bytes[1] !== 216 || bytes[2] !== 255 ||
+  if (bytes.length < 100 || bytes.length > 65536 || bytes[0] !== 255 || bytes[1] !== 216 || bytes[2] !== 255 ||
       bytes[bytes.length - 2] !== 255 || bytes[bytes.length - 1] !== 217) return response(400, { error: 'Foto JPEG inválida.' })
   const photoUrl = 'data:image/jpeg;base64,' + bytes.toString('base64')
   try {
-    await savePersonPhoto(pessoaId, photoUrl)
+    await savePersonPhoto(pessoaId, bytes)
     return response(200, { uploaded: true, photoUrl })
   } catch {
     return response(503, { error: 'Não foi possível salvar a foto.' })
@@ -2711,7 +2711,7 @@ async function getActiveTrainersForCity(city: string) {
             const personId = record.pessoa_id?.S
             if (personId) people.set(personId, {
               name: record.nome?.S?.trim() ?? '',
-              photo: record.profilePhoto?.S || googleProfilePhotoUrl(record.googlePhotoUrl?.S),
+              photo: personPhotoReference(record) || googleProfilePhotoUrl(record.googlePhotoUrl?.S),
             })
           }
           pending = page.UnprocessedKeys?.[personTable]?.Keys ?? []

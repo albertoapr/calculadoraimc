@@ -23,6 +23,16 @@ const trainerBanners = new s3.Bucket(requestStack, 'FitpesoTrainerBanners', {
   lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
 })
 backend.imcSubmit.addEnvironment('TRAINER_BANNERS_BUCKET', trainerBanners.bucketName)
+// Fotos de perfil são compartilhadas entre cliente e personal, mas separadas dos banners.
+const profilePhotos = new s3.Bucket(requestStack, 'FitpesoProfilePhotos', {
+  blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+  encryption: s3.BucketEncryption.S3_MANAGED,
+  enforceSSL: true,
+  removalPolicy: RemovalPolicy.RETAIN,
+  autoDeleteObjects: false,
+  lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+})
+backend.imcSubmit.addEnvironment('PROFILE_PHOTOS_BUCKET', profilePhotos.bucketName)
 const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   partitionKey: { name: 'city', type: dynamodb.AttributeType.STRING },
   sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
@@ -258,6 +268,7 @@ lambdaRole.addManagedPolicy(profileDataPolicy)
 lambdaRole.addManagedPolicy(bannerDataPolicy)
 
 trainerBanners.grantReadWrite(bannerDataPolicy)
+profilePhotos.grantReadWrite(bannerDataPolicy)
 for (const [table, envName] of newDataTables) {
   backend.imcSubmit.addEnvironment(envName, table.tableName)
 }
