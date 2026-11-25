@@ -2,6 +2,14 @@ import { reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Sex } from '../types/domain'
 
+export function trainingDate(offset = 0): string {
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const date = new Date(today + 'T00:00:00Z')
+  date.setUTCDate(date.getUTCDate() + offset)
+  return date.toISOString().slice(0, 10)
+}
+
+
 /** Training preferences are restored within the same browser session; credentials and contacts are excluded. */
 export const useTrainingDraft = defineStore('trainingDraft', () => {
   const form = reactive({
@@ -23,6 +31,8 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
     trainerGenderPreference: 'indiferente' as 'indiferente' | 'feminino' | 'masculino',
     desiredDuration: '1 mês',
     singleLesson: false,
+    singleLessonCount: 1,
+    preferredStartDate: trainingDate(3),
     withCompanion: false,
     attendsGym: false,
     gymName: '',
@@ -47,6 +57,8 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
     'trainerGenderPreference',
     'desiredDuration',
     'singleLesson',
+    'singleLessonCount',
+    'preferredStartDate',
     'withCompanion',
     'attendsGym',
     'gymName',
