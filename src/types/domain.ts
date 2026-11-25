@@ -35,6 +35,8 @@ export type TrainerRequestDetails = {
   objective?: string
   desiredDuration?: string
   singleLesson?: boolean
+  singleLessonCount?: number
+  preferredStartDate?: string
   withCompanion?: boolean
   attendsGym: boolean
   gymName?: string
@@ -174,6 +176,8 @@ export type AdminTrainer = {
 }
 
 export type CustomerRequest = {
+  singleLessonCount?: number
+  preferredStartDate?: string
   requestId: string
   city: string
   objective?: string
