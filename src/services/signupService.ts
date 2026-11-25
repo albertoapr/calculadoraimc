@@ -1,3 +1,4 @@
+import type { AcademyWrite } from './academiesService'
 import { apiError, requestApi } from './http/apiClient'
 
 export type CustomerSignupInput = {
@@ -18,6 +19,7 @@ export type TrainerSignupInput = {
   email?: string
   cities: string[]
   academias: string[]
+  newAcademies?: AcademyWrite[]
   instagram: string
   cref?: string
   referralCode?: string

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import {
   DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand,
-  TransactWriteItemsCommand, UpdateItemCommand, type AttributeValue,
+  TransactWriteItemsCommand, UpdateItemCommand, type AttributeValue, type TransactWriteItem,
 } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyHandler } from 'aws-lambda'
 
@@ -35,7 +35,9 @@ function readBody(event: Event) {
   try { return JSON.parse(bodyText) as Record<string, unknown> } catch { return null }
 }
 function parseAcademy(event: Event) {
-  const body = readBody(event)
+  return parseAcademyFields(readBody(event))
+}
+function parseAcademyFields(body: Record<string, unknown> | null) {
   const name = textField(body?.name, 80)
   const city = textField(body?.city, 50)
   const neighborhood = textField(body?.neighborhood, 80)
@@ -224,4 +226,60 @@ export async function deactivateAcademy(event: Event) {
     if (failedConditional(error)) return reply(404, { error: 'Academia não encontrada.' })
     return reply(503, { error: 'Não foi possível inativar a academia.' })
   }
+}
+
+type SignupAcademy = NonNullable<ReturnType<typeof parseAcademyFields>>
+export function parseSignupAcademies(raw: unknown, cities: string[], labels: string[]): SignupAcademy[] | null {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw) || raw.length > 5) return null
+  const result: SignupAcademy[] = []
+  const keys = new Set<string>()
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
+    const academy = parseAcademyFields(entry as Record<string, unknown>)
+    if (!academy || !cities.includes(academy.city) || !labels.includes(academy.name + ' — ' + academy.neighborhood)) return null
+    const key = keyFor(academy)
+    if (keys.has(key)) return null
+    keys.add(key)
+    result.push({ ...academy, active: true })
+  }
+  return result
+}
+
+// Only called after verified WhatsApp proof; writes join the trainer activation transaction.
+export async function planSignupAcademies(academies: SignupAcademy[], verifiedPhone: string) {
+  const writes: TransactWriteItem[] = []
+  const ids: string[] = []
+  if (!academies.length) return { writes, ids }
+  const tableName = table()
+  if (!tableName) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  for (const academy of academies) {
+    const lockId = keyFor(academy)
+    const lock = await client.send(new GetItemCommand({ TableName: tableName, Key: { academyId: { S: lockId } }, ConsistentRead: true }))
+    const owner = lock.Item?.ownerAcademyId?.S
+    if (owner) {
+      const existing = await client.send(new GetItemCommand({ TableName: tableName, Key: { academyId: { S: owner } }, ConsistentRead: true }))
+      if (existing.Item?.active?.BOOL !== true) throw new Error('SIGNUP_ACADEMY_INACTIVE')
+      ids.push(owner)
+      continue
+    }
+    // Existing imported records may predate the uniqueness lock.
+    const legacy = (await queryCity(tableName, academy.city)).find(item => keyFor({
+      name: item.name?.S ?? '', city: item.city?.S ?? '', neighborhood: item.neighborhood?.S ?? '',
+    }) === lockId)
+    const legacyId = legacy?.academyId?.S
+    if (legacyId) {
+      if (legacy?.active?.BOOL !== true) throw new Error('SIGNUP_ACADEMY_INACTIVE')
+      writes.push({ Put: { TableName: tableName, Item: lockItem(lockId, legacyId), ConditionExpression: 'attribute_not_exists(academyId)' } })
+      ids.push(legacyId)
+      continue
+    }
+    const id = randomUUID()
+    writes.push(
+      { Put: { TableName: tableName, Item: lockItem(lockId, id), ConditionExpression: 'attribute_not_exists(academyId)' } },
+      { Put: { TableName: tableName, Item: { ...toItem(id, academy, new Date().toISOString(), verifiedPhone), source: { S: 'TRAINER_SIGNUP' } }, ConditionExpression: 'attribute_not_exists(academyId)' } },
+    )
+    ids.push(id)
+  }
+  return { writes, ids }
 }

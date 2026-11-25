@@ -1,7 +1,7 @@
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields } from './person-profile'
 import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
-import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy } from './academies'
+import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
@@ -216,6 +216,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null, allowM
       (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
     (data.academias === undefined || validAcademias(data.academias)) &&
+    (data.newAcademies === undefined || (Array.isArray(cities) && Array.isArray(data.academias) && parseSignupAcademies(data.newAcademies, cities, data.academias) !== null)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
     new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
 }
@@ -1913,12 +1914,13 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   if (!matchingSignup) throw new TrainerSlugUnavailableError()
 
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
+  const newAcademies = parseSignupAcademies(data.newAcademies, cities, academias) ?? []
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
       {
         Put: {
           TableName: requestCodesTable,
-          Item: challenge.item,
+          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       },
@@ -2001,10 +2003,11 @@ async function registerTrainer(
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
   // The academy ID is trusted only when confirmed by the server before issuing the Beta token
   // and still active in the selected city at the moment the profile is saved.
-  const verifiedAcademyIds = betaSignup?.academyId && betaSignup.academyName &&
+  const betaAcademyIds = betaSignup?.academyId && betaSignup.academyName &&
     betaSignup.academyCity && cities.includes(betaSignup.academyCity) &&
     academias.includes(betaSignup.academyName)
     ? (await resolveRegisteredAcademies([betaSignup.academyId], cities)).ids : []
+  const newAcademies = parseSignupAcademies(data.newAcademies, cities, academias) ?? []
   const trainerId = randomBytes(16).toString('hex')
   const referredByTrainerId = await resolveReferringTrainer(data.referralCode)
   const submittedAt = String(Math.floor(Date.now() / 1000))
@@ -2021,13 +2024,16 @@ async function registerTrainer(
     if (betaSignup) throw new TrainerSlugUnavailableError()
     return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
   }
+  const academyPlan = betaSignup ? await planSignupAcademies(newAcademies, whatsapp) : { writes: [], ids: [] }
+  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids])]
 
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
+      ...academyPlan.writes,
       ...(!betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
-          Item: challenge.item,
+          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       }] : [{
@@ -2955,9 +2961,24 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const confirmedName = trainerRecord.Item?.whatsapp?.S === whatsapp ? trainerRecord.Item.name?.S ?? '' : ''
     if (item.consumedAt?.N) return response(200, { verified: true, slug, whatsapp, name: confirmedName })
     if (!item.expiresAt?.N || Number(item.expiresAt.N) <= now) return response(200, { verified: false })
+    const signupAcademias: string[] = item.signupAcademias?.S ? JSON.parse(item.signupAcademias.S) : []
+    const newAcademies = parseSignupAcademies(item.newAcademies?.S ? JSON.parse(item.newAcademies.S) : undefined, cities, signupAcademias)
+    if (!newAcademies) return response(400, { verified: false, error: 'Confira as academias informadas.' })
+    const academyPlan = await planSignupAcademies(newAcademies, whatsapp)
+    const academyIds = [...new Set(academyPlan.ids)]
+    const linksTable = process.env.TRAINER_ACADEMIES_TABLE
+    if (academyIds.length && !linksTable) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
 
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
+        ...academyPlan.writes,
+        ...academyIds.map(academyId => ({
+          Put: {
+            TableName: linksTable!,
+            Item: { trainerId: { S: trainerId }, academyId: { S: academyId } },
+            ConditionExpression: 'attribute_not_exists(trainerId) AND attribute_not_exists(academyId)',
+          },
+        })),
         {
           Update: {
             TableName: codesTable,
@@ -2976,7 +2997,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
           Update: {
             TableName: trainersTable,
             Key: { city: { S: city }, trainerId: { S: trainerId } },
-            UpdateExpression: 'SET active = :active, #status = :status, whatsappVerified = :verified, whatsappVerifiedAt = :now',
+            UpdateExpression: 'SET active = :active, #status = :status, whatsappVerified = :verified, whatsappVerifiedAt = :now' + (academyIds.length ? ', academias = :academias, academyIds = :academyIds' : ''),
             ConditionExpression: 'whatsapp = :whatsapp AND active = :inactive AND #status IN (:legacyPending, :pendingVerification)',
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: {
@@ -2985,6 +3006,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
               ':status': { S: 'active' },
               ':legacyPending': { S: 'pending' },
               ':pendingVerification': { S: 'pending_verification' },
+              ...(academyIds.length ? { ':academias': { L: signupAcademias.map(name => ({ S: name })) }, ':academyIds': { L: academyIds.map(id => ({ S: id })) } } : {}),
               ':verified': { BOOL: true },
               ':whatsapp': { S: whatsapp },
               ':now': { N: String(now) },

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { AcademyWrite } from '../../services/academiesService'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
@@ -28,13 +29,19 @@ const {
 const signupCity = ref('')
 const signupAcademyId = ref('')
 const cityByAcademy = ref<Record<string, string>>({})
+const newAcademies = ref<AcademyWrite[]>([])
+const addingAcademy = ref(false)
+const newAcademyName = ref('')
+const newAcademyNeighborhood = ref('')
+const academyCreateError = ref('')
+const academyChoices = computed(() => [...registeredAcademies.value, ...newAcademies.value.map((academy, index) => ({ ...academy, academyId: `draft-${index}`, state: 'RJ', createdAt: '', updatedAt: '' }))])
 const academyLabel = (academy: { name: string; neighborhood: string }) => `${academy.name} — ${academy.neighborhood}`
-const signupOptions = computed(() => registeredAcademies.value
+const signupOptions = computed(() => academyChoices.value
   .filter(academy => academy.city === signupCity.value)
   .sort((a, b) => academyLabel(a).localeCompare(academyLabel(b), 'pt-BR')))
-watch(signupCity, () => { signupAcademyId.value = '' })
+watch(signupCity, () => { signupAcademyId.value = ''; addingAcademy.value = false; academyCreateError.value = '' })
 function cityForAcademy(name: string) {
-  const matches = registeredAcademies.value.filter(academy => academyLabel(academy) === name || academy.name === name)
+  const matches = academyChoices.value.filter(academy => academyLabel(academy) === name || academy.name === name)
   return matches.find(academy => academy.city === cityByAcademy.value[name])?.city ??
     (matches.length === 1 ? matches[0]?.city : matches.find(academy => trainerForm.cities.includes(academy.city))?.city)
 }
@@ -55,6 +62,33 @@ function addSignupAcademy() {
   trainerForm.cities = [...actingCities.value]
   signupAcademyId.value = ''
 }
+function saveNewAcademy() {
+  const name = newAcademyName.value.trim().replace(/\s+/g, ' ')
+  const neighborhood = newAcademyNeighborhood.value.trim().replace(/\s+/g, ' ')
+  const city = signupCity.value
+  academyCreateError.value = ''
+  if (!city || name.length < 2 || neighborhood.length < 2 || name.length + neighborhood.length + 3 > 60) {
+    academyCreateError.value = 'Informe nome e bairro válidos (até 60 caracteres juntos, incluindo o separador).'
+    return
+  }
+  if (trainerForm.academias.length >= 5 || (!actingCities.value.includes(city) && actingCities.value.length >= 2)) {
+    academyCreateError.value = 'Limite de cinco academias e duas cidades de atuação.'
+    return
+  }
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+  const existing = academyChoices.value.find(academy => academy.city === city &&
+    normalize(academy.name) === normalize(name) && normalize(academy.neighborhood) === normalize(neighborhood))
+  if (existing) {
+    signupAcademyId.value = existing.academyId
+  } else {
+    newAcademies.value.push({ name, city, neighborhood, address: '', zipCode: '', active: true })
+    signupAcademyId.value = 'draft-' + (newAcademies.value.length - 1)
+  }
+  addSignupAcademy()
+  addingAcademy.value = false
+  newAcademyName.value = ''
+  newAcademyNeighborhood.value = ''
+}
 function removeSignupAcademy(index: number) {
   const name = trainerForm.academias[index]
   if (name) delete cityByAcademy.value[name]
@@ -68,7 +102,11 @@ function submitSignup() {
     return
   }
   trainerForm.cities = [...actingCities.value]
-  void sendTrainerSignup()
+  if (addingAcademy.value) {
+    academyCreateError.value = 'Salve ou cancele a nova academia antes de concluir.'
+    return
+  }
+  void sendTrainerSignup(newAcademies.value.filter(academy => trainerForm.academias.includes(academyLabel(academy))))
 }
 </script>
 
@@ -211,6 +249,23 @@ function submitSignup() {
           </select>
           <button type="button" class="secondary-button" :disabled="!canAdd" @click="addSignupAcademy">Adicionar</button>
         </div>
+        <button type="button" class="secondary-button signup-new-academy-button" :disabled="!signupCity || academiesLoading || Boolean(academiesError) || trainerSubmitting || trainerForm.academias.length >= 5" @click="addingAcademy = !addingAcademy; academyCreateError = ''">
+          + Cadastrar academia
+        </button>
+        <div v-if="addingAcademy" class="signup-new-academy">
+          <p>Não encontrou sua academia em {{ signupCity }}? Informe os dados abaixo. Ela será cadastrada após a confirmação do seu WhatsApp.</p>
+          <label class="field field-wide" for="signup-new-academy-name">
+            <span class="field-label">Nome da academia</span>
+            <input id="signup-new-academy-name" v-model="newAcademyName" maxlength="55" autocomplete="organization" @keydown.enter.prevent="saveNewAcademy" />
+          </label>
+          <label class="field field-wide" for="signup-new-academy-neighborhood">
+            <span class="field-label">Bairro</span>
+            <input id="signup-new-academy-neighborhood" v-model="newAcademyNeighborhood" maxlength="55" @keydown.enter.prevent="saveNewAcademy" />
+          </label>
+          <button type="button" class="primary-button" @click="saveNewAcademy">Adicionar academia</button>
+          <button type="button" class="secondary-button" @click="addingAcademy = false; academyCreateError = ''">Cancelar</button>
+          <p v-if="academyCreateError" role="alert">{{ academyCreateError }}</p>
+        </div>
         <small v-if="signupCity && !academiesLoading && !academiesError && !signupOptions.length">Nenhuma academia cadastrada nesta cidade.</small>
         <div v-for="(gym, index) in trainerForm.academias" :key="gym" class="public-academy-item">
           <span>{{ gym }} — {{ cityForAcademy(gym) || 'Cidade não identificada' }}</span>
@@ -322,6 +377,11 @@ function submitSignup() {
 </template>
 
 <style scoped>
+.signup-new-academy-button { width: 100%; margin-top: 8px; }
+.signup-new-academy { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 10px; min-width: 0; }
+.signup-new-academy input { width: 100%; min-width: 0; }
+.signup-new-academy p { margin: 0; }
+
 .trainer-signup-screen :deep(.fitpeso-home-topbar) {
   margin-bottom: 0;
 }

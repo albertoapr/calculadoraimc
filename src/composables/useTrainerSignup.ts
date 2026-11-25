@@ -1,4 +1,5 @@
 import { computed, onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
+import type { AcademyWrite } from '../services/academiesService'
 import { registerTrainer, redeemBetaTrainerSignup, completeBetaTrainerSignup } from '../services/signupService'
 import {
   isValidBirthDate,
@@ -136,7 +137,7 @@ export function useTrainerSignup(options: {
       .replace(/-+$/g, '')
   }
 
-  async function sendTrainerSignup() {
+  async function sendTrainerSignup(newAcademies: AcademyWrite[] = []) {
     if (disposed || trainerSubmitting.value) return
     trainerStatus.value = ''
     trainerVerificationLink.value = ''
@@ -194,6 +195,7 @@ export function useTrainerSignup(options: {
         ...(email ? { email } : {}),
         cities: [...trainerForm.cities],
         academias: [...trainerForm.academias],
+        ...(newAcademies.length ? { newAcademies } : {}),
         instagram,
         ...(cref ? { cref } : {}),
         ...(referralCode.value ? { referralCode: referralCode.value } : {}),
