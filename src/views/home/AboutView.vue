@@ -1,6 +1,6 @@
 <template>
   <section class="fitpeso-about-page" aria-labelledby="page-title">
-    <p>O FitPeso conecta pessoas que desejam treinar a profissionais de Educação Física.</p>
+    <p>A FitPeso conecta pessoas que desejam treinar a profissionais de Educação Física.</p>
     <p>
       Nossa proposta é facilitar a busca por acompanhamento profissional, com opções para
       diferentes objetivos, bolsos e rotinas.
@@ -66,8 +66,14 @@
 
 <style scoped>
 .fitpeso-about-page {
-  line-height: 1.6;
+  font-size: 17px;
+  line-height: 1.65;
   overflow-wrap: anywhere;
+}
+.fitpeso-about-page p,
+.fitpeso-about-page li {
+  font-size: inherit;
+  line-height: inherit;
 }
 .fitpeso-about-page p {
   margin: 0 0 12px;
@@ -79,7 +85,7 @@
 }
 .about-chapter h2 {
   margin: 0 0 10px;
-  font-size: 19px;
+  font-size: 22px;
   line-height: 1.3;
   color: var(--ink);
 }

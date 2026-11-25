@@ -131,11 +131,12 @@ watch(viewMode, (mode) => {
         (viewMode !== 'home' || result)
       "
       id="page-title"
+      :class="{ 'about-page-title': viewMode === 'about' }"
     >
       <button type="button" class="title-back-button" aria-label="Voltar" @click="goBackFromTitle">
         &lt;
       </button>
-      <svg class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
+      <svg v-if="viewMode !== 'about'" class="scale-icon" viewBox="0 0 40 40" aria-hidden="true">
         <rect x="6" y="4" width="28" height="32" rx="6" />
         <rect x="12" y="9" width="16" height="8" rx="2" />
         <path d="M20 11v3m-2-1h4M12 22h16m-16 5h16m-16 5h10" />
@@ -144,7 +145,7 @@ watch(viewMode, (mode) => {
         viewMode === 'select-trainers'
           ? 'Solicitar treinamento'
           : viewMode === 'about'
-            ? 'Sobre o FitPeso'
+            ? 'Sobre a FitPeso'
             : viewMode === 'trainer-request'
               ? 'Solicitação de atendimento'
               : viewMode === 'customer-requests'
@@ -177,6 +178,11 @@ watch(viewMode, (mode) => {
 </template>
 
 <style scoped>
+.about-page-title {
+  font-size: clamp(30px, 7vw, 38px);
+  line-height: 1.2;
+}
+
 .personal-page-heading {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) 40px;
