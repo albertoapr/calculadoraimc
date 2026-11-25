@@ -40,6 +40,8 @@ const {
                   : 'Recebendo propostas'
         }}
       </p>
+      <p v-if="request.singleLessonCount">Aulas avulsas: {{ request.singleLessonCount }}</p>
+      <p v-if="request.preferredStartDate">Data inicial pretendida: {{ request.preferredStartDate.split('-').reverse().join('/') }}</p>
       <p v-if="request.acceptedAt">
         Atendimento iniciado em {{ new Date(request.acceptedAt).toLocaleString('pt-BR') }}.
       </p>
