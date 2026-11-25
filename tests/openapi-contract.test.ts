@@ -43,3 +43,15 @@ test('contrato OpenAPI é importável por ferramentas e agentes', async () => {
   assert.ok(operationCount >= 45)
   assert.equal(source.includes('TRAINER_WHATSAPP_VERIFY_SECRET'), false)
 })
+
+test('notificações de propostas são operações internas e confirmadas por proposta', async () => {
+  const { paths } = JSON.parse(await readFile(new URL('../public/openapi.json', import.meta.url), 'utf8'))
+  const list = paths['/api/requests/proposal-notifications'].get
+  const ack = paths['/api/requests/proposal-notified'].post
+  for (const operation of [list, ack]) {
+    assert.equal(operation['x-internal'], true)
+    assert.deepEqual(operation.security, [{ IntegrationSecret: [] }])
+  }
+  assert.deepEqual(ack.requestBody.content['application/json'].schema.required, ['requestId', 'trainerId'])
+  assert.ok(list.responses['200'].content['application/json'].schema.properties.proposals.items.properties.notificationId)
+})

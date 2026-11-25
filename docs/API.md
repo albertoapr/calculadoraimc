@@ -61,3 +61,11 @@ Este contrato e a camada HTTP criam a base, mas uma API comercial ainda precisa 
 6. política de compatibilidade, webhooks e ambiente sandbox.
 
 Esses controles devem entrar antes de liberar operações de escrita para terceiros.
+
+## Notificação de nova proposta (Beta)
+
+A cada proposta gravada com sucesso, o backend registra uma notificação pendente na mesma transação. A integração Beta deve consultar `GET /api/requests/proposal-notifications` com o cabeçalho de integração já utilizado para as solicitações. Use o endpoint de cada ambiente separadamente.
+
+Para cada item em `proposals`, envie ao número `clientPhone` a mensagem: “FitPeso: você recebeu uma nova proposta de um personal trainer! Acesse suas solicitações para conferir: <url>”. O link exige login do cliente. Não inclua contatos dos profissionais na mensagem.
+
+Após o envio bem-sucedido, execute `POST /api/requests/proposal-notified` com JSON `{"requestId":"...","trainerId":"..."}`. Se o envio falhar, não confirme; a proposta válida continuará pendente. Use `notificationId` como chave de deduplicação persistente (separada por ambiente), inclusive em caso de falha na confirmação. Execute um único consumidor por ambiente para evitar envios concorrentes. Não notifique propostas antigas sem o marcador pendente, expiradas ou encerradas. A API não envia WhatsApp diretamente; a rotina de polling da Beta precisa consumir essas operações.

@@ -5440,6 +5440,254 @@
           }
         }
       }
+    },
+    "/api/requests/proposal-notifications": {
+      "get": {
+        "operationId": "listProposalNotificationsForIntegration",
+        "summary": "Listar novas propostas pendentes de notificação ao cliente",
+        "tags": [
+          "Integração"
+        ],
+        "x-internal": true,
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "proposals"
+                  ],
+                  "properties": {
+                    "proposals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "notificationId",
+                          "requestId",
+                          "trainerId",
+                          "clientPhone",
+                          "trainerName",
+                          "url"
+                        ],
+                        "properties": {
+                          "notificationId": {
+                            "type": "string"
+                          },
+                          "requestId": {
+                            "type": "string"
+                          },
+                          "trainerId": {
+                            "type": "string"
+                          },
+                          "clientPhone": {
+                            "type": "string"
+                          },
+                          "trainerName": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operação não autorizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Regra de negócio não atendida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Serviço temporariamente indisponível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Retorna propostas válidas ainda não notificadas. A Beta deve enviar o WhatsApp e confirmar usando proposal-notified. Use notificationId para deduplicar."
+      }
+    },
+    "/api/requests/proposal-notified": {
+      "post": {
+        "operationId": "markProposalNotified",
+        "summary": "Confirmar envio de notificação de proposta",
+        "tags": [
+          "Integração"
+        ],
+        "x-internal": true,
+        "security": [
+          {
+            "IntegrationSecret": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "notified"
+                  ],
+                  "properties": {
+                    "notified": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sessão ausente ou inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operação não autorizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposta inexistente ou sem notificação pendente"
+          },
+          "422": {
+            "description": "Regra de negócio não atendida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erro interno",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Serviço temporariamente indisponível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Operação idempotente. Chamar somente após envio bem-sucedido pelo WhatsApp.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "requestId",
+                  "trainerId"
+                ],
+                "properties": {
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "trainerId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

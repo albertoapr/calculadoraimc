@@ -89,6 +89,16 @@ const fitpesoProposals = new dynamodb.Table(requestStack, 'FitpesoProposals', {
   timeToLiveAttribute: 'expiresAt',
   removalPolicy: RemovalPolicy.RETAIN,
 })
+fitpesoProposals.addGlobalSecondaryIndex({
+  indexName: 'ProposalsByNotificationStatus',
+  partitionKey: { name: 'notificationStatus', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'validUntil', type: dynamodb.AttributeType.NUMBER },
+  projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+})
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${fitpesoProposals.tableArn}/index/ProposalsByNotificationStatus`],
+}))
 const fitpesoAtendimentos = new dynamodb.Table(requestStack, 'FitpesoAtendimentos', {
   partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -389,6 +399,8 @@ requestsResource.addResource('verify-whatsapp').addMethod('POST', lambdaIntegrat
 requestsResource.addResource('valid').addMethod('GET', lambdaIntegration())
 requestsResource.addResource('proposals').addMethod('POST', lambdaIntegration())
 requestsResource.addResource('accepted-notifications').addMethod('GET', lambdaIntegration())
+requestsResource.addResource('proposal-notifications').addMethod('GET', lambdaIntegration())
+requestsResource.addResource('proposal-notified').addMethod('POST', lambdaIntegration())
 const requestIdResource = requestsResource.addResource('{requestId}')
 requestIdResource.addResource('processed').addMethod('POST', lambdaIntegration())
 requestIdResource.addResource('accept').addMethod('POST', lambdaIntegration())

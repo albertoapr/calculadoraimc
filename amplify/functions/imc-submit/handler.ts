@@ -3208,7 +3208,7 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
       } },
       { Put: {
         TableName: proposalsTable,
-        Item: { requestId: { S: claims.requestId }, trainerId: { S: claims.trainerId }, trainerName: { S: trainer.name?.S ?? '' }, trainerWhatsapp: { S: normalizePhone(trainer.whatsapp?.S) }, ...(trainer.instagram?.S ? { trainerInstagram: { S: trainer.instagram.S } } : {}), monthlyPrice: { N: monthlyPrice.toFixed(2) }, ...(message ? { message: { S: message } } : {}), status: { S: 'OPEN' }, createdAt: { S: new Date(now * 1000).toISOString() }, validUntil: { N: String(validUntil) }, expiresAt: { N: String(validUntil) } },
+        Item: { requestId: { S: claims.requestId }, trainerId: { S: claims.trainerId }, trainerName: { S: trainer.name?.S ?? '' }, trainerWhatsapp: { S: normalizePhone(trainer.whatsapp?.S) }, ...(trainer.instagram?.S ? { trainerInstagram: { S: trainer.instagram.S } } : {}), notificationStatus: { S: 'PENDING' }, monthlyPrice: { N: monthlyPrice.toFixed(2) }, ...(message ? { message: { S: message } } : {}), status: { S: 'OPEN' }, createdAt: { S: new Date(now * 1000).toISOString() }, validUntil: { N: String(validUntil) }, expiresAt: { N: String(validUntil) } },
         ConditionExpression: 'attribute_not_exists(requestId) AND attribute_not_exists(trainerId)',
       } },
     ] }))
@@ -3463,6 +3463,71 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
     if (error instanceof TransactionCanceledException) return response(409, { error: 'A solicitação ou proposta já foi encerrada.' })
     console.error('[imc-submit] Proposal acceptance failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível aceitar a proposta agora.' })
+  }
+}
+
+async function listProposalNotifications() {
+  const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
+  const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
+  if (!proposalsTable || !requestTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const now = Math.floor(Date.now() / 1000)
+  const proposals: Array<{ notificationId: string; requestId: string; trainerId: string; clientPhone: string; trainerName: string; url: string }> = []
+  let cursor: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue> | undefined
+  try {
+    const url = new URL('/minhas-solicitacoes', process.env.FITPESO_WHATSAPP_LOGIN_URL).toString()
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: proposalsTable,
+        IndexName: 'ProposalsByNotificationStatus',
+        KeyConditionExpression: 'notificationStatus = :pending AND validUntil > :now',
+        ExpressionAttributeValues: { ':pending': { S: 'PENDING' }, ':now': { N: String(now) } },
+        ExclusiveStartKey: cursor,
+        Limit: 50,
+      }))
+      for (const candidate of page.Items ?? []) {
+        const requestId = candidate.requestId?.S
+        const trainerId = candidate.trainerId?.S
+        if (!requestId || !trainerId) continue
+        // O índice é eventualmente consistente; confirme o estado atual antes de retornar.
+        const [proposalResult, requestResult] = await Promise.all([
+          dynamodb.send(new GetItemCommand({ TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: trainerId } }, ConsistentRead: true })),
+          dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: requestId } }, ConsistentRead: true })),
+        ])
+        const proposal = proposalResult.Item
+        const request = requestResult.Item
+        const clientPhone = normalizePhone(request?.clientPhone?.S)
+        if (!clientPhone || proposal?.notificationStatus?.S !== 'PENDING' || proposal.status?.S !== 'OPEN' ||
+            Number(proposal.validUntil?.N ?? 0) <= now || !['OPEN', 'CLOSED'].includes(request?.lifecycle?.S ?? '')) continue
+        proposals.push({ notificationId: requestId + ':' + trainerId, requestId, trainerId, clientPhone, trainerName: proposal.trainerName?.S ?? '', url })
+      }
+      cursor = page.LastEvaluatedKey
+    } while (cursor && proposals.length < 50)
+    return response(200, { proposals })
+  } catch (error) {
+    console.error('[imc-submit] Proposal notification lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar as notificações de propostas.' })
+  }
+}
+
+async function markProposalNotified(data: Record<string, unknown> | null) {
+  const tableName = process.env.FITPESO_PROPOSALS_TABLE
+  const requestId = typeof data?.requestId === 'string' ? data.requestId : ''
+  const trainerId = typeof data?.trainerId === 'string' ? data.trainerId : ''
+  if (!/^[0-9a-f-]{36}$/i.test(requestId) || !/^[A-Za-z0-9_-]{1,80}$/.test(trainerId)) return response(400, { notified: false })
+  if (!tableName) return response(503, { notified: false })
+  try {
+    await dynamodb.send(new UpdateItemCommand({
+      TableName: tableName,
+      Key: { requestId: { S: requestId }, trainerId: { S: trainerId } },
+      UpdateExpression: 'SET notifiedAt = if_not_exists(notifiedAt, :now) REMOVE notificationStatus',
+      ConditionExpression: 'attribute_exists(requestId) AND attribute_exists(trainerId) AND (notificationStatus = :pending OR attribute_exists(notifiedAt))',
+      ExpressionAttributeValues: { ':pending': { S: 'PENDING' }, ':now': { S: new Date().toISOString() } },
+    }))
+    return response(200, { notified: true })
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) return response(409, { notified: false })
+    console.error('[imc-submit] Proposal notification update failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { notified: false })
   }
 }
 
@@ -3771,6 +3836,16 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/send-to-trainers')) return sendCustomerRequestToTrainers(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/visibility')) return changeCustomerRequestVisibility(event, parseBody(event))
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/{requestId}/accept')) return acceptTrainerProposal(event, parseBody(event))
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/proposal-notifications')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return listProposalNotifications()
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/requests/proposal-notified')) {
+    if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
+    if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
+    return markProposalNotified(parseBody(event))
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/requests/accepted-notifications')) {
     if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Serviço temporariamente indisponível.' })
     if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
