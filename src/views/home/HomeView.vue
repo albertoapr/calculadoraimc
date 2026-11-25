@@ -86,9 +86,11 @@ function confirmAcademy(academy: string) {
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <rect x="3" y="6" width="4" height="12" rx="1" />
-      <rect x="17" y="6" width="4" height="12" rx="1" />
-      <path d="M7 12h10M1 10v4m22-4v4M1 12h2m18 0h2" />
+      <circle cx="7" cy="3.5" r="2.1" />
+      <path d="M5.4 6 3.2 9.5 5 11M8.6 6l2.1 3.5 2.3 1M4.4 11 2 21h2m1.8-6.5L7 18" />
+      <path d="M6.5 10.5h14M6.5 8.4v4.2m14-4.2v4.2" />
+      <circle cx="10" cy="15" r="1.8" />
+      <path d="M11.8 16.2h5.8q2 0 2 2V21h2M12 14l2-3.5m2 5.7 1-5.7M8.5 18.5h8.8M10 18.5 9 22m7-3.5 1 3.5" />
     </svg>
     Treinar com Personal
   </button>
