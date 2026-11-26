@@ -1,4 +1,5 @@
-import { DynamoDBClient, GetItemCommand, ScanCommand, TransactWriteItemsCommand } from '@aws-sdk/client-dynamodb'
+import { createHash } from 'node:crypto'
+import { DynamoDBClient, GetItemCommand, QueryCommand, ScanCommand, TransactWriteItemsCommand, type TransactWriteItem } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 
 const db = new DynamoDBClient({})
@@ -41,6 +42,19 @@ const validBirth = (value: unknown): value is string =>
 const isDynamoConflict = (error: unknown) =>
   error instanceof Error && ['ConditionalCheckFailedException', 'TransactionCanceledException'].includes(error.name)
 
+// Mesmo identificador determinístico da migração de identidade.
+export function roleUserId(pessoaId: string, role: 'ADMIN' | 'CLIENTE') {
+  return 'U_' + createHash('sha256').update(pessoaId + '#' + role).digest('hex').slice(0, 32)
+}
+export async function hasAdminRole(pessoaId: string) {
+  if (!pessoaId) return false
+  const row = (await db.send(new GetItemCommand({
+    TableName: userTable(), Key: { user_id: { S: roleUserId(pessoaId, 'ADMIN') } }, ConsistentRead: true,
+  }))).Item
+  return !!row && row.pessoa_id?.S === pessoaId && row.tipo?.S === 'ADMIN' &&
+    row.tipo_usuario_id?.N === '1' && row.ativo?.BOOL !== false
+}
+
 /** A administração usa apenas a tabela canônica V2; nunca expõe tokens ou identificações do provedor. */
 export async function listAdminCustomers() {
   try {
@@ -56,6 +70,22 @@ export async function listAdminCustomers() {
       cursor = page.LastEvaluatedKey
       if (rows.length > 2000) return response(413, { error: 'Muitos cadastros. Utilize a busca paginada.' })
     } while (cursor)
+    const adminCustomerUsers = new Set<string>()
+    let adminCursor: Item | undefined
+    do {
+      const page = await db.send(new QueryCommand({
+        TableName: userTable(), IndexName: 'UsuarioByTipo',
+        KeyConditionExpression: 'tipo_usuario_id = :admin',
+        ExpressionAttributeValues: { ':admin': { N: '1' } },
+        ExclusiveStartKey: adminCursor,
+      }))
+      for (const row of page.Items ?? []) {
+        const person = str(row, 'pessoa_id')
+        if (person && str(row, 'tipo') === 'ADMIN' && row.ativo?.BOOL !== false)
+          adminCustomerUsers.add(roleUserId(person, 'CLIENTE'))
+      }
+      adminCursor = page.LastEvaluatedKey
+    } while (adminCursor)
     return response(200, { customers: rows.map(row => ({
       customerId: str(row, 'customer_id'),
       userId: str(row, 'user_id'),
@@ -68,6 +98,7 @@ export async function listAdminCustomers() {
       heightCm: row.altura_cm?.N ? Number(row.altura_cm.N) : null,
       active: row.ativo?.BOOL !== false,
       hasLegacy: Boolean(str(row, 'legacyWhatsapp')),
+      isAdmin: adminCustomerUsers.has(str(row, 'user_id')),
     })).filter(row => row.customerId && row.userId) })
   } catch (error) {
     console.error('[fitpeso] admin customer list error', { kind: error instanceof Error ? error.name : 'UNKNOWN' })
@@ -179,5 +210,78 @@ export async function updateAdminCustomer(
     if (isDynamoConflict(error)) return response(409, { error: 'Cadastro alterado por outra operação. Atualize a lista.' })
     console.error('[fitpeso] admin customer update error', { kind: error instanceof Error ? error.name : 'UNKNOWN' })
     return response(503, { error: 'Não foi possível atualizar o cliente.' })
+  }
+}
+
+/** Concede um papel adicional, sem substituir CLIENTE/PERSONAL.
+ * O ID do beneficiário é resolvido no servidor; a autorização é revalidada na transação. */
+export async function promoteAdminCustomer(event: APIGatewayProxyEvent, data: Record<string, unknown> | null, actingPersonId: string) {
+  const id = event.pathParameters?.customerId ?? ''
+  if (!/^C_[a-f0-9]{32}$/.test(id) || !data || data.confirmation !== 'TORNAR_ADMINISTRADOR' ||
+      Object.keys(data).some(key => key !== 'confirmation'))
+    return response(400, { error: 'Confirme a concessão do perfil de administrador.' })
+  try {
+    if (!(await hasAdminRole(actingPersonId))) return response(403, { error: 'Acesso restrito a administradores.' })
+    const customer = (await db.send(new GetItemCommand({
+      TableName: customerTable(), Key: { customer_id: { S: id } }, ConsistentRead: true,
+    }))).Item
+    const userId = customer?.user_id?.S
+    if (!customer || !userId) return response(404, { error: 'Cliente não encontrado.' })
+    if (customer.ativo?.BOOL === false) return response(409, { error: 'Reative o cliente antes de conceder acesso administrativo.' })
+    const user = (await db.send(new GetItemCommand({
+      TableName: userTable(), Key: { user_id: { S: userId } }, ConsistentRead: true,
+    }))).Item
+    const personId = user?.pessoa_id?.S
+    if (!personId || user?.tipo?.S !== 'CLIENTE' || user.tipo_usuario_id?.N !== '2' ||
+        user.ativo?.BOOL === false || userId !== roleUserId(personId, 'CLIENTE'))
+      return response(409, { error: 'Identidade do cliente inconsistente.' })
+    if (personId === actingPersonId) return response(409, { error: 'Sua conta já tem acesso administrativo.' })
+    const adminId = roleUserId(personId, 'ADMIN')
+    if (await hasAdminRole(personId)) return response(200, { promoted: true })
+    const stamp = new Date().toISOString()
+    const changes: TransactWriteItem[] = [
+      { ConditionCheck: {
+        TableName: userTable(), Key: { user_id: { S: roleUserId(actingPersonId, 'ADMIN') } },
+        ConditionExpression: 'pessoa_id = :actor AND #tipo = :admin AND tipo_usuario_id = :code AND (attribute_not_exists(ativo) OR ativo = :yes)',
+        ExpressionAttributeNames: { '#tipo': 'tipo' },
+        ExpressionAttributeValues: { ':actor': { S: actingPersonId }, ':admin': { S: 'ADMIN' }, ':code': { N: '1' }, ':yes': { BOOL: true } },
+      } },
+      { ConditionCheck: {
+        TableName: customerTable(), Key: { customer_id: { S: id } },
+        ConditionExpression: 'user_id = :user AND (attribute_not_exists(ativo) OR ativo = :yes)',
+        ExpressionAttributeValues: { ':user': { S: userId }, ':yes': { BOOL: true } },
+      } },
+      { ConditionCheck: {
+        TableName: userTable(), Key: { user_id: { S: userId } },
+        ConditionExpression: 'pessoa_id = :person AND #tipo = :customer AND (attribute_not_exists(ativo) OR ativo = :yes)',
+        ExpressionAttributeNames: { '#tipo': 'tipo' },
+        ExpressionAttributeValues: { ':person': { S: personId }, ':customer': { S: 'CLIENTE' }, ':yes': { BOOL: true } },
+      } },
+      { ConditionCheck: {
+        TableName: personTable(), Key: { pessoa_id: { S: personId } },
+        ConditionExpression: 'attribute_exists(pessoa_id) AND attribute_not_exists(deletionRequestedAt)',
+      } },
+      { Update: {
+        TableName: userTable(), Key: { user_id: { S: adminId } },
+        UpdateExpression: 'SET pessoa_id = :person, #tipo = :admin, tipo_usuario_id = :code, ativo = :yes, criado_em = if_not_exists(criado_em, :now), adminGrantedAt = :now, adminGrantedBy = :actor',
+        ConditionExpression: 'attribute_not_exists(user_id) OR (pessoa_id = :person AND #tipo = :admin AND tipo_usuario_id = :code AND ativo = :no)',
+        ExpressionAttributeNames: { '#tipo': 'tipo' },
+        ExpressionAttributeValues: { ':person': { S: personId }, ':admin': { S: 'ADMIN' }, ':code': { N: '1' }, ':yes': { BOOL: true }, ':no': { BOOL: false }, ':now': { S: stamp }, ':actor': { S: actingPersonId } },
+      } },
+    ]
+    const legacyKey = str(customer, 'legacyWhatsapp')
+    if (legacyKey) changes.push({ Update: {
+      TableName: legacyTable(), Key: { whatsapp: { S: legacyKey } },
+      UpdateExpression: 'SET isAdmin = :yes',
+      ConditionExpression: 'pessoa_id = :person AND user_id = :user AND #status = :active',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':person': { S: personId }, ':user': { S: userId }, ':active': { S: 'ACTIVE' }, ':yes': { BOOL: true } },
+    } })
+    await db.send(new TransactWriteItemsCommand({ TransactItems: changes }))
+    return response(200, { promoted: true })
+  } catch (error) {
+    if (isDynamoConflict(error)) return response(409, { error: 'Não foi possível confirmar a concessão. Atualize a lista e verifique o cadastro.' })
+    console.error('[fitpeso] admin promotion failed', { kind: error instanceof Error ? error.name : 'UNKNOWN' })
+    return response(503, { error: 'Não foi possível conceder acesso administrativo.' })
   }
 }

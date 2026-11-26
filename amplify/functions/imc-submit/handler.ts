@@ -1,5 +1,5 @@
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
-import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
+import { hasAdminRole, listAdminCustomers, promoteAdminCustomer, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
 import { listAcademies, queryAcademiesByCity, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
@@ -529,8 +529,7 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
   return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') || event.resource?.endsWith('/customers/upload-photo') ||
     event.resource?.endsWith('/customers/manage-account') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
-    event.resource?.endsWith('/admin/customers') ||
-    event.resource?.endsWith('/admin/customers/{customerId}')
+    event.resource?.includes('/admin/')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -884,7 +883,7 @@ async function switchIdentityProfile(
       if (linked.Item?.user_id?.S !== user.usuarioId)
         return response(409, { error: 'Vínculo de cliente inválido.' })
       if (!phone) {
-        if (requestedRole === 'ADMIN' || linked.Item?.ativo?.BOOL === false ||
+        if (linked.Item?.ativo?.BOOL === false ||
             linked.Item?.customer_id?.S !== user.clienteId)
           return response(403, { error: 'Perfil de cliente indisponível.' })
         sessionItem = {
@@ -2359,18 +2358,11 @@ async function registerTrainer(
 }
 
 async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
-  const auth = await authenticateCustomer(event)
-  if (auth.error) return auth.error
-  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
   const tableName = process.env.TRAINERS_TABLE
   const slugTable = process.env.TRAINER_SLUGS_TABLE
-  if (!customersTable || !tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
-  const customer = await dynamodb.send(new GetItemCommand({
-    TableName: customersTable, Key: { whatsapp: { S: auth.profile!.whatsapp } }, ConsistentRead: true,
-  }))
-  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
-    return response(403, { error: 'Acesso exclusivo do administrador.' })
-  }
+  if (!tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
   const data = parseBody(event)
   if (!isValidTrainerRegistration(data) || !data?.dateOfBirth) {
     return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, Instagram, cidade e endereço válido.' })
@@ -2455,19 +2447,12 @@ async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
 }
 
 async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const admin = await authorizeAdminCustomers(event)
+  if (!admin.ok) return { error: admin.error }
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth
-  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
-  if (!customersTable) return { error: response(503, { error: 'Serviço indisponível.' }) }
-  const customer = await dynamodb.send(new GetItemCommand({
-    TableName: customersTable,
-    Key: { whatsapp: { S: auth.profile!.whatsapp } },
-    ConsistentRead: true,
-  }))
-  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
-    return { error: response(403, { error: 'Acesso exclusivo do administrador.' }) }
-  }
-  return { profile: auth.profile! }
+  // Audit fields in older resources accept a stable person ID if no phone exists.
+  return { profile: { ...auth.profile!, whatsapp: auth.profile!.whatsapp || admin.pessoaId } }
 }
 
 async function getTrainerRows(trainerId: string) {
@@ -2492,8 +2477,7 @@ async function authorizeAdminCustomers(event: Parameters<APIGatewayProxyHandler>
   }
   const pessoaId = parsed.profile?.identity?.pessoaId
   if (!pessoaId) return { ok: false, error: response(403, { error: 'Perfil de administrador não vinculado à nova identidade.' }) }
-  const roles = await listPersonProfiles(pessoaId)
-  if (!roles.some(role => role.tipo === 'ADMIN'))
+  if (!(await hasAdminRole(pessoaId)))
     return { ok: false, error: response(403, { error: 'Acesso restrito a administradores.' }) }
   return { ok: true, pessoaId }
 }
@@ -4040,6 +4024,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const admin = await authorizeAdminCustomers(event)
     if (!admin.ok) return admin.error
     return listAdminCustomers()
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/admin/customers/{customerId}/promote-admin')) {
+    const admin = await authorizeAdminCustomers(event)
+    if (!admin.ok) return admin.error
+    return promoteAdminCustomer(event, parseBody(event), admin.pessoaId)
   }
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/customers/{customerId}')) {
     const admin = await authorizeAdminCustomers(event)

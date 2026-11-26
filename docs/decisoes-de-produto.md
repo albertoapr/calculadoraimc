@@ -49,3 +49,10 @@ O modelo inicial proposto inclui identificador, nome, UF, slug e status da cidad
 - Solicitação de exclusão em nível de pessoa, abrangendo todos os perfis, com confirmação explícita e registro persistente `deletionRequestedAt` / `deletionStatus=PENDING_REVIEW`. Nesta etapa não há exclusão física automática, nova autenticação específica nem painel de processamento. A análise de retenção, pendências financeiras, revogação de sessões e eliminação dos dados e fotos precisa ser implementada antes de considerar a exclusão concluída.
 - Operações administrativas protegidas; o usuário não informa identificadores de terceiros.
 - Validar em develop antes de promover para main. Revisar concorrência entre criação/aceite de atendimentos e desativação; substituir varreduras limitadas por índices próprios para expansão.
+
+## 25/11/2026 — Concessão de acesso administrativo
+
+- Em Gerenciar clientes, um administrador pode tornar outro cliente ativo administrador após confirmação.
+- Criar/ativar o papel ADMIN na tabela usuario mantendo CLIENTE e PERSONAL; sincronizar isAdmin no cadastro legado quando existir. Registrar quem concedeu e quando.
+- Validar o administrador autenticado no backend e na transação; bloquear identidade inconsistente, cliente inativo ou solicitação de exclusão pendente.
+- O perfil administrativo funciona também com a identidade Google V2 sem registro legado. O beneficiário deve entrar novamente para escolher Administrador. Não foi incluída remoção do papel ADMIN nesta etapa.

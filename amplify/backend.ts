@@ -297,7 +297,13 @@ profileDataPolicy.addStatements(new iam.PolicyStatement({
 // Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
-  resources: [pessoasV2.tableArn, identificacoesV2.tableArn],
+  resources: [pessoasV2.tableArn, identificacoesV2.tableArn, usuariosV2.tableArn],
+}))
+identityDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:ConditionCheckItem'], resources: [usuariosV2.tableArn, pessoasV2.tableArn],
+}))
+profileDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:ConditionCheckItem'], resources: [customersV2.tableArn],
 }))
 // Consultas em GSIs exigem permissão nos ARNs dos índices correspondentes.
 for (const [policy, table, indices] of [
@@ -369,7 +375,9 @@ academiesResource.addMethod('GET', lambdaIntegration())
 academiesResource.addResource('{academyId}').addMethod('GET', lambdaIntegration())
 const adminCustomersResource = adminResource.addResource('customers')
 adminCustomersResource.addMethod('GET', lambdaIntegration())
-adminCustomersResource.addResource('{customerId}').addMethod('PUT', lambdaIntegration())
+const adminCustomerItem = adminCustomersResource.addResource('{customerId}')
+adminCustomerItem.addMethod('PUT', lambdaIntegration())
+adminCustomerItem.addResource('promote-admin').addMethod('POST', lambdaIntegration())
 const adminTrainersResource = adminResource.addResource('trainers')
 adminTrainersResource.addMethod('GET', lambdaIntegration())
 adminTrainersResource.addMethod('POST', lambdaIntegration())
