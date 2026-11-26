@@ -1,3 +1,4 @@
+import { useCityCatalog } from './useCityCatalog'
 import { listAcademies, type Academy } from '../services/academiesService'
 import { useCustomerSignup } from './useCustomerSignup'
 import { useTrainerSignup } from './useTrainerSignup'
@@ -48,6 +49,9 @@ declare global {
 /** Coordinates screen flows. Domain controllers can be extracted independently from this boundary. */
 export function useFitpesoApp() {
   const router = useRouter()
+  const catalog = useCityCatalog()
+  const { cities: activeCities, load: loadActiveCities } = catalog.registration
+  const { loading: publicCitiesLoading, error: publicCitiesError, load: loadPublicCities } = catalog.public
   const { customerSignedInName, customerPhotoUrl, customerIsAdmin, trainerSignedInName, trainerSignedInId,
     pessoaId, availableProfiles, identityStatus, activeRole } = storeToRefs(useAccountSession())
   // OAuth client IDs are public in browser apps; restrict this one to the app origin in Google Cloud.
@@ -286,6 +290,7 @@ export function useFitpesoApp() {
     },
   })
   const homeController = useHome({
+    catalog,
     viewMode,
     isRootHome,
     form,
@@ -322,7 +327,7 @@ export function useFitpesoApp() {
     startTrainingRequestFromHome,
     requestProposalFromHome,
     openTrainersForRequest,
-    supportedRequestCities,
+    publicCities,
     homeCity,
     homeCityManuallySelected,
     selectHomeCity,
@@ -448,7 +453,6 @@ export function useFitpesoApp() {
     ),
   })
   const {
-    availableCities,
     signupAcademyChoice,
     signupOtherAcademy,
     referralCode,
@@ -466,6 +470,10 @@ export function useFitpesoApp() {
     sendTrainerSignup,
     stopTrainerRegistration,
   } = useTrainerSignup({
+    getActiveCities: async () => {
+      await loadActiveCities()
+      return activeCities.value.map(city => city.cityKey)
+    },
     linkedAccount: () => customerSignedInName.value ? {
       name: customerForm.name || customerSignedInName.value,
       email: customerForm.email,
@@ -532,6 +540,12 @@ export function useFitpesoApp() {
     void nextTick(() => window.scrollTo(0, 0))
   }
 
+  function openAdminCities() {
+    if (!actingAsAdmin.value) return
+    viewMode.value = 'admin-cities'
+    void nextTick(() => window.scrollTo(0, 0))
+  }
+
   function openAdminAcademies() {
     if (!actingAsAdmin.value) return
     viewMode.value = 'admin-academies'
@@ -577,6 +591,8 @@ export function useFitpesoApp() {
 
   watch([showTrainerSignup, viewMode], ([signup, screen]) => {
     if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
+    if (signup || screen === 'admin-academies' || screen === 'admin-trainers') void loadActiveCities()
+    if (screen === 'home') void loadPublicCities()
   }, { immediate: true })
   watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })
   watch(() => editingProfile.city, () => { profileAcademyChoice.value = '' })
@@ -1195,6 +1211,7 @@ export function useFitpesoApp() {
 
   async function enterRoute(screen: AppScreen) {
     if (screen === 'contact') {
+      await loadPublicCities()
       if (!trainingDraft.hasDraft && !homeCity.value) {
         status.value = 'Escolha sua cidade na tela inicial para definir seu treinamento.'
         await router.replace('/')
@@ -1208,6 +1225,7 @@ export function useFitpesoApp() {
         if (form.city) void loadPublicTrainers()
       }
     } else if (screen === 'select-trainers') {
+      await loadPublicCities()
       if (!trainingDraft.hasDraft || !homeController.matchSupportedRequestCity(form.city)) {
         await router.replace('/solicitar-treinamento')
       } else {
@@ -1297,7 +1315,9 @@ export function useFitpesoApp() {
       void router.replace({ path: '/proposta', query })
     }
     void loadTrainerRequest()
-    if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
+    void loadPublicCities().then(() => {
+      if (isRootHome.value && !homeCityManuallySelected.value) void detectRequestCity('home')
+    })
     startAuthentication()
   })
 
@@ -1369,7 +1389,6 @@ export function useFitpesoApp() {
     openSentRequests,
     openCustomerRequests,
     confirmRequestVisibilityChange,
-    availableCities,
     adminTrainerForm,
     adminTrainerStatus,
     adminTrainerBusy,
@@ -1519,11 +1538,19 @@ export function useFitpesoApp() {
     openAdminTrainers,
     openAdminCustomers,
     openAdminAcademies,
+    openAdminCities,
+    activeCities,
+    loadActiveCities,
+    activeCitiesLoading: catalog.registration.loading,
+    activeCitiesError: catalog.registration.error,
+    publicCitiesLoading,
+    publicCitiesError,
+    loadPublicCities,
     trainerSignedInName,
     trainerSignedInId,
     logout,
     openProfessionalRegistration,
-    supportedRequestCities,
+    publicCities,
     homeCity,
     selectHomeCity,
     openCustomerLogin,

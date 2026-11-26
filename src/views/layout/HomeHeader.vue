@@ -11,6 +11,7 @@ const {
   openAdminTrainers,
   openAdminCustomers,
   openAdminAcademies,
+  openAdminCities,
   trainerSignedInName,
   trainerSignedInId,
   activeRole,
@@ -146,6 +147,7 @@ onBeforeUnmount(() => {
               <button type="button" @click="openAdminTrainers()">Gerenciar profissionais</button>
               <button type="button" @click="openAdminCustomers()">Gerenciar clientes</button>
               <button type="button" @click="openAdminAcademies()">Cadastro de academias</button>
+              <button type="button" @click="openAdminCities()">Cadastro de cidades</button>
             </template>
             <button type="button" @click="logout()">Sair</button>
           </nav>

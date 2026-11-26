@@ -19,6 +19,7 @@ export type TrainerSignupInput = {
   email?: string
   cities: string[]
   academias: string[]
+  academyIds?: string[]
   newAcademies?: AcademyWrite[]
   instagram: string
   cref?: string

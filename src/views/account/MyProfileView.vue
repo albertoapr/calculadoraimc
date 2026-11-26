@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { uploadAccountPhoto } from '../../services/accountProfileService'
+import RequestAccordionItem from '../../components/RequestAccordionItem.vue'
+import { manageAccount, uploadAccountPhoto } from '../../services/accountProfileService'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import TrainerPageEditor from './TrainerPageEditor.vue'
 import PhoneVerification from './PhoneVerification.vue'
@@ -22,8 +23,42 @@ const {
   editingProfileSaving,
   saveMyProfile,
   openMyProfile,
+  logout,
 } = useFitpesoContext()
 
+const manageOpen = ref(false)
+const manageBusy = ref(false)
+const manageStatus = ref('')
+const manageAction = ref<'deactivate' | 'request-deletion' | ''>('')
+const manageConfirmation = ref('')
+const deletionSubmitted = ref(false)
+function chooseAccountAction(action: 'deactivate' | 'request-deletion') {
+  manageAction.value = action
+  manageConfirmation.value = ''
+  manageStatus.value = ''
+}
+async function confirmAccountAction() {
+  const action = manageAction.value
+  if (!action || manageBusy.value || editingProfileLoading.value || editingProfileSaving.value) return
+  const expected = action === 'deactivate' ? 'DESATIVAR' : 'EXCLUIR'
+  if (manageConfirmation.value !== expected) return
+  const type = editingProfileType.value
+  const token = type === 'trainer' ? sessionStorage.getItem('fitpeso-trainer-session') :
+    sessionStorage.getItem('fitpeso-customer-session') || sessionStorage.getItem('fitpeso-google-session')
+  if (!token) { manageStatus.value = 'Entre novamente para continuar.'; return }
+  manageBusy.value = true
+  manageStatus.value = ''
+  try {
+    await manageAccount(type, token, action, expected)
+    manageAction.value = ''
+    manageConfirmation.value = ''
+    if (action === 'deactivate') { logout(); return }
+    deletionSubmitted.value = true
+    manageStatus.value = 'Solicitação de exclusão registrada. Seus dados ainda não foram excluídos; a solicitação será analisada pelo suporte.'
+  } catch (error) {
+    manageStatus.value = error instanceof Error ? error.message : 'Não foi possível concluir a operação.'
+  } finally { manageBusy.value = false }
+}
 const referralCode = computed(() => {
   const trainerId = editingProfile.trainerId
   return trainerId && /^[a-f0-9]{32}$/i.test(trainerId) ? 'FP' + trainerId.toUpperCase() : ''
@@ -261,6 +296,26 @@ async function shareTrainerReferral() {
         {{ editingProfileSaving ? 'Salvando…' : 'Salvar alterações' }}
       </button>
     </form>
+    <RequestAccordionItem v-if="!editingProfileLoading" :open="manageOpen">
+      <template #header>
+        <button type="button" class="manage-account-header" :aria-expanded="manageOpen" aria-controls="manage-account-panel" @click="manageOpen = !manageOpen">
+          Gerenciar conta <span aria-hidden="true">{{ manageOpen ? '−' : '+' }}</span>
+        </button>
+      </template>
+      <div v-if="manageOpen" id="manage-account-panel" class="manage-account-panel">
+        <p>Desative apenas seu perfil atual. Seus dados e histórico serão preservados. Para reativar, fale com o suporte.</p>
+        <button type="button" class="secondary-button" :disabled="manageBusy || editingProfileSaving" @click="chooseAccountAction('deactivate')">Desativar cadastro</button>
+        <p>A solicitação de exclusão abrange todos os seus perfis e será analisada considerando o histórico e as pendências.</p>
+        <button type="button" class="secondary-button account-danger" :disabled="manageBusy || deletionSubmitted" @click="chooseAccountAction('request-deletion')">Solicitar exclusão da conta</button>
+        <div v-if="manageAction" class="manage-account-confirm">
+          <label for="manage-confirmation">Digite {{ manageAction === 'deactivate' ? 'DESATIVAR' : 'EXCLUIR' }} para confirmar.</label>
+          <input id="manage-confirmation" v-model="manageConfirmation" autocomplete="off" :disabled="manageBusy" />
+          <button type="button" class="secondary-button account-danger" :disabled="manageBusy || manageConfirmation !== (manageAction === 'deactivate' ? 'DESATIVAR' : 'EXCLUIR')" @click="confirmAccountAction">{{ manageBusy ? 'Processando…' : 'Confirmar' }}</button>
+          <button type="button" class="secondary-button" :disabled="manageBusy" @click="manageAction = ''; manageConfirmation = ''">Cancelar</button>
+        </div>
+        <p v-if="manageStatus" role="status" aria-live="polite">{{ manageStatus }}</p>
+      </div>
+    </RequestAccordionItem>
     <p v-if="editingProfileStatus" class="status" role="status" aria-live="polite">
       {{ editingProfileStatus }}
     </p>
@@ -268,6 +323,11 @@ async function shareTrainerReferral() {
 </template>
 
 <style scoped>
+.manage-account-header { display: flex; justify-content: space-between; width: 100%; padding: 14px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.manage-account-panel, .manage-account-confirm { display: grid; gap: 10px; padding: 12px; }
+.manage-account-panel p { margin: 0; }
+.account-danger { color: #d13b3b; border-color: currentColor; }
+
 .trainer-referral-panel { display: grid; gap: 8px; }
 .trainer-referral-panel small { color: var(--muted); }
 .google-profile-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }

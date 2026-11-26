@@ -1,13 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
-const { viewMode, publicTrainerCity, supportedRequestCities, homeCity, form, selectHomeCity } =
-  useFitpesoContext()
+const { viewMode, publicTrainerCity, publicCities, publicCitiesError, publicCitiesLoading,
+  loadPublicCities, homeCity, form, selectHomeCity } = useFitpesoContext()
+const cityValue = computed(() => viewMode.value === 'select-trainers'
+  ? form.city : viewMode.value === 'public-trainers' ? publicTrainerCity.value : homeCity.value)
+const showSelector = computed(() => ['home', 'public-trainers', 'select-trainers'].includes(viewMode.value))
+const displayedCity = computed(() => publicCities.value.some(city => city.cityKey === cityValue.value) ? cityValue.value : '')
 </script>
 
 <template>
   <label
-    v-if="viewMode === 'home' || viewMode === 'public-trainers' || viewMode === 'select-trainers'"
+    v-if="showSelector"
     class="home-city-selector"
     :class="{ 'home-city-selector--right': viewMode === 'public-trainers' }"
     for="home-city"
@@ -19,23 +24,23 @@ const { viewMode, publicTrainerCity, supportedRequestCities, homeCity, form, sel
     <select
       id="home-city"
       class="home-city-select"
-      :value="
-        viewMode === 'select-trainers'
-          ? form.city
-          : viewMode === 'public-trainers'
-            ? publicTrainerCity
-            : homeCity
-      "
+      :value="displayedCity"
       :aria-label="
         viewMode === 'select-trainers' ? 'Cidade da solicitação (não editável)' : 'Alterar cidade'
       "
-      :disabled="viewMode === 'select-trainers'"
+      :disabled="viewMode === 'select-trainers' || !publicCities.length"
       @change="selectHomeCity"
     >
-      <option value="" disabled>Escolha sua cidade</option>
-      <option v-for="city in supportedRequestCities" :key="city" :value="city">
-        {{ city }}, RJ
+      <option value="" disabled>
+        {{ publicCitiesLoading ? 'Carregando cidades…' : !publicCities.length && !publicCitiesError ? 'Nenhuma cidade com atendimento' : 'Escolha sua cidade' }}
+      </option>
+      <option v-for="city in publicCities" :key="city.cityId" :value="city.cityKey">
+        {{ city.name }}, {{ city.state }}
       </option>
     </select>
   </label>
+  <div v-if="showSelector && publicCitiesError" role="alert">
+    {{ publicCitiesError }}
+    <button type="button" class="secondary-button" @click="loadPublicCities(true)">Tentar novamente</button>
+  </div>
 </template>

@@ -1,7 +1,8 @@
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
-import { listAdminCustomers, updateAdminCustomer } from './admin-customers'
+import { hasAdminRole, listAdminCustomers, promoteAdminCustomer, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
-import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
+import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
+import { listAcademies, queryAcademiesByCity, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
@@ -15,6 +16,9 @@ import {
   DeleteItemCommand,
   PutItemCommand,
   QueryCommand,
+  ScanCommand,
+  type AttributeValue,
+  type TransactWriteItem,
   TransactionCanceledException,
   TransactWriteItemsCommand,
   UpdateItemCommand,
@@ -84,7 +88,7 @@ function isValidRequest(data: Record<string, unknown> | null) {
     Boolean(phone) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     typeof instagram === 'string' && (instagram === '' || (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
-    ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)) &&
+    (city.length >= 2 && city.length <= 84) &&
     (Number.isInteger(data.age) && Number(data.age) >= 1 && Number(data.age) <= 120) &&
     (data.clientGender === undefined || clientGenderOptions.includes(String(data.clientGender))) &&
     (data.objective === '' || objectives.includes(String(data.objective))) &&
@@ -218,7 +222,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null, allowM
     (data.academias === undefined || validAcademias(data.academias)) &&
     (data.newAcademies === undefined || (Array.isArray(cities) && Array.isArray(data.academias) && parseSignupAcademies(data.newAcademies, cities, data.academias) !== null)) &&
     Array.isArray(cities) && cities.length >= 1 && cities.length <= 2 &&
-    new Set(cities).size === cities.length && cities.every(city => ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(String(city)))
+    new Set(cities).size === cities.length && cities.every(city => typeof city === 'string' && city.length >= 2 && city.length <= 84)
 }
 
 function isValidCustomerRegistration(data: Record<string, unknown> | null) {
@@ -524,9 +528,8 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
   return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') || event.resource?.endsWith('/customers/upload-photo') ||
-    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
-    event.resource?.endsWith('/admin/customers') ||
-    event.resource?.endsWith('/admin/customers/{customerId}')
+    event.resource?.endsWith('/customers/manage-account') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
+    event.resource?.includes('/admin/')
 }
 
 async function getCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -847,11 +850,20 @@ async function switchIdentityProfile(
       }
     } else {
       const customer = await getCustomerProfile(event)
-      if (customer.statusCode !== 200) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+      if (customer.statusCode !== 200) {
+        // A pessoa autenticada pelo Google ainda pode escolher seu outro perfil ativo.
+        const token = (event.headers?.authorization ?? event.headers?.Authorization ?? '').match(/^Bearer\s+(.+)$/i)?.[1]
+        const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+        if (!token || !clientId || /^[A-Za-z0-9_-]{43}$/.test(token)) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+        const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
+        const proof = ticket.getPayload()
+        if (!proof?.email_verified || !proof.sub) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+        identity = (await resolveVerifiedIdentity('GOOGLE', proof.sub)) ?? undefined
+      }
       const parsed = JSON.parse(customer.body) as {
         profile?: { identity?: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } }
       }
-      identity = parsed.profile?.identity
+      identity = identity ?? parsed.profile?.identity
     }
     if (!identity) return response(409, { error: 'Ainda não foi possível vincular os perfis desta conta.' })
     const role = requestedRole === 'ADMIN' ? 'CLIENTE' : requestedRole
@@ -871,7 +883,7 @@ async function switchIdentityProfile(
       if (linked.Item?.user_id?.S !== user.usuarioId)
         return response(409, { error: 'Vínculo de cliente inválido.' })
       if (!phone) {
-        if (requestedRole === 'ADMIN' || linked.Item?.ativo?.BOOL === false ||
+        if (linked.Item?.ativo?.BOOL === false ||
             linked.Item?.customer_id?.S !== user.clienteId)
           return response(403, { error: 'Perfil de cliente indisponível.' })
         sessionItem = {
@@ -898,7 +910,7 @@ async function switchIdentityProfile(
       }))
       const city = linked.Item?.cidade?.S
       const trainerId = linked.Item?.legacyTrainerId?.S
-      if (linked.Item?.user_id?.S !== user.usuarioId || !city || !trainerId)
+      if (linked.Item?.user_id?.S !== user.usuarioId || linked.Item.ativo?.BOOL === false || !city || !trainerId)
         return response(409, { error: 'Vínculo de personal inválido.' })
       const trainerProfile = await dynamodb.send(new GetItemCommand({
         TableName: process.env.TRAINERS_TABLE!,
@@ -1229,7 +1241,7 @@ async function getCustomerLoginStatus(data: Record<string, unknown> | null) {
 async function findActiveTrainerByWhatsApp(whatsapp: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
-  const cities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
+  const cities = await getCityKeys()
   const matches = (await Promise.all(cities.map(async city => {
     const found: { trainerId: string; city: string }[] = []
     let cursor: Record<string, any> | undefined
@@ -1401,6 +1413,161 @@ function validProfileName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().replace(/\s+/g, ' ').length >= 2 &&
     value.trim().replace(/\s+/g, ' ').length <= 80 &&
     /^[\p{L}\p{M} .'-]+$/u.test(value.trim().replace(/\s+/g, ' '))
+}
+
+
+/** Self-service lifecycle. Only the authenticated identity can change its own profile.
+ * Permanent erasure is deliberately a separate reviewed process, not a cascading delete. */
+async function manageOwnAccount(event: Parameters<APIGatewayProxyHandler>[0], trainer: boolean) {
+  const data = parseBody(event)
+  if (!data || !['deactivate', 'request-deletion'].includes(String(data.action)) ||
+      data.confirmation !== (data.action === 'deactivate' ? 'DESATIVAR' : 'EXCLUIR') ||
+      Object.keys(data).some(key => !['action', 'confirmation'].includes(key)))
+    return response(400, { error: 'Confirme a operação solicitada.' })
+  try {
+    let pessoaId = ''
+    let trainerId = ''
+    let accountKey = ''
+    let sessionCity = ''
+    if (trainer) {
+      const auth = await getTrainerSession(event)
+      if (auth.error) return auth.error
+      pessoaId = auth.legacyPessoaId ?? ''
+      trainerId = auth.profile!.trainerId
+      sessionCity = auth.profile!.city
+    } else {
+      const auth = await getCustomerProfile(event)
+      if (auth.statusCode !== 200) return auth
+      const profile = JSON.parse(auth.body).profile
+      pessoaId = profile?.identity?.pessoaId ?? ''
+      accountKey = profile?.accountKey || profile?.whatsapp || ''
+    }
+    if (!pessoaId) return response(409, { error: 'Vínculo de identidade ainda indisponível. Entre novamente ou fale com o suporte.' })
+    const table = (env: string) => {
+      const value = process.env[env]
+      if (!value) throw new Error('ACCOUNT_TABLE_UNAVAILABLE')
+      return value
+    }
+    const profiles = await listPersonProfiles(pessoaId)
+    if (data.action === 'request-deletion') {
+      if (profiles.some(p => p.tipo === 'ADMIN'))
+        return response(409, { error: 'Contas administrativas devem ser tratadas pelo suporte.' })
+      // Record a durable person-level request; do not falsely promise irreversible erasure.
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: table('FITPESO_PESSOA_TABLE'), Key: { pessoa_id: { S: pessoaId } },
+        UpdateExpression: 'SET deletionRequestedAt = if_not_exists(deletionRequestedAt, :now), deletionStatus = if_not_exists(deletionStatus, :pending)',
+        ConditionExpression: 'attribute_exists(pessoa_id)',
+        ExpressionAttributeValues: { ':now': { S: new Date().toISOString() }, ':pending': { S: 'PENDING_REVIEW' } },
+      }))
+      return response(200, { deletionRequested: true, status: 'PENDING_REVIEW' })
+    }
+    const role = profiles.find(p => p.tipo === (trainer ? 'PERSONAL' : 'CLIENTE'))
+    if (!role || (!trainer && profiles.some(p => p.tipo === 'ADMIN')))
+      return response(409, { error: 'Perfil indisponível para desativação automática. Fale com o suporte.' })
+    const profileId = trainer ? role.personalId : role.clienteId
+    const profileTable = table(trainer ? 'FITPESO_PERSONAL_V2_TABLE' : 'FITPESO_CUSTOMER_V2_TABLE')
+    const profileKey = trainer ? 'personal_id' : 'customer_id'
+    if (!profileId) return response(409, { error: 'Perfil ainda não vinculado.' })
+    const record = (await dynamodb.send(new GetItemCommand({ TableName: profileTable,
+      Key: { [profileKey]: { S: profileId } }, ConsistentRead: true }))).Item
+    if (!record || record.user_id?.S !== role.usuarioId || record.ativo?.BOOL === false ||
+        (trainer && record.legacyTrainerId?.S !== trainerId))
+      return response(409, { error: 'Vínculo cadastral inconsistente.' })
+    const legacyPhone = record.legacyWhatsapp?.S ?? ''
+    const phoneKeys = [...new Set([legacyPhone, accountKey, record.whatsapp?.S ?? ''].filter(Boolean))]
+    // Paginate the base tables consistently; fail closed on unexpectedly large scans.
+    async function hasRows(env: string, filter: string, values: Record<string, AttributeValue>, names?: Record<string, string>) {
+      let cursor: Record<string, AttributeValue> | undefined
+      for (let page = 0; page < 50; page++) {
+        const result = await dynamodb.send(new ScanCommand({
+          TableName: table(env), ConsistentRead: true, Limit: 200, ExclusiveStartKey: cursor,
+          FilterExpression: filter, ExpressionAttributeValues: values, ...(names ? { ExpressionAttributeNames: names } : {}),
+          Select: 'COUNT',
+        }))
+        if (result.Count) return true
+        cursor = result.LastEvaluatedKey
+        if (!cursor) return false
+      }
+      throw new Error('ACCOUNT_REVIEW_REQUIRED')
+    }
+    const terminal = { ':finished': { S: 'CONCLUIDO' }, ':cancelled': { S: 'CANCELADO' } }
+    const owners: Record<string, AttributeValue> = trainer ? { ':owner': { S: trainerId } } :
+      Object.fromEntries(phoneKeys.map((phone, i) => [':phone' + i, { S: phone }]))
+    const ownerFilter = trainer ? 'trainerId = :owner' : phoneKeys.length ?
+      'customerWhatsapp IN (' + Object.keys(owners).join(', ') + ')' : ''
+    if (ownerFilter && await hasRows('FITPESO_ATENDIMENTOS_TABLE',
+      '(' + ownerFilter + ') AND (attribute_not_exists(#status) OR NOT (#status IN (:finished, :cancelled)))',
+      { ...owners, ...terminal }, { '#status': 'status' }))
+      return response(409, { error: 'Conclua os atendimentos e resolva as pendências antes de desativar o perfil.' })
+    const now = Math.floor(Date.now() / 1000)
+    if (trainer && await hasRows('FITPESO_PROPOSALS_TABLE', 'trainerId = :id AND #status = :open AND validUntil > :now',
+      { ':id': { S: trainerId }, ':open': { S: 'OPEN' }, ':now': { N: String(now) } }, { '#status': 'status' }))
+      return response(409, { error: 'Existem propostas abertas. Aguarde a conclusão ou o vencimento.' })
+    if (!trainer && (phoneKeys.length || profileId)) {
+      const values: Record<string, AttributeValue> = { ...owners, ':customer': { S: profileId }, ':now': { N: String(now) },
+        ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } }
+      const requestOwner = phoneKeys.length ? 'clientPhone IN (' + Object.keys(owners).join(', ') + ') OR customerId = :customer' : 'customerId = :customer'
+      // Older accepted requests may not have a verified phone on the canonical customer.
+      if (!phoneKeys.length && await hasRows('FITPESO_USER_REQUESTS_TABLE', 'customerId = :customer AND lifecycle = :accepted', { ':customer': { S: profileId }, ':accepted': { S: 'ACCEPTED' } }))
+        return response(409, { error: 'Existem atendimentos vinculados ao cadastro. Fale com o suporte para verificar as pendências.' })
+      if (await hasRows('FITPESO_USER_REQUESTS_TABLE', '(' + requestOwner + ') AND validUntil > :now AND lifecycle IN (:open, :closed)', values))
+        return response(409, { error: 'Encerre suas solicitações em andamento antes de desativar o cadastro.' })
+    }
+    const stamp = new Date().toISOString()
+    const changes: TransactWriteItem[] = [{ Update: {
+      TableName: profileTable, Key: { [profileKey]: { S: profileId } },
+      UpdateExpression: 'SET ativo = :no, deactivatedAt = :now',
+      ConditionExpression: 'user_id = :user AND (attribute_not_exists(ativo) OR ativo = :yes)',
+      ExpressionAttributeValues: { ':no': { BOOL: false }, ':yes': { BOOL: true }, ':now': { S: stamp }, ':user': { S: role.usuarioId } },
+    } }]
+    if (trainer) {
+      const trainerTable = table('TRAINERS_TABLE')
+      // Use a consistent base-table scan rather than an eventually consistent index for all city rows.
+      let cursor: Record<string, AttributeValue> | undefined
+      let foundSessionCity = false
+      for (let page = 0; page < 50; page++) {
+        const result = await dynamodb.send(new ScanCommand({ TableName: trainerTable, ConsistentRead: true,
+          Limit: 200, ExclusiveStartKey: cursor, FilterExpression: 'trainerId = :id',
+          ExpressionAttributeValues: { ':id': { S: trainerId } } }))
+        for (const row of result.Items ?? []) {
+          const city = row.city?.S
+          if (!city || row.pessoa_id?.S !== pessoaId || row.user_id?.S !== role.usuarioId)
+            return response(409, { error: 'Vínculo de cidade inconsistente.' })
+          if (city === sessionCity) foundSessionCity = true
+          changes.push({ Update: {
+            TableName: trainerTable, Key: { city: { S: city }, trainerId: { S: trainerId } },
+            UpdateExpression: 'SET #active = :no, #status = :inactive, deactivatedAt = :now',
+            ConditionExpression: 'pessoa_id = :person AND user_id = :user',
+            ExpressionAttributeNames: { '#active': 'active', '#status': 'status' },
+            ExpressionAttributeValues: { ':no': { BOOL: false }, ':inactive': { S: 'inactive' }, ':now': { S: stamp },
+              ':person': { S: pessoaId }, ':user': { S: role.usuarioId } },
+          } })
+        }
+        cursor = result.LastEvaluatedKey
+        if (!cursor) break
+      }
+      if (cursor || !foundSessionCity || changes.length > 90)
+        return response(409, { error: 'Não foi possível verificar todos os vínculos. Fale com o suporte.' })
+    } else if (legacyPhone) {
+      changes.push({ Update: {
+        TableName: table('FITPESO_CUSTOMERS_TABLE'), Key: { whatsapp: { S: legacyPhone } },
+        UpdateExpression: 'SET #status = :inactive, deactivatedAt = :now',
+        ConditionExpression: 'pessoa_id = :person AND user_id = :user AND #status = :active',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':inactive': { S: 'INACTIVE' }, ':active': { S: 'ACTIVE' }, ':now': { S: stamp },
+          ':person': { S: pessoaId }, ':user': { S: role.usuarioId } },
+      } })
+    } else if (accountKey && accountKey !== record.whatsapp?.S) {
+      return response(409, { error: 'Vínculo legado indisponível. Fale com o suporte.' })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: changes }))
+    return response(200, { deactivated: true })
+  } catch (error) {
+    if (error instanceof Error && ['TransactionCanceledException', 'ConditionalCheckFailedException', 'ACCOUNT_REVIEW_REQUIRED'].includes(error.name === 'Error' ? error.message : error.name))
+      return response(409, { error: 'Não foi possível confirmar todos os dados do cadastro. Fale com o suporte.' })
+    console.error('[fitpeso] manage account failed', { kind: error instanceof Error ? error.name : 'UNKNOWN' })
+    return response(503, { error: 'Não foi possível concluir a operação.' })
+  }
 }
 
 async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -1952,13 +2119,19 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
   if (!matchingSignup) throw new TrainerSlugUnavailableError()
 
   const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
+  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
   const newAcademies = parseSignupAcademies(data.newAcademies, cities, academias) ?? []
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
       {
         Put: {
           TableName: requestCodesTable,
-          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
+          Item: {
+            ...challenge.item,
+            ...(academyIds.length ? { signupAcademyIds: { SS: academyIds } } : {}),
+            ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) } } : {}),
+            ...(academyIds.length || newAcademies.length ? { signupAcademias: { S: JSON.stringify(academias) } } : {}),
+          },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       },
@@ -2038,6 +2211,8 @@ async function registerTrainer(
   const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
+  const activeCities = await getActiveCityKeys()
+  if (!cities.every(city => activeCities.includes(city))) throw new Error('INVALID_CITY')
   const academias: string[] = Array.isArray(data.academias) ? data.academias as string[] : []
   // The academy ID is trusted only when confirmed by the server before issuing the Beta token
   // and still active in the selected city at the moment the profile is saved.
@@ -2062,8 +2237,9 @@ async function registerTrainer(
     if (betaSignup) throw new TrainerSlugUnavailableError()
     return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
   }
+  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
   const academyPlan = betaSignup ? await planSignupAcademies(newAcademies, whatsapp) : { writes: [], ids: [] }
-  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids])]
+  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids, ...(betaSignup ? academyIds : [])])]
 
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
@@ -2071,7 +2247,12 @@ async function registerTrainer(
       ...(!betaSignup ? [{
         Put: {
           TableName: requestCodesTable,
-          Item: { ...challenge.item, ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) }, signupAcademias: { S: JSON.stringify(academias) } } : {}) },
+          Item: {
+            ...challenge.item,
+            ...(academyIds.length ? { signupAcademyIds: { SS: academyIds } } : {}),
+            ...(newAcademies.length ? { newAcademies: { S: JSON.stringify(newAcademies) } } : {}),
+            ...(academyIds.length || newAcademies.length ? { signupAcademias: { S: JSON.stringify(academias) } } : {}),
+          },
           ConditionExpression: 'attribute_not_exists(codeHash)',
         },
       }] : [{
@@ -2177,18 +2358,11 @@ async function registerTrainer(
 }
 
 async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
-  const auth = await authenticateCustomer(event)
-  if (auth.error) return auth.error
-  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
+  const auth = await authenticateAdmin(event)
+  if ('error' in auth) return auth.error
   const tableName = process.env.TRAINERS_TABLE
   const slugTable = process.env.TRAINER_SLUGS_TABLE
-  if (!customersTable || !tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
-  const customer = await dynamodb.send(new GetItemCommand({
-    TableName: customersTable, Key: { whatsapp: { S: auth.profile!.whatsapp } }, ConsistentRead: true,
-  }))
-  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
-    return response(403, { error: 'Acesso exclusivo do administrador.' })
-  }
+  if (!tableName || !slugTable) return response(503, { error: 'Serviço indisponível.' })
   const data = parseBody(event)
   if (!isValidTrainerRegistration(data) || !data?.dateOfBirth) {
     return response(400, { error: 'Informe nome, WhatsApp, nascimento, gênero, Instagram, cidade e endereço válido.' })
@@ -2196,8 +2370,10 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   const whatsapp = normalizePhone(data.whatsapp)
   const cref = typeof data.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const cities = data.cities as string[]
-  // Check all supported cities, not only the selected ones.
-  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']) {
+  const activeCities = await getActiveCityKeys()
+  if (!cities.every(city => activeCities.includes(city))) return response(400, { error: 'Selecione cidades ativas.' })
+  // Check all cities, including inactive ones, for existing registrations.
+  for (const city of await getCityKeys()) {
     let lastKey: Record<string, any> | undefined
     do {
       const page = await dynamodb.send(new QueryCommand({
@@ -2249,8 +2425,6 @@ async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]
   }
 }
 
-const supportedTrainerCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
-
 async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
   const ids = raw === undefined ? [] : raw
   if (!Array.isArray(ids) || ids.length > 20 ||
@@ -2273,25 +2447,18 @@ async function resolveRegisteredAcademies(raw: unknown, cities: string[]) {
 }
 
 async function authenticateAdmin(event: Parameters<APIGatewayProxyHandler>[0]) {
+  const admin = await authorizeAdminCustomers(event)
+  if (!admin.ok) return { error: admin.error }
   const auth = await authenticateCustomer(event)
   if (auth.error) return auth
-  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE
-  if (!customersTable) return { error: response(503, { error: 'Serviço indisponível.' }) }
-  const customer = await dynamodb.send(new GetItemCommand({
-    TableName: customersTable,
-    Key: { whatsapp: { S: auth.profile!.whatsapp } },
-    ConsistentRead: true,
-  }))
-  if (customer.Item?.isAdmin?.BOOL !== true || customer.Item.status?.S !== 'ACTIVE' || customer.Item.whatsappVerified?.BOOL !== true) {
-    return { error: response(403, { error: 'Acesso exclusivo do administrador.' }) }
-  }
-  return { profile: auth.profile! }
+  // Audit fields in older resources accept a stable person ID if no phone exists.
+  return { profile: { ...auth.profile!, whatsapp: auth.profile!.whatsapp || admin.pessoaId } }
 }
 
 async function getTrainerRows(trainerId: string) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
-  const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new GetItemCommand({
+  const results = await Promise.all((await getCityKeys()).map(city => dynamodb.send(new GetItemCommand({
     TableName: tableName,
     Key: { city: { S: city }, trainerId: { S: trainerId } },
     ConsistentRead: true,
@@ -2310,8 +2477,7 @@ async function authorizeAdminCustomers(event: Parameters<APIGatewayProxyHandler>
   }
   const pessoaId = parsed.profile?.identity?.pessoaId
   if (!pessoaId) return { ok: false, error: response(403, { error: 'Perfil de administrador não vinculado à nova identidade.' }) }
-  const roles = await listPersonProfiles(pessoaId)
-  if (!roles.some(role => role.tipo === 'ADMIN'))
+  if (!(await hasAdminRole(pessoaId)))
     return { ok: false, error: response(403, { error: 'Acesso restrito a administradores.' }) }
   return { ok: true, pessoaId }
 }
@@ -2322,7 +2488,7 @@ async function listAdminTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) return response(503, { error: 'Serviço indisponível.' })
   try {
-    const results = await Promise.all(supportedTrainerCities.map(city => dynamodb.send(new QueryCommand({
+    const results = await Promise.all((await getCityKeys()).map(city => dynamodb.send(new QueryCommand({
       TableName: tableName,
       KeyConditionExpression: '#city = :city',
       ExpressionAttributeNames: { '#city': 'city' },
@@ -2383,7 +2549,10 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
   try {
     const existingRows = await getTrainerRows(trainerId)
     if (!existingRows.length) return response(404, { error: 'Profissional não encontrado.' })
-    for (const city of supportedTrainerCities) {
+    const activeCities = await getActiveCityKeys()
+    if (!cities.every(city => activeCities.includes(city) || existingRows.some(row => row.city?.S === city)))
+      return response(400, { error: 'Selecione cidades ativas para novos vínculos.' })
+    for (const city of await getCityKeys()) {
       const page = await dynamodb.send(new QueryCommand({
         TableName: tableName,
         KeyConditionExpression: '#city = :city',
@@ -2641,11 +2810,11 @@ function createTrainerRequestToken(requestId: string, trainerId: string, expires
 async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0]) {
   if (!process.env.TRAINER_WHATSAPP_VERIFY_SECRET) return response(503, { error: 'Integração Beta não configurada.' })
   if (!trainerVerificationSecretMatches(event)) return response(403, { error: 'Acesso não autorizado.' })
-  const supportedCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
   const city = event.queryStringParameters?.cidade?.trim() || event.queryStringParameters?.city?.trim() || ''
-  if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
   try {
-    const results = await Promise.all((city ? [city] : supportedCities).map(getActiveTrainersForCity))
+    const supportedCities = await getActiveCityKeys()
+    if (city && !supportedCities.includes(city)) return response(400, { error: 'Cidade inválida.' })
+    const results = await Promise.all((city ? [city] : supportedCities).map(value => getActiveTrainersForCity(value)))
     const unique = [...new Map(results.flat().map(trainer => [trainer.trainerId, trainer])).values()]
     const personais = unique.map(trainer => ({
       id: trainer.trainerId, nome: trainer.name, cidades: results.flat().filter(item => item.trainerId === trainer.trainerId).map(item => item.city),
@@ -2659,7 +2828,7 @@ async function listTrainersForBeta(event: Parameters<APIGatewayProxyHandler>[0])
   }
 }
 
-async function getActiveTrainersForCity(city: string) {
+async function getActiveTrainersForCity(city: string, includePersonData = true) {
   const tableName = process.env.TRAINERS_TABLE
   if (!tableName) throw new Error('Trainer directory is not configured')
   const items: Record<string, any>[] = []
@@ -2698,7 +2867,7 @@ async function getActiveTrainersForCity(city: string) {
   const ids = [...new Set(items.map(item => item.pessoa_id?.S as string | undefined).filter(
     (id): id is string => Boolean(id),
   ))]
-  if (personTable && ids.length) {
+  if (includePersonData && personTable && ids.length) {
     for (let offset = 0; offset < ids.length; offset += 100) {
       let pending: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>[] =
         ids.slice(offset, offset + 100).map(id => ({ pessoa_id: { S: id } }))
@@ -2769,11 +2938,12 @@ async function trainerGooglePhotos(trainers: { trainerId: string; whatsapp: stri
 async function listEligibleTrainers(event: Parameters<APIGatewayProxyHandler>[0]) {
   const city = event.queryStringParameters?.city?.trim() ?? ''
   const preference = event.queryStringParameters?.gender?.trim() ?? 'indiferente'
-  if (!['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro'].includes(city) ||
+  if (!city ||
       !['indiferente', 'feminino', 'masculino'].includes(preference)) {
     return response(400, { error: 'Selecione uma cidade e uma preferência válida.' })
   }
   try {
+    if (!(await getActiveCityKeys()).includes(city)) return response(400, { error: 'Cidade inválida ou inativa.' })
     const trainers = await getActiveTrainersForCity(city)
     const photos = await trainerGooglePhotos(trainers)
     const eligible = trainers
@@ -3002,8 +3172,12 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     const signupAcademias: string[] = item.signupAcademias?.S ? JSON.parse(item.signupAcademias.S) : []
     const newAcademies = parseSignupAcademies(item.newAcademies?.S ? JSON.parse(item.newAcademies.S) : undefined, cities, signupAcademias)
     if (!newAcademies) return response(400, { verified: false, error: 'Confira as academias informadas.' })
+    const activeCities = await getActiveCityKeys()
+    if (!cities.every(city => activeCities.includes(city)))
+      return response(400, { verified: false, error: 'Uma cidade do cadastro foi inativada. Atualize o cadastro.' })
     const academyPlan = await planSignupAcademies(newAcademies, whatsapp)
-    const academyIds = [...new Set(academyPlan.ids)]
+    const registered = await resolveRegisteredAcademies(item.signupAcademyIds?.SS, cities)
+    const academyIds = [...new Set([...registered.ids, ...academyPlan.ids])]
     const linksTable = process.env.TRAINER_ACADEMIES_TABLE
     if (academyIds.length && !linksTable) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
 
@@ -3127,6 +3301,7 @@ async function createFitpesoRequest(event: Parameters<APIGatewayProxyHandler>[0]
   const clientPhone = requestPhone
   const city = String(requestData.city).trim()
   const preference = String(requestData.trainerGenderPreference ?? 'indiferente')
+  if (!(await getActiveCityKeys()).includes(city)) return response(400, { error: 'Selecione uma cidade ativa.' })
   const rawTrainerIds = Array.isArray(data.selectedTrainerIds) ? data.selectedTrainerIds : []
   const selectedTrainerIds = [...new Set(rawTrainerIds.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))]
   if (selectedTrainerIds.length > 20 || selectedTrainerIds.length !== rawTrainerIds.length) {
@@ -3260,6 +3435,7 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
     if (!trainer) return response(403, { error: 'Este profissional não está ativo ou não está selecionado para esta solicitação.' })
     const validUntil = Math.min(now + 3 * 24 * 60 * 60, Number(request.validUntil.N))
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { ConditionCheck: { TableName: trainersTable, Key: { city: { S: request.city?.S ?? '' }, trainerId: { S: claims.trainerId } }, ConditionExpression: '#active = :yes', ExpressionAttributeNames: { '#active': 'active' }, ExpressionAttributeValues: { ':yes': { BOOL: true } } } },
       { Update: {
         TableName: requestTable, Key: { requestId: { S: claims.requestId } },
         UpdateExpression: 'ADD proposalCount :one',
@@ -3494,7 +3670,8 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
   const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
   const atendimentosTable = process.env.FITPESO_ATENDIMENTOS_TABLE
-  if (!requestTable || !proposalsTable || !atendimentosTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!requestTable || !proposalsTable || !atendimentosTable || !trainersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   const now = Math.floor(Date.now() / 1000)
   try {
     const requestResult = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: requestId } }, ConsistentRead: true }))
@@ -3510,6 +3687,7 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
       return [{ Update: { TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: proposalTrainerId } }, UpdateExpression: 'SET #status = :status', ConditionExpression: '#status = :open', ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ':status': { S: proposalTrainerId === trainerId ? 'ACCEPTED' : 'NOT_SELECTED' }, ':open': { S: 'OPEN' } } } }]
     })
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { ConditionCheck: { TableName: trainersTable, Key: { city: { S: request.city?.S ?? '' }, trainerId: { S: trainerId } }, ConditionExpression: '#active = :yes', ExpressionAttributeNames: { '#active': 'active' }, ExpressionAttributeValues: { ':yes': { BOOL: true } } } },
       { Update: { TableName: requestTable, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET lifecycle = :accepted, acceptedAt = :nowIso, acceptedTrainerId = :trainerId REMOVE expiresAt', ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle IN (:open, :closed)', ExpressionAttributeValues: { ':accepted': { S: 'ACCEPTED' }, ':nowIso': { S: new Date(now * 1000).toISOString() }, ':trainerId': { S: trainerId }, ':phone': { S: request.clientPhone!.S! }, ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } } } },
       { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: request.clientPhone!.S! }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
       ...updates,
@@ -3724,8 +3902,71 @@ async function consumeCode(data: Record<string, unknown> | null) {
   }
 }
 
+function normalizeAcademyLabel(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[—–]/g, '-')
+    .replace(/\s*-\s*/g, ' - ').trim().toLocaleLowerCase('pt-BR')
+}
+
+async function listPublicCities(registration: boolean) {
+  const cities = (await getCities()).filter(city => city.active)
+  if (registration) return cities
+  const table = process.env.ACADEMIES_TABLE
+  if (!table) throw new Error('ACADEMY_SERVICE_UNAVAILABLE')
+  const available: typeof cities = []
+  // Bound DynamoDB fan-out as the catalog expands.
+  for (let offset = 0; offset < cities.length; offset += 8) {
+    const matches = await Promise.all(cities.slice(offset, offset + 8).map(async city => {
+      const academies = await queryAcademiesByCity(table, city.cityKey)
+      const active = academies.filter(academy => academy.active?.BOOL === true)
+      if (!active.length) return null
+      const ids = new Set(active.map(academy => academy.academyId?.S))
+      const activeNames = new Set(active.map(academy => normalizeAcademyLabel(academy.name?.S ?? '')))
+      const labels = new Set<string>()
+      const names = new Map<string, number>()
+      for (const academy of academies) {
+        const name = normalizeAcademyLabel(academy.name?.S ?? '')
+        names.set(name, (names.get(name) ?? 0) + 1)
+        if (academy.active?.BOOL === true)
+          labels.add(normalizeAcademyLabel(`${academy.name?.S ?? ''} — ${academy.neighborhood?.S ?? ''}`))
+      }
+      const trainers = await getActiveTrainersForCity(city.cityKey, false)
+      // Older registrations stored the academy label before academy IDs were supported.
+      const hasTrainer = trainers.some(trainer => {
+        if (trainer.academyIds.length) return trainer.academyIds.some((id: string) => ids.has(id))
+        return trainer.academias.some((label: string) => {
+          const normalized = normalizeAcademyLabel(label)
+          return labels.has(normalized) || (names.get(normalized) === 1 && activeNames.has(normalized))
+        })
+      })
+      return hasTrainer ? city : null
+    }))
+    for (const city of matches) if (city) available.push(city)
+  }
+  return available
+}
+
+async function handleCities(event: Parameters<APIGatewayProxyHandler>[0], administrator: boolean) {
+  try {
+    if (!administrator) {
+      const cities = await listPublicCities(event.queryStringParameters?.scope === 'registration')
+      return response(200, { cities })
+    }
+    const auth = await authenticateAdmin(event)
+    if ('error' in auth) return auth.error
+    if (event.httpMethod === 'GET') return response(200, { cities: await getCities() })
+    const result = await writeCity(parseBody(event), event.pathParameters?.cityId)
+    return response(result.status, result.body)
+  } catch (error) {
+    console.error('[cities] Request failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'O cadastro de cidades está temporariamente indisponível.' })
+  }
+}
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/cities')) return handleCities(event, false)
+  if (event.resource?.endsWith('/admin/cities') || event.resource?.endsWith('/admin/cities/{cityId}'))
+    return handleCities(event, true)
   // Consulta pública e manutenção administrativa de academias.
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/academies'))
     return listAcademies(event)
@@ -3767,6 +4008,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/upload-photo')) return uploadProfilePhoto(event, false)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/manage-account')) return manageOwnAccount(event, true)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/manage-account')) return manageOwnAccount(event, false)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))
@@ -3781,6 +4024,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const admin = await authorizeAdminCustomers(event)
     if (!admin.ok) return admin.error
     return listAdminCustomers()
+  }
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/admin/customers/{customerId}/promote-admin')) {
+    const admin = await authorizeAdminCustomers(event)
+    if (!admin.ok) return admin.error
+    return promoteAdminCustomer(event, parseBody(event), admin.pessoaId)
   }
   if (event.httpMethod === 'PUT' && event.resource?.endsWith('/admin/customers/{customerId}')) {
     const admin = await authorizeAdminCustomers(event)
@@ -4017,6 +4265,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
     } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
+        return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
+      if (error instanceof Error && error.message === 'INVALID_CITY')
+        return response(400, { error: 'Selecione cidades ativas.' })
       if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
         return response(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
       if (error instanceof TrainerSlugUnavailableError) {
@@ -4036,8 +4288,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.resource?.endsWith('/verify')) return consumeCode(data)
   if (!isValidRequest(data)) return response(400, { error: 'Confira os dados e o consentimento.' })
 
-  let failureStage = 'request_code_creation'
+  let failureStage = 'city_validation'
   try {
+    if (!(await getActiveCityKeys()).includes(String(data!.city).trim())) return response(400, { error: 'Selecione uma cidade ativa.' })
+    failureStage = 'request_code_creation'
     const issued = await createCode()
     failureStage = 'gmail_smtp_delivery'
     const delivery = await sendRequestEmail(data!, issued.code)

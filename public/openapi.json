@@ -25,6 +25,9 @@
   ],
   "tags": [
     {
+      "name": "Cidades"
+    },
+    {
       "name": "Academias"
     },
     {
@@ -54,6 +57,272 @@
     }
   ],
   "paths": {
+    "/api/cities": {
+      "get": {
+        "operationId": "listCities",
+        "summary": "Listar cidades",
+        "tags": [
+          "Cidades"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "description": "Use registration para retornar todas as cidades ativas. Sem parâmetro, retorna cidades com atendimento.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "registration"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cidades disponíveis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/City"
+                      }
+                    }
+                  },
+                  "required": [
+                    "cities"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Serviço indisponível"
+          }
+        }
+      }
+    },
+    "/api/admin/cities": {
+      "get": {
+        "operationId": "listAdminCities",
+        "summary": "Listar cidades para administração",
+        "tags": [
+          "Cidades"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cidades cadastradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/City"
+                      }
+                    }
+                  },
+                  "required": [
+                    "cities"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acesso restrito"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCity",
+        "summary": "Cadastrar cidade",
+        "tags": [
+          "Cidades"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 80
+                  },
+                  "state": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "minimumHourlyRateCents": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "averageHourlyRateCents": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "state",
+                  "active"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cidade cadastrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "$ref": "#/components/schemas/City"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos"
+          },
+          "403": {
+            "description": "Acesso restrito"
+          },
+          "409": {
+            "description": "Cidade já cadastrada"
+          }
+        }
+      }
+    },
+    "/api/admin/cities/{cityId}": {
+      "parameters": [
+        {
+          "name": "cityId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "updateCity",
+        "summary": "Atualizar preços e situação da cidade",
+        "tags": [
+          "Cidades"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "minimumHourlyRateCents": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "averageHourlyRateCents": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "active",
+                  "updatedAt"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cidade atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "city": {
+                      "$ref": "#/components/schemas/City"
+                    }
+                  },
+                  "required": [
+                    "city"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos"
+          },
+          "403": {
+            "description": "Acesso restrito"
+          },
+          "404": {
+            "description": "Cidade desconhecida"
+          },
+          "409": {
+            "description": "Cidade alterada simultaneamente"
+          }
+        }
+      }
+    },
     "/api/academies": {
       "get": {
         "operationId": "listAcademies",
@@ -5763,6 +6032,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "cityId": {
+            "type": "string",
+            "description": "Identificador da cidade vinculada quando disponível."
           }
         }
       },
@@ -6308,6 +6581,69 @@
       "PhoneSessionStart": {
         "type": "object",
         "additionalProperties": true
+      },
+      "City": {
+        "type": "object",
+        "properties": {
+          "cityId": {
+            "type": "string"
+          },
+          "cityKey": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "minimumHourlyRateCents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "averageHourlyRateCents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pricesUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "cityId",
+          "cityKey",
+          "slug",
+          "name",
+          "state",
+          "active",
+          "minimumHourlyRateCents",
+          "averageHourlyRateCents",
+          "updatedAt",
+          "pricesUpdatedAt"
+        ]
       }
     }
   }

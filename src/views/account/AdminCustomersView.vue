@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { listAdminCustomers, updateAdminCustomer, type AdminCustomer, type AdminCustomerUpdate } from '../../services/adminCustomersService'
+import { listAdminCustomers, promoteAdminCustomer, updateAdminCustomer, type AdminCustomer, type AdminCustomerUpdate } from '../../services/adminCustomersService'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 
@@ -106,6 +106,22 @@ async function save() {
     saving.value = false
   }
 }
+async function grantAdmin() {
+  const current = selected.value
+  const session = token()
+  if (!current || !session || !current.active || current.isAdmin || saving.value) return
+  if (!window.confirm(`Conceder acesso administrativo a ${current.name || 'este cliente'}? Ele poderá gerenciar os cadastros e conceder acesso administrativo a outras pessoas.`)) return
+  saving.value = true
+  message.value = ''
+  try {
+    await promoteAdminCustomer(session, current.customerId)
+    current.isAdmin = true
+    await refresh()
+    message.value = 'Perfil de administrador concedido. O usuário deve entrar novamente para atualizar seus perfis.'
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Não foi possível conceder acesso administrativo.'
+  } finally { saving.value = false }
+}
 function changeStatus(active: boolean) {
   if (!selected.value || selected.value.active === active) return
   const verb = active ? 'reativar' : 'desativar'
@@ -149,7 +165,7 @@ onMounted(() => { void refresh() })
         :class="{ selected: selected?.customerId === customer.customerId }"
         @click="openEditor(customer)">
         <span class="customer-main">
-          <strong>{{ customer.name || 'Nome não informado' }}</strong>
+          <strong>{{ customer.name || 'Nome não informado' }} <span v-if="customer.isAdmin" class="admin-badge">Administrador</span></strong>
           <small>{{ customer.email || customer.whatsapp || 'Contato não informado' }}</small>
         </span>
         <span class="state" :class="customer.active ? 'active' : 'inactive'">
@@ -204,6 +220,15 @@ onMounted(() => { void refresh() })
         </select>
         <small>Inativar preserva os dados e não exclui as solicitações anteriores.</small>
       </label>
+      <div class="field field-wide admin-role-panel">
+        <strong>Perfil administrativo</strong>
+        <small v-if="selected.isAdmin">Este usuário já possui acesso de administrador.</small>
+        <template v-else>
+          <small>Concede acesso administrativo sem remover os perfis existentes.</small>
+          <button type="button" class="secondary-button" :disabled="saving || !selected.active" @click="grantAdmin">Tornar administrador</button>
+          <small v-if="!selected.active">Reative o cadastro para conceder acesso.</small>
+        </template>
+      </div>
       <p class="field-wide help">WhatsApp e e-mail são identificações da pessoa e exigem verificação específica para alterações.</p>
       <div class="actions field-wide">
         <button type="submit" class="primary-button" :disabled="saving">
@@ -238,6 +263,8 @@ onMounted(() => { void refresh() })
 .empty { border:1px dashed var(--line); border-radius:10px; padding:16px; text-align:center; color:var(--muted); }
 .edit-form { border-top:1px solid var(--line); padding-top:20px; scroll-margin-top:18px; }
 .actions { display:flex; flex-wrap:wrap; gap:10px; }
+.admin-role-panel { border:1px solid var(--line); border-radius:10px; padding:12px; }
+.admin-badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 6px; border:1px solid var(--line); border-radius:8px; }
 .help { color:var(--muted); font-size:13px; }
 .load-more { justify-self:center; }
 html[data-theme='dark'] .customer-list-item { background:#1b2720; border-color:#3b4b40; }

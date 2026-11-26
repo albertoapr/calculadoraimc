@@ -10,7 +10,7 @@ import {
 } from '../../services/academiesService'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 
-const { goHome, supportedRequestCities } = useFitpesoContext()
+const { goHome, activeCities, activeCitiesError, loadActiveCities } = useFitpesoContext()
 const academies = ref<Academy[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -22,15 +22,19 @@ const selectedId = ref('')
 const editing = ref(false)
 const empty = (): AcademyWrite => ({
   name: '',
-  city: 'Mesquita',
+  city: '',
   neighborhood: '',
   address: '',
   zipCode: '',
   active: true,
 })
 const form = reactive<AcademyWrite>(empty())
-// AcademyWrite.city vem da API como string; as cidades suportadas são uma lista literal.
-const supportedCities = new Set<string>(supportedRequestCities)
+const supportedCities = computed(() => new Set(activeCities.value.map(city => city.cityKey)))
+const filterCities = computed(() => [...new Set([...activeCities.value.map(city => city.cityKey), ...academies.value.map(academy => academy.city)])])
+const cityLabel = (key: string) => {
+  const city = activeCities.value.find(item => item.cityKey === key)
+  return city ? city.name + ', ' + city.state : key
+}
 
 const visible = computed(() => {
   const query = search.value.trim().toLocaleLowerCase('pt-BR')
@@ -108,7 +112,7 @@ async function save() {
   if (
     form.name.trim().length < 2 ||
     form.neighborhood.trim().length < 2 ||
-    !supportedCities.has(form.city)
+    (!supportedCities.value.has(form.city) && !academies.value.some(academy => academy.academyId === selectedId.value && academy.city === form.city))
   ) {
     status.value = 'Preencha nome, cidade e bairro válidos.'
     return
@@ -170,6 +174,10 @@ onMounted(() => {
       </button>
       Academias
     </h2>
+    <div v-if="activeCitiesError" role="alert">
+      {{ activeCitiesError }}
+      <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
+    </div>
 
     <div class="academy-actions">
       <button type="button" class="primary-button" @click="newAcademy">+ Nova academia</button>
@@ -187,8 +195,8 @@ onMounted(() => {
         <span class="field-label">Cidade</span>
         <select v-model="cityFilter">
           <option value="">Todas as cidades</option>
-          <option v-for="city in supportedRequestCities" :key="city" :value="city">
-            {{ city }}
+          <option v-for="city in filterCities" :key="city" :value="city">
+            {{ cityLabel(city) }}
           </option>
         </select>
       </label>
@@ -242,8 +250,10 @@ onMounted(() => {
       <label class="field">
         <span class="field-label">Cidade *</span>
         <select v-model="form.city" required>
-          <option v-for="city in supportedRequestCities" :key="city" :value="city">
-            {{ city }}
+          <option value="" disabled>Selecione a cidade</option>
+          <option v-if="form.city && !supportedCities.has(form.city)" :value="form.city">{{ form.city }}</option>
+          <option v-for="city in activeCities" :key="city.cityId" :value="city.cityKey">
+            {{ city.name }}, {{ city.state }}
           </option>
         </select>
       </label>

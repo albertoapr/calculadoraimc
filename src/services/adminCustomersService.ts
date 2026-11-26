@@ -12,6 +12,7 @@ export type AdminCustomer = {
   heightCm: number | null
   active: boolean
   hasLegacy: boolean
+  isAdmin: boolean
 }
 
 export type AdminCustomerUpdate = {
@@ -40,4 +41,13 @@ export async function updateAdminCustomer(
   )
   if (!response.ok || !response.body.updated)
     throw apiError(response, 'Não foi possível atualizar o cliente.')
+}
+
+export async function promoteAdminCustomer(token: string, id: string): Promise<void> {
+  const response = await requestApi<{ promoted?: boolean; error?: string }>(
+    `/api/admin/customers/${encodeURIComponent(id)}/promote-admin`,
+    { method: 'POST', token, body: { confirmation: 'TORNAR_ADMINISTRADOR' } },
+  )
+  if (!response.ok || !response.body.promoted)
+    throw apiError(response, 'Não foi possível conceder acesso administrativo.')
 }

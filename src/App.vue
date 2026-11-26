@@ -15,6 +15,7 @@ import TrainerRequestsView from './views/account/TrainerRequestsView.vue'
 import CustomerRequestsView from './views/account/CustomerRequestsView.vue'
 import AdminTrainersView from './views/account/AdminTrainersView.vue'
 import AdminCustomersView from './views/account/AdminCustomersView.vue'
+import AdminCitiesView from './views/account/AdminCitiesView.vue'
 import AdminAcademiesView from './views/account/AdminAcademiesView.vue'
 import ProfessionalRegistrationView from './views/account/ProfessionalRegistrationView.vue'
 import AssessmentFormView from './views/assessment/AssessmentFormView.vue'
@@ -87,7 +88,9 @@ const {
       v-else
       class="calculator"
       :aria-labelledby="
-        viewMode === 'home' && !result
+        viewMode === 'admin-cities'
+          ? 'admin-cities-title'
+          : viewMode === 'home' && !result
           ? undefined
           : viewMode === 'admin-academies'
             ? 'admin-academies-title'
@@ -125,6 +128,7 @@ const {
 
       <AdminTrainersView v-if="viewMode === 'admin-trainers' && customerIsAdmin" />
       <AdminCustomersView v-if="viewMode === 'admin-customers' && customerIsAdmin" />
+      <AdminCitiesView v-if="viewMode === 'admin-cities' && customerIsAdmin" />
       <AdminAcademiesView v-if="viewMode === 'admin-academies' && customerIsAdmin" />
       <ProfessionalRegistrationView v-if="viewMode === 'professional-registration'" />
 

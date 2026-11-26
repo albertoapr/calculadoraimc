@@ -39,6 +39,11 @@ const trainers = new dynamodb.Table(requestStack, 'FitpesoProfessionals', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const cities = new dynamodb.Table(requestStack, 'FitpesoCities', {
+  partitionKey: { name: 'cityId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 const academies = new dynamodb.Table(requestStack, 'FitpesoAcademies', {
   partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -133,6 +138,7 @@ trainers.addGlobalSecondaryIndex({
 })
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
+cities.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Scan', 'dynamodb:PutItem')
 academies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
@@ -173,6 +179,7 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 }))
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
+backend.imcSubmit.addEnvironment('CITIES_TABLE', cities.tableName)
 backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
@@ -260,12 +267,16 @@ const newDataTables = [
 const lambdaPolicyStack = Stack.of(backend.imcSubmit.resources.lambda)
 const identityDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoIdentityDataAccess')
 const profileDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoProfileDataAccess')
+const accountReviewPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoAccountReviewAccess')
+accountReviewPolicy.addStatements(new iam.PolicyStatement({ actions: ['dynamodb:Scan'], resources: [trainers.tableArn, fitpesoRequests.tableArn, fitpesoProposals.tableArn, fitpesoAtendimentos.tableArn] }))
+accountReviewPolicy.addStatements(new iam.PolicyStatement({ actions: ['dynamodb:ConditionCheckItem'], resources: [trainers.tableArn] }))
 const bannerDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoTrainerBannerAccess')
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
 lambdaRole.addManagedPolicy(identityDataPolicy)
 lambdaRole.addManagedPolicy(profileDataPolicy)
 lambdaRole.addManagedPolicy(bannerDataPolicy)
+lambdaRole.addManagedPolicy(accountReviewPolicy)
 
 trainerBanners.grantReadWrite(bannerDataPolicy)
 profilePhotos.grantReadWrite(bannerDataPolicy)
@@ -281,12 +292,18 @@ for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
 // Edições administrativas de cliente atualizam V2 e cadastro legado atomicamente.
 profileDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
-  resources: [customersV2.tableArn],
+  resources: [customersV2.tableArn, personalsV2.tableArn],
 }))
 // Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
-  resources: [pessoasV2.tableArn, identificacoesV2.tableArn],
+  resources: [pessoasV2.tableArn, identificacoesV2.tableArn, usuariosV2.tableArn],
+}))
+identityDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:ConditionCheckItem'], resources: [usuariosV2.tableArn, pessoasV2.tableArn],
+}))
+profileDataPolicy.addStatements(new iam.PolicyStatement({
+  actions: ['dynamodb:ConditionCheckItem'], resources: [customersV2.tableArn],
 }))
 // Consultas em GSIs exigem permissão nos ARNs dos índices correspondentes.
 for (const [policy, table, indices] of [
@@ -341,6 +358,11 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const adminResource = apiResource.addResource('admin')
+apiResource.addResource('cities').addMethod('GET', lambdaIntegration())
+const adminCitiesResource = adminResource.addResource('cities')
+adminCitiesResource.addMethod('GET', lambdaIntegration())
+adminCitiesResource.addMethod('POST', lambdaIntegration())
+adminCitiesResource.addResource('{cityId}').addMethod('PUT', lambdaIntegration())
 const adminAcademiesResource = adminResource.addResource('academies')
 adminAcademiesResource.addMethod('GET', lambdaIntegration())
 adminAcademiesResource.addMethod('POST', lambdaIntegration())
@@ -353,7 +375,9 @@ academiesResource.addMethod('GET', lambdaIntegration())
 academiesResource.addResource('{academyId}').addMethod('GET', lambdaIntegration())
 const adminCustomersResource = adminResource.addResource('customers')
 adminCustomersResource.addMethod('GET', lambdaIntegration())
-adminCustomersResource.addResource('{customerId}').addMethod('PUT', lambdaIntegration())
+const adminCustomerItem = adminCustomersResource.addResource('{customerId}')
+adminCustomerItem.addMethod('PUT', lambdaIntegration())
+adminCustomerItem.addResource('promote-admin').addMethod('POST', lambdaIntegration())
 const adminTrainersResource = adminResource.addResource('trainers')
 adminTrainersResource.addMethod('GET', lambdaIntegration())
 adminTrainersResource.addMethod('POST', lambdaIntegration())
@@ -368,6 +392,7 @@ trainersResource.addResource('login-status').addMethod('POST', lambdaIntegration
 trainersResource.addResource('verify-login').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('manage-account').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('upload-photo').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('upload-banner').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('banner').addResource('{trainerId}').addMethod('GET', lambdaIntegration())
@@ -389,6 +414,7 @@ betaTrainerSignupResource.addResource('complete').addMethod('POST', lambdaIntegr
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+customersResource.addResource('manage-account').addMethod('POST', lambdaIntegration())
 customersResource.addResource('upload-photo').addMethod('POST', lambdaIntegration())
 customersResource.addResource('verification-status').addMethod('POST', lambdaIntegration())
 customersResource.addResource('start-phone-verification').addMethod('POST', lambdaIntegration())

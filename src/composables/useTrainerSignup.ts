@@ -14,6 +14,7 @@ import {
 } from '../utils/validation'
 
 export function useTrainerSignup(options: {
+  getActiveCities?: () => Promise<string[]>
   onClose: () => void
   active?: Ref<boolean>
   replaceUrl?: (url: string) => unknown
@@ -25,7 +26,6 @@ export function useTrainerSignup(options: {
 }) {
   let disposed = false
   let registrationRequest: AbortController | undefined
-  const availableCities = ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro']
 
   const signupAcademyChoice = ref('')
 
@@ -65,7 +65,10 @@ export function useTrainerSignup(options: {
       betaTrainerSignupToken.value = body.sessionToken
       trainerForm.phone = body.whatsapp
       if (body.name && !trainerForm.name) trainerForm.name = body.name
-      if (body.city && availableCities.includes(body.city)) trainerForm.cities = [body.city]
+      if (body.city) {
+        const activeCities = await options.getActiveCities?.()
+        if (!disposed && (!activeCities || activeCities.includes(body.city))) trainerForm.cities = [body.city]
+      }
       if (body.sexHint === 'masculino' || body.sexHint === 'feminino') trainerForm.sex = body.sexHint
       if (body.academyMatch === 'matched' && body.academyName && body.academyName.length <= 60) {
         trainerForm.academias = [body.academyName]
@@ -137,7 +140,7 @@ export function useTrainerSignup(options: {
       .replace(/-+$/g, '')
   }
 
-  async function sendTrainerSignup(newAcademies: AcademyWrite[] = []) {
+  async function sendTrainerSignup(newAcademies: AcademyWrite[] = [], academyIds: string[] = []) {
     if (disposed || trainerSubmitting.value) return
     trainerStatus.value = ''
     trainerVerificationLink.value = ''
@@ -195,6 +198,7 @@ export function useTrainerSignup(options: {
         ...(email ? { email } : {}),
         cities: [...trainerForm.cities],
         academias: [...trainerForm.academias],
+        ...(academyIds.length ? { academyIds } : {}),
         ...(newAcademies.length ? { newAcademies } : {}),
         instagram,
         ...(cref ? { cref } : {}),
@@ -252,7 +256,6 @@ export function useTrainerSignup(options: {
     stopTrainerRegistration()
   })
   return {
-    availableCities,
     signupAcademyChoice,
     signupOtherAcademy,
     referralCode,

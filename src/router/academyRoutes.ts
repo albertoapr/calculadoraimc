@@ -14,8 +14,8 @@ export function academyNameSlug(name: string): string {
   return slug === 'smart-fit' ? 'smartfit' : slug
 }
 
-export function academyPath(city: string, name: string, neighborhood: string): string {
-  const citySlug = academySlug(city)
+export function academyPath(city: string, name: string, neighborhood: string, registeredCitySlug = academySlug(city)): string {
+  const citySlug = registeredCitySlug
   const nameSlug = academyNameSlug(name)
   const neighborhoodSlug = academySlug(neighborhood)
   if (!citySlug || !nameSlug) return '/profissionais'

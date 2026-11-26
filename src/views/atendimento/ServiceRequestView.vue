@@ -19,7 +19,9 @@ const {
   customerForm,
   status,
   trainingDayOptions,
-  supportedRequestCities,
+  publicCities,
+  publicCitiesError,
+  loadPublicCities,
   form,
   trainingStartMinutes,
   trainingEndMinutes,
@@ -82,10 +84,17 @@ function toggleSection(section: AccordionSection) {
   expandedSection.value = expandedSection.value === section ? null : section
 }
 
+const selectedCity = computed(() => publicCities.value.find(city => city.cityKey === form.city))
+const formatPrice = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const estimatedValue = computed(() => {
+  const minimum = selectedCity.value?.minimumHourlyRateCents
+  if (minimum == null) return ''
   const lessons = form.singleLesson ? form.singleLessonCount : Number(form.sessionsPerWeek) * 4
-  const amount = lessons * 40 * (form.withCompanion ? 2 : 1)
-  return amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  return formatPrice(lessons * minimum * (form.withCompanion ? 2 : 1))
+})
+const estimatedAverage = computed(() => {
+  const average = selectedCity.value?.averageHourlyRateCents
+  return average == null ? '' : formatPrice(average)
 })
 
 const genderLabel = computed(() =>
@@ -111,13 +120,14 @@ const professionalGenderLabel = computed(() =>
     aria-labelledby="contact-form-title"
     @submit.prevent
   >
-    <div class="request-accordion-estimate" aria-live="polite">
+    <div v-if="estimatedValue || estimatedAverage" class="request-accordion-estimate" aria-live="polite">
       <span class="request-accordion-estimate-icon" aria-hidden="true">💰</span>
       <div class="request-accordion-estimate-text">
         <span>Valor estimado</span>
-        <strong
+        <strong v-if="estimatedValue"
           >a partir de {{ estimatedValue }}{{ form.singleLesson ? (form.singleLessonCount === 1 ? ' / aula' : ' / pacote') : ' / mês' }}</strong
         >
+        <span v-if="estimatedAverage">Valor médio estimado na cidade: {{ estimatedAverage }} / hora-aula</span>
       </div>
     </div>
 
@@ -417,10 +427,14 @@ const professionalGenderLabel = computed(() =>
           <label for="accordion-city" class="request-accordion-label">Cidade</label>
           <select id="accordion-city" v-model="form.city" class="request-accordion-select">
             <option value="" disabled>Escolha uma cidade</option>
-            <option v-for="city in supportedRequestCities" :key="city" :value="city">
-              {{ city }}
+            <option v-for="city in publicCities" :key="city.cityId" :value="city.cityKey">
+              {{ city.name }}, {{ city.state }}
             </option>
           </select>
+          <div v-if="publicCitiesError" role="alert">
+            {{ publicCitiesError }}
+            <button type="button" class="secondary-button" @click="loadPublicCities(true)">Tentar novamente</button>
+          </div>
           <label for="accordion-gym" class="request-accordion-label">Academia / local</label>
           <select
             id="accordion-gym"

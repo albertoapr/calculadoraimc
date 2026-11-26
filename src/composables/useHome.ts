@@ -4,12 +4,14 @@ import { academyNameSlug, academyPath, academySlug, parseAcademyPath } from '../
 import { getCachedEligibleTrainers, listEligibleTrainers } from '../services/profissionaisService'
 import { listAcademies, type Academy } from '../services/academiesService'
 import { useTrainerDirectory } from './useTrainerDirectory'
+import { useCityCatalog } from './useCityCatalog'
 import { useSupportedCity } from './useSupportedCity'
 import type { CustomerRequest, EligibleTrainer } from '../types/domain'
 import type { AppViewMode } from '../types/navigation'
 import type { useTrainingDraft } from '../stores/trainingDraft'
 
 export function useHome(options: {
+  catalog: ReturnType<typeof useCityCatalog>
   viewMode: Ref<AppViewMode>
   isRootHome: ComputedRef<boolean>
   form: ReturnType<typeof useTrainingDraft>['form']
@@ -242,7 +244,8 @@ export function useHome(options: {
 
   function pathForAcademyChoice(city: string, choice: string) {
     const { name, neighborhood } = academyParts(choice)
-    return academyPath(city, name, neighborhood)
+    const slug = options.catalog.registration.cities.value.find(item => item.cityKey === city)?.slug
+    return academyPath(city, name, neighborhood, slug)
   }
 
   function changePublicAcademy(choice: string) {
@@ -342,6 +345,8 @@ export function useHome(options: {
     academyRouteError.value = ''
     const route = parseAcademyPath(path)
     if (!route) {
+      await options.catalog.public.load()
+      if (id !== academyRouteLookupId) return
       academyRouteLoading.value = false
       publicTrainerCity.value = homeCity.value || publicTrainerCity.value
       if (publicTrainerCity.value) {
@@ -352,11 +357,13 @@ export function useHome(options: {
     }
 
     academyRouteLoading.value = true
-    const city = supportedRequestCities.find((item) => academySlug(item) === route.city)
+    await options.catalog.registration.load()
+    if (id !== academyRouteLookupId || router.currentRoute.value.path !== path) return
+    const city = options.catalog.registration.cities.value.find(item => item.slug === route.city)?.cityKey
     publicTrainerAcademy.value = ''
     if (!city) {
       publicTrainerCity.value = ''
-      academyRouteError.value = 'Esta cidade não é atendida pelo FitPeso.'
+      academyRouteError.value = options.catalog.registration.error.value || 'Esta cidade não é atendida pelo FitPeso.'
       academyRouteLoading.value = false
       return
     }
@@ -441,7 +448,7 @@ export function useHome(options: {
     void nextTick(() => window.scrollTo(0, 0))
   }
   const {
-    supportedRequestCities,
+    publicCities,
     homeCity,
     homeCityManuallySelected,
     matchSupportedRequestCity,
@@ -449,6 +456,7 @@ export function useHome(options: {
     detectRequestCity,
     cancelRequestCityDetection,
   } = useSupportedCity({
+    catalog: options.catalog,
     viewMode,
     isRootHome,
     publicTrainerCity,
@@ -486,7 +494,7 @@ export function useHome(options: {
     startTrainingRequestFromHome,
     requestProposalFromHome,
     openTrainersForRequest,
-    supportedRequestCities,
+    publicCities,
     homeCity,
     homeCityManuallySelected,
     matchSupportedRequestCity,
