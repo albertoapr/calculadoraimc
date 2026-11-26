@@ -110,6 +110,8 @@ export async function listPersonProfiles(pessoaId: string): Promise<PersonProfil
     ])
     const role = user.tipo?.S || ({ 1: 'ADMIN', 2: 'CLIENTE', 3: 'PERSONAL' } as Record<number, UserRole>)[tipoUsuarioId]
     if (role !== 'ADMIN' && role !== 'CLIENTE' && role !== 'PERSONAL') throw new Error('Tipo de usuario desconhecido')
+    if ((role === 'CLIENTE' && clientes[0]?.ativo?.BOOL === false) ||
+        (role === 'PERSONAL' && personais[0]?.ativo?.BOOL === false)) return null
     return {
       usuarioId,
       tipoUsuarioId,
@@ -119,7 +121,7 @@ export async function listPersonProfiles(pessoaId: string): Promise<PersonProfil
       ...(personais[0]?.personal_id?.S ? { personalId: personais[0].personal_id.S } : {}),
     }
   }))
-  return profiles
+  return profiles.filter((profile): profile is NonNullable<typeof profile> => profile !== null)
 }
 
 export async function resolveVerifiedIdentity(type: IdentificationType, verifiedValue: string) {

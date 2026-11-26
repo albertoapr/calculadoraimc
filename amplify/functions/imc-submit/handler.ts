@@ -851,11 +851,20 @@ async function switchIdentityProfile(
       }
     } else {
       const customer = await getCustomerProfile(event)
-      if (customer.statusCode !== 200) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+      if (customer.statusCode !== 200) {
+        // A pessoa autenticada pelo Google ainda pode escolher seu outro perfil ativo.
+        const token = (event.headers?.authorization ?? event.headers?.Authorization ?? '').match(/^Bearer\s+(.+)$/i)?.[1]
+        const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+        if (!token || !clientId || /^[A-Za-z0-9_-]{43}$/.test(token)) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+        const ticket = await new OAuth2Client(clientId).verifyIdToken({ idToken: token, audience: clientId })
+        const proof = ticket.getPayload()
+        if (!proof?.email_verified || !proof.sub) return response(401, { error: 'Entre novamente para alterar o perfil.' })
+        identity = (await resolveVerifiedIdentity('GOOGLE', proof.sub)) ?? undefined
+      }
       const parsed = JSON.parse(customer.body) as {
         profile?: { identity?: { pessoaId: string; usuarios: Awaited<ReturnType<typeof listPersonProfiles>> } }
       }
-      identity = parsed.profile?.identity
+      identity = identity ?? parsed.profile?.identity
     }
     if (!identity) return response(409, { error: 'Ainda não foi possível vincular os perfis desta conta.' })
     const role = requestedRole === 'ADMIN' ? 'CLIENTE' : requestedRole
@@ -902,7 +911,7 @@ async function switchIdentityProfile(
       }))
       const city = linked.Item?.cidade?.S
       const trainerId = linked.Item?.legacyTrainerId?.S
-      if (linked.Item?.user_id?.S !== user.usuarioId || !city || !trainerId)
+      if (linked.Item?.user_id?.S !== user.usuarioId || linked.Item.ativo?.BOOL === false || !city || !trainerId)
         return response(409, { error: 'Vínculo de personal inválido.' })
       const trainerProfile = await dynamodb.send(new GetItemCommand({
         TableName: process.env.TRAINERS_TABLE!,
@@ -1499,6 +1508,9 @@ async function manageOwnAccount(event: Parameters<APIGatewayProxyHandler>[0], tr
       const values: Record<string, AttributeValue> = { ...owners, ':customer': { S: profileId }, ':now': { N: String(now) },
         ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } }
       const requestOwner = phoneKeys.length ? 'clientPhone IN (' + Object.keys(owners).join(', ') + ') OR customerId = :customer' : 'customerId = :customer'
+      // Older accepted requests may not have a verified phone on the canonical customer.
+      if (!phoneKeys.length && await hasRows('FITPESO_USER_REQUESTS_TABLE', 'customerId = :customer AND lifecycle = :accepted', { ':customer': { S: profileId }, ':accepted': { S: 'ACCEPTED' } }))
+        return response(409, { error: 'Existem atendimentos vinculados ao cadastro. Fale com o suporte para verificar as pendências.' })
       if (await hasRows('FITPESO_USER_REQUESTS_TABLE', '(' + requestOwner + ') AND validUntil > :now AND lifecycle IN (:open, :closed)', values))
         return response(409, { error: 'Encerre suas solicitações em andamento antes de desativar o cadastro.' })
     }
@@ -3439,6 +3451,7 @@ async function submitTrainerProposal(data: Record<string, unknown> | null) {
     if (!trainer) return response(403, { error: 'Este profissional não está ativo ou não está selecionado para esta solicitação.' })
     const validUntil = Math.min(now + 3 * 24 * 60 * 60, Number(request.validUntil.N))
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { ConditionCheck: { TableName: trainersTable, Key: { city: { S: request.city?.S ?? '' }, trainerId: { S: claims.trainerId } }, ConditionExpression: '#active = :yes', ExpressionAttributeNames: { '#active': 'active' }, ExpressionAttributeValues: { ':yes': { BOOL: true } } } },
       { Update: {
         TableName: requestTable, Key: { requestId: { S: claims.requestId } },
         UpdateExpression: 'ADD proposalCount :one',
@@ -3673,7 +3686,8 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
   const requestTable = process.env.FITPESO_USER_REQUESTS_TABLE
   const proposalsTable = process.env.FITPESO_PROPOSALS_TABLE
   const atendimentosTable = process.env.FITPESO_ATENDIMENTOS_TABLE
-  if (!requestTable || !proposalsTable || !atendimentosTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  const trainersTable = process.env.TRAINERS_TABLE
+  if (!requestTable || !proposalsTable || !atendimentosTable || !trainersTable) return response(503, { error: 'Serviço temporariamente indisponível.' })
   const now = Math.floor(Date.now() / 1000)
   try {
     const requestResult = await dynamodb.send(new GetItemCommand({ TableName: requestTable, Key: { requestId: { S: requestId } }, ConsistentRead: true }))
@@ -3689,6 +3703,7 @@ async function acceptTrainerProposal(event: Parameters<APIGatewayProxyHandler>[0
       return [{ Update: { TableName: proposalsTable, Key: { requestId: { S: requestId }, trainerId: { S: proposalTrainerId } }, UpdateExpression: 'SET #status = :status', ConditionExpression: '#status = :open', ExpressionAttributeNames: { '#status': 'status' }, ExpressionAttributeValues: { ':status': { S: proposalTrainerId === trainerId ? 'ACCEPTED' : 'NOT_SELECTED' }, ':open': { S: 'OPEN' } } } }]
     })
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: [
+      { ConditionCheck: { TableName: trainersTable, Key: { city: { S: request.city?.S ?? '' }, trainerId: { S: trainerId } }, ConditionExpression: '#active = :yes', ExpressionAttributeNames: { '#active': 'active' }, ExpressionAttributeValues: { ':yes': { BOOL: true } } } },
       { Update: { TableName: requestTable, Key: { requestId: { S: requestId } }, UpdateExpression: 'SET lifecycle = :accepted, acceptedAt = :nowIso, acceptedTrainerId = :trainerId REMOVE expiresAt', ConditionExpression: 'clientPhone = :phone AND validUntil > :now AND lifecycle IN (:open, :closed)', ExpressionAttributeValues: { ':accepted': { S: 'ACCEPTED' }, ':nowIso': { S: new Date(now * 1000).toISOString() }, ':trainerId': { S: trainerId }, ':phone': { S: request.clientPhone!.S! }, ':now': { N: String(now) }, ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } } } },
       { Put: { TableName: atendimentosTable, Item: { requestId: { S: requestId }, customerWhatsapp: { S: request.clientPhone!.S! }, trainerId: { S: trainerId }, acceptedAt: { S: new Date(now * 1000).toISOString() }, status: { S: 'INICIADO' } }, ConditionExpression: 'attribute_not_exists(requestId)' } },
       ...updates,

@@ -269,6 +269,7 @@ const identityDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoIden
 const profileDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoProfileDataAccess')
 const accountReviewPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoAccountReviewAccess')
 accountReviewPolicy.addStatements(new iam.PolicyStatement({ actions: ['dynamodb:Scan'], resources: [trainers.tableArn, fitpesoRequests.tableArn, fitpesoProposals.tableArn, fitpesoAtendimentos.tableArn] }))
+accountReviewPolicy.addStatements(new iam.PolicyStatement({ actions: ['dynamodb:ConditionCheckItem'], resources: [trainers.tableArn] }))
 const bannerDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoTrainerBannerAccess')
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')

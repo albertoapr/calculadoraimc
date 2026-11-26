@@ -258,7 +258,8 @@ export async function loadGoogleCustomerIdentity(sub: string) {
     item = matches[0]
     resolvedCustomerId = item.customer_id?.S ?? ''
   }
-  if (!resolvedCustomerId || !item || item.user_id?.S !== userId || item.ativo?.BOOL === false) return null
+  if (!resolvedCustomerId || !item || item.user_id?.S !== userId) return null
+  if (item.ativo?.BOOL === false) throw new Error('CUSTOMER_PROFILE_INACTIVE')
   const usuarios = await listPersonProfiles(pessoaId)
   const cliente = usuarios.find(user => user.usuarioId === userId)
   if (cliente) cliente.clienteId = resolvedCustomerId
