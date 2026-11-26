@@ -29,6 +29,12 @@ Estados: Pendente, Em implementação, Implementado (código gravado, sem valida
 | 2.3 | Resolver nomes duplicados | Pendente |
 | 2.4 | Garantir unicidade no DynamoDB | Pendente |
 | 2.5 | Preservar endereços existentes | Pendente |
+| 2.6 | Permitir que o personal altere seu próprio endereço em Meu cadastro → Minha página profissional | Pendente |
+| 2.7 | Validar formato, nomes reservados e disponibilidade no backend, com atualização atômica dos vínculos por cidade | Pendente |
+| 2.8 | Preservar o identificador interno, solicitações, propostas e indicações ao alterar o slug | Pendente |
+| 2.9 | Preservar os links anteriores como aliases do mesmo perfil, sem permitir que terceiros os reutilizem; validar redirecionamento e inativação | Pendente |
+
+Regra: o endereço inicial é gerado automaticamente, mas o profissional pode personalizá-lo depois de autenticado. A preservação de links antigos como aliases é a solução técnica proposta para evitar quebrar links já divulgados; validar sua implementação junto com a etapa 2.
 
 ## Etapa 3 — Cidades e academias
 
