@@ -6179,19 +6179,21 @@
         "type": "object",
         "required": [
           "name",
-          "sex",
           "slug",
           "whatsapp",
-          "cities",
-          "academias",
-          "instagram"
+          "cities"
         ],
         "properties": {
           "name": {
             "type": "string"
           },
           "sex": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "",
+              "masculino",
+              "feminino"
+            ]
           },
           "slug": {
             "type": "string",
@@ -6416,6 +6418,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "masculino",
+              "feminino"
+            ]
           }
         }
       },

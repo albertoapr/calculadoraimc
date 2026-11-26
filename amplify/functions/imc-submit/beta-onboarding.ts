@@ -349,7 +349,7 @@ export async function completeBetaTrainerSignup(
         record.consumedAt?.N || Number(record.expiresAt?.N ?? 0) <= now)
       return reply(401, { error: 'Confirmação expirada. Solicite outro link à Beta.' })
     if (data?.whatsapp !== whatsapp || !validRegistration(data)) return reply(400, {
-      error: 'Confira nome, WhatsApp, sexo, cidade e os dados obrigatórios.',
+      error: 'Confira nome, WhatsApp, endereço do perfil, cidade e os dados informados.',
     })
     if ((await betaTrainersByPhone(whatsapp)).length)
       return reply(409, { error: 'WhatsApp já vinculado a um personal. Procure o suporte ou faça login.' })

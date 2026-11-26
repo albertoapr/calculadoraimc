@@ -146,7 +146,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
         type,
         token,
         trainer
-          ? { name, dateOfBirth: birth, instagram, cref, academias: editingProfile.academias, academyIds: editingProfile.academyIds,
+          ? { name, dateOfBirth: birth, ...(editingProfile.sex ? { sex: editingProfile.sex } : {}), instagram, cref, academias: editingProfile.academias, academyIds: editingProfile.academyIds,
               tagline: editingProfile.tagline, aboutMe: editingProfile.aboutMe,
               education: editingProfile.education, workingMethod: editingProfile.workingMethod,
               pricing: editingProfile.pricing }

@@ -16,6 +16,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
     configurable: true,
     writable: true,
     value: {
+      location: { hostname: 'fitpeso.com.br', search: '', href: 'https://fitpeso.com.br/' },
       setTimeout(fn: () => void, ms: number) {
         timers.set(++timerId, { fn, at: now + ms })
         return timerId
@@ -321,13 +322,28 @@ test('signup modules preserve registration contracts, validation and confirmatio
         })
         assert.equal(
           new URL(p.trainerVerificationLink.value).searchParams.get('text'),
-          'Confirmar personal Fitpeso trainer-code\nWhatsApp: +5521999999999\nNome: José da Silva',
+          '/personal trainer-code',
         )
         assert.match(p.trainerStatus.value, /fitpeso.com.br\/personal\/canonical-slug/)
         assert.equal(timers.size, 0)
         scope.stop()
       },
     )
+
+    await t.test('personal can register with city and no academy, sex or Instagram', async () => {
+      const { value: p, scope } = trainer()
+      Object.assign(p.trainerForm, validTrainer(), { sex: '', instagram: '', academias: [] })
+      reply = { registered: true, verificationCode: 'minimal-trainer', slug: 'jose-silva' }
+      await p.sendTrainerSignup()
+      assert.match(calls.at(-1)!.url, /\/api\/trainers\/register$/)
+      const payload = JSON.parse(String(calls.at(-1)!.init?.body))
+      assert.equal(payload.sex, '')
+      assert.equal(payload.instagram, '')
+      assert.deepEqual(payload.academias, [])
+      assert.deepEqual(payload.cities, ['Mesquita'])
+      assert.match(p.trainerVerificationLink.value, /wa.me/)
+      scope.stop()
+    })
 
     await t.test(
       'personal validation rejects reserved slugs, invalid contacts, dates and city counts',

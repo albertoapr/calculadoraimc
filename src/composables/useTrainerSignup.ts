@@ -161,7 +161,7 @@ export function useTrainerSignup(options: {
     if (account && !account.googleCredential) {
       validationError = 'Para ativar o perfil com a mesma conta, entre novamente com Google.'
     } else if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
-    else if (sex !== 'masculino' && sex !== 'feminino')
+    else if (sex && sex !== 'masculino' && sex !== 'feminino')
       validationError = 'Selecione Masculino ou Feminino.'
     else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
     else if (dateOfBirth && !isValidBirthDate(dateOfBirth))
@@ -171,8 +171,7 @@ export function useTrainerSignup(options: {
         'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
     } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
-    } else if ((!betaTrainerSignupToken.value && !instagram) ||
-      (trainerForm.instagram.trim() && !instagram)) {
+    } else if (trainerForm.instagram.trim() && !instagram) {
       validationError = 'Confira o Instagram informado ou deixe em branco para cadastrar depois.'
     } else if (!isValidEmail(email, true)) {
       validationError = 'Confira o endereço de e-mail ou deixe o campo vazio.'

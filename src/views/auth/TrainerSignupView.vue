@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { AcademyWrite } from '../../services/academiesService'
-import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
@@ -43,18 +42,21 @@ const signupOptions = computed(() => academyChoices.value
   .filter(academy => academy.city === signupCity.value)
   .sort((a, b) => academyLabel(a).localeCompare(academyLabel(b), 'pt-BR')))
 watch(signupCity, () => { signupAcademyId.value = ''; addingAcademy.value = false; academyCreateError.value = '' })
+watch(() => trainerForm.cities[0], city => {
+  if (city && !signupCity.value) signupCity.value = city
+}, { immediate: true })
 function cityForAcademy(name: string) {
   const matches = academyChoices.value.filter(academy => academyLabel(academy) === name || academy.name === name)
   return matches.find(academy => academy.city === cityByAcademy.value[name])?.city ??
     (matches.length === 1 ? matches[0]?.city : matches.find(academy => trainerForm.cities.includes(academy.city))?.city)
 }
-const actingCities = computed(() => [...new Set(trainerForm.academias.map(cityForAcademy).filter((city): city is string => Boolean(city)))])
+const actingCities = computed(() => [...new Set([signupCity.value, ...trainerForm.academias.map(cityForAcademy)].filter((city): city is string => Boolean(city)))])
 const chosenAcademy = computed(() => signupOptions.value.find(academy => academy.academyId === signupAcademyId.value))
 const canAdd = computed(() => {
   const academy = chosenAcademy.value
   return Boolean(academy && trainerForm.academias.length < 5 &&
     !trainerForm.academias.includes(academyLabel(academy)) &&
-    (actingCities.value.includes(academy.city) || actingCities.value.length < 2))
+    actingCities.value.length <= 2)
 })
 function addSignupAcademy() {
   const academy = chosenAcademy.value
@@ -74,7 +76,7 @@ function saveNewAcademy() {
     academyCreateError.value = 'Informe nome e bairro válidos (até 60 caracteres juntos, incluindo o separador).'
     return
   }
-  if (trainerForm.academias.length >= 5 || (!actingCities.value.includes(city) && actingCities.value.length >= 2)) {
+  if (trainerForm.academias.length >= 5 || actingCities.value.length > 2) {
     academyCreateError.value = 'Limite de cinco academias e duas cidades de atuação.'
     return
   }
@@ -99,9 +101,17 @@ function removeSignupAcademy(index: number) {
   trainerForm.cities = [...actingCities.value]
 }
 function submitSignup() {
-  if (academiesLoading.value || academiesError.value || !trainerForm.academias.length ||
-      trainerForm.academias.some(name => !cityForAcademy(name))) {
-    trainerStatus.value = 'Selecione pelo menos uma academia cadastrada e confira as academias informadas.'
+  if (activeCitiesLoading.value || activeCitiesError.value || !activeCities.value.some(city => city.cityKey === signupCity.value)) {
+    trainerStatus.value = 'Selecione uma cidade de atuação ativa.'
+    return
+  }
+  if (actingCities.value.length > 2) {
+    trainerStatus.value = 'Escolha até duas cidades de atuação.'
+    return
+  }
+  if (trainerForm.academias.length && (academiesLoading.value || academiesError.value ||
+      trainerForm.academias.some(name => !cityForAcademy(name)))) {
+    trainerStatus.value = 'Confira as academias selecionadas ou remova-as para concluir sem academia.'
     return
   }
   trainerForm.cities = [...actingCities.value]
@@ -142,8 +152,7 @@ function submitSignup() {
         perfil sem uma nova confirmação.
       </p>
       <p v-else class="intro">
-        Preencha seus dados para receber solicitações de usuários. Confirme o WhatsApp informado
-        para ativar seu perfil.
+        Informe os dados básicos e confirme seu WhatsApp. Você poderá completar seu perfil depois.
       </p>
     </header>
 
@@ -174,14 +183,6 @@ function submitSignup() {
           @blur="suggestTrainerSlug"
           required
         />
-      </label>
-      <label class="field field-wide" for="trainer-sex"
-        ><span class="field-label">Sexo</span>
-        <select id="trainer-sex" v-model="trainerForm.sex" name="trainerSex" required>
-          <option disabled value="">Selecione</option>
-          <option value="masculino">Masculino</option>
-          <option value="feminino">Feminino</option>
-        </select>
       </label>
       <label class="field field-wide" for="trainer-slug"
         ><span class="field-label">Endereço do seu perfil</span>
@@ -218,14 +219,6 @@ function submitSignup() {
           required
         />
       </label>
-      <label class="field field-wide" for="trainer-birth-date"
-        ><span class="field-label">Data de nascimento <span>opcional</span></span>
-        <BirthDatePicker
-          id="trainer-birth-date"
-          v-model="trainerForm.dateOfBirth"
-          name="trainerBirthDate"
-        />
-      </label>
       <label class="field field-wide" for="trainer-email"
         ><span class="field-label">E-mail <span>opcional</span></span>
         <input
@@ -238,12 +231,9 @@ function submitSignup() {
           placeholder="voce@exemplo.com"
         />
       </label>
-      <fieldset class="availability-group field-wide">
-        <legend>Academias onde atende (até 5)</legend>
-        <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
-        <label class="field field-wide" for="signup-city">
-          <span class="field-label">Cidade</span>
-          <select id="signup-city" v-model="signupCity" :disabled="activeCitiesLoading">
+      <label class="field field-wide" for="signup-city">
+          <span class="field-label">Cidade de atuação</span>
+          <select id="signup-city" v-model="signupCity" :disabled="activeCitiesLoading" required>
             <option value="">Selecione a cidade</option>
             <option v-for="city in activeCities" :key="city.cityId" :value="city.cityKey">{{ city.name }}, {{ city.state }}</option>
           </select>
@@ -252,6 +242,10 @@ function submitSignup() {
           {{ activeCitiesError }}
           <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
         </div>
+      <details class="field-wide optional-signup-section" :open="Boolean(betaAcademyHint) || undefined">
+        <summary>Academias onde atende (opcional)</summary>
+        <small>Adicione até cinco academias, se desejar. Você também poderá fazer isso depois.</small>
+        <small v-if="betaAcademyHint" role="status">{{ betaAcademyHint }}</small>
         <p v-if="academiesLoading" role="status">Carregando academias…</p>
         <div v-else-if="academiesError" role="alert">
           {{ academiesError }}
@@ -287,10 +281,20 @@ function submitSignup() {
           <button type="button" :aria-label="'Remover ' + gym" @click="removeSignupAcademy(index)">Remover</button>
         </div>
         <small>{{ trainerForm.academias.length }}/5 academias</small>
-        <small>Cidades de atuação: {{ actingCities.join(', ') || 'Nenhuma academia selecionada' }} (até 2)</small>
-      </fieldset>
+        <small>Cidades de atuação: {{ actingCities.join(', ') || 'Nenhuma cidade selecionada' }} (até 2)</small>
+      </details>
+      <details class="field-wide optional-signup-section">
+        <summary>Outros dados (opcional)</summary>
+        <label class="field field-wide" for="trainer-sex">
+          <span class="field-label">Sexo</span>
+          <select id="trainer-sex" v-model="trainerForm.sex" name="trainerSex">
+            <option value="">Informar depois</option>
+            <option value="masculino">Masculino</option>
+            <option value="feminino">Feminino</option>
+          </select>
+        </label>
       <label class="field field-wide" for="trainer-instagram">
-        <span class="field-label">Perfil do Instagram <span v-if="betaTrainerSignupToken">(opcional; pode preencher depois)</span></span>
+        <span class="field-label">Perfil do Instagram <span>opcional</span></span>
         <input
           id="trainer-instagram"
           v-model="trainerForm.instagram"
@@ -299,24 +303,11 @@ function submitSignup() {
           autocomplete="url"
           maxlength="100"
           placeholder="@seuperfil ou instagram.com/seuperfil"
-          :required="!betaTrainerSignupToken"
         />
       </label>
-      <label class="field field-wide" for="trainer-cref"
-        ><span class="field-label"
-          >Registro do conselho de Educação Física <span>opcional</span></span
-        >
-        <input
-          id="trainer-cref"
-          v-model="trainerForm.cref"
-          name="cref"
-          type="text"
-          maxlength="40"
-          placeholder="Ex.: CREF 000000-G/RJ"
-        />
-      </label>
+      </details>
       <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
-        {{ trainerSubmitting ? 'Salvando cadastro…' : betaTrainerSignupToken ? 'Concluir cadastro' : 'Enviar cadastro' }}
+        {{ trainerSubmitting ? 'Salvando cadastro…' : 'Criar meu perfil' }}
         <span aria-hidden="true">→</span>
       </button>
       <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">
@@ -392,6 +383,10 @@ function submitSignup() {
 </template>
 
 <style scoped>
+.optional-signup-section { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.optional-signup-section summary { cursor: pointer; font-weight: 600; }
+.optional-signup-section > :not(summary) { margin-top: 10px; }
+
 .signup-new-academy-button { width: 100%; margin-top: 8px; }
 .signup-new-academy { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 10px; min-width: 0; }
 .signup-new-academy input { width: 100%; min-width: 0; }

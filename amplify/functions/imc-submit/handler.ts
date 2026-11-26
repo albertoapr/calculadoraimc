@@ -201,7 +201,7 @@ function validAcademias(value: unknown) {
     new Set(value.map((x: string) => x.toLocaleLowerCase('pt-BR'))).size === value.length
 }
 
-function isValidTrainerRegistration(data: Record<string, unknown> | null, allowMissingInstagram = false) {
+function isValidTrainerRegistration(data: Record<string, unknown> | null, allowIncompletePublicProfile = false) {
   if (!data) return false
   const name = typeof data.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
   const phone = normalizePhone(data.whatsapp)
@@ -212,11 +212,11 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null, allowM
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
-    (sex === 'masculino' || sex === 'feminino') && (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
+    (sex === 'masculino' || sex === 'feminino' || (allowIncompletePublicProfile && (sex === '' || sex === undefined))) && (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
     /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
     !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
-    ((allowMissingInstagram && !instagram) ||
+    ((allowIncompletePublicProfile && (data.instagram === undefined || data.instagram === '')) ||
       (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
     (data.academias === undefined || validAcademias(data.academias)) &&
@@ -1788,12 +1788,13 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const validPage = data && pageFields.every(key => data[key] === undefined ||
     (typeof data[key] === 'string' && (data[key] as string).length <= pageLimits[key]))
   if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+      (data.sex !== undefined && data.sex !== 'masculino' && data.sex !== 'feminino') ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       !Array.isArray(academias) || academias.length > 5 ||
       academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 256) ||
       !Array.isArray(data.academyIds) || data.academyIds.length > 5 ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'sex', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -1826,12 +1827,14 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
         UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, academyIds = :academyIds, updatedAt = :updated' +
           (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
+          (data.sex !== undefined ? ', sex = :sex' : '') +
           pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
+          ...(data.sex !== undefined ? { ':sex': { S: data.sex as string } } : {}),
           ':instagram': { S: instagram }, ':cref': { S: cref },
           ':academias': { L: academyNames.map(name => ({ S: name })) },
           ':academyIds': { L: academyLinks.ids.map(id => ({ S: id })) }, ':updated': { S: time },
@@ -2203,11 +2206,10 @@ async function registerTrainer(
   }
   const name = linkedCustomer ? linkedCustomer.item.nome?.S ?? '' : String(data.name).trim().replace(/\s+/g, ' ')
   const sex = linkedCustomer ? linkedCustomer.item.sexo?.S ?? '' : (data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : '')
-  if (sex !== 'masculino' && sex !== 'feminino') throw new Error('Informe o sexo em Meu cadastro antes de ativar o perfil.')
   const whatsapp = normalizePhone(data.whatsapp)
   const email = linkedCustomer ? linkedCustomer.item.email?.S ?? '' : (typeof data.email === 'string' ? data.email.trim().toLowerCase() : '')
   const slug = String(data.slug).trim().toLowerCase()
-  const instagram = String(data.instagram).trim()
+  const instagram = typeof data.instagram === 'string' ? data.instagram.trim() : ''
   const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
   const cities = data.cities as string[]
@@ -2319,7 +2321,7 @@ async function registerTrainer(
             ...(referredByTrainerId ? { referredByTrainerId: { S: referredByTrainerId } } : {}),
             slug: { S: slug },
             name: { S: name },
-            sex: { S: sex },
+            sex: { S: sex === 'masculino' || sex === 'feminino' ? sex : '' },
             whatsapp: { S: whatsapp },
             ...(linkedPersonId ? {
               pessoa_id: { S: linkedPersonId }, identitySource: { S: 'GOOGLE' },
@@ -4260,7 +4262,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)
-    if (!isValidTrainerRegistration(registration)) return response(400, { error: 'Confira nome, telefone, cidades, Instagram e os campos opcionais.' })
+    if (!isValidTrainerRegistration(registration, true)) return response(400, { error: 'Confira nome, WhatsApp, endereço do perfil, cidade e os campos opcionais.' })
     try {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })

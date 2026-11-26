@@ -56,3 +56,7 @@ O modelo inicial proposto inclui identificador, nome, UF, slug e status da cidad
 - Criar/ativar o papel ADMIN na tabela usuario mantendo CLIENTE e PERSONAL; sincronizar isAdmin no cadastro legado quando existir. Registrar quem concedeu e quando.
 - Validar o administrador autenticado no backend e na transação; bloquear identidade inconsistente, cliente inativo ou solicitação de exclusão pendente.
 - O perfil administrativo funciona também com a identidade Google V2 sem registro legado. O beneficiário deve entrar novamente para escolher Administrador. Não foi incluída remoção do papel ADMIN nesta etapa.
+
+## 26/11/2026 — Cadastro simplificado do personal
+
+Aprovado o plano incremental em develop, com validação antes de publicar na main. Acompanhar em [Plano de cadastro simplificado](plano-cadastro-simplificado-personal.md).
