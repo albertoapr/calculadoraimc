@@ -41,8 +41,8 @@ Regra: o endereço inicial é gerado automaticamente, mas o profissional pode pe
 | ID | Tarefa | Status |
 |---|---|---|
 | 3.1 | Selecionar cidade independentemente da academia | Implementado |
-| 3.2 | Minha cidade não está na lista | Pendente |
-| 3.3 | Solicitar inclusão de cidade | Pendente |
+| 3.2 | Minha cidade não está na lista | Implementado |
+| 3.3 | Solicitar inclusão de cidade | Implementado |
 | 3.4 | Cadastro sem academia | Implementado |
 | 3.5 | Preservar inclusão de academia | Implementado |
 | 3.6 | Adicionar cidades e academias posteriormente | Implementado |
@@ -129,7 +129,7 @@ Regra: o endereço inicial é gerado automaticamente, mas o profissional pode pe
 | 10.4 | Perfis incompletos | Pendente |
 | 10.5 | Disponíveis para contratação | Pendente |
 | 10.6 | Indicações | Pendente |
-| 10.7 | Solicitações de novas cidades | Pendente |
+| 10.7 | Solicitações de novas cidades | Implementado |
 | 10.8 | Solicitações de exclusão | Pendente |
 
 ## Etapa 11 — Testes e lançamento
@@ -162,3 +162,7 @@ Criada tabela FitpesoTrainerCities (trainerId, cityId), índice TrainersByCity e
 ### Migração dos vínculos existentes
 
 Após deploy em develop, usar os nomes físicos das três tabelas indicados nos outputs do Amplify. Executar `node scripts/backfill-trainer-cities.mjs` com `TRAINERS_TABLE`, `CITIES_TABLE` e `TRAINER_CITIES_TABLE` definidos (dry-run por padrão); conferir contagens. Executar com `--apply` somente no ambiente de teste autorizado e repetir o dry-run para verificar missing=0, orphan=0 e invalid=0. O script é idempotente, não exclui dados e verifica a existência da linha legada na transação. Usar uma janela sem alterações administrativas para comparação consistente. A migração não foi executada. A troca da fonte de leitura e normalização completa permanecem pendentes.
+
+## Histórico — solicitação de novas cidades
+
+Opção Minha cidade não está na lista no cadastro inicial e Meu cadastro. Solicitação pública registra somente município e UF, deduplicados por nome normalizado e UF. Administrador analisa em Cadastro de cidades; aprovar cria ou reativa a cidade, preservando preços existentes. Se a cidade já estiver ativa, pode ser selecionada imediatamente. O personal pode continuar com outra cidade ativa ou aguardar aprovação; ainda não há conta sem cidade, persistência de rascunho ao fechar a página nem notificação automática. Não há validação do município contra catálogo IBGE nesta etapa; a revisão administrativa deve conferi-lo. Revisão tem trava condicional e recuperação de erros comuns, mas timeout abrupto pode exigir suporte. Etapa 3 implementada no código, com migração histórica e validação ainda pendentes. Etapa 10.7 adiantada. Testes adicionados, não executados.

@@ -4,6 +4,7 @@ import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, saveP
 import { hasAdminRole, listAdminCustomers, promoteAdminCustomer, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
+import { requestCity, listCityRequests, reviewCityRequest } from './city-requests'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
@@ -4084,6 +4085,26 @@ async function handleCities(event: Parameters<APIGatewayProxyHandler>[0], admini
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: corsHeaders, body: '' }
+  if (event.resource === '/api/cities/requests' || event.resource === '/api/admin/city-requests' || event.resource === '/api/admin/city-requests/{requestId}') {
+    try {
+      if (event.resource === '/api/cities/requests' && event.httpMethod === 'POST') {
+        const result = await requestCity(parseBody(event))
+        return response(result.status, result.body)
+      }
+      const auth = await authenticateAdmin(event)
+      if ('error' in auth) return auth.error
+      if (event.resource === '/api/admin/city-requests' && event.httpMethod === 'GET')
+        return response(200, { requests: await listCityRequests() })
+      if (event.resource === '/api/admin/city-requests/{requestId}' && event.httpMethod === 'PUT') {
+        const result = await reviewCityRequest(event.pathParameters?.requestId ?? '', parseBody(event), auth.profile!.whatsapp)
+        return response(result.status, result.body)
+      }
+      return response(405, { error: 'Método não permitido.' })
+    } catch (error) {
+      console.error('[city-requests] Request failed', { errorClass: error instanceof Error ? error.name : typeof error })
+      return response(503, { error: 'Solicitação de cidade temporariamente indisponível.' })
+    }
+  }
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/api/cities')) return handleCities(event, false)
   if (event.resource?.endsWith('/admin/cities') || event.resource?.endsWith('/admin/cities/{cityId}'))
     return handleCities(event, true)

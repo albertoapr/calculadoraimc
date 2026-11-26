@@ -92,8 +92,8 @@ export async function getCityKeys() {
   return (await getCities()).map(city => city.cityKey)
 }
 
-const states = new Set('AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '))
-const citySlug = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+export const states = new Set('AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '))
+export const citySlug = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 function validPrice(value: unknown): value is number | null {

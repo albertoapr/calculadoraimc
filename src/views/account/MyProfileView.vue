@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import RequestAccordionItem from '../../components/RequestAccordionItem.vue'
+import CityRequestForm from '../../components/CityRequestForm.vue'
+import type { City } from '../../services/citiesService'
 import { manageAccount, uploadAccountPhoto } from '../../services/accountProfileService'
 import BirthDatePicker from '../../components/BirthDatePicker.vue'
 import TrainerPageEditor from './TrainerPageEditor.vue'
@@ -32,6 +34,13 @@ const {
 } = useFitpesoContext()
 
 const cityChoice = ref('')
+async function useAvailableCity(city: City) {
+  await loadActiveCities(true)
+  if (!editingProfile.cities.includes(city.cityKey)) {
+    cityChoice.value = city.cityKey
+    addProfileCity()
+  }
+}
 function addProfileCity() {
   if (!activeCities.value.some(city => city.cityKey === cityChoice.value) ||
       editingProfile.cities.includes(cityChoice.value) || editingProfile.cities.length >= 2) return
@@ -284,6 +293,7 @@ async function shareTrainerReferral() {
             <span>{{ city }}</span><button type="button" :disabled="editingProfile.cities.length <= 1 || academiesLoading || Boolean(academiesError)" @click="removeProfileCity(city)">Remover</button>
           </div>
           <small>Até duas cidades nesta fase.</small>
+          <CityRequestForm @available="useAvailableCity" />
         </fieldset>
         <fieldset class="availability-group field-wide">
             <legend>Academias onde atende (opcional, até 5)</legend>

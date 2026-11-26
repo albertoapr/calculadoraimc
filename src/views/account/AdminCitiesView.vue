@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
-import { listCities, saveCity, type City } from '../../services/citiesService'
+import { listCities, saveCity, listCityRequests, reviewCityRequest, type City, type CityRequest } from '../../services/citiesService'
 
 const { goHome, loadActiveCities, loadPublicCities } = useFitpesoContext()
 const cities = ref<City[]>([])
+const requests = ref<CityRequest[]>([])
+const requestError = ref('')
+const reviewing = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -83,7 +86,26 @@ async function save() {
   }
 }
 
-onMounted(refresh)
+async function refreshRequests() {
+  requestError.value = ''
+  try { requests.value = await listCityRequests(session()) }
+  catch (cause) { requestError.value = cause instanceof Error ? cause.message : 'Não foi possível carregar solicitações.' }
+}
+async function review(request: CityRequest, action: 'approve' | 'reject') {
+  if (reviewing.value || !window.confirm((action === 'approve' ? 'Aprovar e disponibilizar ' : 'Rejeitar ') + request.name + ', ' + request.state + '?')) return
+  reviewing.value = request.requestId
+  requestError.value = ''
+  try {
+    await reviewCityRequest(request, action, session())
+    notice.value = 'Solicitação analisada.'
+    await Promise.all([refresh(), refreshRequests(), loadActiveCities(true), loadPublicCities(true)])
+  } catch (cause) { requestError.value = cause instanceof Error ? cause.message : 'Não foi possível analisar.' }
+  finally { reviewing.value = '' }
+}
+const statusLabels: Record<CityRequest['status'], string> = {
+  PENDING: 'Pendente', REVIEWING: 'Em análise', APPROVED: 'Aprovada', REJECTED: 'Rejeitada', AVAILABLE: 'Disponível', UNAVAILABLE: 'Indisponível',
+}
+onMounted(() => { void refresh(); void refreshRequests() })
 </script>
 
 <template>
@@ -134,6 +156,19 @@ onMounted(refresh)
     </form>
 
     <template v-else>
+      <h3>Solicitações de novas cidades</h3>
+      <p v-if="requestError" role="alert">{{ requestError }}</p>
+      <button type="button" class="secondary-button" :disabled="Boolean(reviewing)" @click="refreshRequests">Atualizar solicitações</button>
+      <p v-if="!requests.length && !requestError">Nenhuma solicitação registrada.</p>
+      <div v-for="request in requests" :key="request.requestId" class="city-request-row">
+        <strong>{{ request.name }}, {{ request.state }}</strong>
+        <span>{{ statusLabels[request.status] }}</span>
+        <div v-if="request.status === 'PENDING'" class="city-actions">
+          <button type="button" class="primary-button" :disabled="Boolean(reviewing)" @click="review(request, 'approve')">Aprovar</button>
+          <button type="button" class="secondary-button" :disabled="Boolean(reviewing)" @click="review(request, 'reject')">Rejeitar</button>
+        </div>
+      </div>
+      <h3>Cidades cadastradas</h3>
       <button type="button" class="primary-button" :disabled="loading || saving" @click="edit()">
         Nova cidade
       </button>
@@ -158,6 +193,7 @@ onMounted(refresh)
 </template>
 
 <style scoped>
+.city-request-row { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .city-actions {
   display: flex;
   flex-wrap: wrap;

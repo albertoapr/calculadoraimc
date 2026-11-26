@@ -67,3 +67,7 @@ Aprovado o plano incremental em develop, com validação antes de publicar na ma
 - Implantação incremental: FitpesoTrainerCities com chaves trainerId e cityId e índice reverso TrainersByCity. Durante migração, FitpesoProfessionals permanece fonte de leitura; novas gravações sincronizam vínculos na mesma transação. Backfill e verificação antes de mudar a leitura e eliminar duplicação. Preservar IDs, vínculos e histórico. Limites mantidos inicialmente.
 
 Script de backfill: `scripts/backfill-trainer-cities.mjs` (dry-run por padrão, aplicação explícita após conferência). Não executado nesta alteração.
+
+## 26/11/2026 — Solicitar inclusão de município
+
+Solicitação anônima de município/UF, sem armazenar contatos do solicitante; uma solicitação por município/UF. Administrador aprova ou rejeita no cadastro de cidades. Aprovação disponibiliza a cidade para cadastro, mas o seletor público ainda exige personal ativo. Cadastro continua exigindo cidade ativa. Não há notificação automática, validação IBGE ou persistência de rascunho nesta fase.

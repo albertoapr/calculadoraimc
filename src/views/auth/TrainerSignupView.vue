@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import type { AcademyWrite } from '../../services/academiesService'
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
+import CityRequestForm from '../../components/CityRequestForm.vue'
+import type { City } from '../../services/citiesService'
 const {
   theme,
   activeCities,
@@ -29,6 +31,12 @@ const {
 
 const signupCity = ref('')
 const extraCity = ref('')
+async function useAvailableCity(city: City) {
+  await loadActiveCities(true)
+  if (!activeCities.value.some(item => item.cityKey === city.cityKey)) return
+  if (!signupCity.value || signupCity.value === city.cityKey) signupCity.value = city.cityKey
+  else if (!extraCity.value) extraCity.value = city.cityKey
+}
 const signupAcademyId = ref('')
 const cityByAcademy = ref<Record<string, string>>({})
 const newAcademies = ref<AcademyWrite[]>([])
@@ -221,6 +229,7 @@ function submitSignup() {
           {{ activeCitiesError }}
           <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
         </div>
+      <CityRequestForm @available="useAvailableCity" />
       <label class="field field-wide" for="signup-extra-city">
         <span class="field-label">Outra cidade de atuação (opcional)</span>
         <select id="signup-extra-city" v-model="extraCity" :disabled="activeCitiesLoading">

@@ -44,6 +44,11 @@ const cities = new dynamodb.Table(requestStack, 'FitpesoCities', {
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
   removalPolicy: RemovalPolicy.RETAIN,
 })
+const cityRequests = new dynamodb.Table(requestStack, 'FitpesoCityRequests', {
+  partitionKey: { name: 'requestId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
 const academies = new dynamodb.Table(requestStack, 'FitpesoAcademies', {
   partitionKey: { name: 'academyId', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -151,6 +156,7 @@ trainers.addGlobalSecondaryIndex({
 requestCodes.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:TransactWriteItems')
 trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:UpdateItem')
 cities.grant(backend.imcSubmit.resources.lambda, 'dynamodb:Scan', 'dynamodb:PutItem')
+cityRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Scan')
 academies.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
@@ -198,6 +204,7 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
 backend.imcSubmit.addEnvironment('IMC_REQUESTS_TABLE', requestCodes.tableName)
 backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('CITIES_TABLE', cities.tableName)
+backend.imcSubmit.addEnvironment('CITY_REQUESTS_TABLE', cityRequests.tableName)
 backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_CITIES_TABLE', trainerCities.tableName)
@@ -377,7 +384,12 @@ const imcResource = apiResource.addResource('imc')
 imcResource.addMethod('POST', lambdaIntegration())
 imcResource.addResource('verify').addMethod('POST', lambdaIntegration())
 const adminResource = apiResource.addResource('admin')
-apiResource.addResource('cities').addMethod('GET', lambdaIntegration())
+const publicCitiesResource = apiResource.addResource('cities')
+publicCitiesResource.addMethod('GET', lambdaIntegration())
+publicCitiesResource.addResource('requests').addMethod('POST', lambdaIntegration())
+const adminCityRequests = adminResource.addResource('city-requests')
+adminCityRequests.addMethod('GET', lambdaIntegration())
+adminCityRequests.addResource('{requestId}').addMethod('PUT', lambdaIntegration())
 const adminCitiesResource = adminResource.addResource('cities')
 adminCitiesResource.addMethod('GET', lambdaIntegration())
 adminCitiesResource.addMethod('POST', lambdaIntegration())
