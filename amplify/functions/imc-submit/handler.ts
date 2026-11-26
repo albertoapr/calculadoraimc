@@ -7,7 +7,7 @@ import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGoog
 import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
 import { requestCity, listCityRequests, reviewCityRequest } from './city-requests'
 import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
-import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
+import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta, verifyProgressivePhone, completePhoneSignup } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
 import { betaOnboardingCommand, betaOnboardingTemplate, redeemBetaTrainerSignup, completeBetaTrainerSignup } from './beta-onboarding'
@@ -355,6 +355,7 @@ async function verifyCustomerWhatsApp(data: Record<string, unknown> | null) {
       ConsistentRead: true,
     }))
     const challenge = codeResult.Item
+    if (challenge?.flow?.S === 'fitpeso-progressive-phone') return verifyProgressivePhone(data)
     if (challenge?.flow?.S !== 'fitpeso-customer-whatsapp' || challenge.whatsapp?.S !== whatsapp) return response(200, { verified: false })
 
     const customerResult = await dynamodb.send(new GetItemCommand({
@@ -4352,6 +4353,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/register')) {
     const registration = parseBody(event)
+    if (registration?.code !== undefined) return completePhoneSignup(registration)
     if (!isValidCustomerRegistration(registration)) return response(400, { error: 'Confira o nome, o WhatsApp e os dados informados.' })
     try {
       const registered = await registerCustomer(registration!)

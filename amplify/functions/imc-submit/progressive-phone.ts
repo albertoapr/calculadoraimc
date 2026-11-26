@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand, QueryCommand, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb'
+import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand, TransactWriteItemsCommand, TransactionCanceledException, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
+import { findPersonIdByIdentification } from './identity-store'
 
 /**
  * First-stage verification for progressive signup.
@@ -36,32 +37,26 @@ function parse(event: APIGatewayProxyEvent) {
   } catch { return null }
 }
 async function registered(whatsapp: string) {
-  const customersTable = process.env.FITPESO_CUSTOMERS_TABLE!
-  const trainerTable = process.env.TRAINERS_TABLE!
   const customer = await db.send(new GetItemCommand({
-    TableName: customersTable, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
+    TableName: process.env.FITPESO_CUSTOMERS_TABLE!, Key: { whatsapp: { S: whatsapp } }, ConsistentRead: true,
   }))
-  if (customer.Item) return true
-  for (const city of ['Mesquita', 'Nilópolis', 'Nova Iguaçu', 'Rio de Janeiro', 'UNASSIGNED']) {
-    let cursor: Record<string, any> | undefined
-    do {
-      const page = await db.send(new QueryCommand({
-        TableName: trainerTable, KeyConditionExpression: '#city = :city',
-        ExpressionAttributeNames: { '#city': 'city' },
-        ExpressionAttributeValues: { ':city': { S: city } },
-        ProjectionExpression: 'whatsapp', ExclusiveStartKey: cursor,
-      }))
-      if (page.Items?.some(item => normalizeWhatsApp(item.whatsapp?.S) === whatsapp)) return true
-      cursor = page.LastEvaluatedKey
-    } while (cursor)
-  }
-  return false
+  if (customer.Item && (customer.Item.whatsappVerified?.BOOL === true || customer.Item.status?.S !== 'PENDING_VERIFICATION')) return true
+  const pessoaId = await findPersonIdByIdentification('WHATSAPP', whatsapp)
+  if (!pessoaId) return false
+  const userId = 'U_' + hash(pessoaId + '#CLIENTE').slice(0, 32)
+  const role = await db.send(new GetItemCommand({ TableName: process.env.FITPESO_USUARIO_TABLE!,
+    Key: { user_id: { S: userId } }, ConsistentRead: true }))
+  return Boolean(role.Item)
+}
+export function normalizeSignupDisplayName(value: unknown) {
+  if (typeof value !== 'string') return ''
+  return value.replace(/[\p{Cc}\p{Cf}]/gu, '').trim().replace(/\s+/g, ' ').slice(0, 80)
 }
 export async function startPhoneSignup(event: APIGatewayProxyEvent) {
   const data = parse(event)
   const whatsapp = normalizeWhatsApp(data?.whatsapp)
   if (!whatsapp || !validSession(data?.sessionToken)) return reply(400, { error: 'Informe WhatsApp e sessão válidos.' })
-  if (!process.env.FITPESO_CUSTOMERS_TABLE || !process.env.TRAINERS_TABLE || !process.env.IMC_REQUESTS_TABLE) {
+  if (!process.env.FITPESO_CUSTOMERS_TABLE || !process.env.FITPESO_USUARIO_TABLE || !process.env.IMC_REQUESTS_TABLE) {
     return reply(503, { error: 'Cadastro temporariamente indisponível.' })
   }
   try {
@@ -98,7 +93,8 @@ export async function phoneSignupStatus(event: APIGatewayProxyEvent) {
       return reply(200, { verified: false })
     }
     const expired = Number(challenge.expiresAt?.N ?? 0) <= Math.floor(Date.now() / 1000)
-    return reply(200, { verified: !expired && Boolean(challenge.consumedAt?.N), expired })
+    const verified = !expired && Boolean(challenge.consumedAt?.N)
+    return reply(200, { verified, expired, ...(verified ? { whatsapp: challenge.whatsapp?.S ?? '', name: challenge.displayName?.S ?? '' } : {}) })
   } catch (error) {
     console.error('[signup] Phone status failed', { type: error instanceof Error ? error.name : typeof error })
     return reply(503, { error: 'Não foi possível consultar a confirmação.' })
@@ -108,19 +104,23 @@ export async function verifyPhoneSignupFromBeta(event: APIGatewayProxyEvent) {
   const expected = process.env.TRAINER_WHATSAPP_VERIFY_SECRET
   const supplied = Object.entries(event.headers ?? {}).find(([name]) => name.toLowerCase() === 'x-fitpeso-verification-secret')?.[1]
   if (!expected || !supplied || hash(expected) !== hash(supplied)) return reply(403, { error: 'Acesso não autorizado.' })
-  const data = parse(event)
+  return verifyProgressivePhone(parse(event))
+}
+
+export async function verifyProgressivePhone(data: Record<string, unknown> | null) {
   const whatsapp = normalizeWhatsApp(data?.whatsapp)
   if (!whatsapp || !validCode(data?.code)) return reply(200, { verified: false })
   if (!process.env.IMC_REQUESTS_TABLE) return reply(503, { error: 'Verificação indisponível.' })
   try {
     await db.send(new UpdateItemCommand({
       TableName: process.env.IMC_REQUESTS_TABLE, Key: { codeHash: { S: hash(data!.code as string) } },
-      UpdateExpression: 'SET consumedAt = :now',
+      UpdateExpression: 'SET consumedAt = :now, displayName = :name',
       ConditionExpression: '#flow = :flow AND whatsapp = :phone AND expiresAt > :now AND attribute_not_exists(consumedAt)',
       ExpressionAttributeNames: { '#flow': 'flow' },
       ExpressionAttributeValues: {
         ':flow': { S: 'fitpeso-progressive-phone' },
         ':phone': { S: whatsapp },
+        ':name': { S: normalizeSignupDisplayName(data?.displayName ?? data?.pushName ?? data?.name) },
         ':now': { N: String(Math.floor(Date.now() / 1000)) },
       },
     }))
@@ -129,5 +129,55 @@ export async function verifyPhoneSignupFromBeta(event: APIGatewayProxyEvent) {
     if (error instanceof ConditionalCheckFailedException) return reply(200, { verified: false })
     console.error('[signup] Phone verification failed', { type: error instanceof Error ? error.name : typeof error })
     return reply(503, { error: 'Não foi possível confirmar o WhatsApp.' })
+  }
+}
+
+export async function completePhoneSignup(data: Record<string, unknown> | null) {
+  const code = data?.code, token = data?.sessionToken
+  const name = typeof data?.name === 'string' ? data.name.trim().replace(/\s+/g, ' ') : ''
+  const email = typeof data?.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const sex = data?.sex, height = data?.heightCm
+  if (!validCode(code) || !validSession(token) || name.length < 2 || name.length > 80 || !/^[\p{L}\p{M} .'-]+$/u.test(name) ||
+      (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) ||
+      (sex !== 'masculino' && sex !== 'feminino') ||
+      (height !== undefined && (typeof height !== 'number' || !Number.isFinite(height) || height < 80 || height > 250)))
+    return reply(400, { error: 'Confira os dados e confirme seu WhatsApp.' })
+  const codes = process.env.IMC_REQUESTS_TABLE, customers = process.env.FITPESO_CUSTOMERS_TABLE
+  if (!codes || !customers) return reply(503, { error: 'Cadastro indisponível.' })
+  const now = Math.floor(Date.now() / 1000), sessionHash = hash(token)
+  try {
+    const proof = (await db.send(new GetItemCommand({ TableName: codes, Key: { codeHash: { S: hash(code) } }, ConsistentRead: true }))).Item
+    const whatsapp = proof?.whatsapp?.S ?? ''
+    if (!whatsapp || proof?.flow?.S !== 'fitpeso-progressive-phone' || proof.sessionHash?.S !== sessionHash || !proof.consumedAt?.N || Number(proof.expiresAt?.N ?? 0) <= now)
+      return reply(403, { error: 'Confirme seu WhatsApp antes de concluir o cadastro.' })
+    if (proof.completedAt?.N) {
+      const session = (await db.send(new GetItemCommand({ TableName: codes, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))).Item
+      if (session?.flow?.S === 'fitpeso-customer-login-session' && session.whatsapp?.S === whatsapp && Number(session.expiresAt?.N ?? 0) > now)
+        return reply(200, { registered: true, authenticated: true, whatsapp })
+      return reply(409, { error: 'Cadastro concluído. Entre na sua conta.' })
+    }
+    if (await registered(whatsapp)) return reply(409, { error: 'WhatsApp já cadastrado. Entre na sua conta.' })
+    const timestamp = new Date(now * 1000).toISOString()
+    await db.send(new TransactWriteItemsCommand({ TransactItems: [
+      { Update: { TableName: codes, Key: { codeHash: { S: hash(code) } },
+        UpdateExpression: 'SET completedAt = :now',
+        ConditionExpression: '#flow = :flow AND sessionHash = :hash AND whatsapp = :phone AND expiresAt > :now AND attribute_exists(consumedAt) AND attribute_not_exists(completedAt)',
+        ExpressionAttributeNames: { '#flow': 'flow' },
+        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-progressive-phone' }, ':hash': { S: sessionHash }, ':phone': { S: whatsapp }, ':now': { N: String(now) } } },
+      { Put: { TableName: customers, Item: { whatsapp: { S: whatsapp }, name: { S: name }, sex: { S: sex },
+        ...(email ? { email: { S: email } } : {}), ...(typeof height === 'number' ? { heightCm: { N: String(height) } } : {}),
+        status: { S: 'ACTIVE' }, whatsappVerified: { BOOL: true }, verifiedAt: { S: timestamp }, createdAt: { S: timestamp } },
+        ConditionExpression: 'attribute_not_exists(whatsapp) OR (#status = :pending AND whatsappVerified = :false)',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':pending': { S: 'PENDING_VERIFICATION' }, ':false': { BOOL: false } } } },
+      { Put: { TableName: codes, Item: { codeHash: { S: sessionHash }, flow: { S: 'fitpeso-customer-login-session' },
+        identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, expiresAt: { N: String(now + 12 * 60 * 60) } },
+        ConditionExpression: 'attribute_not_exists(codeHash)' } },
+    ] }))
+    return reply(201, { registered: true, authenticated: true, whatsapp })
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) return reply(409, { error: 'Cadastro alterado. Tente novamente ou entre na sua conta.' })
+    console.error('[signup] Finalization failed', { type: error instanceof Error ? error.name : typeof error })
+    return reply(503, { error: 'Não foi possível concluir o cadastro.' })
   }
 }
