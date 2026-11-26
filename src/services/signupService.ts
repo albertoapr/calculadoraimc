@@ -113,6 +113,8 @@ export async function registerTrainer(payload: TrainerSignupInput, signal?: Abor
   const response = await requestApi<{
     registered?: boolean
     verificationCode?: string
+    browserToken?: string
+    expiresAt?: number
     slug?: string
     error?: string
   }>('/api/trainers/register', {
@@ -129,5 +131,13 @@ export async function registerTrainer(payload: TrainerSignupInput, signal?: Abor
   return {
     verificationCode: response.body.verificationCode,
     slug: response.body.slug,
+    browserToken: response.body.browserToken,
+    expiresAt: response.body.expiresAt,
   }
+}
+
+export async function queryTrainerSignup(code: string, browserToken: string, signal?: AbortSignal) {
+  return requestApi<{ authenticated?: boolean; expired?: boolean; error?: string }>('/api/trainers/verification-status', {
+    method: 'POST', body: { code, browserToken }, signal,
+  })
 }

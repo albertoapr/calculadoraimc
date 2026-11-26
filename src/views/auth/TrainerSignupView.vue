@@ -21,6 +21,9 @@ const {
   betaTrainerSignupToken,
   betaAcademyHint,
   trainerVerificationLink,
+  trainerVerificationChecking,
+  trainerVerificationPending,
+  pollTrainerVerification,
   trainerSubmitting,
   setGoogleButtonContainer,
   googleProfileStatus,
@@ -301,7 +304,7 @@ function submitSignup() {
         />
       </label>
       </details>
-      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">
+      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting || trainerVerificationPending">
         {{ trainerSubmitting ? 'Salvando cadastro…' : 'Criar meu perfil' }}
         <span aria-hidden="true">→</span>
       </button>
@@ -316,6 +319,10 @@ function submitSignup() {
         rel="noopener noreferrer"
         >Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a
       >
+      <button v-if="trainerVerificationPending" type="button" class="secondary-button field-wide" :disabled="trainerVerificationChecking" @click="pollTrainerVerification">
+        {{ trainerVerificationChecking ? 'Verificando…' : 'Já enviei a mensagem' }}
+      </button>
+      <small v-if="trainerVerificationPending" class="field-wide">A confirmação é automática. Volte a esta tela depois de enviar a mensagem à Beta.</small>
     </form>
     <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     <div

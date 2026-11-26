@@ -467,6 +467,9 @@ export function useFitpesoApp() {
     betaAcademyHint,
     startBetaTrainerSignupFromLink,
     trainerVerificationLink,
+    trainerVerificationChecking,
+    trainerVerificationPending,
+    pollTrainerVerification,
     trainerSubmitting,
     closeTrainerSignup,
     toggleTrainerCity,
@@ -490,8 +493,9 @@ export function useFitpesoApp() {
     onClose: goHome,
     active: showTrainerSignup,
     replaceUrl: (url) => router.replace(url),
-    onAuthenticated: async (token) => {
-      const profile = await loadTrainerSession(token)
+    onAuthenticated: async (token, signal) => {
+      const profile = await loadTrainerSession(token, signal)
+      if (signal?.aborted || !showTrainerSignup.value) return
       sessionStorage.setItem('fitpeso-trainer-session', token)
       applyTrainerSession(profile)
       requireProfileSelection()
@@ -1533,6 +1537,9 @@ export function useFitpesoApp() {
     betaAcademyHint,
     trainerStatus,
     trainerVerificationLink,
+    trainerVerificationChecking,
+    trainerVerificationPending,
+    pollTrainerVerification,
     trainerSubmitting,
     googleProfileStatus,
     closeTrainerSignup,

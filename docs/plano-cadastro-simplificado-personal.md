@@ -53,9 +53,9 @@ Regra: o endereço inicial é gerado automaticamente, mas o profissional pode pe
 | ID | Tarefa | Status |
 |---|---|---|
 | 4.1 | Nome, e-mail e foto pelo Google | Pendente |
-| 4.2 | Simplificar confirmação WhatsApp | Pendente |
-| 4.3 | Atualizar tela automaticamente | Pendente |
-| 4.4 | Login automático | Pendente |
+| 4.2 | Simplificar confirmação WhatsApp | Implementado |
+| 4.3 | Atualizar tela automaticamente | Implementado |
+| 4.4 | Login automático | Implementado |
 | 4.5 | Aproveitar dados da Beta | Pendente |
 | 4.6 | Não repetir confirmação | Pendente |
 | 4.7 | Identificar cadastro existente | Pendente |
@@ -166,3 +166,7 @@ Após deploy em develop, usar os nomes físicos das três tabelas indicados nos 
 ## Histórico — solicitação de novas cidades
 
 Opção Minha cidade não está na lista no cadastro inicial e Meu cadastro. Solicitação pública registra somente município e UF, deduplicados por nome normalizado e UF. Administrador analisa em Cadastro de cidades; aprovar cria ou reativa a cidade, preservando preços existentes. Se a cidade já estiver ativa, pode ser selecionada imediatamente. O personal pode continuar com outra cidade ativa ou aguardar aprovação; ainda não há conta sem cidade, persistência de rascunho ao fechar a página nem notificação automática. Não há validação do município contra catálogo IBGE nesta etapa; a revisão administrativa deve conferi-lo. Revisão tem trava condicional e recuperação de erros comuns, mas timeout abrupto pode exigir suporte. Etapa 3 implementada no código, com migração histórica e validação ainda pendentes. Etapa 10.7 adiantada. Testes adicionados, não executados.
+
+## Histórico — etapa 4, confirmação web
+
+Cadastro web mantém comando /personal (ou /personal develop) e cria prova de navegador aleatória separada do código WhatsApp. Apenas o hash é armazenado; confirmação pela Beta ativa o perfil e cria sessão na mesma transação. Novo endpoint de status exige ambos os segredos; frontend consulta ao voltar/focar, com polling, botão Já enviei a mensagem, timeout e cancelamento ao sair. Mantido fluxo Beta já verificado e indicação. Prova mantida em memória na aba original; recarregar exige login convencional ou novo cadastro pendente. Google completo, reconciliação de identidade e demais itens 4.1/4.5–4.9 continuam pendentes de revisão. Testes acrescentados sem execução; não publicar em main antes de validação. Limite de API Gateway e concorrência precisam de teste de carga.

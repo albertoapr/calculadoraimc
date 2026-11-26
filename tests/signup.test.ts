@@ -329,6 +329,32 @@ test('signup modules preserve registration contracts, validation and confirmatio
       },
     )
 
+    await t.test('personal signup checks confirmation using a separate browser token', async () => {
+      const scope = effectScope()
+      scopes.push(scope)
+      let authenticated = ''
+      const p = scope.run(() => useTrainerSignup({ onClose() {}, onAuthenticated: token => { authenticated = token } }))!
+      Object.assign(p.trainerForm, validTrainer())
+      const code = 'A'.repeat(22), token = 'B'.repeat(43)
+      status = 201
+      reply = { registered: true, verificationCode: code, browserToken: token, expiresAt: Math.floor(now / 1000) + 900, slug: 'jose-silva' }
+      await p.sendTrainerSignup()
+      assert.equal(p.trainerVerificationPending.value, true)
+      assert.ok(!p.trainerVerificationLink.value.includes(token))
+      status = 200
+      reply = { authenticated: false }
+      await p.pollTrainerVerification()
+      assert.equal(authenticated, '')
+      assert.match(calls.at(-1)!.url, /\/api\/trainers\/verification-status$/)
+      assert.deepEqual(JSON.parse(String(calls.at(-1)!.init?.body)), { code, browserToken: token })
+      reply = { authenticated: true }
+      await p.pollTrainerVerification()
+      assert.equal(authenticated, token)
+      assert.equal(p.trainerVerificationPending.value, false)
+      assert.equal(p.trainerVerificationLink.value, '')
+      scope.stop()
+    })
+
     await t.test('personal can register with city and no academy, sex or Instagram', async () => {
       const { value: p, scope } = trainer()
       Object.assign(p.trainerForm, validTrainer(), { sex: '', instagram: '', academias: [] })

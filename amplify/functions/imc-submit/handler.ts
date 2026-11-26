@@ -1,3 +1,4 @@
+import { newTrainerSignupToken, trainerSignupTokenHash, matchesTrainerSignupToken } from './trainer-signup-proof'
 import { trainerCityChanges } from './trainer-cities'
 import { validTrainerSlug, trainerSlugCandidate } from './trainer-slug'
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
@@ -2154,11 +2155,13 @@ class TrainerSlugUnavailableError extends Error { constructor() { super('Endere�
 class TrainerPhoneRegisteredError extends Error { constructor() { super('TRAINER_PHONE_REGISTERED') } }
 
 function createTrainerCode(trainerId: string, whatsapp: string, cities: string[], slug: string) {
+  const browserToken = newTrainerSignupToken()
   const code = randomBytes(16).toString('base64url')
   const expiresAt = Math.floor(Date.now() / 1000) + codeLifetimeSeconds
   return {
-    code,
+    code, browserToken, expiresAt,
     item: {
+      signupBrowserTokenHash: { S: trainerSignupTokenHash(browserToken) },
       codeHash: { S: hashCode(code) },
       flow: { S: 'trainer-whatsapp' },
       trainerId: { S: trainerId },
@@ -2241,7 +2244,7 @@ async function issueCodeForExistingSignup(data: Record<string, unknown>, request
       })),
     ],
   }))
-  return { slug, verificationCode: challenge.code }
+  return { slug, verificationCode: challenge.code, browserToken: challenge.browserToken, expiresAt: challenge.expiresAt }
 }
 
 // Código único estável, inclusive para registros anteriores à implantação.
@@ -2497,7 +2500,7 @@ async function registerTrainer(
       })
     }
   }
-  return { slug, verificationCode: challenge.code }
+  return { slug, verificationCode: challenge.code, browserToken: challenge.browserToken, expiresAt: challenge.expiresAt }
   }
   throw new TrainerSlugUnavailableError()
 }
@@ -3332,6 +3335,13 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
     await dynamodb.send(new TransactWriteItemsCommand({
       TransactItems: [
         ...academyPlan.writes,
+        ...(item.signupBrowserTokenHash?.S && /^[a-f0-9]{64}$/.test(item.signupBrowserTokenHash.S) ? [{ Put: {
+          TableName: codesTable,
+          Item: { codeHash: { S: item.signupBrowserTokenHash.S }, flow: { S: 'fitpeso-trainer-login-session' },
+            identityProof: { S: 'WHATSAPP' }, whatsapp: { S: whatsapp }, trainerId: { S: trainerId },
+            city: { S: cities[0] }, expiresAt: { N: String(now + 12 * 60 * 60) } },
+          ConditionExpression: 'attribute_not_exists(codeHash)',
+        } }] : []),
         ...academyIds.map(academyId => ({
           Put: {
             TableName: linksTable!,
@@ -3396,6 +3406,34 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
       errorClass: error instanceof Error ? error.name : typeof error,
     })
     return response(503, { error: 'Não foi possível confirmar o WhatsApp agora.' })
+  }
+}
+
+/** The WhatsApp code alone never grants a browser session. */
+async function getTrainerSignupStatus(data: Record<string, unknown> | null) {
+  const code = typeof data?.code === 'string' ? data.code : ''
+  const token = typeof data?.browserToken === 'string' ? data.browserToken : ''
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code) || !/^[A-Za-z0-9_-]{43}$/.test(token))
+    return response(400, { error: 'Confirmação inválida.' })
+  const table = process.env.IMC_REQUESTS_TABLE
+  if (!table) return response(503, { error: 'Serviço temporariamente indisponível.' })
+  try {
+    const item = (await dynamodb.send(new GetItemCommand({ TableName: table,
+      Key: { codeHash: { S: hashCode(code) } }, ConsistentRead: true }))).Item
+    if (item?.flow?.S !== 'trainer-whatsapp' || !matchesTrainerSignupToken(token, item.signupBrowserTokenHash?.S))
+      return response(200, { authenticated: false, expired: true })
+    const now = Math.floor(Date.now() / 1000)
+    if (Number(item.expiresAt?.N ?? 0) <= now) return response(200, { authenticated: false, expired: true })
+    if (!item.consumedAt?.N) return response(200, { authenticated: false })
+    const session = (await dynamodb.send(new GetItemCommand({ TableName: table,
+      Key: { codeHash: { S: trainerSignupTokenHash(token) } }, ConsistentRead: true }))).Item
+    if (session?.flow?.S !== 'fitpeso-trainer-login-session' || session.trainerId?.S !== item.trainerId?.S ||
+        session.whatsapp?.S !== item.whatsapp?.S || Number(session.expiresAt?.N ?? 0) <= now)
+      return response(200, { authenticated: false })
+    return response(200, { authenticated: true })
+  } catch (error) {
+    console.error('[trainer-signup-status] Lookup failed', { errorClass: error instanceof Error ? error.name : typeof error })
+    return response(503, { error: 'Não foi possível consultar a confirmação.' })
   }
 }
 
@@ -4399,12 +4437,13 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/admin/trainers')) return registerAdminTrainer(event)
 
-  if (event.resource?.endsWith('/trainers/register')) {
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/verification-status')) return getTrainerSignupStatus(parseBody(event))
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)
     if (!isValidTrainerRegistration(registration, true)) return response(400, { error: 'Confira nome, WhatsApp, cidade e os campos opcionais.' })
     try {
-      const { slug, verificationCode } = await registerTrainer(registration!)
-      return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
+      const { slug, verificationCode, browserToken, expiresAt } = await registerTrainer(registration!)
+      return response(201, { registered: true, status: 'pending_verification', slug, verificationCode, browserToken, expiresAt })
     } catch (error) {
       if (error instanceof Error && error.message === 'INVALID_ACADEMY_ASSOCIATIONS')
         return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })

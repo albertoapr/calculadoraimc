@@ -6144,6 +6144,77 @@
           }
         }
       }
+    },
+    "/api/trainers/verification-status": {
+      "post": {
+        "operationId": "trainerSignupStatus",
+        "summary": "Consultar confirmação do cadastro profissional com prova do navegador",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "browserToken"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{22}$"
+                  },
+                  "browserToken": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado da confirmação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    },
+                    "expired": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6434,6 +6505,13 @@
           },
           "slug": {
             "type": "string"
+          },
+          "browserToken": {
+            "type": "string",
+            "description": "Segredo de sessão do navegador, nunca enviado ao WhatsApp."
+          },
+          "expiresAt": {
+            "type": "integer"
           }
         }
       },
