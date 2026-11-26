@@ -23,8 +23,6 @@ const {
   editingProfileSaving,
   saveMyProfile,
   openMyProfile,
-  navigateTo,
-  selectableProfiles,
   logout,
 } = useFitpesoContext()
 
@@ -147,10 +145,6 @@ async function shareTrainerReferral() {
 <template>
   <section class="customer-signup" aria-labelledby="page-title">
     <p class="intro">Consulte e atualize as informações do seu cadastro.</p>
-    <div v-if="editingProfileType === 'customer' && !selectableProfiles.some(profile => profile.tipo === 'PERSONAL')" class="profile-activation">
-      <p>Também quer receber solicitações de treinamento? Ative um perfil profissional sem criar outra conta.</p>
-      <button type="button" class="secondary-button" @click="navigateTo('/cadastro/personal')">Ativar perfil de personal trainer</button>
-    </div>
     <p v-if="editingProfileLoading" class="status" role="status">Carregando seu cadastro…</p>
     <form v-else class="form contact-fields" @submit.prevent="saveMyProfile">
       <div class="google-profile-photo field-wide">
@@ -344,6 +338,4 @@ async function shareTrainerReferral() {
 .profile-photo-controls { flex: 1; min-width: 0; }
 .profile-photo-controls input { width: 100%; max-width: 100%; }
 .profile-photo-controls label { cursor: pointer; text-align: center; }
-.profile-activation { margin: 12px 0 20px; display: grid; gap: 8px; }
-.profile-activation p { margin: 0; color: var(--muted); }
 </style>
