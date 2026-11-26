@@ -314,7 +314,6 @@ test('signup modules preserve registration contracts, validation and confirmatio
         assert.deepEqual(JSON.parse(String(calls.at(-1)!.init?.body)), {
           name: 'José da Silva',
           sex: 'masculino',
-          slug: 'jose-silva',
           whatsapp: '+5521999999999',
           cities: ['Mesquita'],
           academias: ['Academia Teste'],
@@ -337,6 +336,7 @@ test('signup modules preserve registration contracts, validation and confirmatio
       await p.sendTrainerSignup()
       assert.match(calls.at(-1)!.url, /\/api\/trainers\/register$/)
       const payload = JSON.parse(String(calls.at(-1)!.init?.body))
+      assert.equal(payload.slug, undefined)
       assert.equal(payload.sex, '')
       assert.equal(payload.instagram, '')
       assert.deepEqual(payload.academias, [])
@@ -351,7 +351,6 @@ test('signup modules preserve registration contracts, validation and confirmatio
         const { value: p, scope } = trainer()
         const before = calls.length
         for (const [field, value, expected] of [
-          ['slug', 'develop', /endereço do perfil/],
           ['phone', '123', /WhatsApp/],
           ['dateOfBirth', '2020-02-30', /nascimento/],
           ['cities', [], /cidades/],

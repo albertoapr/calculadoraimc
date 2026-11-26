@@ -134,7 +134,9 @@ test('account profile loads and saves customer and trainer data outside the app 
         dateOfBirth: '1985-02-20',
         instagram: '@joao.personal',
         cref: '123-G/RJ',
+        slug: 'joao-lima',
         academias: ['Academia Central'],
+        academyIds: [], tagline: '', aboutMe: '', education: '', workingMethod: '', pricing: '',
       })
       assert.equal(applied?.trainerId, 'trainer-1')
     })

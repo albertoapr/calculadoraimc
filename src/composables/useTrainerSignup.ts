@@ -6,7 +6,6 @@ import {
   isValidEmail,
   isValidLooseCref,
   isValidPersonName,
-  isValidProfileSlug,
   normalizeBrazilianPhone,
   normalizeEmail,
   normalizeInstagramHandle,
@@ -146,7 +145,6 @@ export function useTrainerSignup(options: {
     trainerVerificationLink.value = ''
     const name = normalizePersonName(trainerForm.name)
     const sex = trainerForm.sex
-    const slug = trainerForm.slug.trim().toLowerCase()
     const phone = normalizeBrazilianPhone(trainerForm.phone)
     const email = normalizeEmail(trainerForm.email)
     const dateOfBirth = trainerForm.dateOfBirth
@@ -166,10 +164,7 @@ export function useTrainerSignup(options: {
     else if (!phone) validationError = 'Informe um WhatsApp válido com DDD.'
     else if (dateOfBirth && !isValidBirthDate(dateOfBirth))
       validationError = 'Informe uma data de nascimento válida ou deixe em branco.'
-    else if (!isValidProfileSlug(slug)) {
-      validationError =
-        'O endereço do perfil deve ter de 3 a 40 caracteres, usando letras minúsculas, números ou hífen.'
-    } else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
+    else if (trainerForm.cities.length < 1 || trainerForm.cities.length > 2) {
       validationError = 'Escolha uma ou duas cidades de atuação.'
     } else if (trainerForm.instagram.trim() && !instagram) {
       validationError = 'Confira o Instagram informado ou deixe em branco para cadastrar depois.'
@@ -191,7 +186,6 @@ export function useTrainerSignup(options: {
       const payload = {
         name,
         sex,
-        slug,
         whatsapp: phone,
         ...(dateOfBirth ? { dateOfBirth } : {}),
         ...(email ? { email } : {}),
@@ -225,7 +219,7 @@ export function useTrainerSignup(options: {
           ? `/personal develop ${body.verificationCode}`
           : `/personal ${body.verificationCode}`
         trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-        trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || slug}.`
+        trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp em até 15 minutos. Após confirmar, seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || trainerForm.slug}.`
       }
     } catch (error) {
       if (disposed || controller.signal.aborted) return

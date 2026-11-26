@@ -81,6 +81,13 @@ async function handleBannerFile(event: Event) {
 <template>
   <fieldset class="trainer-page-editor field-wide">
     <legend>Personalize sua página profissional</legend>
+    <label class="field field-wide" for="personal-slug">
+      <span class="field-label">Endereço do perfil</span>
+      <input id="personal-slug" v-model.trim="editingProfile.slug" type="text" maxlength="40"
+        autocapitalize="none" autocomplete="off" placeholder="joao-personal" />
+      <small>fitpeso.com.br/personal/{{ editingProfile.slug || 'seu-endereco' }}</small>
+      <small>Use de 3 a 40 letras minúsculas, números ou hífens. Endereços antigos continuam vinculados ao seu perfil. Clique em Salvar alterações.</small>
+    </label>
     <label class="field field-wide" for="personal-tagline">
       <span class="field-label">Frase de apresentação</span>
       <input id="personal-tagline" v-model="editingProfile.tagline" type="text" maxlength="140"

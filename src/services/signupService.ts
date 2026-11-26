@@ -13,7 +13,7 @@ export type CustomerSignupInput = {
 export type TrainerSignupInput = {
   name: string
   sex: string
-  slug: string
+  slug?: string
   whatsapp: string
   dateOfBirth?: string
   email?: string

@@ -52,6 +52,11 @@ export function usePublicTrainerProfile(router: Router) {
       const name = typeof trainer.name === 'string' ? trainer.name.trim() : ''
       if (!name) throw new Error('Invalid trainer profile')
       if (currentLookup !== lookupId) return
+      if (trainerSlug.value && trainer.slug !== trainerSlug.value && /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(trainer.slug)) {
+        const route = router.currentRoute.value
+        await router.replace({ path: '/personal/' + trainer.slug, query: route.query, hash: route.hash })
+        if (currentLookup !== lookupId) return
+      }
       personalName.value = `${name.split(/\s+/)[0]} Personal Trainer`
       publicTrainer.value = trainer
       if (trainer.trainerId && trainer.bannerUpdatedAt) {

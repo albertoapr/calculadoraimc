@@ -4,6 +4,7 @@ import {
   isValidFormattedCref,
   isValidInstagramHandle,
   isValidPersonName,
+  isValidProfileSlug,
   normalizePersonName,
 } from '../utils/validation'
 import {
@@ -126,6 +127,8 @@ export function useAccountProfile(options: AccountProfileOptions) {
     if (type === 'customer' && !editingProfile.sex) { editingProfileStatus.value = 'Selecione o sexo.'; return }
     if (type === 'customer' && editingProfile.heightCm !== undefined && (!Number.isFinite(editingProfile.heightCm) || editingProfile.heightCm < 80 || editingProfile.heightCm > 250)) { editingProfileStatus.value = 'Informe uma altura válida entre 80 e 250 cm.'; return }
     const trainer = type === 'trainer'
+    const slug = editingProfile.slug.trim().toLowerCase()
+    if (trainer && slug && !isValidProfileSlug(slug)) { editingProfileStatus.value = 'Informe um endereço de perfil válido (3 a 40 caracteres, sem nomes reservados).'; return }
     const cref = editingProfile.cref.trim().toUpperCase()
     const instagram = editingProfile.instagram.trim()
     if (trainer && !isValidFormattedCref(cref)) {
@@ -146,7 +149,7 @@ export function useAccountProfile(options: AccountProfileOptions) {
         type,
         token,
         trainer
-          ? { name, dateOfBirth: birth, ...(editingProfile.sex ? { sex: editingProfile.sex } : {}), instagram, cref, academias: editingProfile.academias, academyIds: editingProfile.academyIds,
+          ? { name, dateOfBirth: birth, ...(slug ? { slug } : {}), ...(editingProfile.sex ? { sex: editingProfile.sex } : {}), instagram, cref, academias: editingProfile.academias, academyIds: editingProfile.academyIds,
               tagline: editingProfile.tagline, aboutMe: editingProfile.aboutMe,
               education: editingProfile.education, workingMethod: editingProfile.workingMethod,
               pricing: editingProfile.pricing }

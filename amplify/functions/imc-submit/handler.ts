@@ -1,3 +1,4 @@
+import { validTrainerSlug, trainerSlugCandidate } from './trainer-slug'
 import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, savePersonFields, savePersonPhoto, personPhotoReference } from './person-profile'
 import { hasAdminRole, listAdminCustomers, promoteAdminCustomer, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
@@ -214,8 +215,7 @@ function isValidTrainerRegistration(data: Record<string, unknown> | null, allowI
   return name.length >= 2 && name.length <= 80 && /^[\p{L}\p{M} .'-]+$/u.test(name) && Boolean(phone) &&
     (sex === 'masculino' || sex === 'feminino' || (allowIncompletePublicProfile && (sex === '' || sex === undefined))) && (!data.dateOfBirth || isValidBirthDate(data.dateOfBirth)) &&
     (email === '' || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) &&
-    /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/.test(slug) &&
-    !['www', 'api', 'mail', 'ftp', 'admin', 'app', 'beta', 'fitpeso', 'suporte', 'ajuda', 'develop', 'test', 'homologacao'].includes(slug) &&
+    (validTrainerSlug(slug) || (allowIncompletePublicProfile && data.slug === undefined)) &&
     ((allowIncompletePublicProfile && (data.instagram === undefined || data.instagram === '')) ||
       (/^@[A-Za-z0-9._]{1,30}$/.test(instagram) && !instagram.includes('..') && !instagram.endsWith('.'))) &&
     (cref === '' || (cref.length <= 40 && /^[\p{L}\p{M}0-9 ./-]+$/u.test(cref))) &&
@@ -1783,18 +1783,20 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
   const cref = typeof data?.cref === 'string' ? data.cref.trim().toUpperCase() : ''
   const instagram = typeof data?.instagram === 'string' ? data.instagram.trim() : ''
   const academias = data?.academias ?? []
+  const requestedSlug = typeof data?.slug === 'string' ? data.slug.trim().toLowerCase() : undefined
   const pageFields = ['tagline', 'aboutMe', 'education', 'workingMethod', 'pricing'] as const
   const pageLimits = { tagline: 140, aboutMe: 1500, education: 1500, workingMethod: 1500, pricing: 1500 }
   const validPage = data && pageFields.every(key => data[key] === undefined ||
     (typeof data[key] === 'string' && (data[key] as string).length <= pageLimits[key]))
   if (!validPage || !data || !validProfileName(data.name) || (data.dateOfBirth !== undefined && data.dateOfBirth !== '' && !isValidBirthDate(data.dateOfBirth)) ||
+      (data.slug !== undefined && !validTrainerSlug(requestedSlug)) ||
       (data.sex !== undefined && data.sex !== 'masculino' && data.sex !== 'feminino') ||
       (cref !== '' && !/^[0-9]{1,10}-[GP]\/[A-Z]{2}$/.test(cref)) ||
       (instagram !== '' && (!/^@[A-Za-z0-9._]{1,30}$/.test(instagram) || instagram.includes('..') || instagram.endsWith('.'))) ||
       !Array.isArray(academias) || academias.length > 5 ||
       academias.some(name => typeof name !== 'string' || name.length < 2 || name.length > 256) ||
       !Array.isArray(data.academyIds) || data.academyIds.length > 5 ||
-      Object.keys(data).some(key => !['name', 'dateOfBirth', 'sex', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
+      Object.keys(data).some(key => !['name', 'dateOfBirth', 'sex', 'slug', 'cref', 'instagram', 'academias', 'academyIds', ...pageFields].includes(key))) {
     return response(400, { error: 'Confira nome, nascimento, Instagram e CREF. WhatsApp e e-mail não podem ser alterados aqui.' })
   }
   const tableName = process.env.TRAINERS_TABLE
@@ -1807,13 +1809,24 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
       ExpressionAttributeNames: { '#id': 'trainerId' },
       ExpressionAttributeValues: { ':id': { S: auth.profile!.trainerId } },
     }))
-    const rows = lookup.Items ?? []
+    // Verify all city rows through strongly consistent reads before changing their slug.
+    const listed = lookup.Items ?? []
+    const knownCities = await getCityKeys()
+    const rows = (await Promise.all(knownCities.map(city => dynamodb.send(new GetItemCommand({
+      TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } }, ConsistentRead: true,
+    })))).map(result => result.Item).filter((row): row is Record<string, AttributeValue> => !!row)
+    if (lookup.LastEvaluatedKey || listed.some(row => !rows.some(current => current.city?.S === row.city?.S)) ||
+      !rows.some(row => row.city?.S === auth.profile!.city))
+      return response(409, { error: 'Não foi possível confirmar todas as cidades do perfil.' })
     const cities = [...new Set(rows.map(row => row.city?.S ?? '').filter(Boolean))]
     if (cities.length < 1 || cities.length > 2) return response(409, { error: 'Não foi possível confirmar as cidades do cadastro.' })
     const academyLinks = await resolveRegisteredAcademies(data.academyIds, cities)
     const linksTable = process.env.TRAINER_ACADEMIES_TABLE
     if (!linksTable) return response(503, { error: 'Associações de academias indisponíveis.' })
     const existing = rows[0]
+    const oldSlug = auth.profile!.slug
+    const changeSlug = requestedSlug !== undefined && requestedSlug !== oldSlug
+    if (changeSlug && rows.some(row => (row.slug?.S ?? '') !== oldSlug)) return response(409, { error: 'Endereços inconsistentes. Procure o suporte.' })
     const oldAcademyIds = (existing.academyIds?.L ?? []).map(value => value.S ?? '').filter(Boolean)
     const oldNames = new Set((existing.academias?.L ?? []).map(value => value.S ?? '').filter(Boolean))
     // Keep legacy names only if they were previously saved: new associations must use registered IDs.
@@ -1828,13 +1841,16 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
         UpdateExpression: 'SET #name = :name, instagram = :instagram, cref = :cref, academias = :academias, academyIds = :academyIds, updatedAt = :updated' +
           (data.dateOfBirth ? ', dateOfBirth = :dob' : '') +
           (data.sex !== undefined ? ', sex = :sex' : '') +
+          (changeSlug ? ', slug = :slug' : '') +
           pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
-        ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+        ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone' +
+          (changeSlug ? (oldSlug ? ' AND slug = :oldSlug' : ' AND attribute_not_exists(slug)') : ''),
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
           ...(data.dateOfBirth ? { ':dob': { S: data.dateOfBirth as string } } : {}),
           ...(data.sex !== undefined ? { ':sex': { S: data.sex as string } } : {}),
+          ...(changeSlug ? { ':slug': { S: requestedSlug! }, ...(oldSlug ? { ':oldSlug': { S: oldSlug } } : {}) } : {}),
           ':instagram': { S: instagram }, ':cref': { S: cref },
           ':academias': { L: academyNames.map(name => ({ S: name })) },
           ':academyIds': { L: academyLinks.ids.map(id => ({ S: id })) }, ':updated': { S: time },
@@ -1843,6 +1859,17 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
         },
       },
     }))
+    if (changeSlug) {
+      const slugTable = process.env.TRAINER_SLUGS_TABLE
+      if (!slugTable) return response(503, { error: 'Endereço do perfil indisponível.' })
+      changes.push({ Put: { TableName: slugTable, Item: { slug: { S: requestedSlug! }, trainerId: { S: auth.profile!.trainerId } },
+        ConditionExpression: 'attribute_not_exists(slug) OR trainerId = :id',
+        ExpressionAttributeValues: { ':id': { S: auth.profile!.trainerId } } } })
+      // Old keys remain aliases. Re-create an absent legacy alias only if not owned by anyone else.
+      if (oldSlug) changes.push({ Put: { TableName: slugTable, Item: { slug: { S: oldSlug }, trainerId: { S: auth.profile!.trainerId } },
+        ConditionExpression: 'attribute_not_exists(slug) OR trainerId = :id',
+        ExpressionAttributeValues: { ':id': { S: auth.profile!.trainerId } } } })
+    }
     for (const academyId of academyLinks.ids.filter(id => !oldAcademyIds.includes(id))) {
       changes.push({ Put: { TableName: linksTable,
         Item: { trainerId: { S: auth.profile!.trainerId }, academyId: { S: academyId } },
@@ -1873,7 +1900,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
       return response(400, { error: 'Selecione academias ativas nas cidades atendidas.' })
     if (error instanceof Error && error.message === 'ACADEMY_SERVICE_UNAVAILABLE')
       return response(503, { error: 'Cadastro de academias indisponível.' })
-    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou indisponível. Atualize a página e tente novamente.' })
+    if (error instanceof TransactionCanceledException) return response(409, { error: 'Cadastro alterado ou endereço do perfil já em uso. Atualize a página e tente novamente.' })
     console.error('[imc-submit] Trainer profile edit failed', { errorClass: error instanceof Error ? error.name : typeof error })
     return response(503, { error: 'Não foi possível salvar o perfil do personal.' })
   }
@@ -2060,7 +2087,8 @@ async function listTrainerReceivedRequests(event: Parameters<APIGatewayProxyHand
   }
 }
 
-class TrainerSlugUnavailableError extends Error {}
+class TrainerSlugUnavailableError extends Error { constructor() { super('Endereço do perfil indisponível.'); this.name = 'TrainerSlugUnavailableError' } }
+class TrainerPhoneRegisteredError extends Error { constructor() { super('TRAINER_PHONE_REGISTERED') } }
 
 function createTrainerCode(trainerId: string, whatsapp: string, cities: string[], slug: string) {
   const code = randomBytes(16).toString('base64url')
@@ -2208,7 +2236,8 @@ async function registerTrainer(
   const sex = linkedCustomer ? linkedCustomer.item.sexo?.S ?? '' : (data.sex === 'masculino' || data.sex === 'feminino' ? data.sex : '')
   const whatsapp = normalizePhone(data.whatsapp)
   const email = linkedCustomer ? linkedCustomer.item.email?.S ?? '' : (typeof data.email === 'string' ? data.email.trim().toLowerCase() : '')
-  const slug = String(data.slug).trim().toLowerCase()
+  const automaticSlug = data.slug === undefined
+  let slug = automaticSlug ? trainerSlugCandidate(name) : String(data.slug).trim().toLowerCase()
   const instagram = typeof data.instagram === 'string' ? data.instagram.trim() : ''
   const dateOfBirth = linkedCustomer ? linkedCustomer.item.nascimento?.S ?? '' : (typeof data.dateOfBirth === 'string' ? data.dateOfBirth : '')
   const cref = typeof data.cref === 'string' ? data.cref.trim() : ''
@@ -2226,8 +2255,41 @@ async function registerTrainer(
   const trainerId = randomBytes(16).toString('hex')
   const referredByTrainerId = await resolveReferringTrainer(data.referralCode)
   const submittedAt = String(Math.floor(Date.now() / 1000))
-  const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
+  // Search existing profiles before issuing a fresh slug; avoid creating another
+  // profile when a pending user retries or an active/inactive user signs up again.
+  const existingByPhone: Record<string, AttributeValue>[] = []
+  for (const city of await getCityKeys()) {
+    let cursor: Record<string, AttributeValue> | undefined
+    do {
+      const page = await dynamodb.send(new QueryCommand({
+        TableName: tableName, ConsistentRead: true, KeyConditionExpression: 'city = :city',
+        FilterExpression: 'whatsapp = :phone', ExpressionAttributeValues: { ':city': { S: city }, ':phone': { S: whatsapp } },
+        ExclusiveStartKey: cursor,
+      }))
+      existingByPhone.push(...(page.Items ?? []))
+      cursor = page.LastEvaluatedKey
+    } while (cursor)
+  }
+  if (existingByPhone.length) {
+    const prior = existingByPhone[0]
+    const priorSlug = prior.slug?.S ?? ''
+    const priorCities = [...new Set(existingByPhone.map(row => row.city?.S ?? ''))]
+    if (!betaSignup && priorSlug && existingByPhone.every(row => row.trainerId?.S === prior.trainerId?.S &&
+      row.active?.BOOL === false && ['pending', 'pending_verification'].includes(row.status?.S ?? '')) &&
+      priorCities.length === cities.length && cities.every(city => priorCities.includes(city))) {
+      return issueCodeForExistingSignup({ ...data, slug: priorSlug, name, sex }, requestCodesTable, slugTableName, tableName)
+    }
+    throw new TrainerPhoneRegisteredError()
+  }
+  const phoneLockKey = hashCode('fitpeso:trainer-signup-phone-lock:v1:' + whatsapp)
+  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
+  const academyPlan = betaSignup ? await planSignupAcademies(newAcademies, whatsapp) : { writes: [], ids: [] }
+  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids, ...(betaSignup ? academyIds : [])])]
 
+  // A conditional Put is the authority on uniqueness, even under concurrent signups.
+  for (let ordinal = 1; ordinal <= (automaticSlug ? 100 : 1); ordinal++) {
+  if (automaticSlug) slug = trainerSlugCandidate(name, ordinal)
+  const challenge = createTrainerCode(trainerId, whatsapp, cities, slug)
   const existingSlug = await dynamodb.send(new GetItemCommand({
     TableName: slugTableName,
     Key: { slug: { S: slug } },
@@ -2236,15 +2298,18 @@ async function registerTrainer(
     ConsistentRead: true,
   }))
   if (existingSlug.Item) {
-    if (betaSignup) throw new TrainerSlugUnavailableError()
-    return issueCodeForExistingSignup(data, requestCodesTable, slugTableName, tableName)
+    if (automaticSlug) continue
+    throw new TrainerSlugUnavailableError()
   }
-  const academyIds = (await resolveRegisteredAcademies(data.academyIds, cities)).ids
-  const academyPlan = betaSignup ? await planSignupAcademies(newAcademies, whatsapp) : { writes: [], ids: [] }
-  const verifiedAcademyIds = [...new Set([...betaAcademyIds, ...academyPlan.ids, ...(betaSignup ? academyIds : [])])]
 
+  try {
   await dynamodb.send(new TransactWriteItemsCommand({
     TransactItems: [
+      { Put: {
+        TableName: requestCodesTable,
+        Item: { codeHash: { S: phoneLockKey }, flow: { S: 'fitpeso-trainer-signup-phone-lock' }, trainerId: { S: trainerId } },
+        ConditionExpression: 'attribute_not_exists(codeHash)',
+      } },
       ...academyPlan.writes,
       ...(!betaSignup ? [{
         Put: {
@@ -2347,6 +2412,17 @@ async function registerTrainer(
       })),
     ],
   }))
+  } catch (error) {
+    if (error instanceof TransactionCanceledException) {
+      const lock = await dynamodb.send(new GetItemCommand({ TableName: requestCodesTable,
+        Key: { codeHash: { S: phoneLockKey } }, ConsistentRead: true }))
+      if (lock.Item) throw new TrainerPhoneRegisteredError()
+      const claimed = await dynamodb.send(new GetItemCommand({ TableName: slugTableName,
+        Key: { slug: { S: slug } }, ConsistentRead: true }))
+      if (automaticSlug && claimed.Item) continue
+    }
+    throw error
+  }
   if (betaSignup && linkedPersonId) {
     try {
       await activateGoogleTrainerIdentity({ pessoaId: linkedPersonId, trainerId, cities, whatsapp })
@@ -2357,6 +2433,8 @@ async function registerTrainer(
     }
   }
   return { slug, verificationCode: challenge.code }
+  }
+  throw new TrainerSlugUnavailableError()
 }
 
 async function registerAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -2609,8 +2687,8 @@ async function updateAdminTrainer(event: Parameters<APIGatewayProxyHandler>[0]) 
         Key: { trainerId: { S: trainerId }, academyId: { S: academyId } } } })
     }
     if (slug !== oldSlug) {
-      transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug)' } })
-      if (oldSlug) transaction.push({ Delete: { TableName: slugTable, Key: { slug: { S: oldSlug } }, ConditionExpression: 'trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
+      transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: slug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug) OR trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
+      if (oldSlug) transaction.push({ Put: { TableName: slugTable, Item: { slug: { S: oldSlug }, trainerId: { S: trainerId } }, ConditionExpression: 'attribute_not_exists(slug) OR trainerId = :id', ExpressionAttributeValues: { ':id': { S: trainerId } } } })
     }
     await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: transaction }))
     return response(200, { updated: true, trainerId })
@@ -4262,7 +4340,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   if (event.resource?.endsWith('/trainers/register')) {
     const registration = parseBody(event)
-    if (!isValidTrainerRegistration(registration, true)) return response(400, { error: 'Confira nome, WhatsApp, endereço do perfil, cidade e os campos opcionais.' })
+    if (!isValidTrainerRegistration(registration, true)) return response(400, { error: 'Confira nome, WhatsApp, cidade e os campos opcionais.' })
     try {
       const { slug, verificationCode } = await registerTrainer(registration!)
       return response(201, { registered: true, status: 'pending_verification', slug, verificationCode })
@@ -4273,6 +4351,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         return response(400, { error: 'Selecione cidades ativas.' })
       if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
         return response(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
+      if (error instanceof TrainerPhoneRegisteredError) return response(409, { error: 'WhatsApp já vinculado a um personal. Faça login ou procure o suporte.' })
       if (error instanceof TrainerSlugUnavailableError) {
         return response(409, { error: 'Esse endereço já está cadastrado para outros dados ou já foi ativado.' })
       }

@@ -6179,7 +6179,6 @@
         "type": "object",
         "required": [
           "name",
-          "slug",
           "whatsapp",
           "cities"
         ],
@@ -6425,6 +6424,10 @@
               "masculino",
               "feminino"
             ]
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$"
           }
         }
       },

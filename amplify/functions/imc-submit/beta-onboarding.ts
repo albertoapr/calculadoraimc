@@ -349,7 +349,7 @@ export async function completeBetaTrainerSignup(
         record.consumedAt?.N || Number(record.expiresAt?.N ?? 0) <= now)
       return reply(401, { error: 'Confirmação expirada. Solicite outro link à Beta.' })
     if (data?.whatsapp !== whatsapp || !validRegistration(data)) return reply(400, {
-      error: 'Confira nome, WhatsApp, endereço do perfil, cidade e os dados informados.',
+      error: 'Confira nome, WhatsApp, cidade e os dados informados.',
     })
     if ((await betaTrainersByPhone(whatsapp)).length)
       return reply(409, { error: 'WhatsApp já vinculado a um personal. Procure o suporte ou faça login.' })
@@ -370,6 +370,7 @@ export async function completeBetaTrainerSignup(
       return reply(400, { error: 'Selecione cidades ativas.' })
     if (error instanceof Error && error.message === 'INVALID_TRAINER_REFERRAL')
       return reply(400, { error: 'Código de indicação inválido ou personal indicador inativo.' })
+    if (error instanceof Error && error.message === 'TRAINER_PHONE_REGISTERED') return reply(409, { error: 'WhatsApp já vinculado a um personal. Faça login ou procure o suporte.' })
     if (error instanceof Error && error.name === 'TrainerSlugUnavailableError')
       return reply(409, { error: 'Endereço do perfil já está em uso. Escolha outro.' })
     console.error('[beta-onboarding] Trainer complete failed', { errorClass: error instanceof Error ? error.name : typeof error })

@@ -21,6 +21,7 @@ export async function updateAccountProfile(
         name: string
         dateOfBirth: string
         sex?: 'masculino' | 'feminino'
+        slug?: string
         instagram: string
         cref: string
         academias: string[]

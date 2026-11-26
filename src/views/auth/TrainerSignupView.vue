@@ -24,7 +24,6 @@ const {
   googleProfileStatus,
   goBackFromTitle,
   closeTrainerSignup,
-  suggestTrainerSlug,
   sendTrainerSignup,
 } = useFitpesoContext()
 
@@ -180,29 +179,8 @@ function submitSignup() {
           minlength="2"
           maxlength="80"
           placeholder="Seu nome completo"
-          @blur="suggestTrainerSlug"
           required
         />
-      </label>
-      <label class="field field-wide" for="trainer-slug"
-        ><span class="field-label">Endereço do seu perfil</span>
-        <input
-          id="trainer-slug"
-          v-model="trainerForm.slug"
-          name="trainerSlug"
-          type="text"
-          autocapitalize="none"
-          maxlength="40"
-          pattern="[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])"
-          placeholder="joao-silva"
-          required
-        />
-        <small
-          >Seu perfil será ativado em https://fitpeso.com.br/personal/{{
-            trainerForm.slug || 'seu-identificador'
-          }}
-          após a confirmação do WhatsApp.</small
-        >
       </label>
       <label class="field field-wide" for="trainer-phone"
         ><span class="field-label">Telefone</span>

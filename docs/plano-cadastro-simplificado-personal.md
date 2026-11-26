@@ -24,15 +24,15 @@ Estados: Pendente, Em implementação, Implementado (código gravado, sem valida
 
 | ID | Tarefa | Status |
 |---|---|---|
-| 2.1 | Remover campo slug | Pendente |
-| 2.2 | Gerar endereço a partir do nome | Pendente |
-| 2.3 | Resolver nomes duplicados | Pendente |
-| 2.4 | Garantir unicidade no DynamoDB | Pendente |
-| 2.5 | Preservar endereços existentes | Pendente |
-| 2.6 | Permitir que o personal altere seu próprio endereço em Meu cadastro → Minha página profissional | Pendente |
-| 2.7 | Validar formato, nomes reservados e disponibilidade no backend, com atualização atômica dos vínculos por cidade | Pendente |
-| 2.8 | Preservar o identificador interno, solicitações, propostas e indicações ao alterar o slug | Pendente |
-| 2.9 | Preservar os links anteriores como aliases do mesmo perfil, sem permitir que terceiros os reutilizem; validar redirecionamento e inativação | Pendente |
+| 2.1 | Remover campo slug | Implementado |
+| 2.2 | Gerar endereço a partir do nome | Implementado |
+| 2.3 | Resolver nomes duplicados | Implementado |
+| 2.4 | Garantir unicidade no DynamoDB | Implementado |
+| 2.5 | Preservar endereços existentes | Implementado |
+| 2.6 | Permitir que o personal altere seu próprio endereço em Meu cadastro → Minha página profissional | Implementado |
+| 2.7 | Validar formato, nomes reservados e disponibilidade no backend, com atualização atômica dos vínculos por cidade | Implementado |
+| 2.8 | Preservar o identificador interno, solicitações, propostas e indicações ao alterar o slug | Implementado |
+| 2.9 | Preservar os links anteriores como aliases do mesmo perfil, sem permitir que terceiros os reutilizem; validar redirecionamento e inativação | Implementado |
 
 Regra: o endereço inicial é gerado automaticamente, mas o profissional pode personalizá-lo depois de autenticado. A preservação de links antigos como aliases é a solução técnica proposta para evitar quebrar links já divulgados; validar sua implementação junto com a etapa 2.
 
@@ -150,3 +150,7 @@ Regra: o endereço inicial é gerado automaticamente, mas o profissional pode pe
 Primeira implementação: nascimento e CREF passam para Meu cadastro; sexo e Instagram opcionais em ambos os fluxos; cidade independente de academia; preservado limite de duas cidades e cinco academias. Regras administrativas permanecem. O slug ainda é obrigatório até a etapa 2. Seletor público mantém a regra existente de academias ativas. Teste de cadastro mínimo adicionado, ainda não executado. Funcionalidades existentes de autenticação e gerenciamento serão revisadas nas respectivas etapas.
 
 **Não divulgar ou promover a main nesta fase:** geração automática de slug, termos, privacidade e separação de disponibilidade para contratação pendentes. O estado ativo ainda tem os efeitos públicos anteriores.
+
+## Histórico — etapa 2
+
+Endereço automático no cadastro web/Beta, sufixos numéricos e reserva condicional transacional. Personal pode editar o slug em Minha página profissional; endereços anteriores permanecem reservados ao mesmo trainerId e a página pública usa o slug atual (mantém query/hash). Alterações administrativas também preservam aliases. Cadastro convencional consulta WhatsApp existente e usa trava transacional compartilhada pelos fluxos de cadastro público. Testes de geração e regressão adicionados/ajustados, ainda não executados; validar concorrência, reenvio de confirmação e aliases em ambiente real. Não promover para main até requisitos de lançamento.
