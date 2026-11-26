@@ -65,3 +65,13 @@ export async function uploadAccountPhoto(type: AccountProfileType, token: string
     throw apiError(response, 'Não foi possível atualizar a foto.')
   return response.body.photoUrl
 }
+
+export async function manageAccount(type: AccountProfileType, token: string, action: 'deactivate' | 'request-deletion', confirmation: string) {
+  const resource = type === 'trainer' ? 'trainers' : 'customers'
+  const response = await requestApi<{ deactivated?: boolean; deletionRequested?: boolean; error?: string }>(
+    `/api/${resource}/manage-account`, { method: 'POST', token, body: { action, confirmation } },
+  )
+  if (!response.ok || (action === 'deactivate' ? !response.body.deactivated : !response.body.deletionRequested))
+    throw apiError(response, 'Não foi possível concluir a operação.')
+  return response.body
+}

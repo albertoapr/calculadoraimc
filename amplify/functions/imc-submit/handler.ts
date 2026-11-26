@@ -16,6 +16,9 @@ import {
   DeleteItemCommand,
   PutItemCommand,
   QueryCommand,
+  ScanCommand,
+  type AttributeValue,
+  type TransactWriteItem,
   TransactionCanceledException,
   TransactWriteItemsCommand,
   UpdateItemCommand,
@@ -525,7 +528,7 @@ async function trySyncIdentity(operation: () => Promise<{ pessoaId: string; usua
 
 function shouldResolveIdentity(event: Parameters<APIGatewayProxyHandler>[0]) {
   return event.resource?.endsWith('/customers/profile') || event.resource?.endsWith('/customers/update-profile') || event.resource?.endsWith('/customers/upload-photo') ||
-    event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
+    event.resource?.endsWith('/customers/manage-account') || event.resource?.endsWith('/auth/me') || event.resource?.endsWith('/auth/switch-profile') ||
     event.resource?.endsWith('/admin/customers') ||
     event.resource?.endsWith('/admin/customers/{customerId}')
 }
@@ -1402,6 +1405,158 @@ function validProfileName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().replace(/\s+/g, ' ').length >= 2 &&
     value.trim().replace(/\s+/g, ' ').length <= 80 &&
     /^[\p{L}\p{M} .'-]+$/u.test(value.trim().replace(/\s+/g, ' '))
+}
+
+
+/** Self-service lifecycle. Only the authenticated identity can change its own profile.
+ * Permanent erasure is deliberately a separate reviewed process, not a cascading delete. */
+async function manageOwnAccount(event: Parameters<APIGatewayProxyHandler>[0], trainer: boolean) {
+  const data = parseBody(event)
+  if (!data || !['deactivate', 'request-deletion'].includes(String(data.action)) ||
+      data.confirmation !== (data.action === 'deactivate' ? 'DESATIVAR' : 'EXCLUIR') ||
+      Object.keys(data).some(key => !['action', 'confirmation'].includes(key)))
+    return response(400, { error: 'Confirme a operação solicitada.' })
+  try {
+    let pessoaId = ''
+    let trainerId = ''
+    let accountKey = ''
+    let sessionCity = ''
+    if (trainer) {
+      const auth = await getTrainerSession(event)
+      if (auth.error) return auth.error
+      pessoaId = auth.legacyPessoaId ?? ''
+      trainerId = auth.profile!.trainerId
+      sessionCity = auth.profile!.city
+    } else {
+      const auth = await getCustomerProfile(event)
+      if (auth.statusCode !== 200) return auth
+      const profile = JSON.parse(auth.body).profile
+      pessoaId = profile?.identity?.pessoaId ?? ''
+      accountKey = profile?.accountKey || profile?.whatsapp || ''
+    }
+    if (!pessoaId) return response(409, { error: 'Vínculo de identidade ainda indisponível. Entre novamente ou fale com o suporte.' })
+    const table = (env: string) => {
+      const value = process.env[env]
+      if (!value) throw new Error('ACCOUNT_TABLE_UNAVAILABLE')
+      return value
+    }
+    const profiles = await listPersonProfiles(pessoaId)
+    if (data.action === 'request-deletion') {
+      if (profiles.some(p => p.tipo === 'ADMIN'))
+        return response(409, { error: 'Contas administrativas devem ser tratadas pelo suporte.' })
+      // Record a durable person-level request; do not falsely promise irreversible erasure.
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: table('FITPESO_PESSOA_TABLE'), Key: { pessoa_id: { S: pessoaId } },
+        UpdateExpression: 'SET deletionRequestedAt = if_not_exists(deletionRequestedAt, :now), deletionStatus = if_not_exists(deletionStatus, :pending)',
+        ConditionExpression: 'attribute_exists(pessoa_id)',
+        ExpressionAttributeValues: { ':now': { S: new Date().toISOString() }, ':pending': { S: 'PENDING_REVIEW' } },
+      }))
+      return response(200, { deletionRequested: true, status: 'PENDING_REVIEW' })
+    }
+    const role = profiles.find(p => p.tipo === (trainer ? 'PERSONAL' : 'CLIENTE'))
+    if (!role || (!trainer && profiles.some(p => p.tipo === 'ADMIN')))
+      return response(409, { error: 'Perfil indisponível para desativação automática. Fale com o suporte.' })
+    const profileId = trainer ? role.personalId : role.clienteId
+    const profileTable = table(trainer ? 'FITPESO_PERSONAL_V2_TABLE' : 'FITPESO_CUSTOMER_V2_TABLE')
+    const profileKey = trainer ? 'personal_id' : 'customer_id'
+    if (!profileId) return response(409, { error: 'Perfil ainda não vinculado.' })
+    const record = (await dynamodb.send(new GetItemCommand({ TableName: profileTable,
+      Key: { [profileKey]: { S: profileId } }, ConsistentRead: true }))).Item
+    if (!record || record.user_id?.S !== role.usuarioId || record.ativo?.BOOL === false ||
+        (trainer && record.legacyTrainerId?.S !== trainerId))
+      return response(409, { error: 'Vínculo cadastral inconsistente.' })
+    const legacyPhone = record.legacyWhatsapp?.S ?? ''
+    const phoneKeys = [...new Set([legacyPhone, accountKey, record.whatsapp?.S ?? ''].filter(Boolean))]
+    // Paginate the base tables consistently; fail closed on unexpectedly large scans.
+    async function hasRows(env: string, filter: string, values: Record<string, AttributeValue>, names?: Record<string, string>) {
+      let cursor: Record<string, AttributeValue> | undefined
+      for (let page = 0; page < 50; page++) {
+        const result = await dynamodb.send(new ScanCommand({
+          TableName: table(env), ConsistentRead: true, Limit: 200, ExclusiveStartKey: cursor,
+          FilterExpression: filter, ExpressionAttributeValues: values, ...(names ? { ExpressionAttributeNames: names } : {}),
+          Select: 'COUNT',
+        }))
+        if (result.Count) return true
+        cursor = result.LastEvaluatedKey
+        if (!cursor) return false
+      }
+      throw new Error('ACCOUNT_REVIEW_REQUIRED')
+    }
+    const terminal = { ':finished': { S: 'CONCLUIDO' }, ':cancelled': { S: 'CANCELADO' } }
+    const owners: Record<string, AttributeValue> = trainer ? { ':owner': { S: trainerId } } :
+      Object.fromEntries(phoneKeys.map((phone, i) => [':phone' + i, { S: phone }]))
+    const ownerFilter = trainer ? 'trainerId = :owner' : phoneKeys.length ?
+      'customerWhatsapp IN (' + Object.keys(owners).join(', ') + ')' : ''
+    if (ownerFilter && await hasRows('FITPESO_ATENDIMENTOS_TABLE',
+      '(' + ownerFilter + ') AND (attribute_not_exists(#status) OR NOT (#status IN (:finished, :cancelled)))',
+      { ...owners, ...terminal }, { '#status': 'status' }))
+      return response(409, { error: 'Conclua os atendimentos e resolva as pendências antes de desativar o perfil.' })
+    const now = Math.floor(Date.now() / 1000)
+    if (trainer && await hasRows('FITPESO_PROPOSALS_TABLE', 'trainerId = :id AND #status = :open AND validUntil > :now',
+      { ':id': { S: trainerId }, ':open': { S: 'OPEN' }, ':now': { N: String(now) } }, { '#status': 'status' }))
+      return response(409, { error: 'Existem propostas abertas. Aguarde a conclusão ou o vencimento.' })
+    if (!trainer && (phoneKeys.length || profileId)) {
+      const values: Record<string, AttributeValue> = { ...owners, ':customer': { S: profileId }, ':now': { N: String(now) },
+        ':open': { S: 'OPEN' }, ':closed': { S: 'CLOSED' } }
+      const requestOwner = phoneKeys.length ? 'clientPhone IN (' + Object.keys(owners).join(', ') + ') OR customerId = :customer' : 'customerId = :customer'
+      if (await hasRows('FITPESO_USER_REQUESTS_TABLE', '(' + requestOwner + ') AND validUntil > :now AND lifecycle IN (:open, :closed)', values))
+        return response(409, { error: 'Encerre suas solicitações em andamento antes de desativar o cadastro.' })
+    }
+    const stamp = new Date().toISOString()
+    const changes: TransactWriteItem[] = [{ Update: {
+      TableName: profileTable, Key: { [profileKey]: { S: profileId } },
+      UpdateExpression: 'SET ativo = :no, deactivatedAt = :now',
+      ConditionExpression: 'user_id = :user AND (attribute_not_exists(ativo) OR ativo = :yes)',
+      ExpressionAttributeValues: { ':no': { BOOL: false }, ':yes': { BOOL: true }, ':now': { S: stamp }, ':user': { S: role.usuarioId } },
+    } }]
+    if (trainer) {
+      const trainerTable = table('TRAINERS_TABLE')
+      // Use a consistent base-table scan rather than an eventually consistent index for all city rows.
+      let cursor: Record<string, AttributeValue> | undefined
+      let foundSessionCity = false
+      for (let page = 0; page < 50; page++) {
+        const result = await dynamodb.send(new ScanCommand({ TableName: trainerTable, ConsistentRead: true,
+          Limit: 200, ExclusiveStartKey: cursor, FilterExpression: 'trainerId = :id',
+          ExpressionAttributeValues: { ':id': { S: trainerId } } }))
+        for (const row of result.Items ?? []) {
+          const city = row.city?.S
+          if (!city || row.pessoa_id?.S !== pessoaId || row.user_id?.S !== role.usuarioId)
+            return response(409, { error: 'Vínculo de cidade inconsistente.' })
+          if (city === sessionCity) foundSessionCity = true
+          changes.push({ Update: {
+            TableName: trainerTable, Key: { city: { S: city }, trainerId: { S: trainerId } },
+            UpdateExpression: 'SET #active = :no, #status = :inactive, deactivatedAt = :now',
+            ConditionExpression: 'pessoa_id = :person AND user_id = :user',
+            ExpressionAttributeNames: { '#active': 'active', '#status': 'status' },
+            ExpressionAttributeValues: { ':no': { BOOL: false }, ':inactive': { S: 'inactive' }, ':now': { S: stamp },
+              ':person': { S: pessoaId }, ':user': { S: role.usuarioId } },
+          } })
+        }
+        cursor = result.LastEvaluatedKey
+        if (!cursor) break
+      }
+      if (cursor || !foundSessionCity || changes.length > 90)
+        return response(409, { error: 'Não foi possível verificar todos os vínculos. Fale com o suporte.' })
+    } else if (legacyPhone) {
+      changes.push({ Update: {
+        TableName: table('FITPESO_CUSTOMERS_TABLE'), Key: { whatsapp: { S: legacyPhone } },
+        UpdateExpression: 'SET #status = :inactive, deactivatedAt = :now',
+        ConditionExpression: 'pessoa_id = :person AND user_id = :user AND #status = :active',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':inactive': { S: 'INACTIVE' }, ':active': { S: 'ACTIVE' }, ':now': { S: stamp },
+          ':person': { S: pessoaId }, ':user': { S: role.usuarioId } },
+      } })
+    } else if (accountKey && accountKey !== record.whatsapp?.S) {
+      return response(409, { error: 'Vínculo legado indisponível. Fale com o suporte.' })
+    }
+    await dynamodb.send(new TransactWriteItemsCommand({ TransactItems: changes }))
+    return response(200, { deactivated: true })
+  } catch (error) {
+    if (error instanceof Error && ['TransactionCanceledException', 'ConditionalCheckFailedException', 'ACCOUNT_REVIEW_REQUIRED'].includes(error.name === 'Error' ? error.message : error.name))
+      return response(409, { error: 'Não foi possível confirmar todos os dados do cadastro. Fale com o suporte.' })
+    console.error('[fitpeso] manage account failed', { kind: error instanceof Error ? error.name : 'UNKNOWN' })
+    return response(503, { error: 'Não foi possível concluir a operação.' })
+  }
 }
 
 async function updateCustomerProfile(event: Parameters<APIGatewayProxyHandler>[0]) {
@@ -3854,6 +4009,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/upload-photo')) return uploadProfilePhoto(event, false)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/upload-banner')) return uploadTrainerBanner(event)
   if (event.httpMethod === 'GET' && event.resource?.endsWith('/trainers/banner/{trainerId}')) return getTrainerBanner(event)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/manage-account')) return manageOwnAccount(event, true)
+  if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/manage-account')) return manageOwnAccount(event, false)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/update-profile')) return updateTrainerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/customers/update-profile')) return updateCustomerProfile(event)
   if (event.httpMethod === 'POST' && event.resource?.endsWith('/trainers/login')) return beginTrainerLogin(parseBody(event))

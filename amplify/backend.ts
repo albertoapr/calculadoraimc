@@ -267,12 +267,15 @@ const newDataTables = [
 const lambdaPolicyStack = Stack.of(backend.imcSubmit.resources.lambda)
 const identityDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoIdentityDataAccess')
 const profileDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoProfileDataAccess')
+const accountReviewPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoAccountReviewAccess')
+accountReviewPolicy.addStatements(new iam.PolicyStatement({ actions: ['dynamodb:Scan'], resources: [trainers.tableArn, fitpesoRequests.tableArn, fitpesoProposals.tableArn, fitpesoAtendimentos.tableArn] }))
 const bannerDataPolicy = new iam.ManagedPolicy(lambdaPolicyStack, 'FitpesoTrainerBannerAccess')
 const lambdaRole = backend.imcSubmit.resources.lambda.role
 if (!lambdaRole) throw new Error('A Lambda imc-submit precisa de uma IAM role')
 lambdaRole.addManagedPolicy(identityDataPolicy)
 lambdaRole.addManagedPolicy(profileDataPolicy)
 lambdaRole.addManagedPolicy(bannerDataPolicy)
+lambdaRole.addManagedPolicy(accountReviewPolicy)
 
 trainerBanners.grantReadWrite(bannerDataPolicy)
 profilePhotos.grantReadWrite(bannerDataPolicy)
@@ -288,7 +291,7 @@ for (const table of [tiposUsuarioV2, customersV2, personalsV2]) {
 // Edições administrativas de cliente atualizam V2 e cadastro legado atomicamente.
 profileDataPolicy.addStatements(new iam.PolicyStatement({
   actions: ['dynamodb:TransactWriteItems'],
-  resources: [customersV2.tableArn],
+  resources: [customersV2.tableArn, personalsV2.tableArn],
 }))
 // Criação atômica de pessoa + identificação comprovada.
 identityDataPolicy.addStatements(new iam.PolicyStatement({
@@ -380,6 +383,7 @@ trainersResource.addResource('login-status').addMethod('POST', lambdaIntegration
 trainersResource.addResource('verify-login').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+trainersResource.addResource('manage-account').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('upload-photo').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('upload-banner').addMethod('POST', lambdaIntegration())
 trainersResource.addResource('banner').addResource('{trainerId}').addMethod('GET', lambdaIntegration())
@@ -401,6 +405,7 @@ betaTrainerSignupResource.addResource('complete').addMethod('POST', lambdaIntegr
 const customersResource = apiResource.addResource('customers')
 customersResource.addResource('profile').addMethod('POST', lambdaIntegration())
 customersResource.addResource('update-profile').addMethod('POST', lambdaIntegration())
+customersResource.addResource('manage-account').addMethod('POST', lambdaIntegration())
 customersResource.addResource('upload-photo').addMethod('POST', lambdaIntegration())
 customersResource.addResource('verification-status').addMethod('POST', lambdaIntegration())
 customersResource.addResource('start-phone-verification').addMethod('POST', lambdaIntegration())

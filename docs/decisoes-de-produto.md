@@ -42,3 +42,10 @@ O modelo inicial proposto inclui identificador, nome, UF, slug e status da cidad
 2. Vincular as academias existentes às cidades, preservando os endereços públicos já divulgados.
 3. Atualizar os seletores da home, da busca de profissionais e do cadastro de personal com as regras de cada fluxo.
 4. Incluir os campos de preço no painel e exibir as referências disponíveis para a cidade selecionada.
+
+## 25/11/2026 — Gerenciamento da conta
+
+- Desativação individual do perfil de cliente ou personal, preservando dados, histórico e os demais perfis. Atualizar os registros canônicos e legados em uma transação; no personal, inativar todas as cidades. Bloquear atendimentos não concluídos, solicitações e propostas abertas identificadas. Reativação pelo suporte nesta etapa.
+- Solicitação de exclusão em nível de pessoa, abrangendo todos os perfis, com confirmação explícita e registro persistente `deletionRequestedAt` / `deletionStatus=PENDING_REVIEW`. Nesta etapa não há exclusão física automática, nova autenticação específica nem painel de processamento. A análise de retenção, pendências financeiras, revogação de sessões e eliminação dos dados e fotos precisa ser implementada antes de considerar a exclusão concluída.
+- Operações administrativas protegidas; o usuário não informa identificadores de terceiros.
+- Validar em develop antes de promover para main. Revisar concorrência entre criação/aceite de atendimentos e desativação; substituir varreduras limitadas por índices próprios para expansão.
