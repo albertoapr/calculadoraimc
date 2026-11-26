@@ -1,270 +1,164 @@
 import { nextTick, onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
-import { registerCustomer, queryCustomerSignup } from '../services/signupService'
-import {
-  isValidEmail,
-  isValidPersonName,
-  normalizeBrazilianPhone,
-  normalizeContactIdentifier,
-  normalizeEmail,
-  normalizePersonName,
-} from '../utils/validation'
+import { startCustomerPhoneSignup, checkCustomerPhoneSignup, finishCustomerPhoneSignup } from '../services/signupService'
+import { isValidEmail, isValidPersonName, normalizeBrazilianPhone, normalizeEmail, normalizePersonName } from '../utils/validation'
 
 export function useCustomerSignup(options: {
   onClose: (confirmed: boolean) => void
   onGoogleAuthenticated?: (credential: string) => Promise<void>
-  onAuthenticated?: (
-    sessionToken: string,
-    profile: {
-      name: string
-      whatsapp: string
-      email: string
-      dateOfBirth?: string
-      isAdmin?: boolean
-    },
-  ) => void
+  onAuthenticated?: (sessionToken: string, profile: { name: string; whatsapp: string; email: string; dateOfBirth?: string; isAdmin?: boolean }, signal?: AbortSignal) => Promise<void> | void
   active?: Ref<boolean>
 }) {
-  let disposed = false
-  let verificationGeneration = 0
-  let registrationRequest: AbortController | undefined
-  let verificationRequest: AbortController | undefined
   const customerForm = reactive({ name: '', whatsapp: '', email: '', dateOfBirth: '', sex: '' as '' | 'masculino' | 'feminino', heightCm: undefined as number | undefined })
-
   const signupContact = ref('')
   const signupGooglePhotoUrl = ref('')
   const signupGoogleCredential = ref('')
-
   const signupStep = ref<1 | 2>(1)
-
   const customerStatus = ref('')
-
   const customerVerificationLink = ref('')
-
   const customerVerificationCode = ref('')
-
   const customerVerificationComplete = ref(false)
-
-  const customerSessionToken = ref('')
-
+  const customerPhoneVerified = ref(false)
   const customerSubmitting = ref(false)
-
-  let customerVerificationPollTimer: number | undefined
-
-  let customerVerificationPollStartedAt = 0
-
-  function scheduleCustomerVerificationPoll(delayMs = 10_000) {
-    if (disposed) return
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    customerVerificationPollTimer = window.setTimeout(
-      () => void pollCustomerVerification(),
-      delayMs,
-    )
-  }
-
-  async function pollCustomerVerification() {
-    if (
-      disposed ||
-      verificationRequest ||
-      !customerVerificationCode.value ||
-      !customerForm.whatsapp ||
-      customerVerificationComplete.value
-    )
-      return
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    const generation = verificationGeneration
-    const controller = new AbortController()
-    verificationRequest = controller
-    const isCurrent = () =>
-      !disposed && generation === verificationGeneration && !controller.signal.aborted
-    try {
-      const { ok, body } = await queryCustomerSignup(
-        customerVerificationCode.value,
-        customerForm.whatsapp,
-        customerSessionToken.value,
-        controller.signal,
-      )
-      if (!isCurrent()) return
-      if (ok && body.verified === true) {
-        customerVerificationComplete.value = true
-        if (body.name?.trim()) customerForm.name = body.name.trim()
-        if (body.authenticated === true && customerSessionToken.value) {
-          options.onAuthenticated?.(customerSessionToken.value, {
-            name: body.name?.trim() ?? customerForm.name,
-            whatsapp: body.whatsapp ?? customerForm.whatsapp,
-            email: body.email ?? customerForm.email,
-            dateOfBirth: body.dateOfBirth,
-            isAdmin: body.isAdmin,
-          })
-        }
-        customerStatus.value = `WhatsApp confirmado! ${body.name?.trim() ? `Bem-vindo(a), ${body.name.trim().split(/\s+/)[0]}!` : 'Cadastro ativo.'}`
-        return
-      }
-      if (ok && body.expired) {
-        customerStatus.value =
-          'O link de confirmação expirou. Volte ao formulário e inicie o cadastro novamente.'
-        customerVerificationLink.value = ''
-        return
-      }
-    } catch {
-      // Falhas momentâneas de rede não interrompem a verificação automática.
-    } finally {
-      if (verificationRequest === controller) verificationRequest = undefined
-    }
-    if (!isCurrent()) return
-    if (Date.now() - customerVerificationPollStartedAt >= 15 * 60 * 1000) {
-      customerStatus.value =
-        'O prazo de confirmação terminou. Confira seus dados e envie um novo cadastro para gerar outro link.'
-      customerVerificationLink.value = ''
-      return
-    }
-    scheduleCustomerVerificationPoll()
-  }
-
-  async function continueSignupContact() {
-    customerStatus.value = ''
-    const contact = normalizeContactIdentifier(signupContact.value)
-    if (!contact) {
-      customerStatus.value = signupContact.value.includes('@')
-        ? 'Informe um e-mail válido.'
-        : 'Informe um WhatsApp com DDD ou um e-mail válido.'
-      return
-    }
-    if (contact.kind === 'email') {
-      customerForm.email = contact.value
-    } else {
-      customerForm.whatsapp = contact.value
-      customerForm.email = ''
-    }
-    signupStep.value = 2
-    void nextTick(() => document.getElementById('customer-name')?.focus())
-  }
-
-  async function sendCustomerSignup() {
-    if (disposed || customerSubmitting.value) return
-    stopCustomerVerification()
-    customerStatus.value = ''
-    customerVerificationLink.value = ''
+  const customerVerificationChecking = ref(false)
+  let sessionToken = '', verifiedPhone = '', expiresAt = 0, generation = 0
+  let request: AbortController | undefined, timer: number | undefined
+  let disposed = false
+  function stopCustomerVerification() {
+    generation++
+    request?.abort()
+    request = undefined
+    window.clearTimeout(timer)
+    timer = undefined
+    sessionToken = ''; verifiedPhone = ''; expiresAt = 0
+    customerPhoneVerified.value = false
     customerVerificationCode.value = ''
-    customerVerificationComplete.value = false
-    customerVerificationPollStartedAt = 0
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    const name = normalizePersonName(customerForm.name)
-    const whatsapp = normalizeBrazilianPhone(customerForm.whatsapp)
-    const email = normalizeEmail(customerForm.email)
-    if (!isValidPersonName(name)) {
-      customerStatus.value = 'Informe um nome válido.'
-      return
+    customerVerificationLink.value = ''
+    customerVerificationChecking.value = false
+    customerSubmitting.value = false
+    signupStep.value = 1
+  }
+  function schedule(delay = 3000) {
+    window.clearTimeout(timer)
+    if (!disposed && !document.hidden && customerVerificationLink.value) timer = window.setTimeout(() => void pollCustomerVerification(), delay)
+  }
+  function expire() {
+    stopCustomerVerification()
+    customerStatus.value = 'O prazo de confirmação terminou. Clique em Continuar para confirmar novamente.'
+  }
+  async function pollCustomerVerification() {
+    if (disposed || request || !customerVerificationCode.value || !sessionToken || customerPhoneVerified.value || document.hidden) return
+    if (Date.now() >= expiresAt) { expire(); return }
+    window.clearTimeout(timer)
+    const current = generation, controller = new AbortController()
+    request = controller
+    customerVerificationChecking.value = true
+    const timeout = window.setTimeout(() => controller.abort(), 12000)
+    try {
+      const { ok, body } = await checkCustomerPhoneSignup(customerVerificationCode.value, sessionToken, controller.signal)
+      if (disposed || current !== generation || controller.signal.aborted) return
+      if (ok && body.expired) { expire(); return }
+      if (ok && body.verified && normalizeBrazilianPhone(body.whatsapp ?? '') === verifiedPhone) {
+        customerPhoneVerified.value = true
+        customerForm.whatsapp = verifiedPhone
+        customerForm.name = body.name?.trim() || customerForm.name
+        customerVerificationLink.value = ''
+        signupStep.value = 2
+        customerStatus.value = 'WhatsApp confirmado. Confira seu nome e complete o cadastro.'
+        void nextTick(() => document.getElementById('customer-name')?.focus())
+      }
+    } catch { /* retry when online */ }
+    finally {
+      window.clearTimeout(timeout)
+      if (request === controller) {
+        request = undefined
+        customerVerificationChecking.value = false
+        if (current === generation) schedule()
+      }
     }
-    if (customerForm.whatsapp.trim() && !whatsapp) {
-      customerStatus.value = 'Informe um WhatsApp válido com DDD.'
-      return
-    }
-    if (!whatsapp && !signupGoogleCredential.value) {
-      customerStatus.value = 'Para cadastro sem WhatsApp, continue com o Google.'
-      return
-    }
-    if (!isValidEmail(email, true)) {
-      customerStatus.value = 'Informe um e-mail válido.'
-      return
-    }
-
-    if (!customerForm.sex) { customerStatus.value = 'Selecione o sexo.'; return }
-    if (customerForm.heightCm !== undefined && (!Number.isFinite(customerForm.heightCm) || customerForm.heightCm < 80 || customerForm.heightCm > 250)) { customerStatus.value = 'Informe uma altura válida entre 80 e 250 cm.'; return }
-    const generation = verificationGeneration
-    const controller = new AbortController()
-    registrationRequest = controller
-    const isCurrent = () =>
-      !disposed && generation === verificationGeneration && !controller.signal.aborted
+  }
+  async function continueSignupContact() {
+    if (disposed || customerSubmitting.value || customerVerificationLink.value) return
+    const whatsapp = normalizeBrazilianPhone(signupContact.value)
+    if (!whatsapp) { customerStatus.value = 'Informe um WhatsApp válido com DDD.'; return }
+    stopCustomerVerification()
+    const current = generation, controller = new AbortController()
+    request = controller
     customerSubmitting.value = true
-    customerStatus.value = 'Registrando seu cadastro…'
+    customerStatus.value = 'Preparando confirmação…'
     try {
       const bytes = crypto.getRandomValues(new Uint8Array(32))
-      const sessionToken = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '')
-      const verificationCode = await registerCustomer(
-        { name, whatsapp, email, sex: customerForm.sex, heightCm: customerForm.heightCm, sessionToken,
-          googleCredential: signupGoogleCredential.value || undefined },
-        controller.signal,
-      )
-      if (!isCurrent()) return
-      if (!whatsapp) {
-        if (!signupGoogleCredential.value) throw new Error('A confirmação do Google expirou.')
-        await options.onGoogleAuthenticated?.(signupGoogleCredential.value)
-        if (!isCurrent()) return
-        customerVerificationComplete.value = true
-        customerStatus.value = 'Cadastro concluído! Você já pode acessar sua conta.'
-        closeCustomerSignup()
-        return
-      }
-      customerSessionToken.value = sessionToken
-      const message = `Confirmar cadastro FitPeso ${verificationCode}\nWhatsApp: ${whatsapp}${name ? `\nNome: ${name}` : ''}`
-      customerVerificationCode.value = verificationCode
-      customerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-      customerStatus.value =
-        'Envie a mensagem para a Beta e volte a esta tela para confirmar seu cadastro.'
-      customerVerificationPollStartedAt = Date.now()
-      scheduleCustomerVerificationPoll(1_000)
+      const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+      const challenge = await startCustomerPhoneSignup(whatsapp, token, controller.signal)
+      if (disposed || current !== generation || controller.signal.aborted) return
+      sessionToken = token
+      verifiedPhone = whatsapp
+      expiresAt = challenge.expiresAt * 1000
+      customerVerificationCode.value = challenge.code
+      const message = 'Confirmar cadastro FitPeso ' + challenge.code + '\nWhatsApp: ' + whatsapp
+      customerVerificationLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent(message)
+      customerStatus.value = 'Envie a mensagem à Beta e volte a esta tela.'
+      schedule(1500)
     } catch (error) {
-      if (!isCurrent()) return
-      customerStatus.value =
-        error instanceof Error ? error.message : 'Não foi possível registrar o cadastro agora.'
+      if (current === generation) customerStatus.value = error instanceof Error ? error.message : 'Não foi possível iniciar a confirmação.'
     } finally {
-      if (registrationRequest === controller) registrationRequest = undefined
-      customerSubmitting.value = false
+      if (request === controller) { request = undefined; customerSubmitting.value = false }
     }
   }
-  function stopCustomerVerification() {
-    verificationGeneration += 1
-    if (customerVerificationPollTimer !== undefined)
-      window.clearTimeout(customerVerificationPollTimer)
-    customerVerificationPollTimer = undefined
-    registrationRequest?.abort()
-    verificationRequest?.abort()
-    verificationRequest = undefined
+  async function sendCustomerSignup() {
+    if (disposed || customerSubmitting.value || request) return
+    if (!customerPhoneVerified.value || !sessionToken || !verifiedPhone) { customerStatus.value = 'Confirme seu WhatsApp primeiro.'; return }
+    if (Date.now() >= expiresAt) { expire(); return }
+    const name = normalizePersonName(customerForm.name), email = normalizeEmail(customerForm.email)
+    if (!isValidPersonName(name)) { customerStatus.value = 'Informe um nome válido.'; return }
+    if (!isValidEmail(email, true)) { customerStatus.value = 'Informe um e-mail válido.'; return }
+    if (!customerForm.sex) { customerStatus.value = 'Selecione o sexo.'; return }
+    const heightCm = customerForm.heightCm
+    if (heightCm !== undefined && (!Number.isFinite(heightCm) || heightCm < 80 || heightCm > 250)) { customerStatus.value = 'Informe uma altura válida entre 80 e 250 cm.'; return }
+    const current = generation, controller = new AbortController()
+    request = controller
+    customerSubmitting.value = true
+    customerStatus.value = 'Concluindo cadastro…'
+    try {
+      const token = sessionToken
+      const whatsapp = await finishCustomerPhoneSignup({ code: customerVerificationCode.value, sessionToken: token, name, email, sex: customerForm.sex, heightCm }, controller.signal)
+      if (disposed || current !== generation || controller.signal.aborted) return
+      await options.onAuthenticated?.(token, { name, whatsapp, email }, controller.signal)
+      if (disposed || current !== generation || controller.signal.aborted) return
+      customerVerificationComplete.value = true
+      closeCustomerSignup()
+    } catch (error) {
+      if (current === generation) customerStatus.value = error instanceof Error ? error.message : 'Não foi possível concluir o cadastro.'
+    } finally {
+      if (request === controller) { request = undefined; customerSubmitting.value = false }
+    }
   }
   function closeCustomerSignup() {
-    stopCustomerVerification()
-    signupGooglePhotoUrl.value = ''
-    signupGoogleCredential.value = ''
-    customerStatus.value = ''
-    customerVerificationLink.value = ''
-    customerVerificationCode.value = ''
     const confirmed = customerVerificationComplete.value
-    customerVerificationComplete.value = false
+    stopCustomerVerification()
+    signupGooglePhotoUrl.value = ''; signupGoogleCredential.value = ''
+    customerStatus.value = ''; customerVerificationComplete.value = false
     options.onClose(confirmed)
   }
-  if (options.active)
-    watch(
-      options.active,
-      (active) => {
-        if (!active) stopCustomerVerification()
-      },
-      { flush: 'sync' },
-    )
+  function returnFromWhatsApp() {
+    if (!document.hidden && customerVerificationLink.value) void pollCustomerVerification()
+    else window.clearTimeout(timer)
+  }
+  function changeSignupPhone() {
+    stopCustomerVerification()
+    customerForm.whatsapp = ''
+    customerForm.name = ''
+    customerStatus.value = ''
+  }
+  if (typeof window !== 'undefined') window.addEventListener?.('focus', returnFromWhatsApp)
+  if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', returnFromWhatsApp)
+  if (options.active) watch(options.active, active => { if (!active) stopCustomerVerification() }, { flush: 'sync' })
   onScopeDispose(() => {
     disposed = true
+    window.removeEventListener?.('focus', returnFromWhatsApp)
+    document.removeEventListener?.('visibilitychange', returnFromWhatsApp)
     stopCustomerVerification()
   })
-  return {
-    customerForm,
-    signupContact,
-    signupGooglePhotoUrl,
-    signupGoogleCredential,
-    signupStep,
-    customerStatus,
-    customerVerificationLink,
-    customerVerificationCode,
-    customerVerificationComplete,
-    customerSubmitting,
-    pollCustomerVerification,
-    continueSignupContact,
-    sendCustomerSignup,
-    closeCustomerSignup,
-    stopCustomerVerification,
-  }
+  return { customerForm, signupContact, signupGooglePhotoUrl, signupGoogleCredential, signupStep, customerStatus, customerVerificationLink,
+    customerVerificationCode, customerVerificationComplete, customerPhoneVerified, customerVerificationChecking, customerSubmitting,
+    pollCustomerVerification, continueSignupContact, sendCustomerSignup, closeCustomerSignup, stopCustomerVerification, changeSignupPhone }
 }

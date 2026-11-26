@@ -418,6 +418,9 @@ export function useFitpesoApp() {
     customerStatus,
     customerVerificationLink,
     customerVerificationComplete,
+    customerPhoneVerified,
+    customerVerificationChecking,
+    changeSignupPhone,
     customerSubmitting,
     pollCustomerVerification,
     continueSignupContact,
@@ -444,12 +447,11 @@ export function useFitpesoApp() {
       applyCustomerProfile(profile)
       requireProfileSelection()
     },
-    onAuthenticated: (sessionToken, profile) => {
-      try {
-        sessionStorage.setItem('fitpeso-customer-session', sessionToken)
-      } catch {
-        /* armazenamento indisponível */
-      }
+    onAuthenticated: async (sessionToken, _profile, signal) => {
+      const profile = await loadCustomerProfile(sessionToken, signal)
+      if (signal?.aborted || !showCustomerSignup.value) return
+      sessionStorage.setItem('fitpeso-customer-session', sessionToken)
+      sessionStorage.removeItem('fitpeso-google-session')
       applyCustomerProfile(profile)
     },
     active: computed(
@@ -825,7 +827,7 @@ export function useFitpesoApp() {
                   } catch { return '' }
                 })()
                 customerStatus.value =
-                  'Conta Google confirmada. Complete seu cadastro. O WhatsApp será solicitado ao enviar um pedido de treinamento.'
+                  'Confirme seu WhatsApp para continuar o cadastro. O vínculo com o Google será tratado separadamente.'
                 await nextTick()
                 document.getElementById('customer-name')?.focus()
                 return
@@ -1188,16 +1190,11 @@ export function useFitpesoApp() {
   function openCustomerSignupFromLogin(contact = loginIdentifier.value) {
     clearPendingWhatsAppLogin()
     const identifier = contact.trim()
-    signupContact.value = identifier
-    // O contato já foi validado na tela unificada; apresentar somente os dados
-    // complementares do novo cadastro e manter a confirmação do WhatsApp.
-    signupStep.value = identifier ? 2 : 1
-    if (identifier.includes('@')) {
-      customerForm.email = identifier
-    } else if (identifier) {
-      customerForm.whatsapp = identifier
-      customerForm.email = ''
-    }
+    stopCustomerVerification()
+    signupContact.value = identifier.includes('@') ? '' : identifier
+    signupStep.value = 1
+    customerForm.whatsapp = ''
+    customerForm.email = identifier.includes('@') ? identifier : ''
     showCustomerLogin.value = false
     showCustomerSignup.value = true
   }
@@ -1488,6 +1485,9 @@ export function useFitpesoApp() {
     customerStatus,
     customerVerificationLink,
     customerVerificationComplete,
+    customerPhoneVerified,
+    customerVerificationChecking,
+    changeSignupPhone,
     customerSubmitting,
     goBackFromTitle,
     closeCustomerSignup,

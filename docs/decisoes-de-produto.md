@@ -71,3 +71,7 @@ Script de backfill: `scripts/backfill-trainer-cities.mjs` (dry-run por padrão, 
 ## 26/11/2026 — Solicitar inclusão de município
 
 Solicitação anônima de município/UF, sem armazenar contatos do solicitante; uma solicitação por município/UF. Administrador aprova ou rejeita no cadastro de cidades. Aprovação disponibiliza a cidade para cadastro, mas o seletor público ainda exige personal ativo. Cadastro continua exigindo cidade ativa. Não há notificação automática, validação IBGE ou persistência de rascunho nesta fase.
+
+## Cadastro inicial do cliente — WhatsApp primeiro
+
+Confirmar WhatsApp antes de liberar demais campos; nome de exibição recebido pela Beta é sugestão editável, não nome civil comprovado. A nova interface só conclui com prova validada. Registro legado mantido por compatibilidade; novas contas Google usam confirmação de telefone no formulário, com vinculação Google a revisar.

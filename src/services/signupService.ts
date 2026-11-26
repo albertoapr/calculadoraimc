@@ -141,3 +141,17 @@ export async function queryTrainerSignup(code: string, browserToken: string, sig
     method: 'POST', body: { code, browserToken }, signal,
   })
 }
+
+export async function startCustomerPhoneSignup(whatsapp: string, sessionToken: string, signal?: AbortSignal) {
+  const result = await requestApi<{ started?: boolean; verificationCode?: string; expiresAt?: number; error?: string }>('/api/signup/start-phone', { method: 'POST', signal, body: { whatsapp, sessionToken } })
+  if (!result.ok || !result.body.started || !result.body.verificationCode || !result.body.expiresAt) throw apiError(result, 'Não foi possível iniciar a confirmação.')
+  return { code: result.body.verificationCode, expiresAt: result.body.expiresAt }
+}
+export async function checkCustomerPhoneSignup(code: string, sessionToken: string, signal?: AbortSignal) {
+  return requestApi<{ verified?: boolean; expired?: boolean; whatsapp?: string; name?: string }>('/api/signup/status-phone', { method: 'POST', signal, body: { code, sessionToken } })
+}
+export async function finishCustomerPhoneSignup(payload: { code: string; sessionToken: string; name: string; email: string; sex: 'masculino' | 'feminino'; heightCm?: number }, signal?: AbortSignal) {
+  const result = await requestApi<{ registered?: boolean; authenticated?: boolean; whatsapp?: string; error?: string }>('/api/customers/register', { method: 'POST', body: payload, signal })
+  if (!result.ok || !result.body.registered || !result.body.authenticated || !result.body.whatsapp) throw apiError(result, 'Não foi possível concluir o cadastro.')
+  return result.body.whatsapp
+}

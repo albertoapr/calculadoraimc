@@ -3,14 +3,14 @@ import { useFitpesoContext } from '../../composables/fitpesoContext'
 import HomeHeader from '../layout/HomeHeader.vue'
 const {
   theme,
-  navigateTo,
   customerForm,
   signupContact,
-  signupGooglePhotoUrl,
   signupStep,
   customerStatus,
   customerVerificationLink,
-  customerVerificationComplete,
+  customerPhoneVerified,
+  customerVerificationChecking,
+  changeSignupPhone,
   customerSubmitting,
   goBackFromTitle,
   closeCustomerSignup,
@@ -45,17 +45,18 @@ const {
       class="form login-step-form"
       @submit.prevent="continueSignupContact"
     >
-      <p class="field-wide intro">Informe seu WhatsApp ou e-mail para iniciar o cadastro.</p>
+      <p class="field-wide intro">Informe seu WhatsApp para iniciar o cadastro.</p>
       <label class="field field-wide" for="signup-contact"
-        ><span class="field-label">WhatsApp ou e-mail</span>
+        ><span class="field-label">WhatsApp</span>
         <input
           id="signup-contact"
           v-model="signupContact"
           name="signupContact"
-          autocomplete="username"
-          type="text"
-          maxlength="254"
-          placeholder="(21) 99999-9999 ou seu@email.com"
+          autocomplete="tel"
+          type="tel"
+          inputmode="tel"
+          maxlength="20"
+          placeholder="(21) 99999-9999"
           required
         />
       </label>
@@ -63,21 +64,8 @@ const {
         {{ customerSubmitting ? 'Preparando confirmação…' : 'Continuar' }}
       </button>
     </form>
-    <form v-else-if="!customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
-      <div v-if="signupGooglePhotoUrl" class="field-wide" style="display: flex; justify-content: center; padding: 0.5rem 0">
-        <img
-          :src="signupGooglePhotoUrl"
-          alt="Foto do seu perfil Google"
-          referrerpolicy="no-referrer"
-          width="88"
-          height="88"
-          style="width: 88px; height: 88px; border-radius: 50%; object-fit: cover"
-        />
-      </div>
-      <p class="field-wide intro">
-        Informe seu nome para concluir o cadastro. O WhatsApp é opcional agora e será obrigatório
-        quando você enviar uma solicitação de treinamento.
-      </p>
+    <form v-else-if="customerPhoneVerified && !customerVerificationLink" class="form" @submit.prevent="sendCustomerSignup">
+      <p class="field-wide intro">WhatsApp confirmado. Confira seu nome de exibição e complete seus dados.</p>
       <label class="field field-wide" for="customer-name"
         ><span class="field-label">Seu nome</span>
         <input
@@ -93,10 +81,12 @@ const {
         />
       </label>
       <label class="field field-wide" for="customer-whatsapp"
-        ><span class="field-label">WhatsApp com DDD <span>opcional no cadastro</span></span>
+        ><span class="field-label">WhatsApp confirmado</span>
         <input
           id="customer-whatsapp"
-          v-model="customerForm.whatsapp"
+          :value="customerForm.whatsapp"
+          readonly
+          aria-readonly="true"
           name="customerWhatsapp"
           type="tel"
           autocomplete="tel"
@@ -120,13 +110,13 @@ const {
       <label class="field field-wide" for="customer-sex"><span class="field-label">Sexo</span><select id="customer-sex" v-model="customerForm.sex" required><option value="" disabled>Selecione o sexo</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></label>
       <label class="field field-wide" for="customer-height"><span class="field-label">Altura (cm)</span><input id="customer-height" v-model.number="customerForm.heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" placeholder="Ex.: 172" /><small>Sua altura é importante para calcular o IMC e outros indicadores da avaliação física.</small></label>
       <button class="primary-button field-wide" type="submit" :disabled="customerSubmitting">
-        {{ customerSubmitting ? 'Preparando cadastro…' : customerForm.whatsapp ? 'Confirmar WhatsApp' : 'Concluir cadastro' }}
+        {{ customerSubmitting ? 'Concluindo cadastro…' : 'Concluir cadastro' }}
       </button>
     </form>
     <div v-else class="customer-signup-confirmation">
       <p class="status" role="status" aria-live="polite">{{ customerStatus }}</p>
       <a
-        v-if="!customerVerificationComplete"
+        v-if="customerVerificationLink"
         class="primary-button customer-verification-link"
         :href="customerVerificationLink"
         target="_blank"
@@ -134,32 +124,18 @@ const {
         >Confirmar WhatsApp</a
       >
       <button
-        v-if="!customerVerificationComplete"
+        v-if="customerVerificationLink"
+        :disabled="customerVerificationChecking"
         class="secondary-button"
         type="button"
         @click="pollCustomerVerification"
       >
-        Código já enviado
+        {{ customerVerificationChecking ? 'Verificando…' : 'Já enviei a mensagem' }}
       </button>
-      <button v-else class="primary-button" type="button" @click="closeCustomerSignup">
-        Concluir cadastro
-      </button>
-      <small
-        >O botão abre uma conversa com a Beta e prepara o número, o código e o nome informados para
-        concluir a confirmação.</small
-      >
+      <button class="secondary-button" type="button" @click="changeSignupPhone">Alterar número</button>
+      <small>Envie a mensagem pela conta WhatsApp informada. A Beta confirma o número e retorna o nome de exibição, quando disponível.</small>
     </div>
-    <p v-if="customerStatus && !customerVerificationLink" class="status" role="alert">
-      {{ customerStatus }}
-    </p>
-    <a
-      v-if="!customerVerificationLink"
-      href="/cadastro/personal"
-      @click.prevent="navigateTo('/cadastro/personal')"
-      class="secondary-button field-wide customer-signup-trainer-link"
-    >
-      Cadastrar-me como personal
-    </a>
+    <button v-if="customerPhoneVerified" class="back-button" type="button" @click="changeSignupPhone">Alterar número</button>
     <button class="back-button" type="button" @click="closeCustomerSignup">Início</button>
     <div
       class="box-footer"

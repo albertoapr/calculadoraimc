@@ -170,3 +170,7 @@ Opção Minha cidade não está na lista no cadastro inicial e Meu cadastro. Sol
 ## Histórico — etapa 4, confirmação web
 
 Cadastro web mantém comando /personal (ou /personal develop) e cria prova de navegador aleatória separada do código WhatsApp. Apenas o hash é armazenado; confirmação pela Beta ativa o perfil e cria sessão na mesma transação. Novo endpoint de status exige ambos os segredos; frontend consulta ao voltar/focar, com polling, botão Já enviei a mensagem, timeout e cancelamento ao sair. Mantido fluxo Beta já verificado e indicação. Prova mantida em memória na aba original; recarregar exige login convencional ou novo cadastro pendente. Google completo, reconciliação de identidade e demais itens 4.1/4.5–4.9 continuam pendentes de revisão. Testes acrescentados sem execução; não publicar em main antes de validação. Limite de API Gateway e concorrência precisam de teste de carga.
+
+## Histórico — cadastro de cliente com WhatsApp primeiro
+
+Tela inicial somente WhatsApp e Continuar; confirmação pela Beta antes dos demais dados. Nome de exibição (displayName, pushName ou name) preenche campo editável. Cadastro final usa prova verificada de navegador e cria sessão na mesma transação. A rota legada de registro permanece para compatibilidade, mas não é usada pelo novo formulário. Login Google existente preservado; vínculo automático de novas credenciais Google ainda pendente. A Beta deve informar número real do remetente e nome de exibição. Cadastro de personal separado. Build/testes/deploy pendentes.
