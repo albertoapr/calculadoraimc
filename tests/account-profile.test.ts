@@ -74,6 +74,7 @@ test('account profile loads and saves customer and trainer data outside the app 
           heightCm: 172,
         },
       }
+      account.editingProfile.cities.push('Nilópolis')
       await account.saveMyProfile()
       const update = calls.at(-1)!
       assert.equal(update.url, 'https://api.test/api/customers/update-profile')
@@ -97,6 +98,7 @@ test('account profile loads and saves customer and trainer data outside the app 
         authenticated: true,
         profile: {
           trainerId: 'trainer-1',
+          city: 'Mesquita', cities: ['Mesquita'],
           name: 'João Lima',
           whatsapp: '5521977776666',
           email: 'joao@example.com',
@@ -136,7 +138,7 @@ test('account profile loads and saves customer and trainer data outside the app 
         cref: '123-G/RJ',
         slug: 'joao-lima',
         academias: ['Academia Central'],
-        academyIds: [], tagline: '', aboutMe: '', education: '', workingMethod: '', pricing: '',
+        academyIds: [], cities: ['Mesquita', 'Nilópolis'], tagline: '', aboutMe: '', education: '', workingMethod: '', pricing: '',
       })
       assert.equal(applied?.trainerId, 'trainer-1')
     })

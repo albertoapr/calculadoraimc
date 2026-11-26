@@ -4,7 +4,7 @@ import { loadPersonFields, seedPersonFields, setVerifiedGooglePersonPhoto, saveP
 import { hasAdminRole, listAdminCustomers, promoteAdminCustomer, updateAdminCustomer } from './admin-customers'
 import { startGooglePhoneVerification, googlePhoneVerificationStatus, verifyGooglePhoneFromBeta } from './google-phone-verification'
 import { getActiveCityKeys, getCities, getCityKeys, writeCity } from './cities'
-import { listAcademies, queryAcademiesByCity, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
+import { listAcademies, getAcademy, createAcademy, updateAcademy, deactivateAcademy, parseSignupAcademies, planSignupAcademies } from './academies'
 import { startPhoneSignup, phoneSignupStatus, verifyPhoneSignupFromBeta } from './progressive-phone'
 import { beginEmailLogin, emailLoginStatus, verifyEmailLogin } from './email-login'
 import { createWhatsAppMagicLink, type WhatsAppLinkRole } from './whatsapp-login-link'
@@ -1868,6 +1868,9 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
     const academyNames = [...new Set([...legacyNames, ...academyLinks.names])]
     if (academyNames.length > 5) return response(400, { error: 'Selecione no máximo cinco academias.' })
     const time = new Date().toISOString()
+    const versionOf = (city: string) => rows.find(row => row.city?.S === city)?.updatedAt?.S
+    const versionCondition = (city: string) => versionOf(city) ? ' AND updatedAt = :previousUpdatedAt' : ' AND attribute_not_exists(updatedAt)'
+    const versionValues = (city: string): Record<string, AttributeValue> => versionOf(city) ? { ':previousUpdatedAt': { S: versionOf(city)! } } : {}
     const changes: TransactWriteItem[] = previousCities.filter(city => cities.includes(city)).map(city => ({
       Update: {
         TableName: tableName, Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
@@ -1877,7 +1880,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
           (changeSlug ? ', slug = :slug' : '') +
           pageFields.filter(key => data[key] !== undefined).map(key => ', ' + key + ' = :' + key).join(''),
         ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone' +
-          (changeSlug ? (oldSlug ? ' AND slug = :oldSlug' : ' AND attribute_not_exists(slug)') : ''),
+          (changeSlug ? (oldSlug ? ' AND slug = :oldSlug' : ' AND attribute_not_exists(slug)') : '') + versionCondition(city),
         ExpressionAttributeNames: { '#name': 'name', '#active': 'active' },
         ExpressionAttributeValues: {
           ':name': { S: (data.name as string).trim().replace(/\s+/g, ' ') },
@@ -1888,7 +1891,7 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
           ':academias': { L: academyNames.map(name => ({ S: name })) },
           ':academyIds': { L: academyLinks.ids.map(id => ({ S: id })) }, ':updated': { S: time },
           ...Object.fromEntries(pageFields.filter(key => data[key] !== undefined).map(key => [':' + key, { S: (data[key] as string).trim() }])),
-          ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
+          ...versionValues(city), ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp },
         },
       },
     }))
@@ -1905,9 +1908,9 @@ async function updateTrainerProfile(event: Parameters<APIGatewayProxyHandler>[0]
       Item: { ...shared, city: { S: city } }, ConditionExpression: 'attribute_not_exists(trainerId)' } })
     for (const city of removedCities) changes.push({ Delete: { TableName: tableName,
       Key: { city: { S: city }, trainerId: { S: auth.profile!.trainerId } },
-      ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone',
+      ConditionExpression: '#active = :yes AND whatsappVerified = :yes AND whatsapp = :phone' + versionCondition(city),
       ExpressionAttributeNames: { '#active': 'active' },
-      ExpressionAttributeValues: { ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp } } } })
+      ExpressionAttributeValues: { ...versionValues(city), ':yes': { BOOL: true }, ':phone': { S: auth.profile!.whatsapp } } } })
     // Keep the canonical identity's legacy city pointer valid when removing its city.
     if (removedCities.length && auth.legacyPessoaId) {
       const role = (await listPersonProfiles(auth.legacyPessoaId)).find(profile => profile.tipo === 'PERSONAL')
@@ -4044,11 +4047,6 @@ async function consumeCode(data: Record<string, unknown> | null) {
     })
     return response(503, { error: 'Não foi possível validar o código agora.' })
   }
-}
-
-function normalizeAcademyLabel(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[—–]/g, '-')
-    .replace(/\s*-\s*/g, ' - ').trim().toLocaleLowerCase('pt-BR')
 }
 
 async function listPublicCities(registration: boolean) {
