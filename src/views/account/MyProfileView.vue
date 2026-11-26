@@ -10,6 +10,11 @@ import { useAccountSession } from '../../stores/accountSession'
 const { customerPhotoUrl } = storeToRefs(useAccountSession())
 import { useFitpesoContext } from '../../composables/fitpesoContext'
 const {
+  activeCities,
+  activeCitiesLoading,
+  activeCitiesError,
+  loadActiveCities,
+  registeredAcademies,
   profileAcademyOptions,
   addProfileAcademy,
   removeProfileAcademy,
@@ -26,6 +31,29 @@ const {
   logout,
 } = useFitpesoContext()
 
+const cityChoice = ref('')
+function addProfileCity() {
+  if (!activeCities.value.some(city => city.cityKey === cityChoice.value) ||
+      editingProfile.cities.includes(cityChoice.value) || editingProfile.cities.length >= 2) return
+  editingProfile.cities.push(cityChoice.value)
+  cityChoice.value = ''
+}
+function removeProfileCity(city: string) {
+  if (editingProfile.cities.length <= 1 || academiesLoading.value || academiesError.value) return
+  const linked = registeredAcademies.value.filter(academy => editingProfile.academyIds.includes(academy.academyId))
+  // Don't silently remove links whose city cannot be confirmed.
+  if (linked.length !== editingProfile.academyIds.length) {
+    editingProfileStatus.value = 'Há academias que precisam ser conferidas antes de remover cidades.'
+    return
+  }
+  const removed = linked.filter(academy => academy.city === city)
+  if (!window.confirm('Remover ' + city + '? As academias associadas nessa cidade também serão desvinculadas ao salvar.')) return
+  for (const academy of removed) {
+    editingProfile.academyIds = editingProfile.academyIds.filter(id => id !== academy.academyId)
+    editingProfile.academias = editingProfile.academias.filter(label => label !== academy.name && label !== `${academy.name} — ${academy.neighborhood}`)
+  }
+  editingProfile.cities = editingProfile.cities.filter(value => value !== city)
+}
 const manageOpen = ref(false)
 const manageBusy = ref(false)
 const manageStatus = ref('')
@@ -242,9 +270,25 @@ async function shareTrainerReferral() {
           />
         </label>
         <fieldset class="availability-group field-wide">
-            <legend>Academias onde atende (até 5)</legend>
+          <legend>Cidades de atuação</legend>
+          <small>Selecione pelo menos uma cidade, mesmo que não atenda em academia.</small>
+          <small v-if="activeCitiesError" role="alert">{{ activeCitiesError }} <button type="button" @click="loadActiveCities(true)">Tentar novamente</button></small>
+          <div class="public-academy-add">
+            <select v-model="cityChoice" aria-label="Adicionar cidade" :disabled="activeCitiesLoading">
+              <option value="">Selecione uma cidade</option>
+              <option v-for="city in activeCities" :key="city.cityId" :value="city.cityKey" :disabled="editingProfile.cities.includes(city.cityKey)">{{ city.name }}, {{ city.state }}</option>
+            </select>
+            <button type="button" class="secondary-button" :disabled="!cityChoice || editingProfile.cities.length >= 2" @click="addProfileCity">Adicionar</button>
+          </div>
+          <div v-for="city in editingProfile.cities" :key="city" class="public-academy-item">
+            <span>{{ city }}</span><button type="button" :disabled="editingProfile.cities.length <= 1 || academiesLoading || Boolean(academiesError)" @click="removeProfileCity(city)">Remover</button>
+          </div>
+          <small>Até duas cidades nesta fase.</small>
+        </fieldset>
+        <fieldset class="availability-group field-wide">
+            <legend>Academias onde atende (opcional, até 5)</legend>
             <small v-if="academiesError" role="alert">{{ academiesError }}</small>
-            <small v-else-if="!academiesLoading && !profileAcademyOptions.length">Nenhuma academia cadastrada na cidade do profissional.</small>
+            <small v-else-if="!academiesLoading && !profileAcademyOptions.length">Nenhuma academia disponível.</small>
             <div class="public-academy-add">
               <select v-model="profileAcademyChoice" aria-label="Selecionar academia">
                 <option value="">{{ academiesLoading ? 'Carregando academias…' : 'Selecione uma academia' }}</option>
@@ -297,7 +341,7 @@ async function shareTrainerReferral() {
         </label>
       </template>
       <small class="field-wide"
-        >Para alterar WhatsApp, e-mail ou endereço do perfil profissional, é necessária uma nova
+        >Para alterar WhatsApp ou e-mail, é necessária uma nova
         verificação com a Beta.</small
       >
       <button class="primary-button field-wide" type="submit" :disabled="editingProfileSaving || uploadingPhoto">

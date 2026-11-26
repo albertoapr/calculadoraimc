@@ -60,3 +60,8 @@ O modelo inicial proposto inclui identificador, nome, UF, slug e status da cidad
 ## 26/11/2026 — Cadastro simplificado do personal
 
 Aprovado o plano incremental em develop, com validação antes de publicar na main. Acompanhar em [Plano de cadastro simplificado](plano-cadastro-simplificado-personal.md).
+
+## 26/11/2026 — Relacionamentos independentes do personal
+
+- Personal N:N cidade, personal N:N academia e academia N:1 cidade. Pelo menos uma cidade; academia opcional. Adicionar academia implica vínculo com sua cidade; remover academia não remove cidade. Remoção de cidade desvincula as academias associadas mediante confirmação, protegendo pendências.
+- Implantação incremental: FitpesoTrainerCities com chaves trainerId e cityId e índice reverso TrainersByCity. Durante migração, FitpesoProfessionals permanece fonte de leitura; novas gravações sincronizam vínculos na mesma transação. Backfill e verificação antes de mudar a leitura e eliminar duplicação. Preservar IDs, vínculos e histórico. Limites mantidos inicialmente.

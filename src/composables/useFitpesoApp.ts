@@ -194,7 +194,7 @@ export function useFitpesoApp() {
     .map(academy => `${academy.name} — ${academy.neighborhood}`)
     .sort((a, b) => a.localeCompare(b, 'pt-BR')))
   const profileAcademyOptions = computed(() => registeredAcademies.value
-    .filter(academy => !editingProfile.cities.length || editingProfile.cities.includes(academy.city))
+    .filter(academy => activeCities.value.some(city => city.cityKey === academy.city) || editingProfile.cities.includes(academy.city))
     .map(academy => ({
       id: academy.academyId,
       label: `${academy.name} — ${academy.neighborhood}`,
@@ -205,6 +205,10 @@ export function useFitpesoApp() {
     const academy = profileAcademyOptions.value.find(item => item.id === academyId)
     if (!academy || editingProfile.academyIds.includes(academyId) ||
         editingProfile.academias.length >= 5) return
+    if (!editingProfile.cities.includes(academy.city)) {
+      if (editingProfile.cities.length >= 2) { editingProfileStatus.value = 'Escolha até duas cidades de atuação.'; return }
+      editingProfile.cities.push(academy.city)
+    }
     if (!editingProfile.academias.includes(academy.label)) editingProfile.academias.push(academy.label)
     editingProfile.academyIds.push(academyId)
     profileAcademyChoice.value = ''
@@ -591,7 +595,7 @@ export function useFitpesoApp() {
 
   watch([showTrainerSignup, viewMode], ([signup, screen]) => {
     if (signup || screen === 'my-profile') void refreshRegisteredAcademies()
-    if (signup || screen === 'admin-academies' || screen === 'admin-trainers') void loadActiveCities()
+    if (signup || screen === 'my-profile' || screen === 'admin-academies' || screen === 'admin-trainers') void loadActiveCities()
     if (screen === 'home') void loadPublicCities()
   }, { immediate: true })
   watch(() => [...trainerForm.cities], () => { signupAcademyChoice.value = '' })

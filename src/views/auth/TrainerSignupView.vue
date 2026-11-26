@@ -28,6 +28,7 @@ const {
 } = useFitpesoContext()
 
 const signupCity = ref('')
+const extraCity = ref('')
 const signupAcademyId = ref('')
 const cityByAcademy = ref<Record<string, string>>({})
 const newAcademies = ref<AcademyWrite[]>([])
@@ -38,7 +39,7 @@ const academyCreateError = ref('')
 const academyChoices = computed(() => [...registeredAcademies.value, ...newAcademies.value.map((academy, index) => ({ ...academy, academyId: `draft-${index}`, state: activeCities.value.find(city => city.cityKey === academy.city)?.state ?? '', createdAt: '', updatedAt: '' }))])
 const academyLabel = (academy: { name: string; neighborhood: string }) => `${academy.name} — ${academy.neighborhood}`
 const signupOptions = computed(() => academyChoices.value
-  .filter(academy => academy.city === signupCity.value)
+  .filter(academy => academy.city === signupCity.value || (extraCity.value && academy.city === extraCity.value))
   .sort((a, b) => academyLabel(a).localeCompare(academyLabel(b), 'pt-BR')))
 watch(signupCity, () => { signupAcademyId.value = ''; addingAcademy.value = false; academyCreateError.value = '' })
 watch(() => trainerForm.cities[0], city => {
@@ -49,7 +50,7 @@ function cityForAcademy(name: string) {
   return matches.find(academy => academy.city === cityByAcademy.value[name])?.city ??
     (matches.length === 1 ? matches[0]?.city : matches.find(academy => trainerForm.cities.includes(academy.city))?.city)
 }
-const actingCities = computed(() => [...new Set([signupCity.value, ...trainerForm.academias.map(cityForAcademy)].filter((city): city is string => Boolean(city)))])
+const actingCities = computed(() => [...new Set([signupCity.value, extraCity.value, ...trainerForm.academias.map(cityForAcademy)].filter((city): city is string => Boolean(city)))])
 const chosenAcademy = computed(() => signupOptions.value.find(academy => academy.academyId === signupAcademyId.value))
 const canAdd = computed(() => {
   const academy = chosenAcademy.value
@@ -220,6 +221,13 @@ function submitSignup() {
           {{ activeCitiesError }}
           <button type="button" class="secondary-button" @click="loadActiveCities(true)">Tentar novamente</button>
         </div>
+      <label class="field field-wide" for="signup-extra-city">
+        <span class="field-label">Outra cidade de atuação (opcional)</span>
+        <select id="signup-extra-city" v-model="extraCity" :disabled="activeCitiesLoading">
+          <option value="">Nenhuma</option>
+          <option v-for="city in activeCities" :key="city.cityId" :value="city.cityKey" :disabled="city.cityKey === signupCity">{{ city.name }}, {{ city.state }}</option>
+        </select>
+      </label>
       <details class="field-wide optional-signup-section" :open="Boolean(betaAcademyHint) || undefined">
         <summary>Academias onde atende (opcional)</summary>
         <small>Adicione até cinco academias, se desejar. Você também poderá fazer isso depois.</small>
@@ -232,7 +240,7 @@ function submitSignup() {
         <div class="public-academy-add">
           <select v-model="signupAcademyId" aria-label="Selecionar academia" :disabled="!signupCity || academiesLoading || Boolean(academiesError)">
             <option value="">Selecione uma academia</option>
-            <option v-for="academy in signupOptions" :key="academy.academyId" :value="academy.academyId">{{ academyLabel(academy) }}</option>
+            <option v-for="academy in signupOptions" :key="academy.academyId" :value="academy.academyId">{{ academyLabel(academy) }} ({{ academy.city }})</option>
           </select>
           <button type="button" class="secondary-button" :disabled="!canAdd" @click="addSignupAcademy">Adicionar</button>
         </div>

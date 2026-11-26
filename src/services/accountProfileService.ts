@@ -26,6 +26,7 @@ export async function updateAccountProfile(
         cref: string
         academias: string[]
         academyIds: string[]
+        cities?: string[]
         tagline?: string
         aboutMe?: string
         education?: string

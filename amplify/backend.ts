@@ -67,6 +67,18 @@ trainerAcademies.addGlobalSecondaryIndex({
   sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
   projectionType: dynamodb.ProjectionType.KEYS_ONLY,
 })
+const trainerCities = new dynamodb.Table(requestStack, 'FitpesoTrainerCities', {
+  partitionKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'cityId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.RETAIN,
+})
+trainerCities.addGlobalSecondaryIndex({
+  indexName: 'TrainersByCity',
+  partitionKey: { name: 'cityId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'trainerId', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL,
+})
 const trainerSlugs = new dynamodb.Table(requestStack, 'FitpesoTrainerSlugs', {
   partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },
   billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -149,6 +161,12 @@ backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
   actions: ['dynamodb:Query'],
   resources: [`${trainerAcademies.tableArn}/index/TrainersByAcademy`],
 }))
+trainerCities.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:Query', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:TransactWriteItems')
+backend.imcSubmit.resources.lambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: [`${trainerCities.tableArn}/index/TrainersByCity`],
+}))
+trainers.grant(backend.imcSubmit.resources.lambda, 'dynamodb:DeleteItem')
 trainerSlugs.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:TransactWriteItems', 'dynamodb:PutItem', 'dynamodb:DeleteItem')
 fitpesoRequests.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
 fitpesoProposals.grant(backend.imcSubmit.resources.lambda, 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:Query', 'dynamodb:TransactWriteItems')
@@ -182,6 +200,7 @@ backend.imcSubmit.addEnvironment('TRAINERS_TABLE', trainers.tableName)
 backend.imcSubmit.addEnvironment('CITIES_TABLE', cities.tableName)
 backend.imcSubmit.addEnvironment('ACADEMIES_TABLE', academies.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_ACADEMIES_TABLE', trainerAcademies.tableName)
+backend.imcSubmit.addEnvironment('TRAINER_CITIES_TABLE', trainerCities.tableName)
 backend.imcSubmit.addEnvironment('TRAINER_SLUGS_TABLE', trainerSlugs.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_USER_REQUESTS_TABLE', fitpesoRequests.tableName)
 backend.imcSubmit.addEnvironment('FITPESO_PROPOSALS_TABLE', fitpesoProposals.tableName)
@@ -458,6 +477,8 @@ backend.addOutput({
     trainerDirectory: {
       tableName: trainers.tableName,
       slugTableName: trainerSlugs.tableName,
+      trainerCitiesTableName: trainerCities.tableName,
+      citiesTableName: cities.tableName,
     },
     academyDirectory: {
       tableName: academies.tableName,

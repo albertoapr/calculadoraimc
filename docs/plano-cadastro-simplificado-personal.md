@@ -45,8 +45,8 @@ Regra: o endereço inicial é gerado automaticamente, mas o profissional pode pe
 | 3.3 | Solicitar inclusão de cidade | Pendente |
 | 3.4 | Cadastro sem academia | Implementado |
 | 3.5 | Preservar inclusão de academia | Implementado |
-| 3.6 | Adicionar cidades e academias posteriormente | Pendente |
-| 3.7 | Adequar seletor público | Pendente |
+| 3.6 | Adicionar cidades e academias posteriormente | Implementado |
+| 3.7 | Adequar seletor público | Implementado |
 
 ## Etapa 4 — Cadastro e autenticação
 
@@ -154,3 +154,7 @@ Primeira implementação: nascimento e CREF passam para Meu cadastro; sexo e Ins
 ## Histórico — etapa 2
 
 Endereço automático no cadastro web/Beta, sufixos numéricos e reserva condicional transacional. Personal pode editar o slug em Minha página profissional; endereços anteriores permanecem reservados ao mesmo trainerId e a página pública usa o slug atual (mantém query/hash). Alterações administrativas também preservam aliases. Cadastro convencional consulta WhatsApp existente e usa trava transacional compartilhada pelos fluxos de cadastro público. Testes de geração e regressão adicionados/ajustados, ainda não executados; validar concorrência, reenvio de confirmação e aliases em ambiente real. Não promover para main até requisitos de lançamento.
+
+## Histórico — relacionamentos cidade e academia
+
+Criada tabela FitpesoTrainerCities (trainerId, cityId), índice TrainersByCity e escrita transacional em paralelo à estrutura legada. Cadastro/edição web, Beta e administração sincronizam vínculos; academia opcional, cidade obrigatória. Remoção de cidade exige confirmação e verificação conservadora de pendências; adicionar academia inclui cidade, remover academia preserva cidade. Seletor público independe de academia, ainda usa a regra de personal ativo até a etapa 7. Limites atuais de duas cidades e cinco academias mantidos por compatibilidade. Migração histórica e troca das leituras para a nova tabela pendentes; nenhuma tabela antiga será apagada nesta etapa. Solicitação de nova cidade continua pendente (3.2/3.3). Build, testes e deploy não validados.
