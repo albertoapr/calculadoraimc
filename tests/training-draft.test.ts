@@ -36,8 +36,10 @@ test('training draft restores preferences and selection without storing contact 
     draft.selectedTrainerIds = ['personal-1']
     draft.trainingStartMinutes = 360
     draft.trainingEndMinutes = 540
-    await nextTick()
+    // The redirect and the current form must be saved immediately before leaving.
+    draft.awaitingLogin = true
     const saved = JSON.parse(values.get('fitpeso:training-draft:v1')!)
+    assert.equal(saved.awaitingLogin, true)
     assert.equal(saved.form.name, undefined)
     assert.equal(saved.form.phone, undefined)
     assert.equal(saved.form.email, undefined)
@@ -47,6 +49,7 @@ test('training draft restores preferences and selection without storing contact 
     setActivePinia(createPinia())
     const restored = second.run(() => useTrainingDraft())!
     assert.equal(restored.hasDraft, true)
+    assert.equal(restored.awaitingLogin, true)
     assert.equal(restored.form.age, '45')
     assert.equal(restored.form.city, 'Mesquita')
     assert.equal(restored.form.gymName, 'Academia Teste')
@@ -57,6 +60,9 @@ test('training draft restores preferences and selection without storing contact 
     assert.equal(restored.trainingEndMinutes, 540)
     assert.equal(restored.form.name, '')
     assert.equal(restored.form.shareContactConsent, false)
+    restored.awaitingLogin = false
+    assert.equal(JSON.parse(values.get('fitpeso:training-draft:v1')!).awaitingLogin, false)
+    assert.deepEqual(restored.selectedTrainerIds, ['personal-1'])
     restored.clearDraft()
     await nextTick()
     assert.equal(values.has('fitpeso:training-draft:v1'), false)

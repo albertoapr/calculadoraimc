@@ -120,7 +120,12 @@ export function useFitpesoApp() {
       try { sessionStorage.setItem('fitpeso-active-profile-role', role) } catch { /* sessao em memoria */ }
       profileChooserOpen.value = false
       profileChoiceRequired.value = false
-      goHome()
+      if (hasPendingTrainingLogin()) {
+        if (role === 'CLIENTE') await returnToRequestFormAfterLogin()
+        else goHome(true)
+      } else {
+        goHome()
+      }
     } catch (error) {
       profileSwitchError.value = error instanceof Error ? error.message : 'Não foi possível alterar o perfil.'
     } finally {
@@ -729,7 +734,7 @@ export function useFitpesoApp() {
     form.name = profile.name
     form.phone = profile.whatsapp
     form.email = profile.email
-    if (profile.dateOfBirth) {
+    if (profile.dateOfBirth && !trainingDraft.hasDraft) {
       const birth = new Date(`${profile.dateOfBirth}T00:00:00`)
       const today = new Date()
       let age = today.getFullYear() - birth.getFullYear()
@@ -783,7 +788,6 @@ export function useFitpesoApp() {
         customerLoginStatus.value = `Conectado como ${profile.email}. Seus dados foram preenchidos.`
         googleProfileStatus.value =
           'Cadastro carregado. Confira a disponibilidade e os dados antes de enviar.'
-        showCustomerLogin.value = false
         await returnToRequestFormAfterLogin()
       } catch (error) {
         try {
@@ -1020,9 +1024,18 @@ export function useFitpesoApp() {
     void nextTick(() => window.scrollTo(0, 0))
   }
 
-  function goHome() {
+  function hasPendingTrainingLogin() {
+    return trainingDraft.hasDraft && (
+      trainingDraft.awaitingLogin ||
+      requestLoginReturn.value ||
+      safeReturnPath(router.currentRoute.value.query.redirect) === '/solicitar-treinamento'
+    )
+  }
+
+  function goHome(ignoreRedirect = false) {
+    trainingDraft.awaitingLogin = false
     const returnPath = safeReturnPath(router.currentRoute.value.query.redirect)
-    if (returnPath && (customerSignedInName.value || trainerSignedInId.value)) {
+    if (!ignoreRedirect && returnPath && (customerSignedInName.value || trainerSignedInId.value)) {
       void router.replace(returnPath)
       return
     }
@@ -1052,21 +1065,17 @@ export function useFitpesoApp() {
   }
 
   function onCustomerSignupClosed(confirmed: boolean) {
-    if (requestLoginReturn.value && confirmed) {
+    if (hasPendingTrainingLogin() && confirmed) {
       showCustomerSignup.value = false
-      showRequestForm.value = true
-      viewMode.value = 'contact'
-      requestStep.value = 5
       if (customerSignedInName.value) {
-        showCustomerLogin.value = false
         customerLoginStatus.value = 'Cadastro confirmado. Você já está conectado.'
+        void returnToRequestFormAfterLogin()
       } else {
-        showCustomerLogin.value = true
-        customerLoginMethod.value = 'whatsapp'
-        customerLoginStatus.value =
-          'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+        void openCustomerLogin(true, 'whatsapp').then(() => {
+          customerLoginStatus.value =
+            'Cadastro confirmado. Entre para retornar à revisão da solicitação.'
+        })
       }
-      void nextTick(() => window.scrollTo(0, 0))
       return
     }
     goHome()
@@ -1074,6 +1083,7 @@ export function useFitpesoApp() {
 
   async function openCustomerLogin(fromRequest = false, method: 'google' | 'whatsapp' = 'google') {
     requestLoginReturn.value = fromRequest
+    trainingDraft.awaitingLogin = fromRequest && trainingDraft.hasDraft
     // O perfil nao e escolhido antes do login; a API devolve os perfis habilitados.
     loginAsTrainer.value = false
     changeLoginProfile()
@@ -1101,21 +1111,30 @@ export function useFitpesoApp() {
 
   async function returnToRequestFormAfterLogin() {
     const returnPath = safeReturnPath(router.currentRoute.value.query.redirect)
-    if (returnPath && !returnPath.startsWith('/solicitar-treinamento')) {
-      requestLoginReturn.value = false
-      await router.replace(returnPath)
+    if (!hasPendingTrainingLogin()) {
+      if (returnPath) {
+        requestLoginReturn.value = false
+        await router.replace(returnPath)
+      } else {
+        goHome()
+      }
       return
     }
-    if (!requestLoginReturn.value && !returnPath.startsWith('/solicitar-treinamento')) {
-      goHome()
+    // Keep the intent through profile selection; only a customer can submit.
+    if (profileChoiceRequired.value) return
+    if (!customerSignedInName.value || activeRole.value !== 'CLIENTE') {
+      goHome(true)
       return
     }
-    // Primeiro retorna à rota do rascunho, sem descartá-lo nem voltar à home.
+    // Restore the review before hiding login, to avoid the state watcher navigating home.
     viewMode.value = 'contact'
     showRequestForm.value = true
     requestStep.value = 5
-    await router.replace('/solicitar-treinamento')
+    selectingTrainersForDraft.value = false
+    showCustomerSignup.value = false
     showCustomerLogin.value = false
+    await router.replace('/solicitar-treinamento')
+    trainingDraft.awaitingLogin = false
     requestLoginReturn.value = false
     await nextTick()
     window.scrollTo(0, 0)

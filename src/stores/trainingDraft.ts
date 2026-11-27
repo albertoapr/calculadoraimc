@@ -47,6 +47,7 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
   const selectedTrainerIds = ref<string[]>([])
   const otherGymName = ref('')
   const hasDraft = ref(false)
+  const awaitingLogin = ref(false)
   const storageKey = 'fitpeso:training-draft:v1'
   const preferenceKeys = [
     'sessionsPerWeek',
@@ -101,6 +102,7 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
       if (typeof saved.otherGymName === 'string' && saved.otherGymName.length <= 200)
         otherGymName.value = saved.otherGymName
       hasDraft.value = true
+      awaitingLogin.value = saved.awaitingLogin === true
     }
   } catch {
     /* Storage is optional. */
@@ -108,6 +110,7 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
 
   function clearDraft() {
     hasDraft.value = false
+    awaitingLogin.value = false
     selectedTrainerIds.value = []
     otherGymName.value = ''
     try {
@@ -117,28 +120,33 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
     }
   }
 
+  function persistDraft() {
+    try {
+      if (!hasDraft.value) return
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          version: 1,
+          form: Object.fromEntries(preferenceKeys.map((key) => [key, form[key]])),
+          start: trainingStartMinutes.value,
+          end: trainingEndMinutes.value,
+          selectedTrainerIds: selectedTrainerIds.value,
+          otherGymName: otherGymName.value,
+          awaitingLogin: awaitingLogin.value,
+        }),
+      )
+    } catch {
+      /* Draft remains available in memory. */
+    }
+  }
+
   watch(
     [form, trainingStartMinutes, trainingEndMinutes, selectedTrainerIds, otherGymName, hasDraft],
-    () => {
-      try {
-        if (!hasDraft.value) return
-        sessionStorage.setItem(
-          storageKey,
-          JSON.stringify({
-            version: 1,
-            form: Object.fromEntries(preferenceKeys.map((key) => [key, form[key]])),
-            start: trainingStartMinutes.value,
-            end: trainingEndMinutes.value,
-            selectedTrainerIds: selectedTrainerIds.value,
-            otherGymName: otherGymName.value,
-          }),
-        )
-      } catch {
-        /* Draft remains available in memory. */
-      }
-    },
+    persistDraft,
     { deep: true },
   )
+  // Save the return intent and latest preferences before opening an external login link.
+  watch(awaitingLogin, persistDraft, { flush: 'sync' })
 
   return {
     form,
@@ -147,6 +155,7 @@ export const useTrainingDraft = defineStore('trainingDraft', () => {
     selectedTrainerIds,
     otherGymName,
     hasDraft,
+    awaitingLogin,
     clearDraft,
   }
 })

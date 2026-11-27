@@ -366,11 +366,10 @@ export function useAuthentication(options: AuthenticationOptions) {
           }
           applyTrainerSession(profile)
           trainerLoginDialog.value = false
-          showCustomerLogin.value = false
           clearPendingWhatsAppLogin()
           trainerLoginCode.value = ''
           trainerLoginToken.value = ''
-          goHome()
+          await returnToRequestFormAfterLogin()
         } else {
           const profile = await loadCustomerProfile(attempt.token, controller.signal)
           if (!isCurrent()) return
@@ -384,7 +383,6 @@ export function useAuthentication(options: AuthenticationOptions) {
           customerLoginError.value = ''
           customerLoginStatus.value = 'WhatsApp confirmado! Seus dados foram carregados.'
           showCustomerLoginDialog.value = false
-          showCustomerLogin.value = false
           clearPendingWhatsAppLogin()
           customerLoginCode.value = ''
           customerLoginSessionToken.value = ''
@@ -663,12 +661,7 @@ export function useAuthentication(options: AuthenticationOptions) {
         }
         emailLoginPending.value = false
         emailLoginPollTimer = undefined
-        showCustomerLogin.value = false
-        if (!trainer && requestLoginReturn.value) {
-          await returnToRequestFormAfterLogin()
-        } else {
-          goHome()
-        }
+        await returnToRequestFormAfterLogin()
         return
       }
     } catch {
@@ -694,7 +687,7 @@ export function useAuthentication(options: AuthenticationOptions) {
     if (!code) return
     // Remove the one-time code from history before making network requests.
     url.searchParams.delete('emailLoginCode')
-    void options.replaceUrl(url.pathname + url.search + url.hash)
+    await options.replaceUrl(url.pathname + url.search + url.hash)
     try {
       const { ok, body: result } = await verifyEmailSession(code)
       if (disposed) return
@@ -714,8 +707,7 @@ export function useAuthentication(options: AuthenticationOptions) {
         applyCustomerProfile(profile)
       }
       emailLoginPending.value = false
-      showCustomerLogin.value = false
-      goHome()
+      await returnToRequestFormAfterLogin()
     } catch (error) {
       emailLoginError.value =
         error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
@@ -751,9 +743,8 @@ export function useAuthentication(options: AuthenticationOptions) {
       }
       showCustomerLoginDialog.value = false
       trainerLoginDialog.value = false
-      showCustomerLogin.value = false
       emailLoginPending.value = false
-      goHome()
+      await returnToRequestFormAfterLogin()
     } catch (error) {
       emailLoginError.value = error instanceof Error ? error.message : 'Não foi possível confirmar o login.'
       loginStep.value = 1
