@@ -75,3 +75,7 @@ Solicitação anônima de município/UF, sem armazenar contatos do solicitante; 
 ## Cadastro inicial do cliente — WhatsApp primeiro
 
 Confirmar WhatsApp antes de liberar demais campos; nome de exibição recebido pela Beta é sugestão editável, não nome civil comprovado. A nova interface só conclui com prova validada. Registro legado mantido por compatibilidade; novas contas Google usam confirmação de telefone no formulário, com vinculação Google a revisar.
+
+## Cadastro do personal — WhatsApp primeiro
+
+Confirmar número pela Beta antes de disponibilizar formulário profissional; aproveitar nome de exibição editável e finalizar sem segunda confirmação. Reutilizar sessão de onboarding Beta e serviço de confirmação do cliente, distinguindo papéis. Cidades/academias e indicação preservadas. Login Google e migração de pendências legadas serão revisados na etapa de identidade.

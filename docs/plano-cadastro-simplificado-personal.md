@@ -174,3 +174,7 @@ Cadastro web mantém comando /personal (ou /personal develop) e cria prova de na
 ## Histórico — cadastro de cliente com WhatsApp primeiro
 
 Tela inicial somente WhatsApp e Continuar; confirmação pela Beta antes dos demais dados. Nome de exibição (displayName, pushName ou name) preenche campo editável. Cadastro final usa prova verificada de navegador e cria sessão na mesma transação. A rota legada de registro permanece para compatibilidade, mas não é usada pelo novo formulário. Login Google existente preservado; vínculo automático de novas credenciais Google ainda pendente. A Beta deve informar número real do remetente e nome de exibição. Cadastro de personal separado. Build/testes/deploy pendentes.
+
+## Histórico — cadastro do personal com WhatsApp primeiro
+
+Fluxo inicial igual ao cliente: WhatsApp, Continuar, confirmação Beta e somente então dados complementares com nome editável. Comando /personal por ambiente mantido; backend distingue papel do desafio, cria sessão de onboarding profissional somente após confirmação e reutiliza a transação de cadastro Beta já existente. Sem segunda mensagem; cidade, academias, slug automático e indicação preservados no payload. Links Beta existentes continuam válidos. Cadastro antigo da API mantido por compatibilidade; pendências profissionais legadas podem exigir suporte. Google e reconciliação de identidades ainda serão revisados. Testes e deploy pendentes.

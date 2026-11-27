@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, reactive, ref, watch, type Ref } from 'vue'
 import type { AcademyWrite } from '../services/academiesService'
-import { registerTrainer, redeemBetaTrainerSignup, completeBetaTrainerSignup, queryTrainerSignup } from '../services/signupService'
+import { redeemBetaTrainerSignup, completeBetaTrainerSignup, startCustomerPhoneSignup, checkCustomerPhoneSignup } from '../services/signupService'
 import {
   isValidBirthDate,
   isValidEmail,
@@ -25,6 +25,9 @@ export function useTrainerSignup(options: {
 }) {
   let disposed = false
   let registrationRequest: AbortController | undefined
+  let verifiedPhone = ''
+  let proofExpiresAt = 0
+  let generation = 0
 
   const signupAcademyChoice = ref('')
 
@@ -51,23 +54,27 @@ export function useTrainerSignup(options: {
   const betaAcademyHint = ref('')
 
   async function startBetaTrainerSignupFromLink() {
-    betaTrainerSignupToken.value = ''
     const url = new URL(window.location.href)
     const code = url.searchParams.get('betaSignupCode')
     if (!code) return
+    stopTrainerRegistration()
+    const current = generation
     url.searchParams.delete('betaSignupCode')
     // Remove the bearer proof before making the network request.
     await options.replaceUrl?.(url.pathname + url.search + url.hash)
     try {
       const body = await redeemBetaTrainerSignup(code)
-      if (disposed) return
+      if (disposed || current !== generation) return
       betaTrainerSignupToken.value = body.sessionToken
       trainerForm.phone = body.whatsapp
-      if (body.name && !trainerForm.name) trainerForm.name = body.name
+      verifiedPhone = body.whatsapp
+      proofExpiresAt = (body.expiresAt ?? Math.floor(Date.now() / 1000) + 900) * 1000
+      trainerForm.name = body.name?.trim() || linkedAccount.value?.name || ''
       if (body.city) {
         const activeCities = await options.getActiveCities?.()
-        if (!disposed && (!activeCities || activeCities.includes(body.city))) trainerForm.cities = [body.city]
+        if (!disposed && current === generation && (!activeCities || activeCities.includes(body.city))) trainerForm.cities = [body.city]
       }
+      if (disposed || current !== generation) return
       if (body.sexHint === 'masculino' || body.sexHint === 'feminino') trainerForm.sex = body.sexHint
       if (body.academyMatch === 'matched' && body.academyName && body.academyName.length <= 60) {
         trainerForm.academias = [body.academyName]
@@ -81,7 +88,7 @@ export function useTrainerSignup(options: {
       suggestTrainerSlug()
       trainerStatus.value = 'WhatsApp confirmado pela Beta. Confira seus dados; Instagram e CREF podem ser informados depois.'
     } catch (error) {
-      trainerStatus.value = error instanceof Error ? error.message : 'Link expirado. Solicite outro à Beta.'
+      if (current === generation) trainerStatus.value = error instanceof Error ? error.message : 'Link expirado. Solicite outro à Beta.'
     }
   }
 
@@ -90,7 +97,7 @@ export function useTrainerSignup(options: {
   const trainerSubmitting = ref(false)
   const trainerVerificationChecking = ref(false)
   const trainerVerificationPending = ref(false)
-  let attempt: { code: string; token: string; expiresAt: number; startedAt: number } | undefined
+  let attempt: { code: string; token: string; phone: string; expiresAt: number; startedAt: number } | undefined
   let pollTimer: number | undefined
   let pollRequest: AbortController | undefined
   function stopTrainerVerification() {
@@ -113,7 +120,7 @@ export function useTrainerSignup(options: {
     if (Date.now() >= current.expiresAt) {
       stopTrainerVerification()
       trainerVerificationLink.value = ''
-      trainerStatus.value = 'O código expirou. Clique em Criar meu perfil para gerar uma nova confirmação.'
+      trainerStatus.value = 'O código expirou. Clique em Continuar para confirmar novamente.'
       return
     }
     window.clearTimeout(pollTimer)
@@ -122,24 +129,25 @@ export function useTrainerSignup(options: {
     trainerVerificationChecking.value = true
     const timeout = window.setTimeout(() => controller.abort(), 12000)
     try {
-      const result = await queryTrainerSignup(current.code, current.token, controller.signal)
+      const result = await checkCustomerPhoneSignup(current.code, current.token, controller.signal)
       if (disposed || attempt !== current || controller.signal.aborted) return
       if (!result.ok) throw new Error('Confirmação temporariamente indisponível.')
       if (result.body.expired) {
         stopTrainerVerification()
         trainerVerificationLink.value = ''
         trainerStatus.value = 'O código expirou. Gere uma nova confirmação ou entre na sua conta.'
-      } else if (result.body.authenticated) {
-        trainerStatus.value = 'WhatsApp confirmado! Entrando na FitPeso…'
-        await options.onAuthenticated?.(current.token, controller.signal)
-        if (attempt === current && !controller.signal.aborted) {
-          stopTrainerVerification()
-          trainerVerificationLink.value = ''
-          trainerStatus.value = 'WhatsApp confirmado! Seu cadastro está ativo.'
-        }
+      } else if (result.body.verified && normalizeBrazilianPhone(result.body.whatsapp ?? '') === current.phone) {
+        verifiedPhone = current.phone
+        trainerForm.phone = current.phone
+        trainerForm.name = result.body.name?.trim() || linkedAccount.value?.name || ''
+        proofExpiresAt = current.expiresAt
+        betaTrainerSignupToken.value = current.token
+        stopTrainerVerification()
+        trainerVerificationLink.value = ''
+        trainerStatus.value = 'WhatsApp confirmado. Confira seu nome e complete o cadastro.'
       }
     } catch {
-      if (attempt === current && !disposed) trainerStatus.value = 'Aguardando confirmação. Você também pode entrar pelo menu Entrar se já confirmou seu WhatsApp.'
+      if (attempt === current && !disposed) trainerStatus.value = 'Aguardando confirmação da Beta. Tente novamente ao retornar.'
     } finally {
       window.clearTimeout(timeout)
       if (pollRequest === controller) {
@@ -157,6 +165,43 @@ export function useTrainerSignup(options: {
   if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', onTrainerVerificationReturn)
 
 
+  async function continueTrainerPhone() {
+    if (disposed || trainerSubmitting.value || trainerVerificationPending.value) return
+    const phone = normalizeBrazilianPhone(trainerForm.phone)
+    if (!phone) { trainerStatus.value = 'Informe um WhatsApp válido com DDD.'; return }
+    stopTrainerRegistration()
+    const current = generation
+    const controller = new AbortController()
+    registrationRequest = controller
+    trainerSubmitting.value = true
+    trainerStatus.value = 'Preparando confirmação…'
+    try {
+      const bytes = crypto.getRandomValues(new Uint8Array(32))
+      const token = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+      const challenge = await startCustomerPhoneSignup(phone, token, controller.signal, 'trainer')
+      if (disposed || current !== generation || controller.signal.aborted) return
+      const isDevelop = window.location.hostname === 'develop.fitpeso.com.br' ||
+        (window.location.hostname !== 'fitpeso.com.br' && import.meta.env.VITE_FITPESO_BRANCH === 'develop')
+      const message = isDevelop ? '/personal develop ' + challenge.code : '/personal ' + challenge.code
+      trainerVerificationLink.value = 'https://wa.me/5521971118383?text=' + encodeURIComponent(message)
+      attempt = { code: challenge.code, token, phone, expiresAt: challenge.expiresAt * 1000, startedAt: Date.now() }
+      trainerVerificationPending.value = true
+      trainerStatus.value = 'Envie a mensagem à Beta e retorne a esta tela.'
+      scheduleTrainerVerification(1500)
+    } catch (error) {
+      if (current === generation) trainerStatus.value = error instanceof Error ? error.message : 'Não foi possível iniciar a confirmação.'
+    } finally {
+      if (registrationRequest === controller) { registrationRequest = undefined; trainerSubmitting.value = false }
+    }
+  }
+  function changeTrainerPhone() {
+    stopTrainerRegistration()
+    trainerForm.phone = ''
+    trainerForm.name = ''
+    trainerStatus.value = ''
+    betaAcademyHint.value = ''
+  }
+
   function closeTrainerSignup() {
     stopTrainerRegistration()
     betaTrainerSignupToken.value = ''
@@ -168,7 +213,7 @@ export function useTrainerSignup(options: {
   function fillTrainerFromAccount() {
     const account = linkedAccount.value
     if (!account) return
-    trainerForm.name = account.name
+    if (!betaTrainerSignupToken.value) trainerForm.name = account.name
     trainerForm.email = account.email
     trainerForm.sex = account.sex
     trainerForm.dateOfBirth = account.dateOfBirth
@@ -225,8 +270,11 @@ export function useTrainerSignup(options: {
       trainerStatus.value = 'Código de indicação inválido. Abra novamente o link enviado pelo colega.'
       return
     }
-    if (account && !account.googleCredential) {
-      validationError = 'Para ativar o perfil com a mesma conta, entre novamente com Google.'
+    if (!betaTrainerSignupToken.value || phone !== verifiedPhone) {
+      validationError = 'Confirme seu WhatsApp antes de preencher os dados.'
+    } else if (Date.now() >= proofExpiresAt) {
+      changeTrainerPhone()
+      validationError = 'A confirmação expirou. Confirme o WhatsApp novamente.'
     } else if (!isValidPersonName(name)) validationError = 'Informe seu nome completo.'
     else if (sex && sex !== 'masculino' && sex !== 'feminino')
       validationError = 'Selecione Masculino ou Feminino.'
@@ -267,34 +315,14 @@ export function useTrainerSignup(options: {
         ...(referralCode.value ? { referralCode: referralCode.value } : {}),
         ...(account?.googleCredential ? { googleCredential: account.googleCredential } : {}),
       }
-      if (betaTrainerSignupToken.value) {
-        const sessionToken = await completeBetaTrainerSignup(
-          { ...payload, onboardingSessionToken: betaTrainerSignupToken.value },
-          controller.signal,
-        )
-        if (disposed || controller.signal.aborted) return
-        betaTrainerSignupToken.value = ''
-        trainerStatus.value = 'Perfil profissional ativado! Entrando na FitPeso…'
-        await options.onAuthenticated?.(sessionToken, controller.signal)
-      } else {
-        const body = await registerTrainer(payload, controller.signal)
-        if (disposed || controller.signal.aborted) return
-        // Match the environment selection used by the WhatsApp login command.
-        const isDevelop =
-          window.location.hostname === 'develop.fitpeso.com.br' ||
-          (window.location.hostname !== 'fitpeso.com.br' &&
-            import.meta.env.VITE_FITPESO_BRANCH === 'develop')
-        const message = isDevelop
-          ? `/personal develop ${body.verificationCode}`
-          : `/personal ${body.verificationCode}`
-        trainerVerificationLink.value = `https://wa.me/5521971118383?text=${encodeURIComponent(message)}`
-        trainerStatus.value = `Cadastro salvo. Envie a confirmação pelo WhatsApp e volte a esta tela. Seu perfil será ativado em https://fitpeso.com.br/personal/${body.slug || trainerForm.slug}.`
-        if (body.browserToken && /^[A-Za-z0-9_-]{43}$/.test(body.browserToken) && typeof body.expiresAt === 'number') {
-          attempt = { code: body.verificationCode, token: body.browserToken, expiresAt: body.expiresAt * 1000, startedAt: Date.now() }
-          trainerVerificationPending.value = true
-          scheduleTrainerVerification(1500)
-        }
-      }
+      const sessionToken = await completeBetaTrainerSignup(
+        { ...payload, onboardingSessionToken: betaTrainerSignupToken.value },
+        controller.signal,
+      )
+      if (disposed || controller.signal.aborted) return
+      trainerStatus.value = 'Perfil profissional ativado! Entrando na FitPeso…'
+      await options.onAuthenticated?.(sessionToken, controller.signal)
+      if (!controller.signal.aborted) betaTrainerSignupToken.value = ''
     } catch (error) {
       if (disposed || controller.signal.aborted) return
       trainerStatus.value =
@@ -305,9 +333,15 @@ export function useTrainerSignup(options: {
     }
   }
   function stopTrainerRegistration() {
+    generation++
     stopTrainerVerification()
     trainerVerificationLink.value = ''
+    betaTrainerSignupToken.value = ''
+    verifiedPhone = ''
+    proofExpiresAt = 0
     registrationRequest?.abort()
+    registrationRequest = undefined
+    trainerSubmitting.value = false
   }
   if (options.active)
     watch(
@@ -340,6 +374,8 @@ export function useTrainerSignup(options: {
     trainerVerificationChecking,
     trainerVerificationPending,
     pollTrainerVerification,
+    continueTrainerPhone,
+    changeTrainerPhone,
     trainerSubmitting,
     closeTrainerSignup,
     toggleTrainerCity,

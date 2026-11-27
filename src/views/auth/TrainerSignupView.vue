@@ -24,9 +24,9 @@ const {
   trainerVerificationChecking,
   trainerVerificationPending,
   pollTrainerVerification,
+  continueTrainerPhone,
+  changeTrainerPhone,
   trainerSubmitting,
-  setGoogleButtonContainer,
-  googleProfileStatus,
   goBackFromTitle,
   closeTrainerSignup,
   sendTrainerSignup,
@@ -163,18 +163,24 @@ function submitSignup() {
         perfil sem uma nova confirmação.
       </p>
       <p v-else class="intro">
-        Informe os dados básicos e confirme seu WhatsApp. Você poderá completar seu perfil depois.
+        Informe seu WhatsApp para iniciar o cadastro.
       </p>
     </header>
 
-    <form class="form contact-fields trainer-signup-form" @submit.prevent="submitSignup">
-      <div v-if="!betaTrainerSignupToken" class="google-fill field-wide">
-        <p>Complete nome e e-mail com sua conta Google</p>
-        <div :ref="setGoogleButtonContainer" class="google-button-container"></div>
-        <small v-if="googleProfileStatus" role="status" aria-live="polite">{{
-          googleProfileStatus
-        }}</small>
-      </div>
+    <form v-if="!betaTrainerSignupToken && !trainerVerificationLink" class="form login-step-form" @submit.prevent="continueTrainerPhone">
+      <label class="field field-wide" for="trainer-initial-phone">
+        <span class="field-label">WhatsApp</span>
+        <input id="trainer-initial-phone" v-model="trainerForm.phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="(21) 99999-9999" required />
+      </label>
+      <button class="primary-button field-wide" type="submit" :disabled="trainerSubmitting">{{ trainerSubmitting ? 'Preparando confirmação…' : 'Continuar' }}</button>
+    </form>
+    <div v-else-if="trainerVerificationLink" class="customer-signup-confirmation">
+      <a class="primary-button" :href="trainerVerificationLink" target="_blank" rel="noopener noreferrer">Confirmar WhatsApp com a Beta</a>
+      <button class="secondary-button" type="button" :disabled="trainerVerificationChecking" @click="pollTrainerVerification">{{ trainerVerificationChecking ? 'Verificando…' : 'Já enviei a mensagem' }}</button>
+      <button class="secondary-button" type="button" @click="changeTrainerPhone">Alterar número</button>
+      <small>Envie a mensagem pela conta informada. A confirmação é automática ao retornar.</small>
+    </div>
+    <form v-else class="form contact-fields trainer-signup-form" @submit.prevent="submitSignup">
       <label v-if="referralCode" class="field field-wide" for="trainer-referral">
         <span class="field-label">Indicado por outro personal</span>
         <input id="trainer-referral" :value="referralCode" readonly aria-readonly="true" />
@@ -195,11 +201,11 @@ function submitSignup() {
         />
       </label>
       <label class="field field-wide" for="trainer-phone"
-        ><span class="field-label">Telefone</span>
+        ><span class="field-label">WhatsApp confirmado</span>
         <input
           id="trainer-phone"
           v-model="trainerForm.phone"
-          :readonly="Boolean(betaTrainerSignupToken)"
+          readonly aria-readonly="true"
           name="trainerPhone"
           type="tel"
           autocomplete="tel"
@@ -260,7 +266,7 @@ function submitSignup() {
           + Cadastrar academia
         </button>
         <div v-if="addingAcademy" class="signup-new-academy">
-          <p>Não encontrou sua academia em {{ signupCity }}? Informe os dados abaixo. Ela será cadastrada após a confirmação do seu WhatsApp.</p>
+          <p>Não encontrou sua academia em {{ signupCity }}? Informe os dados abaixo. Ela será cadastrada ao concluir seu cadastro.</p>
           <label class="field field-wide" for="signup-new-academy-name">
             <span class="field-label">Nome da academia</span>
             <input id="signup-new-academy-name" v-model="newAcademyName" maxlength="55" autocomplete="organization" @keydown.enter.prevent="saveNewAcademy" />
@@ -308,22 +314,9 @@ function submitSignup() {
         {{ trainerSubmitting ? 'Salvando cadastro…' : 'Criar meu perfil' }}
         <span aria-hidden="true">→</span>
       </button>
-      <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">
-        {{ trainerStatus }}
-      </p>
-      <a
-        v-if="trainerVerificationLink"
-        class="primary-button field-wide"
-        :href="trainerVerificationLink"
-        target="_blank"
-        rel="noopener noreferrer"
-        >Confirmar WhatsApp com a Beta <span aria-hidden="true">→</span></a
-      >
-      <button v-if="trainerVerificationPending" type="button" class="secondary-button field-wide" :disabled="trainerVerificationChecking" @click="pollTrainerVerification">
-        {{ trainerVerificationChecking ? 'Verificando…' : 'Já enviei a mensagem' }}
-      </button>
-      <small v-if="trainerVerificationPending" class="field-wide">A confirmação é automática. Volte a esta tela depois de enviar a mensagem à Beta.</small>
+      <button class="secondary-button field-wide" type="button" :disabled="trainerSubmitting" @click="changeTrainerPhone">Alterar número</button>
     </form>
+    <p v-if="trainerStatus" class="status field-wide" role="status" aria-live="polite">{{ trainerStatus }}</p>
     <button class="back-button" type="button" @click="closeTrainerSignup">Início</button>
     <div
       class="box-footer"
