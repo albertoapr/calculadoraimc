@@ -142,8 +142,8 @@ export async function queryTrainerSignup(code: string, browserToken: string, sig
   })
 }
 
-export async function startCustomerPhoneSignup(whatsapp: string, sessionToken: string, signal?: AbortSignal) {
-  const result = await requestApi<{ started?: boolean; verificationCode?: string; expiresAt?: number; error?: string }>('/api/signup/start-phone', { method: 'POST', signal, body: { whatsapp, sessionToken } })
+export async function startCustomerPhoneSignup(whatsapp: string, sessionToken: string, signal?: AbortSignal, role: 'customer' | 'trainer' = 'customer') {
+  const result = await requestApi<{ started?: boolean; verificationCode?: string; expiresAt?: number; error?: string }>('/api/signup/start-phone', { method: 'POST', signal, body: { whatsapp, sessionToken, role } })
   if (!result.ok || !result.body.started || !result.body.verificationCode || !result.body.expiresAt) throw apiError(result, 'Não foi possível iniciar a confirmação.')
   return { code: result.body.verificationCode, expiresAt: result.body.expiresAt }
 }

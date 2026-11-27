@@ -3306,6 +3306,7 @@ async function verifyTrainerWhatsApp(data: Record<string, unknown> | null) {
       ConsistentRead: true,
     }))
     const item = codeResult.Item
+    if (item?.flow?.S === 'fitpeso-progressive-phone' && item.signupRole?.S === 'trainer') return verifyProgressivePhone(data)
     if (item?.flow?.S !== 'trainer-whatsapp' || item.whatsapp?.S !== whatsapp) return response(200, { verified: false })
     const slug = item.slug?.S ?? ''
     const trainerId = item.trainerId?.S

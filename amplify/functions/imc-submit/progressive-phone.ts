@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand, TransactWriteItemsCommand, TransactionCanceledException, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb'
 import type { APIGatewayProxyEvent } from 'aws-lambda'
 import { findPersonIdByIdentification } from './identity-store'
+import { betaTrainersByPhone } from './beta-onboarding'
 
 /**
  * First-stage verification for progressive signup.
@@ -55,12 +56,13 @@ export function normalizeSignupDisplayName(value: unknown) {
 export async function startPhoneSignup(event: APIGatewayProxyEvent) {
   const data = parse(event)
   const whatsapp = normalizeWhatsApp(data?.whatsapp)
-  if (!whatsapp || !validSession(data?.sessionToken)) return reply(400, { error: 'Informe WhatsApp e sessão válidos.' })
+  const role = data?.role ?? 'customer'
+  if (!['customer', 'trainer'].includes(String(role)) || !whatsapp || !validSession(data?.sessionToken)) return reply(400, { error: 'Informe WhatsApp e sessão válidos.' })
   if (!process.env.FITPESO_CUSTOMERS_TABLE || !process.env.FITPESO_USUARIO_TABLE || !process.env.IMC_REQUESTS_TABLE) {
     return reply(503, { error: 'Cadastro temporariamente indisponível.' })
   }
   try {
-    if (await registered(whatsapp)) {
+    if (role === 'trainer' ? (await betaTrainersByPhone(whatsapp)).length > 0 : await registered(whatsapp)) {
       return reply(409, { registered: true, error: 'Este WhatsApp já possui cadastro. Entre na sua conta.' })
     }
     const code = randomBytes(16).toString('base64url')
@@ -68,7 +70,7 @@ export async function startPhoneSignup(event: APIGatewayProxyEvent) {
     await db.send(new PutItemCommand({
       TableName: process.env.IMC_REQUESTS_TABLE,
       Item: { codeHash: { S: hash(code) }, flow: { S: 'fitpeso-progressive-phone' },
-        whatsapp: { S: whatsapp }, sessionHash: { S: hash(data!.sessionToken as string) },
+        whatsapp: { S: whatsapp }, signupRole: { S: String(role) }, sessionHash: { S: hash(data!.sessionToken as string) },
         expiresAt: { N: String(expiresAt) } },
       ConditionExpression: 'attribute_not_exists(codeHash)',
     }))
@@ -112,21 +114,40 @@ export async function verifyProgressivePhone(data: Record<string, unknown> | nul
   if (!whatsapp || !validCode(data?.code)) return reply(200, { verified: false })
   if (!process.env.IMC_REQUESTS_TABLE) return reply(503, { error: 'Verificação indisponível.' })
   try {
-    await db.send(new UpdateItemCommand({
-      TableName: process.env.IMC_REQUESTS_TABLE, Key: { codeHash: { S: hash(data!.code as string) } },
+    const codes = process.env.IMC_REQUESTS_TABLE!
+    const key = { codeHash: { S: hash(data!.code as string) } }
+    const proof = (await db.send(new GetItemCommand({ TableName: codes, Key: key, ConsistentRead: true }))).Item
+    const now = Math.floor(Date.now() / 1000)
+    if (proof?.flow?.S !== 'fitpeso-progressive-phone' || proof.whatsapp?.S !== whatsapp || Number(proof.expiresAt?.N ?? 0) <= now)
+      return reply(200, { verified: false })
+    if (proof.consumedAt?.N) return reply(200, { verified: true })
+    const displayName = normalizeSignupDisplayName(data?.displayName ?? data?.pushName ?? data?.name)
+    const update = {
+      TableName: codes, Key: key,
       UpdateExpression: 'SET consumedAt = :now, displayName = :name',
       ConditionExpression: '#flow = :flow AND whatsapp = :phone AND expiresAt > :now AND attribute_not_exists(consumedAt)',
       ExpressionAttributeNames: { '#flow': 'flow' },
       ExpressionAttributeValues: {
-        ':flow': { S: 'fitpeso-progressive-phone' },
-        ':phone': { S: whatsapp },
-        ':name': { S: normalizeSignupDisplayName(data?.displayName ?? data?.pushName ?? data?.name) },
-        ':now': { N: String(Math.floor(Date.now() / 1000)) },
+        ':flow': { S: 'fitpeso-progressive-phone' }, ':phone': { S: whatsapp },
+        ':name': { S: displayName }, ':now': { N: String(now) },
       },
-    }))
+    }
+    if (proof.signupRole?.S === 'trainer') {
+      const sessionHash = proof.sessionHash?.S ?? ''
+      if (!/^[a-f0-9]{64}$/.test(sessionHash)) return reply(200, { verified: false })
+      // Only the original browser knows the token represented by this hash.
+      // Reuse the existing verified Beta trainer onboarding transaction.
+      await db.send(new TransactWriteItemsCommand({ TransactItems: [
+        { Update: update },
+        { Put: { TableName: codes, Item: {
+          codeHash: { S: sessionHash }, flow: { S: 'fitpeso-beta-trainer-signup-session' },
+          whatsapp: { S: whatsapp }, name: { S: displayName }, expiresAt: { N: String(now + 15 * 60) },
+        }, ConditionExpression: 'attribute_not_exists(codeHash)' } },
+      ] }))
+    } else await db.send(new UpdateItemCommand(update))
     return reply(200, { verified: true })
   } catch (error) {
-    if (error instanceof ConditionalCheckFailedException) return reply(200, { verified: false })
+    if (error instanceof ConditionalCheckFailedException || error instanceof TransactionCanceledException) return reply(200, { verified: false })
     console.error('[signup] Phone verification failed', { type: error instanceof Error ? error.name : typeof error })
     return reply(503, { error: 'Não foi possível confirmar o WhatsApp.' })
   }
@@ -148,7 +169,7 @@ export async function completePhoneSignup(data: Record<string, unknown> | null) 
   try {
     const proof = (await db.send(new GetItemCommand({ TableName: codes, Key: { codeHash: { S: hash(code) } }, ConsistentRead: true }))).Item
     const whatsapp = proof?.whatsapp?.S ?? ''
-    if (!whatsapp || proof?.flow?.S !== 'fitpeso-progressive-phone' || proof.sessionHash?.S !== sessionHash || !proof.consumedAt?.N || Number(proof.expiresAt?.N ?? 0) <= now)
+    if (!whatsapp || proof?.flow?.S !== 'fitpeso-progressive-phone' || (proof.signupRole?.S ?? 'customer') !== 'customer' || proof.sessionHash?.S !== sessionHash || !proof.consumedAt?.N || Number(proof.expiresAt?.N ?? 0) <= now)
       return reply(403, { error: 'Confirme seu WhatsApp antes de concluir o cadastro.' })
     if (proof.completedAt?.N) {
       const session = (await db.send(new GetItemCommand({ TableName: codes, Key: { codeHash: { S: sessionHash } }, ConsistentRead: true }))).Item
@@ -161,9 +182,9 @@ export async function completePhoneSignup(data: Record<string, unknown> | null) 
     await db.send(new TransactWriteItemsCommand({ TransactItems: [
       { Update: { TableName: codes, Key: { codeHash: { S: hash(code) } },
         UpdateExpression: 'SET completedAt = :now',
-        ConditionExpression: '#flow = :flow AND sessionHash = :hash AND whatsapp = :phone AND expiresAt > :now AND attribute_exists(consumedAt) AND attribute_not_exists(completedAt)',
+        ConditionExpression: '#flow = :flow AND (attribute_not_exists(signupRole) OR signupRole = :customer) AND sessionHash = :hash AND whatsapp = :phone AND expiresAt > :now AND attribute_exists(consumedAt) AND attribute_not_exists(completedAt)',
         ExpressionAttributeNames: { '#flow': 'flow' },
-        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-progressive-phone' }, ':hash': { S: sessionHash }, ':phone': { S: whatsapp }, ':now': { N: String(now) } } },
+        ExpressionAttributeValues: { ':flow': { S: 'fitpeso-progressive-phone' }, ':customer': { S: 'customer' }, ':hash': { S: sessionHash }, ':phone': { S: whatsapp }, ':now': { N: String(now) } } },
       { Put: { TableName: customers, Item: { whatsapp: { S: whatsapp }, name: { S: name }, sex: { S: sex },
         ...(email ? { email: { S: email } } : {}), ...(typeof height === 'number' ? { heightCm: { N: String(height) } } : {}),
         status: { S: 'ACTIVE' }, whatsappVerified: { BOOL: true }, verifiedAt: { S: timestamp }, createdAt: { S: timestamp } },
